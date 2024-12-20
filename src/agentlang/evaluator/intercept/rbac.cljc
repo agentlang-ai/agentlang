@@ -80,8 +80,7 @@
                store entity-name
                (cn/identity-attribute-name entity-name) id)]
       (if-not (seq res)
-        (do (log/warn (str "resource not found - " [entity-name id]))
-            inst)
+        (u/throw-ex (str "cannot assign " (name tag) " privileges, resource not found - " [entity-name id]))
         (do (when-not is-system-event
               (when-not (cn/user-is-owner? user res)
                 (u/throw-ex (str "only owner can assign " (name tag) " privileges - " [entity-name id]))))
@@ -96,9 +95,11 @@
 (defn- handle-instance-priv [user env opr inst is-system-event]
   (if (or (= opr :create) (= opr :delete))
     (handle-rbac-entity :instance (fn [res assignee]
-                                    (let [actions (when (= opr :create) (:Actions inst))]
+                                    (let [actions (when (= opr :create)
+                                                    (mapv u/string-as-keyword (:Actions inst)))]
                                       [(if actions
-                                         (cn/assign-instance-privileges res assignee actions)
+                                         (do (rbac/run-instance-privilege-assignment-callback res assignee actions)
+                                             (cn/assign-instance-privileges res assignee actions))
                                          (cn/remove-instance-privileges res assignee))]))
                         user env opr inst is-system-event)
     inst))
@@ -110,7 +111,8 @@
   (if (or (= opr :create) (= opr :delete))
     (handle-rbac-entity :ownership (fn [res assignee]
                                      [(if (= opr :create)
-                                        (cn/concat-owners res #{assignee})
+                                        (do (rbac/run-ownership-assignment-callback res assignee)
+                                            (cn/concat-owners res #{assignee}))
                                         (cn/remove-owners res #{assignee}))])
                         user env opr inst is-system-event)
     inst))
@@ -175,22 +177,25 @@
 
 (defn- apply-rbac-for-user [user env opr arg]
   (log/info (str "Applying rbac check " opr " for user " user))
-  (let [check (partial apply-rbac-checks user env opr arg)]
+  (let [check (partial apply-rbac-checks user env opr arg)
+        opr-read? (= opr :read)]
     (if-let [data (ii/data-input arg)]
-      (if (or (ii/skip-for-input? data) (= opr :read))
+      (if (or (ii/skip-for-input? data) opr-read?)
         arg
         (let [is-delete (= :delete opr)
               resource (if is-delete (second data) (first-instance data))
               check-on (if is-delete (first data) resource)
-              ign-refs (or is-delete (= :read opr))]
+              ign-refs (or is-delete opr-read?)]
           (check resource {:data check-on :ignore-refs ign-refs})))
       (if-let [data (seq (ii/data-output arg))]
         (if (ii/skip-for-output? data)
           arg
-          (if (= opr :read)
+          (if opr-read?
             (if-let [rs (seq (extract-read-results data))]
-              (when-let [rslt (seq (filter #(check % {:data % :ignore-refs true}) rs))]
-                (ii/assoc-data-output arg (set-read-results data rslt)))
+              (if ((opr actions) user {:data (first rs) :ignore-refs true})
+                arg
+                (when-let [rslt (seq (filter #(check % {:data % :ignore-refs true}) rs))]
+                  (ii/assoc-data-output arg (set-read-results data rslt))))
               arg)
             arg))
         arg))))

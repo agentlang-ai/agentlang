@@ -1,6 +1,4 @@
-(ns agentlang.inference.embeddings.internal.pgvector
-  (:import (org.postgresql.util PGobject PSQLException)
-           (com.pgvector PGvector))
+(ns agentlang.inference.embeddings.internal.sqlitevector
   (:require [clojure.string :as s]
             [next.jdbc :as jdbc]
             [cheshire.core :as json]
@@ -10,7 +8,7 @@
             [agentlang.inference.provider :as provider]
             [agentlang.inference.embeddings.internal.model :as model]))
 
-(def ^:private dbtype "postgresql")
+(def ^:private dbtype "sqlite")
 
 (defn open-connection [config]
   (merge {:dbtype dbtype} config))
@@ -20,37 +18,16 @@
     true))
 
 (defn- pg-floats
-  "Turn supplied collection of floating-point values into a PostgreSQL
-  PGVector object suitable for use as SQL param."
-  [float-coll]
-  (-> float-coll
-      float-array
-      (PGvector.)))
-
-(defn- pg-json
-  "Turn supplied JSON string into a PostgreSQL PGobject
+  "Turn supplied collection of floating-point values into a Sqlite
   object suitable for use as SQL param."
-  [json-string]
-  (doto (PGobject.)
-    (.setType "json")
-    (.setValue json-string)))
-
-(defn get-entities-classname [app-uuid]
-  (str "EntitySchema_" (s/replace app-uuid "-" "")))
+  [float-coll]
+  (str "[" (s/join "," (into [] (float-array float-coll))) "]"))
 
 (defn get-document-classname [app-uuid]
   (str "KnowledgeDoc_" (s/replace app-uuid "-" "")))
 
 (defn get-planner-classname [app-uuid]
   (str "PlannerTools_" (s/replace app-uuid "-" "")))
-
-(def ^:private delete-all-sql
-  "DELETE
-  FROM text_embedding
-  WHERE embedding_classname = ?")
-
-(defn- delete-all [db-conn classname]
-  (jdbc/execute! db-conn [delete-all-sql classname]))
 
 (def ^:private delete-selected-sql
   "DELETE
@@ -78,31 +55,27 @@
     embedding_%d,
     readers
   ) VALUES (
-    ?, ?, ?::json, ?, ?, ?
+    ?, ?, ?, ?, ?, ?
   )")
 
 (defn create-object [db-conn {classname :classname text-content :text-content
                               meta-content :meta-content embedding :embedding
-                              embedding-model :embedding-model :as obj}]
+                              embedding-model :embedding-model :as obj}] 
   (assert-object! obj)
   (let [create-object-sql (format create-object-sql-template (count embedding))]
     (jdbc/execute! db-conn [create-object-sql
                             classname
                             text-content
-                            (pg-json meta-content)
+                            (str meta-content)
                             embedding-model
                             (pg-floats embedding)
-                            (gs/active-user)])))
+                            (or (gs/active-user) "")])))
 
 (def ^:private find-similar-objects-sql-template
   "SELECT
-    text_content,
-    (embedding_%d <-> ?) AS euclidean_distance,
-    -1 * (embedding_%d <#> ?) AS inner_product,
-    1 - (embedding_%d <=> ?) AS cosine_similarity
+   text_content
   FROM text_embedding
-  WHERE embedding_classname = ? AND (readers IS NULL %s)
-  ORDER BY euclidean_distance
+  WHERE embedding_%d match ?
   LIMIT ?")
 
 (defn find-similar-objects [db-conn {classname :classname embedding :embedding :as obj} limit]
@@ -111,15 +84,9 @@
         dimension-count (count embedding)
         user (gs/active-user)
         find-similar-objects-sql (format find-similar-objects-sql-template
-                                         dimension-count
-                                         dimension-count
-                                         dimension-count
-                                         (if user (str "OR readers like '%%" user "%%'") ""))]
+                                         dimension-count)]
     (->> [find-similar-objects-sql
           embedding-sql-param
-          embedding-sql-param
-          embedding-sql-param
-          classname
           limit]
          (jdbc/execute! db-conn)
          (mapv :text_embedding/text_content))))
