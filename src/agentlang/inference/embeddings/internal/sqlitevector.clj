@@ -1,64 +1,65 @@
-(ns agentlang.inference.embeddings.internal.pgvector
-  (:import (org.postgresql.util PGobject)
-           (com.pgvector PGvector))
+(ns agentlang.inference.embeddings.internal.sqlitevector
   (:require [clojure.string :as s]
             [next.jdbc :as jdbc]
+            [agentlang.util :as u]
+            [agentlang.util.logger :as log]
             [agentlang.inference.embeddings.internal.common :as vc]
             [agentlang.global-state :as gs]))
 
-(def ^:private dbtype "postgresql")
+(def ^:private dbtype "sqlite")
+(def ^:private vec0-script-path "./scripts/maybe-download-vec0.sh")
 
 (defn open-connection [config]
-  (merge {:dbtype dbtype} config))
+  (jdbc/get-connection
+   (assoc
+    (dissoc config :llm-provider)
+    :enable_load_extension true :dbtype dbtype)))
 
 (defn close-connection [db-conn]
   (when (= dbtype (:dbtype db-conn))
+    (.close db-conn)
     true))
 
+(defn load-sqlite-vec0-extension [conn]
+  (log/info (str "checking if vec0 extension exists")) 
+  (try
+    (u/execute-script vec0-script-path)
+    (catch Exception ex
+      (log/error (str "load-sqlite-vec0-extension: vec0 sqlite extension installation failed"))
+      (log/error ex)))
+  (jdbc/execute! conn ["SELECT load_extension ('vec0');"])
+  (log/debug (str "vec0 extension loaded")))
+
 (def ^:private init-table
-  "CREATE TABLE IF NOT EXISTS text_embedding
+  "CREATE VIRTUAL TABLE IF NOT EXISTS text_embedding USING vec0
 (
-    embedding_uuid      UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
-    embedding_classname VARCHAR(128), -- may be repeated
-    text_content        TEXT        NOT NULL,
-    meta_content        JSON,
-    embedding_model     VARCHAR(64) NOT NULL,
-    embedding_1536      VECTOR(1536),
-    embedding_3072      VECTOR(3072),
-    created_at          TIMESTAMP   NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMP   NOT NULL DEFAULT NOW(),
-    readers             VARCHAR(64)
+    embedding_classname TEXT, -- may be repeated
+    text_content        TEXT       ,
+    meta_content        TEXT,
+    embedding_model     TEXT,
+    embedding_1536      float[1536],
+    readers             TEXT
 );")
 
 (defn initialize-vector-table [db-conn]
-  (jdbc/execute! db-conn ["CREATE EXTENSION IF NOT EXISTS vector"])
+  (load-sqlite-vec0-extension db-conn)
   (jdbc/execute! db-conn [init-table]))
 
-(defn- pg-floats
-  "Turn supplied collection of floating-point values into a PostgreSQL
-  PGVector object suitable for use as SQL param."
-  [float-coll]
-  (-> float-coll
-      float-array
-      (PGvector.)))
-
-(defn- pg-json
-  "Turn supplied JSON string into a PostgreSQL PGobject
+(defn- sqvec-floats
+  "Turn supplied collection of floating-point values into a Sqlite
   object suitable for use as SQL param."
-  [json-string]
-  (doto (PGobject.)
-    (.setType "json")
-    (.setValue json-string)))
+  [float-coll]
+  (str "[" (s/join "," (into [] (float-array float-coll))) "]"))
 
 (def ^:private delete-all-sql
   "DELETE
   FROM text_embedding
   WHERE embedding_classname = ?")
 
-(def ^:private delete-selected-sql
+(def ^:private delete-selected-sql-template
   "DELETE
   FROM text_embedding
-  WHERE embedding_classname = ? AND meta_content -> ? ->> 'type' = ?")
+  WHERE embedding_classname = ? AND json_extract(meta_content, '$.%s.type') = ?")
 
 (def ^:private create-object-sql-template
   "INSERT
@@ -70,67 +71,62 @@
     embedding_%d,
     readers
   ) VALUES (
-    ?, ?, ?::json, ?, ?, ?
+    ?, ?, ?, ?, ?, ?
   )")
 
 (def ^:private find-similar-objects-sql-template
   "SELECT
-    text_content,
-    (embedding_%d <-> ?) AS euclidean_distance,
-    -1 * (embedding_%d <#> ?) AS inner_product,
-    1 - (embedding_%d <=> ?) AS cosine_similarity
+   readers, text_content
   FROM text_embedding
-  WHERE embedding_classname = ? AND (readers IS NULL %s)
-  ORDER BY euclidean_distance
+  WHERE embedding_classname = ? AND embedding_%d match ?
   LIMIT ?")
 
 (def ^:private find-readers-by-document-sql
-  "SELECT readers FROM text_embedding WHERE embedding_classname = ? AND meta_content->>'DocumentId' = ?")
+  "SELECT readers FROM text_embedding WHERE embedding_classname = ? AND json_extract(meta_content, '$.DocumentId') = ?")
 
 (def ^:private update-readers-by-document-sql
-  "UPDATE text_embedding SET readers = ? WHERE embedding_classname = ? AND meta_content->>'DocumentId' = ?")
+  "UPDATE text_embedding SET readers = ? WHERE embedding_classname = ? AND json_extract(meta_content, '$.DocumentId') = ?")
 
 (defn delete-all [db-conn classname]
   (jdbc/execute! db-conn [delete-all-sql classname]))
 
 (defn delete-selected [db-conn app-uuid tag type]
-  (let [embedding-classname (vc/get-planner-classname app-uuid)]
+  (let [embedding-classname (vc/get-planner-classname app-uuid)
+        delete-selected-sql (format delete-selected-sql-template (name tag))]
     (jdbc/execute! db-conn [delete-selected-sql
                             embedding-classname
-                            (name tag)
                             (subs (str type) 1)])))
 
 (defn create-object [db-conn {classname :classname text-content :text-content
                               meta-content :meta-content embedding :embedding
-                              embedding-model :embedding-model :as obj}]
+                              embedding-model :embedding-model :as obj}] 
   (vc/assert-object! obj)
   (let [create-object-sql (format create-object-sql-template (count embedding))]
     (jdbc/execute! db-conn [create-object-sql
                             classname
                             text-content
-                            (pg-json meta-content)
+                            (str meta-content)
                             embedding-model
-                            (pg-floats embedding)
-                            (gs/active-user)])))
-
+                            (sqvec-floats embedding)
+                            (or (gs/active-user) "")])))
 
 (defn find-similar-objects [db-conn {classname :classname embedding :embedding :as obj} limit]
   (vc/assert-object! obj)
-  (let [embedding-sql-param (pg-floats embedding)
+  (let [embedding-sql-param (sqvec-floats embedding)
         dimension-count (count embedding)
         user (gs/active-user)
         find-similar-objects-sql (format find-similar-objects-sql-template
-                                         dimension-count
-                                         dimension-count
-                                         dimension-count
-                                         (if user (str "OR readers like '%%" user "%%'") ""))]
+                                         dimension-count)]
     (->> [find-similar-objects-sql
-          embedding-sql-param
-          embedding-sql-param
-          embedding-sql-param
           classname
+          embedding-sql-param
           limit]
          (jdbc/execute! db-conn)
+         (filter
+          #(let [readers (:text_embedding/readers %)]
+            (or
+             (= readers "")
+             (if user (s/includes? readers user) false))))
          (mapv :text_embedding/text_content))))
 
 (defn append-reader-for-rbac [db-conn app-uuid document-id user]
