@@ -44,7 +44,8 @@
   (doseq [cn [:Agentlang.Kernel.Lang
               :Agentlang.Kernel.Identity
               :Agentlang.Kernel.Rbac
-              :Agentlang.Kernel.Eval]]
+              :Agentlang.Kernel.Eval
+              :Agentlang.Core]]
     (store/force-init-schema (store/get-default-store) cn)))
 
 (defn finalize-component [component]
@@ -328,3 +329,8 @@
 
 (defn windows? []
   (= :windows (u/host-os)))
+
+(defn agents-enabled? []
+  (if (System/getenv "OPENAI_API_KEY")
+    true
+    false))
