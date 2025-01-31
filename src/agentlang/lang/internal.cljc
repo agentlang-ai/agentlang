@@ -598,3 +598,8 @@
               (or (keyword? n) (symbol? n))
               ;; is there an attributes map?
               (map? (get pat n))))))
+
+(def exec-graph-node-event :Agentlang.Kernel.Eval/ExecGraphNode)
+(defn exec-graph-node-event? [n]
+  (let [s (subs (str (make-path n)) 1)]
+    (s/starts-with? s "Agentlang")))

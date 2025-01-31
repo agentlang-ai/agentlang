@@ -8,6 +8,7 @@
             [agentlang.util.seq :as su]
             #?(:clj [agentlang.util.logger :as log]
                :cljs [agentlang.util.jslogger :as log])
+            [agentlang.global-state :as gs]
             [agentlang.lang :as ln]
             [agentlang.lang.raw :as raw]
             [agentlang.lang.name-util :as nu]
