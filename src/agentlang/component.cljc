@@ -992,12 +992,6 @@
 
     :else x))
 
-(defn unmake-instance [inst]
-  (if (an-instance? inst)
-    (let [n (instance-type-kw inst)]
-      {n (instance-attributes inst)})
-    inst))
-
 (defn- maps-to-insts
   "If any of the values in the attributes map itself is the
    map-encoded representation of a record or entity, convert
@@ -2476,6 +2470,13 @@
 
 (def register-inference (partial register-llm-construct :inferences))
 
+(defn inference? [n]
+  (let [[c n] (li/split-path n)
+        path [c (get-model-version c) :inferences n]]
+    (if (get-in @components path)
+      true
+      false)))
+
 (defn docstring [n]
   (:doc (fetch-meta n)))
 
@@ -2580,3 +2581,11 @@
     (or (map? obj) (string? obj)) obj
     (seqable? obj) (mapv cleanup-inst obj)
     :else obj))
+
+(defn unmake-instance
+  ([inst cleanup?]
+   (when (an-instance? inst)
+     (let [n (instance-type-kw inst)
+           attrs ((if cleanup? cleanup-inst instance-attributes) inst)]
+       {n attrs})))
+  ([inst] (unmake-instance inst false)))

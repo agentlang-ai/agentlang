@@ -4,11 +4,15 @@
             [agentlang.component :as cn]
             [agentlang.util :as u]
             [agentlang.evaluator :as e]
+            [agentlang.evaluator.exec-graph :as exg]
             [agentlang.lang
              :refer [component entity event relationship dataflow
-                     attribute pattern resolver]]
+                     attribute pattern resolver inference]]
+            [agentlang.lang.internal :as li]
             [agentlang.lang.raw :as lr]
             [agentlang.lang.syntax :as ls]
+            [agentlang.inference]
+            [agentlang.inference.service.model :as agent-model]
             #?(:clj [agentlang.test.util :as tu :refer [defcomponent]]
                :cljs [agentlang.test.util :as tu :refer-macros [defcomponent]])))
 
@@ -158,23 +162,119 @@
     {:create #(e/as-suspended (assoc % :Flag (odd? (:X %))))}
     :paths [:DfSusp/A]})
   (u/run-init-fns)
-  (let [chkb (fn [id inst]
-               (is (cn/instance-of? :DfSusp/B inst))
-               (is (= (:Id inst) id))
-               (is (= (:Y inst) (* 100 id))))
-        susp? (partial cn/instance-of? :Agentlang.Kernel.Eval/Suspension)
-        parse-susp-result (fn [r]
-                            (is (= :ok (:status r)))
-                            (is (cn/instance-of? :DfSusp/A (first (:result r))))
-                            (is (seq (:suspension-id r)))
-                            [(first (:result r)) (:suspension-id r)])
-        [a1 s1] (parse-susp-result (first (tu/eval-all-dataflows {:DfSusp/MakeB {:X 1}})))
-        [a2 s2] (parse-susp-result (first (tu/eval-all-dataflows {:DfSusp/MakeB {:X 2}})))]
-    (is susp? (tu/first-result {:Agentlang.Kernel.Eval/LoadSuspension {:Id s1}}))
-    (is susp? (tu/first-result {:Agentlang.Kernel.Eval/LoadSuspension {:Id s2}}))
-    (chkb 1 (tu/first-result {:Agentlang.Kernel.Eval/RestartSuspension
-                              {:Id s1 :Value (assoc a1 :Flag true)}}))
-    (chkb 2 (tu/first-result {:Agentlang.Kernel.Eval/RestartSuspension
-                              {:Id s2 :Value (assoc a2 :Flag false)}}))
-    (is (nil? (tu/result {:Agentlang.Kernel.Eval/RestartSuspension
-                          {:Id s1 :Value (assoc a1 :Flag false)}})))))
+  (exg/call-with-exec-graph
+   (fn []
+     (let [chkb (fn [id inst]
+                  (is (cn/instance-of? :DfSusp/B inst))
+                  (is (= (:Id inst) id))
+                  (is (= (:Y inst) (* 100 id))))
+           susp? (partial cn/instance-of? :Agentlang.Kernel.Eval/Suspension)
+           parse-susp-result (fn [r]
+                               (is (= :ok (:status r)))
+                               (is (cn/instance-of? :DfSusp/A (first (:result r))))
+                               (is (seq (:suspension-id r)))
+                               [(first (:result r)) (:suspension-id r)])
+           [a1 s1] (parse-susp-result (first (tu/eval-all-dataflows {:DfSusp/MakeB {:X 1 :EventContext {:ExecId "1"}}})))
+           g1 (exg/get-exec-graph "1")
+           _ (is (exg/suspended? g1))
+           [a2 s2] (parse-susp-result (first (tu/eval-all-dataflows {:DfSusp/MakeB {:X 2}})))]
+       (is susp? (tu/first-result {:Agentlang.Kernel.Eval/LoadSuspension {:Id s1}}))
+       (is susp? (tu/first-result {:Agentlang.Kernel.Eval/LoadSuspension {:Id s2}}))
+       (chkb 1 (first (exg/restart-suspension g1 (assoc a1 :Flag true))))
+       (chkb 2 (tu/first-result {:Agentlang.Kernel.Eval/RestartSuspension
+                                 {:Id s2 :Value (assoc a2 :Flag false)}}))
+       (is (nil? (tu/result {:Agentlang.Kernel.Eval/RestartSuspension
+                             {:Id s1 :Value (assoc a1 :Flag false)}})))))))
+
+(deftest exec-graph-101
+  (defcomponent :EG101
+    (entity :EG101/A {:Id :Identity :X :Int})
+    (entity :EG101/B {:Id :Identity :Y :Int})
+    (event :EG101/E {:Y :Int})
+    (dataflow
+     :EG101/F
+     {:EG101/A {:X :EG101/F.X} :as :A}
+     {:EG101/E {:Y :A.X}})
+    (dataflow :EG101/E {:EG101/B {:Y :EG101/E.Y}}))
+  (exg/delete-all-execution-graphs)
+  (exg/call-with-exec-graph
+   (fn []
+     (let [br (tu/first-result {:EG101/F {:X 100 :EventContext {:ExecId "0001"}}})
+           _   (is (cn/instance-of? :EG101/B br))
+           g (exg/get-exec-graph "0001")
+           _ (is (exg/graph? g))
+           nodes (exg/graph-nodes g)
+           g2 (second nodes)
+           restart-result01 (first (:result (exg/eval-nodes (exg/drop-nodes g 0))))
+           restart-result02 (first (:result (exg/eval-nodes (exg/drop-nodes g 1))))]
+       (is (cn/instance-of? :EG101/F (exg/graph-root-event g)))
+       (is (= 2 (count nodes)))
+       (is (exg/graph? g2))
+       (is (cn/instance-of? :EG101/E (exg/graph-root-event g2)))
+       (is (= 1 (count (exg/graph-nodes g2))))
+       (is (cn/same-instance? br (first (exg/node-result (last (exg/graph-nodes g2))))))
+       (is (apply = (mapv #(dissoc % :Id) [restart-result01 br restart-result02])))
+       (is (exg/delete-exec-graph "0001"))
+       (is (not (exg/get-exec-graph "0001")))))))
+
+(deftest exec-graph-with-agents
+  #?(:clj
+     (when (tu/agents-enabled?)
+       (defcomponent :EGA
+         (entity :EGA/Product {:Name :String :UnitPrice :Decimal})
+         (event :EGA/SendPriceNotification {:Product :EGA/Product :NotificationType {:oneof ["low" "high"]}})
+         (def price-notification (atom nil))
+         (defn set-price-notification [s]
+           (reset! price-notification s)
+           s)
+         (dataflow
+          :EGA/SendPriceNotification
+          [:eval '(agentlang.test.features06/set-price-notification :EGA/SendPriceNotification.NotificationType)]
+          :EGA/SendPriceNotification.Product)
+         (dataflow
+          :EGA/InitAgents
+          {:Agentlang.Core/LLM {:Name "abc"} :as :LLM}
+          (agent-model/agent-pattern-preprocess
+           {:Agentlang.Core/Agent
+            {:Name "agent-01"
+             :Type "planner"
+             :LLM "abc"
+             :Tools [:EGA/Product :EGA/SendPriceNotification]
+             :Input :EGA/CreateProduct
+             :UserInstruction (str "Create a new product from the given description. "
+                                   "If the price is less than 100, send a low price notification. "
+                                   "Otherwise send a high price notification.")}}))
+         (dataflow
+          :EGA/FindLLM
+          {:Agentlang.Core/AgentLLM
+           {:Agent? :EGA/FindLLM.Agent}}))
+       (let [crpr? (partial cn/instance-of? :EGA/CreateProduct)
+             exg? (partial cn/instance-of? :Agentlang.Kernel.Eval/ExecutionGraph)]
+         (exg/delete-all-execution-graphs)
+         (exg/call-with-exec-graph
+          (fn []
+            (let [agent? (partial cn/instance-of? :Agentlang.Core/Agent)
+                  prod? (partial cn/instance-of? :EGA/Product)
+                  a (tu/first-result {:EGA/InitAgents {:EventContext {:ExecId "EGA/InitAgents"}}})]
+              (is (agent? a))
+              (is (prod?
+                   (tu/first-result
+                    {:EGA/CreateProduct
+                     {:UserInstruction "Product name is \"abc001\" and unit cost is 89.33"
+                      :EventContext {:ExecId "0001"}}})))
+              (is (= "low" @price-notification)))))
+         (is (exg/graph? (exg/get-exec-graph "0001")))
+         (is (crpr? (exg/graph-root-event (exg/cleanup-graph (exg/get-exec-graph "0001")))))
+         (let [evts (exg/root-events)
+               f (partial exg/root-event-by-graph-key evts)]
+           (is (= :EGA/InitAgents (li/record-name (f "EGA/InitAgents"))))
+           (is (= :EGA/CreateProduct (li/record-name (f "0001")))))
+         (let [rs (tu/result {:Agentlang.Kernel.Eval/LookupAllExecutionGraphs {}})]
+           (is (= 2 (count rs)))
+           (is (every? exg/graph? (exg/get-graphs rs))))
+         (let [rs (tu/result {:Agentlang.Kernel.Eval/LookupRecentExecutionGraphs {:N 1}})]
+           (is (= 1 (count rs)))
+           (is (every? exg/graph? (exg/get-graphs rs))))
+         (let [r (tu/result {:Agentlang.Kernel.Eval/GetExecGraph {:Key "0001"}})]
+           (is (exg? r))
+           (is (crpr? (exg/graph-root-event (:Graph r)))))))))

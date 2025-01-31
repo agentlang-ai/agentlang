@@ -27,6 +27,7 @@
             [agentlang.evaluator.internal :as i]
             [agentlang.evaluator.root :as r]
             [agentlang.evaluator.suspend :as sp]
+            [agentlang.evaluator.exec-graph :as exg]
             [agentlang.evaluator.intercept.core :as interceptors]))
 
 (declare eval-all-dataflows evaluator-with-env safe-eval-pattern)
@@ -70,15 +71,23 @@
 (defn- dispatch-an-opcode [evaluator env opcode]
   (((opc/op opcode) i/dispatch-table) evaluator env (opc/arg opcode)))
 
-(defn dispatch [evaluator env {opcode :opcode}]
-  (if (map? opcode)
-    (dispatch-an-opcode evaluator env opcode)
-    (loop [opcs opcode, env env, result nil]
-      (if-let [opc (first opcs)]
-        (let [r (dispatch-an-opcode evaluator env opc)
-              env (or (:env r) env)]
-          (recur (rest opcs) env r))
-        result))))
+(defn dispatch [evaluator env {opcode :opcode pat :pattern subpat? :subpat?}]
+  (#?(:clj try :cljs do)
+   (let [result
+         (if (map? opcode)
+           (dispatch-an-opcode evaluator env opcode)
+           (loop [opcs opcode, env env, result nil]
+             (if-let [opc (first opcs)]
+               (let [r (dispatch-an-opcode evaluator env opc)
+                     env (or (:env r) env)]
+                 (recur (rest opcs) env r))
+                result)))]
+     (exg/add-step! pat result (not subpat?))
+     result)
+   #?(:clj
+      (catch Exception ex
+        (exg/add-step! pat {:status :error :result (.getMessage ex)} (not subpat?))
+        (throw ex)))))
 
 (def ok? i/ok?)
 (def dummy-result i/dummy-result)
@@ -104,18 +113,8 @@
       %)
    result))
 
-(def ^:private internal-event-flag
-  #?(:clj (Object.)
-     :cljs {:internal-event true}))
-
-(def ^:private internal-event-key :-*-internal-event-*-)
-
-(defn mark-internal [event-instance]
-  (assoc event-instance internal-event-key internal-event-flag))
-
-(defn internal-event? [event-instance]
-  (when (identical? internal-event-flag (internal-event-key event-instance))
-    true))
+(def mark-internal i/mark-internal)
+(def internal-event? i/internal-event?)
 
 (defn trigger-rules [tag insts]
   (loop [insts insts, env nil, result nil]
@@ -186,6 +185,10 @@
 (defn- fire-post-event-for [tag inst]
   (fire-post-events-for tag [inst]))
 
+(defn- init-exec-state [event-instance]
+  (and (exg/init event-instance)
+       (sp/init-suspension-id)))
+
 (def eval-after-create (partial fire-post-event-for :create))
 (def eval-after-update (partial fire-post-event-for :update))
 (def eval-after-delete (partial fire-post-event-for :delete))
@@ -198,12 +201,12 @@
         (gs/set-active-txn! txn)
         (reset! txn-set true))
       (try
-        (let [_ (sp/init-suspension-id)
+        (let [_ (init-exec-state event-instance)
               {susp-env :env susp-opcc :opcc} sp/suspension-info
               env (if susp-env (merge env susp-env) env)
               is-internal (or (internal-event? event-instance) internal-post-events)
               event-instance0 (if is-internal
-                                (dissoc event-instance internal-event-key)
+                                (dissoc event-instance i/internal-event-key)
                                 event-instance)
               event-instance (if-not (li/event-context event-instance0)
                                (assoc event-instance0 li/event-context gs/active-event-context)
@@ -230,7 +233,8 @@
                                    env0 (fire-post-events (:env result) is-internal)]
                                (assoc result :env env0)))]
           (interceptors/eval-intercept env0 event-instance continuation))
-        (finally (when @txn-set (gs/set-active-txn! nil)))))))
+        (finally (do (exg/finalize!)
+                     (when @txn-set (gs/set-active-txn! nil))))))))
 
 (defn- maybe-init-event [event-obj]
   (if (cn/event-instance? event-obj)
@@ -528,14 +532,16 @@
 
 (defn safe-eval-internal
   ([is-atomic event-obj]
-   (u/safe-ok-result
-    ((if is-atomic eval-all-dataflows-atomic eval-all-dataflows)
-     (mark-internal
-      (cn/make-instance event-obj)))))
+   (exg/call-as-internal
+    #(u/safe-ok-result
+      ((if is-atomic eval-all-dataflows-atomic eval-all-dataflows)
+       (mark-internal
+        (cn/make-instance event-obj))))))
   ([event-obj] (safe-eval-internal true event-obj)))
 
 (defn eval-internal [event-obj]
-  (eval-all-dataflows (mark-internal (cn/make-instance event-obj))))
+  (exg/call-as-internal
+   #(eval-all-dataflows (mark-internal (cn/make-instance event-obj)))))
 
 (defn safe-eval-pattern
   ([pattern]
@@ -543,18 +549,26 @@
   ([env pattern]
    (u/safe-ok-result (evaluate-pattern env pattern))))
 
+(defn- eval-patterns-helper [component pats eval-fn]
+  (let [event-name (ln/event (li/make-path component (li/unq-name)) {})]
+    (when (apply ln/dataflow event-name pats)
+      (try
+        (eval-fn {event-name {}})
+        (finally
+          (cn/remove-event event-name))))))
+
 (defn safe-eval-patterns
   ([is-atomic component pats]
-   (let [event-name (ln/event (li/make-path component (li/unq-name)) {})]
-     (when (apply ln/dataflow event-name pats)
-       (try
-         (safe-eval is-atomic {event-name {}})
-         (finally
-           (cn/remove-event event-name))))))
+   (eval-patterns-helper component pats (partial safe-eval is-atomic)))
   ([component pats] (safe-eval-patterns true component pats)))
+
+(defn evaluate-patterns-in-env [env component patterns]
+  (let [patterns (if (map? patterns) [patterns] patterns)]
+    (eval-patterns-helper component patterns (partial evaluate-pattern env))))
 
 (es/set-safe-eval-patterns! safe-eval-patterns)
 (es/set-safe-eval-atomic! (partial safe-eval true))
+(es/set-evaluate-patterns! evaluate-patterns-in-env)
 
 (defn eval-patterns [component pats]
   (let [event-name (ln/event (li/make-path component (li/unq-name)) {})]
