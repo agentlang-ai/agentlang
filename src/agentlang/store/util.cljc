@@ -8,8 +8,16 @@
 (def deleted-flag-col "AGENTLANG__IS_DELETED")
 (def deleted-flag-col-kw (keyword (str "_" deleted-flag-col)))
 
-(defn- sys-col? [n]
-  (= (s/upper-case n) deleted-flag-col))
+(def sql-keywords #{:select :where := :<> :> :>= :< :<=
+                    :and :or :between :in :count :group-by
+                    :join :left-join :right-join :having
+                    :order-by :limit :offset :as})
+
+(defn sql-keyword? [k]
+  (let [k (keyword (s/lower-case (name k)))]
+    (some #{k} sql-keywords)))
+
+(defn- sys-col? [n] (= (s/upper-case n) deleted-flag-col))
 
 (defn db-ident [k]
   (if (keyword? k)
@@ -52,6 +60,9 @@
 
 (defn attribute-column-name [aname]
   (str "_" (name aname)))
+
+(defn attribute-column-name-kw [aname]
+  (keyword (attribute-column-name aname)))
 
 (defn index-table-name
   "Construct the lookup table-name for the attribute, from the main entity
@@ -100,6 +111,11 @@
 
 (defn find-entity-schema [rec-name]
   (if-let [scm (cn/entity-schema rec-name)]
+    scm
+    (u/throw-ex (str "schema not found for entity - " rec-name))))
+
+(defn find-record-schema [rec-name]
+  (if-let [scm (cn/record-schema rec-name)]
     scm
     (u/throw-ex (str "schema not found for record - " rec-name))))
 
@@ -243,3 +259,10 @@
 
 (defn normalize-aggregates [results]
   (mapv normalize-aggregate results))
+
+(defn inst-priv-entity [entity-name]
+  (let [[c n] (li/split-path entity-name)]
+    (li/make-path c (str (name n) "_ipa"))))
+
+(defn inst-priv-table [entity-name]
+  (entity-table-name (inst-priv-entity entity-name)))

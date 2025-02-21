@@ -1,22 +1,26 @@
 (ns agentlang.test.util
-  (:require [agentlang.evaluator :as e]
-            [agentlang.evaluator.internal :as ei]
-            [agentlang.evaluator.intercept :as ec]
-            [agentlang.component :as cn]
-            [agentlang.lang.internal :as li]
-            #?(:clj  [clojure.test :refer [is]]
-               :cljs [cljs.test :refer-macros [is]])
-            [agentlang.util :as u]
-            [agentlang.store :as store]
-            [agentlang.rbac.core :as rbac]
-            [agentlang.lang.rbac :as lr]
-            [clojure.spec.gen.alpha :as gen]
+  (:require [clojure.spec.gen.alpha :as gen]
             [clojure.spec.alpha :as s]
             [cljc.java-time.local-date-time :as local-date-time]
             [cljc.java-time.local-date :as local-date]
             [cljc.java-time.local-time :as local-time]
             [cljc.java-time.zone-offset :refer [utc]]
-            [cljc.java-time.month :as month]))
+            [cljc.java-time.month :as month]
+            [agentlang.component :as cn]
+            [agentlang.lang.internal :as li]
+            [agentlang.interpreter :as intrp]
+            #?(:clj  [clojure.test :refer [is]]
+               :cljs [cljs.test :refer-macros [is]])
+            [agentlang.util :as u]
+            [agentlang.store :as store]
+            [agentlang.global-state :as gs]))
+
+(defn evaluate-dataflow [event-instance]
+  (intrp/evaluate-dataflow (store/get-default-store) event-instance))
+
+(defn invoke [event]
+  (let [event (if (map? event) event {event {}})]
+    (:result (evaluate-dataflow (cn/make-instance event)))))
 
 (defn- report-expected-ex [ex]
   (println (str "Expected exception in test: "
@@ -33,7 +37,7 @@
 (defn is-error [f]
   (is (try
         (if-let [r (maybe-result-map (f))]
-          (ei/error? r)
+          (:error r)
           true)
         #?(:clj (catch Exception ex
                   (report-expected-ex ex))
@@ -49,7 +53,8 @@
 
 (defn finalize-component [component]
   (finalize-kernel-components)
-  (store/force-init-schema (store/get-default-store) component))
+  (store/force-init-schema (store/get-default-store) component)
+  component)
 
 (defmacro defcomponent [component & body]
   `(do (agentlang.lang/component ~component)
@@ -79,17 +84,6 @@
   (if (keyword? evt)
     {evt {}}
     evt))
-
-(defn result [evt]
-  (fresult
-   (e/eval-all-dataflows
-    (maybe-as-map evt))))
-
-(def eval-all-dataflows e/eval-all-dataflows)
-
-(defn first-result [evt]
-  (let [r (result (maybe-as-map evt))]
-    (if (map? r) r (first r))))
 
 (defn sleep [msec f]
   #?(:clj
@@ -288,32 +282,19 @@
 (defn make-path [component-name record-name]
   (li/make-path [component-name record-name]))
 
-(defn not-found? [r]
-  (cond
-    (map? r) (= :not-found (:status r))
-    (vector? r) (not-found? (first r))
-    :else false))
-
 (defn sort-by-attr [attr xs]
   (sort #(compare (attr %1) (attr %2)) xs))
 
 (defn type-check [t]
   (partial cn/instance-of? t))
 
-(defn call-with-rbac
-  ([f finalize]
-   (is (rbac/init))
-   (is (= [:rbac] (ec/init-interceptors [:rbac])))
-   (try
-     (f)
-     (finally
-       (finalize))))
-  ([f] (call-with-rbac f ec/reset-interceptors!)))
-
-(defn finalize-events []
-  (lr/finalize-events eval-all-dataflows))
-
-(def reset-events! lr/reset-events!)
+(defn call-with-rbac [f]
+  (let [old-config (gs/get-app-config)]
+    (gs/merge-app-config! {:rbac-enabled true})
+    (try
+      (f)
+      (finally
+        (gs/set-app-config! old-config)))))
 
 (defn with-user [email event]
   (cn/assoc-event-context-user
@@ -323,7 +304,6 @@
       {event {}}
       event))))
 
-(def guid li/guid)
 (def path-identity li/path-identity)
 
 (defn windows? []

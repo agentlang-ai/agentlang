@@ -14,17 +14,14 @@
    [agentlang.store.db-common :as dbc]
    [agentlang.resolver.timer :as timer]
    [agentlang.resolver.registry :as rr]
-   [agentlang.compiler :as c]
    [agentlang.component :as cn]
-   [agentlang.evaluator :as e]
-   [agentlang.evaluator.intercept :as ei]
+   [agentlang.interpreter :as ev]
    [agentlang.global-state :as gs]
    [agentlang.lang :as ln]
    [agentlang.lang.rbac :as lr]
    [agentlang.lang.tools.loader :as loader]
    [agentlang.lang.tools.build :as build]
    [agentlang.auth :as auth]
-   [agentlang.rbac.core :as rbac]
    [agentlang.connections.client :as cc]
    [agentlang.inference.embeddings.core :as ec]
    [agentlang.inference.service.core :as isc]
@@ -47,23 +44,24 @@
         mp
         [mp])))))
 
-(defn store-from-config [config]
-  (or (:store-handle config)
-      (e/store-from-config (:store config))))
+(defn store-from-config [store-or-store-config]
+  (cond
+    (or (nil? store-or-store-config)
+        (map? store-or-store-config))
+    (or (:store-handle store-or-store-config)
+        (store/open-default-store store-or-store-config))
 
-(defn set-aot-dataflow-compiler! [config]
-  (when-let [store (store-from-config config)]
-    (cn/set-aot-dataflow-compiler!
-     (partial
-      c/maybe-compile-dataflow
-      (partial store/compile-query store)))))
+    (and (keyword? store-or-store-config)
+         (= store-or-store-config :none))
+    nil
+
+    :else
+    store-or-store-config))
 
 (defn load-components [components model-root config]
-  (set-aot-dataflow-compiler! config)
   (loader/load-components components model-root))
 
 (defn load-components-from-model [model model-root config]
-  (set-aot-dataflow-compiler! config)
   (loader/load-components-from-model
    model model-root
    (:load-model-from-resource config)))
@@ -157,8 +155,23 @@
           (catch InterruptedException _ nil))
         (recur)))))
 
+(defn- maybe-delete-model-config-instance [entity-name]
+  (let [evt-name (cn/crud-event-name entity-name :Delete)]
+    (gs/evaluate-dataflow-internal {evt-name {:Id 1}})))
+
+(defn save-model-config-instance [app-config model-name]
+  (when-let [ent (cn/model-config-entity model-name)]
+    (when-let [attrs (ent app-config)]
+      (maybe-delete-model-config-instance ent)
+      (let [evt-name (cn/crud-event-name ent :Create)]
+        (gs/evaluate-dataflow-internal {evt-name {:Instance {ent attrs}}})))))
+
+(defn save-model-config-instances []
+  (when-let [app-config (gs/get-app-config)]
+    (mapv (partial save-model-config-instance app-config) (cn/model-names))))
+
 (defn run-appinit-tasks! [evaluator init-data]
-  (e/save-model-config-instances)
+  (save-model-config-instances)
   (run-configuration-patterns! evaluator (gs/get-app-config))
   (run-standalone-patterns! evaluator)
   (trigger-appinit-event! evaluator init-data)
@@ -211,10 +224,7 @@
 
 (defn init-runtime [model config]
   (let [store (store-from-config config)
-        ev ((if (repl-mode? config)
-              e/internal-evaluator
-              e/public-evaluator)
-            store)
+        ev (partial ev/evaluate-dataflow store)
         ins (:interceptors config)
         embeddings-config (:embeddings config)]
     (when embeddings-config (ec/init embeddings-config))
@@ -232,10 +242,6 @@
         (run-appinit-tasks! ev (or (:init-data model)
                                    (:init-data config)))
         (when embeddings-config (isc/setup-agent-documents))
-        (when has-rbac
-          (when-not (rbac/init (merge (:rbac ins) (:authentication config)))
-            (log/error "failed to initialize rbac")))
-        (ei/init-interceptors ins)
         [ev store]))))
 
 (defn finalize-config [model config]
@@ -251,7 +257,7 @@
   ([args [[model model-root] config :as abc]]
    (or @runtime-inited
        (let [config (finalize-config model config)
-             store (e/store-from-config (:store config))
+             store (store-from-config (:store config))
              config (assoc config :store-handle store)
              components (or
                          (if model
@@ -386,12 +392,11 @@
 
 (defn invoke-migrations-event []
   (try
-    (let
-     [r (e/eval-all-dataflows
-         (cn/make-instance
-          {:Agentlang.Kernel.Lang/Migrations {}}))]
+    (let [r (ev/evaluate-dataflow
+             (cn/make-instance
+              {:Agentlang.Kernel.Lang/Migrations {}}))]
       (log/info (str "migrations result: " r))
-      r)
+      (:result r))
     (catch Exception ex
       (log/error (str "migrations event failed: " (.getMessage ex)))
       (throw ex))))
