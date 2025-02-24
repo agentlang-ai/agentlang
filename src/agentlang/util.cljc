@@ -78,8 +78,8 @@
 (defn ok-result
   ([result safe]
    (let [f (if (map? result) result (first result))]
-     (if (= :ok (:status f))
-       (:result f)
+     (if-let [rs (:result f)]
+       rs
        (let [msg (str "unexpected result: " result)]
          (if safe
            (do (log/warn msg) nil)
@@ -486,6 +486,9 @@
 (defn as-agent-tools [ks]
   (mapv (fn [k] {:name (subs (str k) 1)}) ks))
 
+(defn raise-not-implemented [fn-name]
+  (throw-ex "Not implemented - " fn-name))
+
 #?(:clj
     (defn execute-script
       [path]
@@ -494,3 +497,11 @@
         (let [exit-val (.waitFor process)]
           (log/info (str "Exit code: " exit-val)))
         (io/copy (io/reader (.getErrorStream process)) *out*))))
+
+(defn safe-partial [handler & args]
+  (let [f (apply partial args)]
+    (fn [& rest]
+      (try
+        (apply f rest)
+        (catch #?(:clj Exception :cljs :default) ex
+          (handler ex))))))

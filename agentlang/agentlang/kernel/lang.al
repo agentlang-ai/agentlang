@@ -29,7 +29,7 @@
 (attribute :Map {:check map?})
 (attribute :Edn {:check k/edn?})
 
-(attribute :Identity {:type :UUID :default u/uuid-string li/guid true})
+(attribute :Identity {:type :UUID :default u/uuid-string li/path-identity true})
 (attribute :Now {:type :DateTime :default dt/now})
 
 (attribute (k/event-context-attribute-name)
@@ -59,7 +59,7 @@
 
 (entity
  :Timer
- {:Name {:type :String :guid true}
+ {:Name {:type :String :id true}
   :Expiry :Int
   :ExpiryUnit {:oneof ["Seconds" "Minutes" "Hours" "Days"]
                :default "Seconds"}
@@ -114,7 +114,7 @@
                    :optional true}})
 
 ;; Base-type of model-configuration entities.
-(record :Config {:Id {:type :Int :guid true :default 1 :read-only true}})
+(record :Config {:Id {:type :Int :id true :default 1 :read-only true}})
 
 (defn- http-response? [x]
   (and (map? x)
@@ -125,17 +125,7 @@
 (record :Response {:HTTP {:check http-response? :optional true}})
 
 (r/register-resolvers
- [{:name :meta
-   :type :meta
-   :compose? false
-   :config {:agentlang-api
-            {:component component
-             :entity entity
-             :event event
-             :record record
-             :dataflow dataflow}}
-   :paths [:Agentlang.Kernel.Lang/LoadModelFromMeta]}
-  {:name :timer
+ [{:name :timer
    :type :timer
    :compose? true
    :paths [:Agentlang.Kernel.Lang/Timer]}

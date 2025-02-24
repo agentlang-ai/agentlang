@@ -10,18 +10,35 @@
 
 (def id-attr :__Id__)
 (def id-attr? :__Id__?)
+(def id-attr-s (str id-attr))
 (def with-types-tag :with-types)
+(def except-tag :case)
 
 (def path-attr :__path__)
 (def path-attr? :__path__?)
 
-(def parent-attr :__parent__)
+(def ^:private default-path "[]")
 
-(def guid :guid)
+(defn default-path? [s] (= s default-path))
+
+(def path-attr-spec
+  {:type :Agentlang.Kernel.Lang/String
+   :default default-path
+   :unique true
+   :indexed true})
+
+(def parent-attr :__parent__)
+(def parent-attr? :__parent__?)
+
+(def parent-attr-spec
+  {:type :Agentlang.Kernel.Lang/String
+   :optional true
+   :indexed true})
+
 (def path-identity :id)
 
-(def path-query-tag :?)
-(defn path-query-tag? [x] (= x :?))
+(defn contains-spec-to-path [spec parent-id]
+  (vec (assoc (reverse spec) 1 parent-id)))
 
 (def meta-attr :__instmeta__)
 (def meta-attr-spec {:type :Agentlang.Kernel.Lang/Map
@@ -115,8 +132,8 @@
 (defn parsed-path? [x]
   (and (coll? x) (not (map? x))))
 
-(def ^:private quote-tag :q#)
-(def ^:private unquote-tag :uq#)
+(def quote-tag :q#)
+(def unquote-tag :uq#)
 
 (defn quoted? [x]
   (and (vector? x)
@@ -128,6 +145,9 @@
 
 (defn as-quoted [x]
   [quote-tag x])
+
+(def quoted-value second)
+(def unquoted-value second)
 
 (defn special-form? [x]
   (and (vector? x)
@@ -204,11 +224,17 @@
     (first attr-scm)
     attr-scm))
 
+(def timeout-ms-tag :timeout-ms)
+(def ^:private instance-meta-keys [:as :meta :meta? :into])
+
+(defn normalize-instance-pattern [pat]
+  (apply dissoc pat instance-meta-keys))
+
 (defn record-name [pat]
   (if (name? pat)
     pat
     (when (map? pat)
-      (let [pat (dissoc pat :meta :as :meta?)
+      (let [pat (normalize-instance-pattern pat)
             n (ffirst (filter (fn [[_ v]] (map? v)) pat))]
         (when (or (name? n)
                   (and (string? n) (name? (keyword n))))
@@ -222,11 +248,11 @@
 
 (defn record-attributes [pat]
   (when (map? pat)
-    (let [pat (dissoc pat :meta :meta? :as)]
+    (let [pat (normalize-instance-pattern pat)]
       (first (filter map? (vals pat))))))
 
 (defn destruct-instance-pattern [pat]
-  (let [pat (dissoc pat :meta :meta? :as)]
+  (let [pat (normalize-instance-pattern pat)]
     [(first (keys pat)) (first (vals pat))]))
 
 (defn split-by-delim
@@ -382,14 +408,6 @@
 
 (defn unq-name []
   (keyword (gensym)))
-
-(def rel-tag :->)
-(def timeout-ms-tag :timeout-ms)
-
-(def ^:private instance-meta-keys [:as :with-types timeout-ms-tag rel-tag])
-
-(defn normalize-instance-pattern [pat]
-  (apply dissoc pat instance-meta-keys))
 
 (defn instance-pattern? [pat]
   (when (map? pat)
@@ -598,3 +616,35 @@
               (or (keyword? n) (symbol? n))
               ;; is there an attributes map?
               (map? (get pat n))))))
+
+(defn vec-to-path [v] (s/join "," v))
+(defn path-to-vec [s] (s/split s #","))
+
+(defn entity-name-from-path [path]
+  (let [n (second
+           (take
+            2
+            (reverse
+             (if (string? path)
+               (path-to-vec path)
+               path))))]
+    (if (string? n)
+      (keyword (subs n 1))
+      n)))
+
+(def ^:private alias-db #?(:clj (ThreadLocal.) :cljs (atom nil)))
+
+(defn- get-alias-db [] #?(:clj (.get alias-db) :cljs @alias-db))
+(defn- set-alias-db! [db] #?(:clj (.set alias-db db) :cljs (reset! alias-db db)))
+
+(defn register-alias! [relname entity-name alias]
+  (set-alias-db! (assoc (get-alias-db) [relname entity-name] alias)))
+
+(defn get-alias
+  ([relname entity-name]
+   (get (get-alias-db) [relname entity-name]))
+  ([entity-name]
+   (when-let [db (seq (get-alias-db))]
+     (second (first (filter (fn [[[_ en] v]] (= en entity-name)) db))))))
+
+(defn reset-alias-db! [] (set-alias-db! nil))

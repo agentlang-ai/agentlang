@@ -17,7 +17,6 @@
             [agentlang.util :as u]
             [agentlang.util.seq :as us]
             [agentlang.util.http :as http]
-            [agentlang.evaluator :as e]
             [agentlang.datafmt.json :as json]
             [agentlang.lang.internal :as li]
             [agentlang.global-state :as gs]
@@ -41,7 +40,7 @@
 (entity
  :Agentlang.Core/LLM
  {:Type {:type :String :default "openai"} ; e.g "openai"
-  :Name {:type :String :guid true :default #(us/generate-code 5)}
+  :Name {:type :String :id true :default #(us/generate-code 5)}
   :Config {:type :Map :optional true}
   ;; example config for openai:
   ;; {:ApiKey (agentlang.util/getenv "OPENAI_API_KEY")
@@ -113,7 +112,7 @@
 
 (entity
  :Agentlang.Core/Document
- {:Id {:type :UUID :default u/uuid-string :guid true}
+ {:Id {:type :UUID :default u/uuid-string :id true}
   :AppUuid {:type :UUID :default u/get-app-uuid}
   :Agent {:type :String :optional true}
   :Uri {:check document-uri?}
@@ -163,7 +162,7 @@
 
 (entity
  :Agentlang.Core/Agent
- {:Name {:type :String :guid true}
+ {:Name {:type :String :id true}
   :Type {:type :String :default "chat"}
   :Features {:check feature-list? :optional true}
   :AppUuid {:type :UUID :default u/get-app-uuid}
@@ -187,16 +186,16 @@
 (defn- eval-event
   ([event callback atomic?]
    (when-let [result (first ((if atomic?
-                               e/eval-all-dataflows-atomic
-                               e/eval-all-dataflows)
+                               gs/evaluate-dataflow-atomic
+                               gs/evaluate-dataflow)
                              event))]
-     (when (= :ok (:status result))
-       (callback (:result result)))))
+     (callback (:result result))))
   ([event callback] (eval-event event callback true))
   ([event] (eval-event event identity)))
 
 (defn- eval-internal-event [event & args]
-  (apply eval-event (e/mark-internal (cn/make-instance event)) args))
+  (gs/kernel-call
+   #(apply eval-event (cn/make-instance event) args)))
 
 (defn- preproc-agent-tools-spec [tools]
   (when tools
@@ -357,7 +356,7 @@
 
 (entity
  :Agentlang.Core/ChatSession
- {:Id {:type :String :guid true :default u/uuid-string}
+ {:Id {:type :String :id true :default u/uuid-string}
   :Messages {:check agent-messages?}})
 
 (relationship
@@ -400,7 +399,7 @@
 
 (entity
  :Agentlang.Core/Tool
- {:id {:type :UUID :guid true :default u/uuid-string}
+ {:id {:type :UUID :id true :default u/uuid-string}
   :name :String
   :type {:type :String :default "function"}
   :description {:type :String :optional true}
