@@ -12,6 +12,7 @@
 (def ^:private resolver-tag :-*-resolver-*-)
 (def ^:private dirty-tag :-*-dirty-*-)
 (def ^:private objstack-tag :-*-objstack-*-)
+(def ^:private eval-state-tag :-*-eval-state-*-)
 
 (def EMPTY {env-tag true})
 
@@ -52,7 +53,8 @@
 (defn bind-instance
   ([env rec-name instance]
    (if (and rec-name instance)
-     (let [insts (or (get-instances env rec-name) (list))]
+     (let [rec-name (li/split-path rec-name)
+           insts (or (get-instances env rec-name) (list))]
        (assoc env rec-name (conj insts instance)))
      (u/throw-ex (str "may not be a valid instance - " instance ", record-name is - " rec-name))))
   ([env instance]
@@ -140,7 +142,11 @@
   (let [parts (li/path-parts path)
         p (:path parts)]
     (cond
-      p (lookup-by-alias env p)
+      p
+      (let [obj (lookup-by-alias env p)]
+        (if-let [refs (seq (:refs parts))]
+          (get-in obj refs)
+          obj))
 
       (seq (:refs parts))
       (first (follow-reference env parts))
@@ -366,3 +372,12 @@
                          df-vals)]
      (into {} norm-vals)))
   ([env] (cleanup env true)))
+
+(defn bind-eval-state [env pattern pattern-count]
+  (assoc env eval-state-tag {:pattern pattern :count pattern-count}))
+
+(defn eval-state-counter [env]
+  (get-in env [eval-state-tag :count]))
+
+(defn eval-state-pattern [env]
+  (get-in env [eval-state-tag :pattern]))

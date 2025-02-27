@@ -15,7 +15,7 @@
   :LastName {:type :String
              :optional true}
   :Email {:type :Email
-          li/guid true}
+          li/path-identity true}
   :UserData {:type :Any :optional true}
   :AppId {:type :UUID
           :default u/uuid-string
@@ -41,14 +41,24 @@
 
 (entity
  :UserSession
- {:User {:type :String :guid true}
+ {:User {:type :String :id true}
   :LoggedIn :Boolean})
+
+(dataflow
+ :LookupUserSession
+ {:UserSession {:User? :LookupUserSession.User} :as [:U]}
+ :U)
 
 (entity
  :SessionCookie
- {:Id {:type :String :guid true}
+ {:Id {:type :String :id true}
   :UserData :Any
   :CreatedTimeMillis :Int64})
+
+(dataflow
+ :LookupSessionCookie
+ {:SessionCookie {:Id? :LookupSessionCookie.Id} :as [:C]}
+ :C)
 
 (event
  :UpdateUser

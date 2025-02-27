@@ -18,7 +18,16 @@
 
 (def ^:dynamic active-event-context nil)
 
+(defn call-with-event-context [ctx f]
+  (if ctx
+    (binding [active-event-context ctx]
+      (f))
+    (f)))
+
 (defn active-user [] (:User active-event-context))
+
+(defn active-session-info []
+  (get-in active-event-context [:UserDetails :session-info]))
 
 #?(:clj
    (def ^:private active-txn (ThreadLocal.))
@@ -41,8 +50,6 @@
   (reset! script-mode true))
 
 (defn in-script-mode? [] @script-mode)
-
-(def ^:dynamic audit-trail-mode nil)
 
 (def ^:dynamic migration-mode nil)
 
@@ -82,3 +89,46 @@
 (defn uninstall-standalone-patterns! [] (reset! standalone-patterns nil))
 
 (def fire-post-events (atom nil))
+
+(def ^:dynamic kernel-mode nil)
+
+(defn kernel-call [f]
+  (binding [kernel-mode true]
+    (f)))
+
+(defn rbac-enabled? []
+  (if kernel-mode
+    false
+    (:rbac-enabled @app-config)))
+
+(def ^:private evaluate-dataflow-fn (atom nil))
+(def ^:private evaluate-dataflow-internal-fn (atom nil))
+(def ^:private evaluate-pattern-fn (atom nil))
+
+(defn set-evaluate-dataflow-fn! [f] (reset! evaluate-dataflow-fn f))
+(defn set-evaluate-pattern-fn! [f] (reset! evaluate-pattern-fn f))
+
+(defn evaluate-dataflow [event-instance]
+  (@evaluate-dataflow-fn event-instance))
+
+(defn evaluate-dataflow-internal [event-instance]
+  (kernel-call #(evaluate-dataflow event-instance)))
+
+(defn evaluate-pattern
+  ([env pat] (@evaluate-pattern-fn env pat))
+  ([pat] (evaluate-pattern nil pat)))
+
+(def evaluate-patterns evaluate-dataflow)
+
+(defn evaluate-pattern-internal [env pat]
+  (kernel-call #(evaluate-pattern env pat)))
+
+(defn evaluate-dataflow-atomic
+  ([evaluator arg]
+   (let [txn (get-active-txn)]
+     (set-active-txn! nil)
+     (try
+       (evaluator arg)
+       (finally
+         (set-active-txn! txn)))))
+  ([event-instance] (evaluate-dataflow-atomic evaluate-dataflow event-instance)))

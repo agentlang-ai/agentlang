@@ -4,9 +4,6 @@
             [clojure.string :as s]
             [clojure.walk :as w]
             #?(:clj [clojure.core.async :as async])
-            [agentlang.compiler :as c]
-            [agentlang.compiler.context :as ctx]
-            [agentlang.compiler.rule :as rl]
             [agentlang.component :as cn]
             [agentlang.global-state :as gs]
             [agentlang.lang.internal :as li]
@@ -14,13 +11,12 @@
             [agentlang.lang.raw :as raw]
             [agentlang.lang.rbac :as lr]
             [agentlang.meta :as mt]
-            [agentlang.paths.internal :as pi]
             [agentlang.resolvers]
             [agentlang.resolver.registry :as rr]
             [agentlang.resolver.core :as rc]
             [agentlang.subs :as subs]
-            [agentlang.rule :as rule]
             [agentlang.util :as u]
+            [agentlang.store.util :as stu]
             #?(:clj [agentlang.util.logger :as log]
                :cljs [agentlang.util.jslogger :as log])
             [agentlang.util.seq :as us]))
@@ -132,6 +128,9 @@
      ;; expressions not currently validated or used in the browser.
      :cljs true))
 
+(defn- fn-or-list? [x]
+  (or (list? x) (fn? x)))
+
 (defn- encryption? [x]
   ;; true/:default means use the default encryption algorithm.
   ;; In future, specific algorithms may be supported
@@ -173,7 +172,7 @@
 
 (defn- finalize-raw-attribute-schema [scm]
   (doseq [[k v] scm]
-    (if (or (= k li/guid) (= k li/path-identity))
+    (if (= k li/path-identity)
       (li/validate-bool k v)
       (case k
         (:unique
@@ -187,7 +186,7 @@
                    (when-let [predic (:check scm)]
                      (li/validate predic "invalid value for :default" v)))
         :type (li/validate attribute-type? "invalid :type" v)
-        :expr (li/validate fn-or-name? ":expr has invalid value" v)
+        :expr (li/validate fn-or-list? ":expr has invalid value" v)
         :eval (li/validate eval-block? ":eval has invalid value" v)
         :format (li/validate string? ":format must be a textual pattern" v)
         :listof (li/validate listof-spec? ":listof has invalid type" v)
@@ -248,14 +247,9 @@
                 (finalize-raw-attribute-schema
                  (oneof-as-check
                   (normalize-kernel-types scm))))]
-    (cond
-      (:unique newscm)
+    (if (:unique newscm)
       (assoc newscm :indexed true)
-
-      (li/guid newscm)
-      (assoc newscm :indexed true :unique true)
-
-      :else newscm)))
+      newscm)))
 
 (defn- validate-attribute-schema [n scm]
   (if (fn? scm)
@@ -340,38 +334,18 @@
   (let [[[_ _] a] (li/ref-as-names n)]
     (if a true false)))
 
-(defn- compile-eval-block [recname attrs evblock]
-  (let [ctx (ctx/make)]
-    (ctx/put-record! ctx (li/split-path recname) attrs)
-    (if-let [opcode (mapv (partial c/compile-pattern ctx) (:patterns evblock))]
-      opcode
-      (u/throw-ex (str recname " - failed to compile eval-block")))))
-
-(defn- normalize-eval-block [evblock]
-  (when evblock
-    (if (and (map? evblock) (:patterns evblock))
-      evblock
-      {:patterns [evblock]})))
-
 (defn- normalize-compound-attr [recname attrs nm [k v]]
-  (if-let [ev (normalize-eval-block (:eval v))]
-    (attribute
-     nm
-     (assoc
-      v
-      :eval (assoc ev :opcode (compile-eval-block recname attrs ev))
-      :optional true))
-    (when-let [expr (:expr v)]
-      (cond
-        (fn? expr)
-        (attribute nm v)
+  (when-let [expr (:expr v)]
+    (cond
+      (fn? expr)
+      (attribute nm v)
 
-        :else (attribute
-               nm
-               (merge (if-let [t (:type v)]
-                        {:type t}
-                        (u/throw-ex (str ":type is required for attribute " k " with compound expression")))
-                      {:expr (c/compile-attribute-expression recname attrs k expr)}))))))
+      :else (attribute
+             nm
+             (merge (if-let [t (:type v)]
+                      {:type t}
+                      (u/throw-ex (str ":type is required for attribute " k " with compound expression")))
+                    {:expr expr})))))
 
 (defn- normalize-attr [recname attrs fqn [k v]]
   (let [newv
@@ -387,7 +361,7 @@
           (list? v)
           (attribute
            (fqn (li/unq-name))
-           {:expr (c/compile-attribute-expression recname attrs k v)})
+           {:expr v})
 
           :else
           (let [fulln (fqn v)]
@@ -599,35 +573,6 @@
       (into {(first (keys pattern)) (into {} attrs)}))
     pattern))
 
-(defn- extract-on-and-where [match-pat]
-  (if (= (count match-pat) 7)
-    (do
-      (when-not (= :on (nth match-pat 3))
-        (u/throw-ex (str ":on keyword not found - " match-pat)))
-      (when-not (= :where (nth match-pat 5))
-        (u/throw-ex (str ("where clause not found - " match-pat))))
-      [(li/validate-on-clause (nth match-pat 4))
-       (li/validate-where-clause (nth match-pat 6))])
-    (u/throw-ex (str ":on and :where clauses expected - " match-pat))))
-
-(defn- install-event-trigger-pattern [match-pat]
-  (let [event-name (first match-pat)]
-    (when-not (li/name? event-name)
-      (u/throw-ex (str "not a valid event name - " event-name)))
-    (when-not (= :when (second match-pat))
-      (u/throw-ex (str "expected keyword :when not found - " match-pat)))
-    (let [pat (nth match-pat 2)
-          predic (rl/compile-rule-pattern pat)
-          rnames (li/referenced-record-names pat)
-          [on where] (when (> (count rnames) 1)
-                       (extract-on-and-where match-pat))
-          event-attrs (li/references-to-event-attributes rnames)
-          evt-name (event event-name event-attrs)]
-      (cn/install-triggers!
-       (or on rnames)
-       event-name predic where rnames)
-      evt-name)))
-
 (defn- concat-refs [n refs]
   (keyword (str (subs (str n) 1) "."
                 (s/join "." (mapv name refs)))))
@@ -710,64 +655,12 @@
             :else
             (let [match-pat (or (preproc-match-pat match-pat) match-pat)
                   patterns (prepare-dataflow-patterns patterns)]
-              (if (vector? match-pat)
-                (apply
-                 dataflow
-                 (as-preproc (install-event-trigger-pattern match-pat))
-                 patterns)
-                (let [event (normalize-event-pattern match-pat)]
-                  (do (ensure-event! event)
-                      (cn/register-dataflow event nil patterns))))))]
+              (let [event (normalize-event-pattern match-pat)]
+                (do (ensure-event! event)
+                    (cn/register-dataflow event nil patterns)))))]
     (when (and r (not (preproc-match-pat match-pat)))
       (raw/dataflow match-pat patterns))
     r))
-
-(defn- maybe-proc-delete-rule [conds]
-  (let [delete-tag (some #(and (vector? %) (= :delete (first %))) conds)]
-    (if delete-tag
-      (do (when (> (count conds) 1)
-            (u/throw-ex (str "no extra rules allowed with :delete - " conds)))
-          [delete-tag [(second (first conds))]])
-      [false conds])))
-
-(defn- rule-compile-conditionals [cond-pats]
-  (try
-    (rule/compile-conditionals cond-pats)
-    (catch #?(:clj Exception :cljs js/Error) e
-      (log/error (str "rule/compile-conditionals failed: " e)))))
-
-(defn- parse-rules-args [args]
-  (let [not-then (partial not= :then)
-        [cond-pats args] (split-with not-then args)
-        [delete-tag cond-pats] (maybe-proc-delete-rule cond-pats)
-        meta (let [l (last args)] (when (li/rule-meta? l) l))
-        priority (li/rule-meta-value meta :priority ##-Inf)
-        passive (li/rule-meta-value meta :passive)
-        cat (li/rule-meta-value meta :category)
-        conseq-pats (if meta (drop-last (rest args)) (rest args))]
-    {:cond (when-not (li/rule-meta? (first cond-pats)) cond-pats)
-     :c-cond (rule-compile-conditionals cond-pats)
-     :then conseq-pats
-     :priority priority
-     :passive passive
-     :category cat
-     :on-delete delete-tag}))
-
-(defn- rule-event [rule-name conseq]
-  (if conseq
-    (let [revnt-name (li/rule-event-name rule-name)]
-      (event-internal revnt-name {})
-      (cn/register-dataflow revnt-name conseq))
-    (do (log/warn (str rule-name " requires a consequent"))
-        rule-name)))
-
-(defn rule [rule-name & args]
-  (let [s01 (parse-rules-args args)
-        spec (assoc s01 :name rule-name)]
-    (when (rule-event rule-name (:then spec))
-      (and (cn/register-rule rule-name spec)
-           (raw/rule rule-name args)
-           rule-name))))
 
 (defn- preproc-agent-messages [agent]
   (if-let [messages (:Messages agent)]
@@ -811,8 +704,8 @@
         pfn (:with-prompt-fn spec)
         rh (:with-response-handler spec)
         pfns (when (or pfn rh)
-               `[:eval (agentlang.lang/instance-assoc :Agent "PromptFn" ~pfn "ResponseHandler" ~rh) :as :Agent])
-        p1 `[:eval (agentlang.inference/run-inference-for-event ~inference-name :Agent)]]
+               `[~li/call-fn (agentlang.lang/instance-assoc :Agent "PromptFn" ~pfn "ResponseHandler" ~rh) :as :Agent])
+        p1 `[~li/call-fn (agentlang.inference/run-inference-for-event ~inference-name :Agent)]]
     (cn/register-dataflow inference-name nil (if pfns [p0 pfns p1] [p0 p1]))
     inference-name))
 
@@ -881,15 +774,13 @@
         (:type t)))))
 
 (defn- crud-event-delete-pattern [evtname entity-name]
-  (let [id-attr (identity-attribute-name entity-name)]
-    [:delete entity-name
-     {id-attr (direct-id-accessor evtname id-attr)}]))
+  [:delete
+   {entity-name
+    {li/path-attr? (direct-id-accessor evtname :path)}}])
 
 (defn- crud-event-lookup-pattern [evtname entity-name]
-  (let [id-attr (identity-attribute-name entity-name)]
-    {entity-name
-     {(keyword (str (name id-attr) "?"))
-      (direct-id-accessor evtname id-attr)}}))
+  {entity-name
+   {li/path-attr? (direct-id-accessor evtname :path)}})
 
 (defn- implicit-entity-event-dfexp
   "Construct a dataflow expressions for an implicit dataflow
@@ -980,14 +871,11 @@
              result)
            (let [ev (partial crud-evname rec-name)
                  ctx-aname (k/event-context-attribute-name)
-                 id-attr (identity-attribute-name rec-name)
-                 id-attr-type (or (identity-attribute-type id-attr attrs)
-                                  :Agentlang.Kernel.Lang/Any)
-                 id-evattrs {id-attr id-attr-type
+                 id-attr-type :Agentlang.Kernel.Lang/String
+                 id-evattrs {:path id-attr-type
                              li/event-context ctx-aname}
                  cr-evattrs {:Instance n li/event-context ctx-aname}
-                 up-id-attr id-attr
-                 up-evattrs {up-id-attr id-attr-type
+                 up-evattrs {:path id-attr-type
                              :Data :Agentlang.Kernel.Lang/Map}
                  ;; Define CRUD events and dataflows:
                  crevt (ev :Create)
@@ -1021,9 +909,9 @@
                     (crud-event-inst-accessor crevt)}])
                (cn/register-dataflow
                 upevt
-                (concat [up-ref-pats]
+                (concat (when (seq up-ref-pats) [up-ref-pats])
                         [{rec-name
-                          {(li/name-as-query-pattern id-attr) (crud-event-attr-accessor upevt (name up-id-attr))}
+                          {li/path-attr? (crud-event-attr-accessor upevt (name :path))}
                           :from (crud-event-attr-accessor upevt "Data")}])))
              (cn/register-dataflow lookupevt-internal [(crud-event-lookup-pattern lookupevt-internal rec-name)])
              (cn/register-dataflow lookupevt [(crud-event-lookup-pattern lookupevt rec-name)])
@@ -1041,12 +929,11 @@
 
 (def serializable-entity (partial serializable-record :entity))
 
-(defn- preproc-path-identity [attrs]
-  (if-let [[k v] (first (filter #(let [v (second %)]
-                                   (and (map? v) (li/path-identity v)))
-                                attrs))]
-    (assoc attrs k (assoc v :indexed true) li/path-attr pi/path-attr-spec)
-    attrs))
+(defn- assoc-system-attrs [attrs]
+  (assoc
+   attrs
+   li/parent-attr li/parent-attr-spec
+   li/path-attr li/path-attr-spec))
 
 (def ^:private audit-entity-attrs
   (preproc-attrs {:InstanceId :String
@@ -1061,11 +948,28 @@
       (serializable-entity n audit-entity-attrs))
     entity-name))
 
+(defn- instance-privilege-entity [n]
+  (when-not (serializable-entity
+             (stu/inst-priv-entity n)
+             (assoc-system-attrs
+              {:Name {:type :Agentlang.Kernel.Lang/String
+                      :default u/uuid-string
+                      li/path-identity true}
+               :IsOwner {:type :Agentlang.Kernel.Lang/Boolean :default true}
+               :CanRead {:type :Agentlang.Kernel.Lang/Boolean :default false}
+               :CanUpdate {:type :Agentlang.Kernel.Lang/Boolean :default false}
+               :CanDelete {:type :Agentlang.Kernel.Lang/Boolean :default false}
+               :ResourcePath {:type :Agentlang.Kernel.Lang/String :indexed true}
+               :Assignee {:type :Agentlang.Kernel.Lang/String :indexed true}}))
+    (u/throw-ex (str "Failed to define instance-privilege-entity for " n))
+    n))
+
 (defn entity
   "A record that can be persisted with a unique id."
   ([n attrs raw-attrs]
-   (let [attrs (if raw-attrs (preproc-path-identity attrs) attrs)]
+   (let [attrs (if raw-attrs (assoc-system-attrs attrs) attrs)]
      (when-let [r (serializable-entity n (preproc-attrs attrs))]
+       (instance-privilege-entity n)
        (let [result (and (if raw-attrs (raw/entity r raw-attrs) true) r)]
          (and (audit-entity r raw-attrs) result)))))
   ([n attrs]
@@ -1085,11 +989,7 @@
         (u/throw-ex (str "invalid view attribute-specification: " [n k]))))))
 
 (defn- preproc-view-query [q attrs]
-  (c/compile-complex-query
-   (if (or (:join q) (:left-join q))
-     (assoc q :with-attributes attrs)
-     (let [clause (assoc (first (vals q)) :with-attributes attrs)]
-       {(first (keys q)) clause}))))
+  q)
 
 (defn- as-view-attributes [attrs]
   (into
@@ -1128,70 +1028,7 @@
                     (extract-rel-meta meta))]
       [elems (extract-rel-meta meta)])))
 
-(defn- evt-path-attr [evt]
-  (crud-event-attr-accessor evt li/path-attr))
-
-(defn- regen-contains-dataflows [relname [parent child]]
-  (let [ev (partial crud-evname child)
-        attr-names (cn/attribute-names (cn/fetch-schema child))
-        ctx-aname (k/event-context-attribute-name)]
-    (let [crevt (ev :Create)
-          cr-path (evt-path-attr crevt)
-          child-cn (first (li/split-path child))]
-      (event-internal
-       crevt
-       {:Instance child
-        li/path-attr {:type :Agentlang.Kernel.Lang/String
-                      :default pi/default-path}
-        li/event-context ctx-aname})
-      (cn/register-dataflow
-       crevt
-       [{child
-         (merge
-          (into
-           {} (mapv
-               (fn [a]
-                 [a (if (= a li/path-attr)
-                      ;; The path-identity will be appended by the evaluator.
-                      cr-path
-                      (crud-event-inst-accessor crevt child-cn a))])
-               attr-names))
-          {li/path-attr cr-path})}]))
-    (let [upevt (ev :Update)]
-      (event-internal
-       upevt
-       {:Data :Agentlang.Kernel.Lang/Map
-        li/path-attr :Agentlang.Kernel.Lang/String
-        li/event-context ctx-aname})
-      (cn/register-dataflow
-       upevt
-       [{child
-         {li/path-attr? (evt-path-attr upevt)}
-         :from (crud-event-attr-accessor upevt :Data)}]))
-    (let [lookupevt (ev :Lookup)
-          lookupallevt (ev :LookupAll)
-          evattrs {li/path-attr :Agentlang.Kernel.Lang/String
-                   li/event-context ctx-aname}
-          child-q (li/name-as-query-pattern child)]
-      (event-internal lookupevt evattrs)
-      (event-internal lookupallevt evattrs)
-      (cn/register-dataflow lookupevt [{child {li/path-attr? (evt-path-attr lookupevt)}}])
-      (cn/register-dataflow lookupallevt [{child {li/path-attr? [:like (evt-path-attr lookupallevt)]}}]))
-    (let [delevt (ev :Delete)]
-      (event-internal delevt {li/path-attr :Agentlang.Kernel.Lang/String
-                              li/event-context ctx-aname})
-      (cn/register-dataflow
-       delevt [[:delete child {li/path-attr (evt-path-attr delevt)}]]))
-    relname))
-
 (declare relationship)
-
-(defn- regen-between-relationships [contains-child]
-  (doseq [[rel _ _] (seq (cn/between-relationships contains-child))]
-    (let [old-def (raw/find-relationship rel)]
-      (cn/remove-record rel)
-      (relationship rel old-def)))
-  contains-child)
 
 (defn- validate-rbac-owner [rbac nodes]
   (when-let [own (li/owner rbac)]
@@ -1204,49 +1041,6 @@
       (u/throw-ex (str "User-defined identity attribute required for " entity-name)))
     ident))
 
-(defn- regen-contains-child-attributes [child parent meta]
-  (let [child-attrs (preproc-attrs (raw/record-attributes-include-inherits child))
-        raw-meta (raw/entity-meta child)
-        [c _] (li/split-path child)
-        pidtype (cn/parent-identity-attribute-type parent)
-        parent-attr-spec
-        (merge
-         {:type :Agentlang.Kernel.Lang/Any}
-         (if (map? pidtype)
-           pidtype
-           {:type (or pidtype :Agentlang.Kernel.Lang/Any)})
-         {:optional true
-          :expr `'(agentlang.paths/parent-id-from-path
-                   ~(name c) ~li/path-attr ~(k/numeric-type? (if (map? pidtype) (:type pidtype) pidtype)))})]
-    (if-not (cn/path-identity-attribute-name child)
-      (let [cident (user-defined-identity-attribute-name child)
-            cident-raw-spec (cident child-attrs)
-            cident-spec (if (map? cident-raw-spec)
-                          cident-raw-spec
-                          (cn/find-attribute-schema cident-raw-spec))]
-        (when-let [a (some li/reserved-attrs (map #(keyword (s/upper-case (name %))) (keys child-attrs)))]
-          (u/throw-ex (str child "." a " - attribute name is reserved")))
-        (assoc
-         child-attrs
-         :meta raw-meta
-         cident (merge
-                 (if (:globally-unique meta)
-                   cident-spec
-                   (dissoc cident-spec li/guid))
-                 {:type (or (:type cident-spec) :UUID)
-                  li/path-identity true
-                  :indexed true}
-                 (when-not cident-spec ;; __Id__
-                   {:default u/uuid-string}))
-         li/path-attr pi/path-attr-spec
-         li/parent-attr parent-attr-spec))
-      (let [parents (conj (mapv last (cn/containing-parents child)) parent)
-            id-types (mapv cn/parent-identity-attribute-type parents)]
-        (when-not (apply = id-types)
-          (u/throw-ex (str "conflicting parent id-types - " (mapv vector parents id-types))))
-        (when (some (fn [[_ v]] (and (map? v) (:id v))) child-attrs)
-          (assoc child-attrs :meta raw-meta li/path-attr pi/path-attr-spec li/parent-attr parent-attr-spec))))))
-
 (defn- cleanup-rel-attrs [attrs]
   (dissoc attrs :meta :rbac :ui))
 
@@ -1257,31 +1051,19 @@
         meta (:meta attrs)
         attrs (assoc attrs :meta
                      (assoc meta cn/relmeta-key
-                            relmeta :relationship :contains))
-        child-attrs (regen-contains-child-attributes child parent meta)]
+                            relmeta :relationship :contains))]
     (if-let [r (record relname raw-attrs)]
-      (if (or (not child-attrs) (entity child child-attrs false))
-        (if (cn/register-relationship elems relname)
-          (and (regen-contains-dataflows relname elems)
-               (regen-between-relationships (second elems))
-               (raw/relationship relname raw-attrs) r)
-          (u/throw-ex (str "failed to register relationship - " relname)))
-        (u/throw-ex (str "failed to regenerate schema for " child)))
+      (if (cn/register-relationship elems relname)
+        (and (raw/relationship relname raw-attrs) r)
+        (u/throw-ex (str "failed to register relationship - " relname)))
       (u/throw-ex (str "failed to define schema for " relname)))))
-
-(defn- between-node-types [node1 node2]
-  (let [id1 (cn/identity-attribute-name node1)
-        t1 (cn/attribute-type node1 id1)]
-    (if (= node1 node2)
-      [t1 t1]
-      [t1 (cn/attribute-type node2 (cn/identity-attribute-name node2))])))
 
 (defn- assoc-relnode-attributes [attrs [node1 node2] relmeta]
   (let [[a1 a2 :as attr-names] (li/between-nodenames node1 node2 relmeta)
-        [t1 t2] (between-node-types node1 node2)]
+        t :Agentlang.Kernel.Lang/String]
     (when-not (and a1 a2)
       (u/throw-ex (str "failed to resolve both node-attributes for between-relationship - " [a1 a2])))
-    [attr-names (assoc attrs a1 t1 a2 t2)]))
+    [attr-names (assoc attrs a1 t a2 t)]))
 
 (defn- between-unique-meta [meta relmeta [node1 node2] [n1 n2] new-attrs]
   (cond
@@ -1295,11 +1077,32 @@
 
     :else [meta new-attrs]))
 
+(defn- merge-rbac [r1 r2]
+  (let [rs (concat r1 r2)]
+    (when (seq rs)
+      (let [rps (mapv (fn [r] [(:roles r) (:allow r)]) rs)
+            xs (reduce (fn [m [r p]]
+                         (if-let [p0 (get m r)]
+                           (assoc m r (set/union (set p0) (set p)))
+                           (assoc m r p)))
+                       {} rps)]
+        (mapv (fn [[k v]] {:roles k :allow (vec v)}) xs)))))
+
+(defn- install-between-rbac [elems attrs]
+  (if (:rbac attrs)
+    attrs
+    (assoc attrs :rbac (merge-rbac (cn/fetch-rbac-spec (first elems))
+                                   (cn/fetch-rbac-spec (second elems))))))
+
 (defn- between-relationship [relname attrs relmeta elems]
-  (let [[node-names new-attrs] (assoc-relnode-attributes (preproc-attrs attrs) elems relmeta)
-        [meta new-attrs] (between-unique-meta (:meta attrs) relmeta elems node-names new-attrs)
+  (let [[node-names new-attrs0] (assoc-relnode-attributes (preproc-attrs attrs) elems relmeta)
+        [meta new-attrs1] (between-unique-meta (:meta attrs) relmeta elems node-names new-attrs0)
+        new-attrs (install-between-rbac elems new-attrs1)
         meta (assoc meta :relationship :between cn/relmeta-key relmeta)
-        r (serializable-entity relname (assoc new-attrs :meta meta) attrs)]
+        _ (instance-privilege-entity relname)
+        r (serializable-entity relname (assoc new-attrs :meta meta
+                                              li/parent-attr li/parent-attr-spec
+                                              li/path-attr li/path-attr-spec) attrs)]
     (when (cn/register-relationship elems relname)
       (and (raw/relationship relname attrs) r))))
 
@@ -1407,8 +1210,8 @@
         pat))
     pat))
 
-(defn standalone-pattern-error [error pat]
-  (log/warn (u/pretty-str (assoc error :pattern (second pat)))))
+(defn standalone-pattern-error [pat]
+  (log/warn (str "Error in pattern:\n" (u/pretty-str (second pat)))))
 
 (defn- cleanup-standalone-pattern [pat]
   (if (map? pat)
@@ -1429,15 +1232,13 @@
             (let [raw-pat {entity-name (assoc attrs (li/name-as-query-pattern id-attr-name) id-attr)}]
               `[:try
                 ~raw-pat
-                :error [:eval (~'quote (~'agentlang.lang/standalone-pattern-error
-                                        :Error [:q# ~raw-pat]))]])))))))
+                :error [~li/call-fn (~'agentlang.lang/standalone-pattern-error [:q# ~raw-pat])]])))))))
 
 (defn pattern [raw-pat]
   (let [pat (preprocess-standalone-pattern raw-pat)
         update-pat (maybe-update-old-instance pat)
         final-pat [:try pat :error
                    (or update-pat
-                       [:eval `(~'quote (~'agentlang.lang/standalone-pattern-error
-                                         :Error [:q# ~(cleanup-standalone-pattern raw-pat)]))])]]
+                       [li/call-fn `(~'agentlang.lang/standalone-pattern-error [:q# ~(cleanup-standalone-pattern raw-pat)])])]]
     (gs/install-init-pattern! final-pat)
     (raw/pattern raw-pat)))
