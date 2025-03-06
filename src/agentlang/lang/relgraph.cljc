@@ -5,8 +5,7 @@
             [agentlang.meta :as mt]
             [agentlang.util :as u]
             [agentlang.util.seq :as su]
-            [agentlang.lang.internal :as li]
-            [agentlang.evaluator :as ev]))
+            [agentlang.lang.internal :as li]))
 
 (defn- component-name? [obj]
   (and (li/name? obj)

@@ -2,6 +2,7 @@
   "Namespace for fully-qualified name utilities"
   (:require [clojure.string :as string]
             [clojure.walk :as w]
+            [agentlang.util :as u]
             [agentlang.util.seq :as su]
             [agentlang.lang.internal :as li]))
 
@@ -50,22 +51,21 @@
                  :cljs (cljs.reader/read-string qv))}))))))
 
 (defn- maybe-merge-non-attrs [fq-inst orig-inst]
-  (let [rels (when-let [rels (li/rel-tag orig-inst)]
-               (fq-generic rels false))
+  (let [rels nil #_(when-let [rels (li/rel-tag orig-inst)]
+                     (fq-generic rels false))
         alias-def (:as orig-inst)
+        from (:from orig-inst)
         with-types (when-let [tps (li/with-types-tag orig-inst)]
                      (fq-generic tps false))
         toms (li/timeout-ms-tag orig-inst)]
     (merge
      fq-inst
-     (when rels
-       {li/rel-tag rels})
-     (when alias-def
-       {:as alias-def})
-     (when with-types
-       {li/with-types-tag with-types})
-     (when toms
-       {li/timeout-ms-tag toms}))))
+     #_(when rels
+         {li/rel-tag rels})
+     (when from {:from (fq-generic from false)})
+     (when alias-def {:as alias-def})
+     (when with-types {li/with-types-tag with-types})
+     (when toms {li/timeout-ms-tag toms}))))
 
 (defn- fq-inst-pat
   "Update the keys and values in an instance pattern with
@@ -84,7 +84,9 @@
    component-qualified names."
   [x is-recdef]
   (let [y (mapv (fn [[k v]]
-                  [(fq-name k) (fq-generic v is-recdef)])
+                  (if (= k :into)
+                    [k (into {} (mapv (fn [[k v]] [k (fq-generic v is-recdef)]) v))]
+                    [(fq-name k) (fq-generic v is-recdef)]))
                 x)]
     (into {} y)))
 
