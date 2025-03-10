@@ -13,7 +13,6 @@
     view
     pattern
     attribute
-    rule
     relationship
     component
     resolver
@@ -33,7 +32,7 @@
   :Password {:type :Password, :optional true},
   :FirstName {:type :String, :optional true},
   :LastName {:type :String, :optional true},
-  :Email {:type :Email, li/guid true},
+  :Email {:type :Email, li/path-identity true},
   :UserData {:type :Any, :optional true},
   :AppId {:type :UUID, :default u/uuid-string, :indexed true}})
 (event
@@ -51,12 +50,24 @@
  {:User :Agentlang.Kernel.Identity/User, :OtherDetails :Map})
 (entity
  :Agentlang.Kernel.Identity/UserSession
- {:User {:type :String, :guid true}, :LoggedIn :Boolean})
+ {:User {:type :String, :id true}, :LoggedIn :Boolean})
+(dataflow
+ :Agentlang.Kernel.Identity/LookupUserSession
+ {:Agentlang.Kernel.Identity/UserSession
+  {:User? :Agentlang.Kernel.Identity/LookupUserSession.User},
+  :as [:U]}
+ :U)
 (entity
  :Agentlang.Kernel.Identity/SessionCookie
- {:Id {:type :String, :guid true},
+ {:Id {:type :String, :id true},
   :UserData :Any,
   :CreatedTimeMillis :Int64})
+(dataflow
+ :Agentlang.Kernel.Identity/LookupSessionCookie
+ {:Agentlang.Kernel.Identity/SessionCookie
+  {:Id? :Agentlang.Kernel.Identity/LookupSessionCookie.Id},
+  :as [:C]}
+ :C)
 (event
  :Agentlang.Kernel.Identity/UpdateUser
  {:UserDetails :Agentlang.Kernel.Identity/UserExtra})
@@ -87,17 +98,17 @@
 (dataflow
  [:after :delete :Agentlang.Kernel.Identity/User]
  [:delete
-  :Agentlang.Kernel.Rbac/InstancePrivilegeAssignment
-  {:Assignee :Instance.Email}]
+  #:Agentlang.Kernel.Rbac{:InstancePrivilegeAssignment
+                          {:Assignee? :Instance.Email}}]
  [:delete :Agentlang.Kernel.Rbac/InstancePrivilegeAssignment :purge]
  [:delete
-  :Agentlang.Kernel.Rbac/OwnershipAssignment
-  {:Assignee :Instance.Email}]
+  #:Agentlang.Kernel.Rbac{:OwnershipAssignment
+                          {:Assignee? :Instance.Email}}]
  [:delete :Agentlang.Kernel.Rbac/OwnershipAssignment :purge]
  [:delete
-  :Agentlang.Kernel.Rbac/RoleAssignment
-  {:Assignee :Instance.Email}]
+  #:Agentlang.Kernel.Rbac{:RoleAssignment
+                          {:Assignee? :Instance.Email}}]
  [:delete :Agentlang.Kernel.Rbac/RoleAssignment :purge])
 (def
  Agentlang_Kernel_Identity___COMPONENT_ID__
- "95a13468-2cd7-41ea-8be6-c0461a73d18c")
+ "2059f0eb-504f-4b2a-9579-d9168e074e98")
