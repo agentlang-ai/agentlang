@@ -32,12 +32,6 @@ export default function(): void {
     program.version(JSON.parse(packageContent).version);
 
     const fileExtensions = AgentlangLanguageMetaData.fileExtensions.join(', ');
-    /*program
-        .command('parseAndValidate')
-        .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
-        .option('-d, --destination <dir>', 'destination directory of generating')
-        .description('generates JavaScript code that prints "Hello, {name}!" for each greeting in a source file')
-        .action(parseAndValidate);*/
 
     program
         .command('generate')
@@ -46,6 +40,13 @@ export default function(): void {
         // new description
         .description('generates Agentlang commands that can be used as simple drawing instructions')
         .action(generateAction);
+
+    program
+        .command('parseAndValidate')
+        .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+        .option('-d, --destination <dir>', 'destination directory of generating')
+        .description('generates JavaScript code that prints "Hello, {name}!" for each greeting in a source file')
+        .action(parseAndValidate);
 
     program.parse(process.argv);
 }

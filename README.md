@@ -29,3 +29,10 @@ npm i -g yo generator-langium
 npm run langium:generate
 npm run build
 ```
+
+Test with a sample .al file:
+
+```shell
+node ./bin/cli.js parseAndValidate test.al
+node ./bin/cli.js generate test.al
+```
