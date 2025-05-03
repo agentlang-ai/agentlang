@@ -1,11 +1,30 @@
 {
     "compilerOptions": {
-      "target": "ES5",
-      "module": "CommonJS",
-      "moduleResolution": "node",
-      "allowJs": true,
-      "outDir": "out",
-      "sourceMap": true,
-      "lib": [ "es2015", "DOM" ]
-    }
+        "target": "ES2017",
+        "module": "Node16",
+        "lib": [
+            "ESNext",
+            "DOM",
+            "WebWorker"
+        ],
+        "sourceMap": true,
+        "outDir": "out",
+        "strict": true,
+        "noUnusedLocals": true,
+        "noImplicitReturns": true,
+        "noImplicitOverride": true,
+        "moduleResolution": "Node16",
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "rootDir": ".",
+        "noEmit": true
+    },
+    "include": [
+        "src/**/*.ts",
+        "test/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules"
+    ]
 }
