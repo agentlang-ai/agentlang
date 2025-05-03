@@ -4,8 +4,9 @@ import { Command } from 'commander';
 import { AgentlangLanguageMetaData } from '../language/generated/module.js';
 import { createAgentlangServices } from '../language/agentlang-module.js';
 import { extractAstNode } from './cli-util.js';
-import { generateJavaScript } from './generator.js';
+import { generateCommands } from './generator.js';
 import { NodeFileSystem } from 'langium/node';
+import { extractDocument } from './cli-util.js';
 import * as url from 'node:url';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
@@ -17,7 +18,7 @@ const packageContent = await fs.readFile(packagePath, 'utf-8');
 export const generateAction = async (fileName: string, opts: GenerateOptions): Promise<void> => {
     const services = createAgentlangServices(NodeFileSystem).Agentlang;
     const model = await extractAstNode<Model>(fileName, services);
-    const generatedFilePath = generateJavaScript(model, fileName, opts.destination);
+    const generatedFilePath = generateCommands(model, fileName, opts.destination);
     console.log(chalk.green(`JavaScript code generated successfully: ${generatedFilePath}`));
 };
 
@@ -31,12 +32,44 @@ export default function(): void {
     program.version(JSON.parse(packageContent).version);
 
     const fileExtensions = AgentlangLanguageMetaData.fileExtensions.join(', ');
+    /*program
+        .command('parseAndValidate')
+        .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+        .option('-d, --destination <dir>', 'destination directory of generating')
+        .description('generates JavaScript code that prints "Hello, {name}!" for each greeting in a source file')
+        .action(parseAndValidate);*/
+
     program
         .command('generate')
         .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
         .option('-d, --destination <dir>', 'destination directory of generating')
-        .description('generates JavaScript code that prints "Hello, {name}!" for each greeting in a source file')
+        // new description
+        .description('generates Agentlang commands that can be used as simple drawing instructions')
         .action(generateAction);
 
     program.parse(process.argv);
 }
+
+/**
+ * Parse and validate a program written in our language.
+ * Verifies that no lexer or parser errors occur.
+ * Implicitly also checks for validation errors while extracting the document
+ *
+ * @param fileName Program to validate
+ */
+export const parseAndValidate = async (fileName: string): Promise<void> => {
+    // retrieve the services for our language
+    const services = createAgentlangServices(NodeFileSystem).Agentlang;
+    // extract a document for our program
+    const document = await extractDocument(fileName, services);
+    // extract the parse result details
+    const parseResult = document.parseResult;
+    // verify no lexer, parser, or general diagnostic errors show up
+    if (parseResult.lexerErrors.length === 0 &&
+        parseResult.parserErrors.length === 0
+    ) {
+        console.log(chalk.green(`Parsed and validated ${fileName} successfully!`));
+    } else {
+        console.log(chalk.red(`Failed to parse and validate ${fileName}!`));
+    }
+};

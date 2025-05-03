@@ -1,18 +1,18 @@
 // Monarch syntax highlighting for the agentlang language.
 export default {
     keywords: [
-        'Hello','person'
+        'color','def','down','for','move','pen','to','up'
     ],
     operators: [
-        '!'
+        '*','+',',','-','/','='
     ],
-    symbols: /!/,
+    symbols: /\(|\)|\*|\+|,|-|\/|=|\{|\}/,
 
     tokenizer: {
         initial: [
-            { regex: /[_a-zA-Z][\w_]*/, action: { cases: { '@keywords': {"token":"keyword"}, '@default': {"token":"ID"} }} },
-            { regex: /[0-9]+/, action: {"token":"number"} },
-            { regex: /"(\\.|[^"\\])*"|'(\\.|[^'\\])*'/, action: {"token":"string"} },
+            { regex: /#(\d|[a-fA-F])+/, action: {"token":"string"} },
+            { regex: /[_a-zA-Z][\w_]*/, action: { cases: { '@keywords': {"token":"keyword"}, '@default': {"token":"string"} }} },
+            { regex: /-?[0-9]+/, action: {"token":"number"} },
             { include: '@whitespace' },
             { regex: /@symbols/, action: { cases: { '@operators': {"token":"operator"}, '@default': {"token":""} }} },
         ],

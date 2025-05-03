@@ -21,3 +21,11 @@ AgentLang comes with all the modern tooling, dependency management and REPL need
 ## First-class AI Agents
 
 Agents are a built-in language construct - developers can choose from one of the built-in agent-types, or easily add their own agent-types.
+
+## Build instructions
+
+```shell
+npm i -g yo generator-langium
+npm run langium:generate
+npm run build
+```

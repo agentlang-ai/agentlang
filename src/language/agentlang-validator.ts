@@ -1,5 +1,5 @@
 import type { ValidationAcceptor, ValidationChecks } from 'langium';
-import type { AgentlangAstType, Person } from './generated/ast.js';
+import { Model, AgentlangAstType, Def } from './generated/ast.js';
 import type { AgentlangServices } from './agentlang-module.js';
 
 /**
@@ -9,7 +9,8 @@ export function registerValidationChecks(services: AgentlangServices) {
     const registry = services.validation.ValidationRegistry;
     const validator = services.validation.AgentlangValidator;
     const checks: ValidationChecks<AgentlangAstType> = {
-        Person: validator.checkPersonStartsWithCapital
+        Model: validator.checkUniqueDefs,
+        Def:   validator.checkUniqueParams
     };
     registry.register(checks, validator);
 }
@@ -19,13 +20,27 @@ export function registerValidationChecks(services: AgentlangServices) {
  */
 export class AgentlangValidator {
 
-    checkPersonStartsWithCapital(person: Person, accept: ValidationAcceptor): void {
-        if (person.name) {
-            const firstChar = person.name.substring(0, 1);
-            if (firstChar.toUpperCase() !== firstChar) {
-                accept('warning', 'Person name should start with a capital.', { node: person, property: 'name' });
+     // our new validation function for defs
+     checkUniqueDefs(model: Model, accept: ValidationAcceptor): void {
+        // create a set of visited functions
+        // and report an error when we see one we've already seen
+        const reported = new Set();
+        model.defs.forEach(d => {
+            if (reported.has(d.name)) {
+                accept('error',  `Def has non-unique name '${d.name}'.`,  {node: d, property: 'name'});
             }
-        }
+            reported.add(d.name);
+        });
+    }
+
+    checkUniqueParams(def: Def, accept: ValidationAcceptor): void {
+        const reported = new Set();
+        def.params.forEach(p => {
+            if (reported.has(p.name)) {
+                accept('error', `Param ${p.name} is non-unique for Def '${def.name}'`, {node: p, property: 'name'});
+            }
+            reported.add(p.name);
+        });
     }
 
 }

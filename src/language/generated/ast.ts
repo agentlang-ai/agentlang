@@ -7,8 +7,10 @@
 import * as langium from 'langium';
 
 export const AgentlangTerminals = {
-    WS: /\s+/,
+    HEX: /#(\d|[a-fA-F])+/,
     ID: /[_a-zA-Z][\w_]*/,
+    INT: /-?[0-9]+/,
+    WS: /\s+/,
     ML_COMMENT: /\/\*[\s\S]*?\*\//,
     SL_COMMENT: /\/\/[^\n\r]*/,
 };
@@ -16,28 +18,158 @@ export const AgentlangTerminals = {
 export type AgentlangTerminalNames = keyof typeof AgentlangTerminals;
 
 export type AgentlangKeywordNames =
-    | "!"
-    | "Hello"
-    | "person";
+    | "("
+    | ")"
+    | "*"
+    | "+"
+    | ","
+    | "-"
+    | "/"
+    | "="
+    | "color"
+    | "def"
+    | "down"
+    | "for"
+    | "move"
+    | "pen"
+    | "to"
+    | "up"
+    | "{"
+    | "}";
 
 export type AgentlangTokenNames = AgentlangTerminalNames | AgentlangKeywordNames;
 
-export interface Greeting extends langium.AstNode {
-    readonly $container: Model;
-    readonly $type: 'Greeting';
-    person: langium.Reference<Person>;
+export type Cmd = Color | For | Move | Pen;
+
+export const Cmd = 'Cmd';
+
+export function isCmd(item: unknown): item is Cmd {
+    return reflection.isInstance(item, Cmd);
 }
 
-export const Greeting = 'Greeting';
+export type Expr = BinExpr | PrimExpr;
 
-export function isGreeting(item: unknown): item is Greeting {
-    return reflection.isInstance(item, Greeting);
+export const Expr = 'Expr';
+
+export function isExpr(item: unknown): item is Expr {
+    return reflection.isInstance(item, Expr);
+}
+
+export type PrimExpr = Group | Lit | NegExpr | Ref;
+
+export const PrimExpr = 'PrimExpr';
+
+export function isPrimExpr(item: unknown): item is PrimExpr {
+    return reflection.isInstance(item, PrimExpr);
+}
+
+export type Stmt = Cmd | Macro;
+
+export const Stmt = 'Stmt';
+
+export function isStmt(item: unknown): item is Stmt {
+    return reflection.isInstance(item, Stmt);
+}
+
+export interface BinExpr extends langium.AstNode {
+    readonly $container: BinExpr | Color | For | Group | Macro | Move | NegExpr;
+    readonly $type: 'BinExpr';
+    e1: Expr | PrimExpr;
+    e2: Expr | PrimExpr;
+    op: '*' | '+' | '-' | '/';
+}
+
+export const BinExpr = 'BinExpr';
+
+export function isBinExpr(item: unknown): item is BinExpr {
+    return reflection.isInstance(item, BinExpr);
+}
+
+export interface Color extends langium.AstNode {
+    readonly $container: Def | For | Model;
+    readonly $type: 'Color';
+    b?: Expr;
+    color?: string;
+    g?: Expr;
+    r?: Expr;
+}
+
+export const Color = 'Color';
+
+export function isColor(item: unknown): item is Color {
+    return reflection.isInstance(item, Color);
+}
+
+export interface Def extends langium.AstNode {
+    readonly $container: Model;
+    readonly $type: 'Def';
+    body: Array<Stmt>;
+    name: string;
+    params: Array<Param>;
+}
+
+export const Def = 'Def';
+
+export function isDef(item: unknown): item is Def {
+    return reflection.isInstance(item, Def);
+}
+
+export interface For extends langium.AstNode {
+    readonly $container: Def | For | Model;
+    readonly $type: 'For';
+    body: Array<Stmt>;
+    e1: Expr;
+    e2: Expr;
+    var: Param;
+}
+
+export const For = 'For';
+
+export function isFor(item: unknown): item is For {
+    return reflection.isInstance(item, For);
+}
+
+export interface Group extends langium.AstNode {
+    readonly $container: BinExpr | Color | For | Group | Macro | Move | NegExpr;
+    readonly $type: 'Group';
+    ge: Expr;
+}
+
+export const Group = 'Group';
+
+export function isGroup(item: unknown): item is Group {
+    return reflection.isInstance(item, Group);
+}
+
+export interface Lit extends langium.AstNode {
+    readonly $container: BinExpr | Color | For | Group | Macro | Move | NegExpr;
+    readonly $type: 'Lit';
+    val: number;
+}
+
+export const Lit = 'Lit';
+
+export function isLit(item: unknown): item is Lit {
+    return reflection.isInstance(item, Lit);
+}
+
+export interface Macro extends langium.AstNode {
+    readonly $container: Def | For | Model;
+    readonly $type: 'Macro';
+    args: Array<Expr>;
+    def: langium.Reference<Def>;
+}
+
+export const Macro = 'Macro';
+
+export function isMacro(item: unknown): item is Macro {
+    return reflection.isInstance(item, Macro);
 }
 
 export interface Model extends langium.AstNode {
     readonly $type: 'Model';
-    greetings: Array<Greeting>;
-    persons: Array<Person>;
+    defs: Array<Def>;
+    stmts: Array<Stmt>;
 }
 
 export const Model = 'Model';
@@ -46,32 +178,115 @@ export function isModel(item: unknown): item is Model {
     return reflection.isInstance(item, Model);
 }
 
-export interface Person extends langium.AstNode {
-    readonly $container: Model;
-    readonly $type: 'Person';
+export interface Move extends langium.AstNode {
+    readonly $container: Def | For | Model;
+    readonly $type: 'Move';
+    ex: Expr;
+    ey: Expr;
+}
+
+export const Move = 'Move';
+
+export function isMove(item: unknown): item is Move {
+    return reflection.isInstance(item, Move);
+}
+
+export interface NegExpr extends langium.AstNode {
+    readonly $container: BinExpr | Color | For | Group | Macro | Move | NegExpr;
+    readonly $type: 'NegExpr';
+    ne: Expr;
+}
+
+export const NegExpr = 'NegExpr';
+
+export function isNegExpr(item: unknown): item is NegExpr {
+    return reflection.isInstance(item, NegExpr);
+}
+
+export interface Param extends langium.AstNode {
+    readonly $container: Def | For;
+    readonly $type: 'Param';
     name: string;
 }
 
-export const Person = 'Person';
+export const Param = 'Param';
 
-export function isPerson(item: unknown): item is Person {
-    return reflection.isInstance(item, Person);
+export function isParam(item: unknown): item is Param {
+    return reflection.isInstance(item, Param);
+}
+
+export interface Pen extends langium.AstNode {
+    readonly $container: Def | For | Model;
+    readonly $type: 'Pen';
+    mode: 'down' | 'up';
+}
+
+export const Pen = 'Pen';
+
+export function isPen(item: unknown): item is Pen {
+    return reflection.isInstance(item, Pen);
+}
+
+export interface Ref extends langium.AstNode {
+    readonly $container: BinExpr | Color | For | Group | Macro | Move | NegExpr;
+    readonly $type: 'Ref';
+    val: langium.Reference<Param>;
+}
+
+export const Ref = 'Ref';
+
+export function isRef(item: unknown): item is Ref {
+    return reflection.isInstance(item, Ref);
 }
 
 export type AgentlangAstType = {
-    Greeting: Greeting
+    BinExpr: BinExpr
+    Cmd: Cmd
+    Color: Color
+    Def: Def
+    Expr: Expr
+    For: For
+    Group: Group
+    Lit: Lit
+    Macro: Macro
     Model: Model
-    Person: Person
+    Move: Move
+    NegExpr: NegExpr
+    Param: Param
+    Pen: Pen
+    PrimExpr: PrimExpr
+    Ref: Ref
+    Stmt: Stmt
 }
 
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [Greeting, Model, Person];
+        return [BinExpr, Cmd, Color, Def, Expr, For, Group, Lit, Macro, Model, Move, NegExpr, Param, Pen, PrimExpr, Ref, Stmt];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
         switch (subtype) {
+            case BinExpr:
+            case PrimExpr: {
+                return this.isSubtype(Expr, supertype);
+            }
+            case Cmd:
+            case Macro: {
+                return this.isSubtype(Stmt, supertype);
+            }
+            case Color:
+            case For:
+            case Move:
+            case Pen: {
+                return this.isSubtype(Cmd, supertype);
+            }
+            case Group:
+            case Lit:
+            case NegExpr:
+            case Ref: {
+                return this.isSubtype(PrimExpr, supertype);
+            }
             default: {
                 return false;
             }
@@ -81,8 +296,11 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
     getReferenceType(refInfo: langium.ReferenceInfo): string {
         const referenceId = `${refInfo.container.$type}:${refInfo.property}`;
         switch (referenceId) {
-            case 'Greeting:person': {
-                return Person;
+            case 'Macro:def': {
+                return Def;
+            }
+            case 'Ref:val': {
+                return Param;
             }
             default: {
                 throw new Error(`${referenceId} is not a valid reference id.`);
@@ -92,11 +310,70 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getTypeMetaData(type: string): langium.TypeMetaData {
         switch (type) {
-            case Greeting: {
+            case BinExpr: {
                 return {
-                    name: Greeting,
+                    name: BinExpr,
                     properties: [
-                        { name: 'person' }
+                        { name: 'e1' },
+                        { name: 'e2' },
+                        { name: 'op' }
+                    ]
+                };
+            }
+            case Color: {
+                return {
+                    name: Color,
+                    properties: [
+                        { name: 'b' },
+                        { name: 'color' },
+                        { name: 'g' },
+                        { name: 'r' }
+                    ]
+                };
+            }
+            case Def: {
+                return {
+                    name: Def,
+                    properties: [
+                        { name: 'body', defaultValue: [] },
+                        { name: 'name' },
+                        { name: 'params', defaultValue: [] }
+                    ]
+                };
+            }
+            case For: {
+                return {
+                    name: For,
+                    properties: [
+                        { name: 'body', defaultValue: [] },
+                        { name: 'e1' },
+                        { name: 'e2' },
+                        { name: 'var' }
+                    ]
+                };
+            }
+            case Group: {
+                return {
+                    name: Group,
+                    properties: [
+                        { name: 'ge' }
+                    ]
+                };
+            }
+            case Lit: {
+                return {
+                    name: Lit,
+                    properties: [
+                        { name: 'val' }
+                    ]
+                };
+            }
+            case Macro: {
+                return {
+                    name: Macro,
+                    properties: [
+                        { name: 'args', defaultValue: [] },
+                        { name: 'def' }
                     ]
                 };
             }
@@ -104,16 +381,49 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: Model,
                     properties: [
-                        { name: 'greetings', defaultValue: [] },
-                        { name: 'persons', defaultValue: [] }
+                        { name: 'defs', defaultValue: [] },
+                        { name: 'stmts', defaultValue: [] }
                     ]
                 };
             }
-            case Person: {
+            case Move: {
                 return {
-                    name: Person,
+                    name: Move,
+                    properties: [
+                        { name: 'ex' },
+                        { name: 'ey' }
+                    ]
+                };
+            }
+            case NegExpr: {
+                return {
+                    name: NegExpr,
+                    properties: [
+                        { name: 'ne' }
+                    ]
+                };
+            }
+            case Param: {
+                return {
+                    name: Param,
                     properties: [
                         { name: 'name' }
+                    ]
+                };
+            }
+            case Pen: {
+                return {
+                    name: Pen,
+                    properties: [
+                        { name: 'mode' }
+                    ]
+                };
+            }
+            case Ref: {
+                return {
+                    name: Ref,
+                    properties: [
+                        { name: 'val' }
                     ]
                 };
             }
