@@ -4,17 +4,14 @@ export default {
         'and','as','between','contains','else','entity','error','event','false','for','if','in','like','module','not_found','or','record','relationship','throws','true','workflow'
     ],
     operators: [
-        '*','+',',','-','.','/','<','<=','<>','=','>','>='
+        '*','+',',','-','.','/',';','<','<=','<>','=','>','>=','?','@'
     ],
-    symbols: /\(|\)|\*|\+|,|-|\.|\/|<|<=|<>|=|>|>=|\[|\]|\{|\}/,
+    symbols: /\(|\)|\*|\+|,|-|\.|\/|;|<|<=|<>|=|>|>=|\?|@|\[|\]|\{|\}/,
 
     tokenizer: {
         initial: [
             { regex: /#(\d|[a-fA-F])+/, action: {"token":"string"} },
             { regex: /[_a-zA-Z][\w_]*/, action: { cases: { '@keywords': {"token":"keyword"}, '@default': {"token":"string"} }} },
-            { regex: /(([_a-zA-Z][\w_]*)\.([_a-zA-Z][\w_]*))/, action: {"token":"string"} },
-            { regex: /(@([_a-zA-Z][\w_]*))/, action: {"token":"string"} },
-            { regex: /(([_a-zA-Z][\w_]*)|(([_a-zA-Z][\w_]*)\?))/, action: { cases: { '@keywords': {"token":"keyword"}, '@default': {"token":"string"} }} },
             { regex: /(["'])((\\{2})*|(.*?[^\\](\\{2})*))\1/, action: {"token":"string"} },
             { regex: /-?[0-9]+/, action: {"token":"number"} },
             { include: '@whitespace' },

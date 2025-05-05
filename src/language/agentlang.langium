@@ -5,7 +5,7 @@ entry Module: 'module' name=ID (defs+=Def)*;
 Def: SchemaDef | Relationship | Workflow;
 SchemaDef: Entity | Event | Record;
 
-Property: name=TAGGED_ID '=' value=Literal;
+Property: name=TaggedId '=' value=Literal;
 
 Properties: '(' (properties+=Property (',' properties+=Property)*)+ ')';
 
@@ -21,27 +21,31 @@ Node: name=ID | name=ID 'as' alias=ID;
 
 Attribute: name=ID type=ID Properties?;
 
-Literal: val=(ID | INT | Decimal | STRING | REF | Boolean);
+Literal: val=(ID | Decimal | STRING | Ref | Boolean);
 
-Workflow: 'workflow' name=ID '{' (patterns+=Pattern)+ '}';
+fragment Body: '{' (patterns+=Pattern (';' patterns+=Pattern)*)+ '}' | patterns+=Pattern;
 
-Pattern: Literal | CrudMap | If | ForEach;
+Workflow: 'workflow' name=ID Body;
 
-CrudMap: '{' name=ID '{' (attributes+=AttributeValue (',' attributes+=AttributeValue)*)+ Properties? Throws? '}' '}';
+RawPattern: Literal | CrudMap | If | ForEach;
+
+Pattern: pat=RawPattern ('as' (alias+=ID | ('[' alias+=ID (',' alias+=ID)*)+ ']'))?;
+
+CrudMap: '{' name=ID '{' (attributes+=AttributeValue (',' attributes+=AttributeValue)*)+ props=Properties? throws=Throws? '}' '}';
 
 Throws: 'throws' '{' (handlers+=Handler)+ '}';
 
 Handler: ('not_found' | 'error') Pattern;
 
-If: 'if' cond=LogicalExpression '{' val=IfBody '}' ElseIf?;
-ElseIf infers If: 'else' 'if' cond=LogicalExpression '{' val=IfBody '}' | 'else' '{' val=IfBody '}';
+If: 'if' '(' cond=LogicalExpression ')' Body ElseIf?;
+ElseIf infers If: 'else' 'if' '(' cond=LogicalExpression ')' Body | 'else' Body;
 IfBody: Pattern;
 
-ForEach: 'for' var=ID 'in' src=(ID | Pattern) '{' (patterns+=Pattern)+ '}';
+ForEach: 'for' var=ID 'in' src=RawPattern Body;
 
-AttributeValue: name=QUERY_ID ('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')? value=AttributeValueExpression;
+AttributeValue: name=QueryId ('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')? value=AttributeValueExpression;
 
-AttributeValueExpression: Literal | Expr;
+AttributeValueExpression: Expr;
 
 LogicalExpression: LogExpr;
 
@@ -70,26 +74,26 @@ Boolean returns string: 'true' | 'false';
 
 Decimal returns number: INT | INT '.' INT;
 
+QueryId returns string: ID | ID '?';
+
+TaggedId returns string: '@' ID;
+
+Ref returns string: ID '.' ID;
+
 // recognize a hexadecimal sequence, used to recognize colors for the 'Color' command
-terminal HEX returns string:    /#(\d|[a-fA-F])+/;
+terminal HEX returns string: /#(\d|[a-fA-F])+/;
 
 // recognize an identifier
-terminal ID returns string:     /[_a-zA-Z][\w_]*/;
-
-terminal REF returns string: ID '.' ID;
-
-terminal TAGGED_ID returns string: '@'ID;
-
-terminal QUERY_ID returns string: ID | ID'?';
+terminal ID returns string: /[_a-zA-Z][\w_]*/;
 
 // quoted strings
 terminal STRING returns string: /(["'])((\\{2})*|(.*?[^\\](\\{2})*))\1/;
 
 // recognize an Integer (but represented via a 'number' type)
-terminal INT returns number:    /-?[0-9]+/;
+terminal INT returns number: /-?[0-9]+/;
 
-hidden terminal WS:             /\s+/;
-hidden terminal ML_COMMENT:     /\/\*[\s\S]*?\*\//;
-hidden terminal SL_COMMENT:     /\/\/[^\n\r]*/;
+hidden terminal WS: /\s+/;
+hidden terminal ML_COMMENT: /\/\*[\s\S]*?\*\//;
+hidden terminal SL_COMMENT: /\/\/[^\n\r]*/;
 
 

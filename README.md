@@ -42,6 +42,6 @@ npm run build
 Test with a sample .al file:
 
 ```shell
-node ./bin/cli.js parseAndValidate test.al
-node ./bin/cli.js generate test.al
+node ./bin/cli.js parseAndValidate example/test.al
+node ./bin/cli.js generate example/test.al
 ```
