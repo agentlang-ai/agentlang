@@ -1,10 +1,8 @@
-import type { Module } from '../language/generated/ast.js';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import { AgentlangLanguageMetaData } from '../language/generated/module.js';
 import { createAgentlangServices } from '../language/agentlang-module.js';
-import { extractAstNode } from './cli-util.js';
-import { generateCommands } from './generator.js';
+import { load } from './loader.js';
 import { NodeFileSystem } from 'langium/node';
 import { extractDocument } from './cli-util.js';
 import * as url from 'node:url';
@@ -14,13 +12,6 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
 const packagePath = path.resolve(__dirname, '..', '..', 'package.json');
 const packageContent = await fs.readFile(packagePath, 'utf-8');
-
-export const generateAction = async (fileName: string, opts: GenerateOptions): Promise<void> => {
-    const services = createAgentlangServices(NodeFileSystem).Agentlang;
-    const model = await extractAstNode<Module>(fileName, services);
-    const generatedFilePath = generateCommands(model, fileName, opts.destination);
-    console.log(chalk.green(`JavaScript code generated successfully: ${generatedFilePath}`));
-};
 
 export type GenerateOptions = {
     destination?: string;
@@ -34,18 +25,18 @@ export default function(): void {
     const fileExtensions = AgentlangLanguageMetaData.fileExtensions.join(', ');
 
     program
-        .command('generate')
+        .command('loads')
         .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
         .option('-d, --destination <dir>', 'destination directory of generating')
         // new description
-        .description('generates Agentlang commands that can be used as simple drawing instructions')
-        .action(generateAction);
+        .description('Evaluates an agentlang module')
+        .action(load);
 
     program
         .command('parseAndValidate')
         .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
         .option('-d, --destination <dir>', 'destination directory of generating')
-        .description('generates JavaScript code that prints "Hello, {name}!" for each greeting in a source file')
+        .description('Parses and validates an Agentlang module')
         .action(parseAndValidate);
 
     program.parse(process.argv);
