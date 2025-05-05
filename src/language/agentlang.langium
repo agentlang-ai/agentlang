@@ -1,50 +1,89 @@
 grammar Agentlang
 
-entry Model: (stmts+=Stmt | defs+=Def)*;
+entry Module: 'module' name=ID (defs+=Def)*;
 
-Def: 'def' name=ID '(' (params+=Param (',' params+=Param)*)? ')' Block;
+Def: SchemaDef | Relationship | Workflow;
+SchemaDef: Entity | Event | Record;
 
-fragment Block: '{' body+=Stmt* '}';
+Property: name=TAGGED_ID '=' value=Literal;
 
-Stmt: Cmd | Macro;
+Properties: '(' (properties+=Property (',' properties+=Property)*)+ ')';
 
-Cmd: Pen | Move | Color | For;
+fragment RecDef: name=ID '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}';
 
-Macro:  def=[Def:ID] '(' (args+=Expr (',' args+=Expr)*)? ')';
+Entity: 'entity' RecDef;
+Event: 'event' RecDef;
+Record: 'record' RecDef;
 
-Param: name=ID;
+Relationship: 'relationship' name=ID ('contains' | 'between') '[' node1=Node ',' node2=Node ']' Properties?;
 
-Pen:    'pen' '(' mode=('up' | 'down') ')';
+Node: name=ID | name=ID 'as' alias=ID;
 
-Move:   'move' '(' ex=Expr ',' ey=Expr ')';
+Attribute: name=ID type=ID Properties?;
 
-For: 'for' var=Param '=' e1=Expr 'to' e2=Expr Block;
+Literal: val=(ID | INT | Decimal | STRING | REF | Boolean);
 
-Color:  'color' '(' ((r = Expr ',' g=Expr ',' b=Expr) | color=ID | color=HEX) ')';
+Workflow: 'workflow' name=ID '{' (patterns+=Pattern)+ '}';
+
+Pattern: Literal | CrudMap | If | ForEach;
+
+CrudMap: '{' name=ID '{' (attributes+=AttributeValue (',' attributes+=AttributeValue)*)+ Properties? Throws? '}' '}';
+
+Throws: 'throws' '{' (handlers+=Handler)+ '}';
+
+Handler: ('not_found' | 'error') Pattern;
+
+If: 'if' cond=LogicalExpression '{' val=IfBody '}' ElseIf?;
+ElseIf infers If: 'else' 'if' cond=LogicalExpression '{' val=IfBody '}' | 'else' '{' val=IfBody '}';
+IfBody: Pattern;
+
+ForEach: 'for' var=ID 'in' src=(ID | Pattern) '{' (patterns+=Pattern)+ '}';
+
+AttributeValue: name=QUERY_ID ('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')? value=AttributeValueExpression;
+
+AttributeValueExpression: Literal | Expr;
+
+LogicalExpression: LogExpr;
+
+LogExpr infers LogicalExpression:
+    ComparisonExpression({infer ComparisonExpression.e1=current} op=('and'|'or') e2=ComparisonExpression)*;
+
+ComparisonExpression:
+    e1=Expr op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between') e2=Expr;
 
 Expr: Add;
 
-Add  infers Expr: 
+Add infers Expr:
     Mult ({infer BinExpr.e1=current} op=('+'|'-') e2=Mult)*;
 
 Mult infers Expr: 
     PrimExpr ({infer BinExpr.e1=current} op=('*'|'/') e2=PrimExpr)*;
-PrimExpr: Lit | Ref | Group | NegExpr;
 
-// literal int
-Lit:        val=INT;
-// cross-reference to a parameter
-Ref:        val=[Param:ID];
+PrimExpr: Literal | Group | NegExpr;
+
 // grouped expression with parentheses
 Group:      '(' ge=Expr ')';
 // negated expression
 NegExpr:    '-' ne=Expr;
+
+Boolean returns string: 'true' | 'false';
+
+Decimal returns number: INT | INT '.' INT;
 
 // recognize a hexadecimal sequence, used to recognize colors for the 'Color' command
 terminal HEX returns string:    /#(\d|[a-fA-F])+/;
 
 // recognize an identifier
 terminal ID returns string:     /[_a-zA-Z][\w_]*/;
+
+terminal REF returns string: ID '.' ID;
+
+terminal TAGGED_ID returns string: '@'ID;
+
+terminal QUERY_ID returns string: ID | ID'?';
+
+// quoted strings
+terminal STRING returns string: /(["'])((\\{2})*|(.*?[^\\](\\{2})*))\1/;
 
 // recognize an Integer (but represented via a 'number' type)
 terminal INT returns number:    /-?[0-9]+/;

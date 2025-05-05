@@ -1,4 +1,4 @@
-import type { Model } from '../language/generated/ast.js';
+import type { Module } from '../language/generated/ast.js';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import { AgentlangLanguageMetaData } from '../language/generated/module.js';
@@ -17,7 +17,7 @@ const packageContent = await fs.readFile(packagePath, 'utf-8');
 
 export const generateAction = async (fileName: string, opts: GenerateOptions): Promise<void> => {
     const services = createAgentlangServices(NodeFileSystem).Agentlang;
-    const model = await extractAstNode<Model>(fileName, services);
+    const model = await extractAstNode<Module>(fileName, services);
     const generatedFilePath = generateCommands(model, fileName, opts.destination);
     console.log(chalk.green(`JavaScript code generated successfully: ${generatedFilePath}`));
 };

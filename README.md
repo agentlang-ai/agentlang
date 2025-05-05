@@ -24,8 +24,17 @@ Agents are a built-in language construct - developers can choose from one of the
 
 ## Build instructions
 
+Make sure you have a working Node environment with version 22 or higher.
+
+Install Yeoman and the Langium extension generator.
+
 ```shell
 npm i -g yo generator-langium
+```
+
+Generate the Agentlang parser and build the project:
+
+```shell
 npm run langium:generate
 npm run build
 ```

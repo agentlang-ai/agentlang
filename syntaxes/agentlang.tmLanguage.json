@@ -10,7 +10,7 @@
     },
     {
       "name": "keyword.control.agentlang",
-      "match": "\\b(color|def|down|for|move|pen|to|up)\\b"
+      "match": "\\b(and|as|between|contains|else|entity|error|event|false|for|if|in|like|module|not_found|or|record|relationship|throws|true|workflow)\\b"
     }
   ],
   "repository": {
@@ -42,6 +42,10 @@
           "name": "comment.line.agentlang"
         }
       ]
+    },
+    "string-character-escape": {
+      "name": "constant.character.escape.agentlang",
+      "match": "\\\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|u\\{[0-9A-Fa-f]+\\}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.|$)"
     }
   }
 }
