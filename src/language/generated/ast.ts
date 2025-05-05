@@ -166,9 +166,10 @@ export function isTaggedId(item: unknown): item is TaggedId {
 }
 
 export interface Attribute extends langium.AstNode {
-    readonly $container: CrudMap | Entity | Event | Record;
-    readonly $type: 'Attribute' | 'Properties';
+    readonly $container: Entity | Event | Record;
+    readonly $type: 'Attribute';
     name: string;
+    props?: Properties;
     type: string;
 }
 
@@ -388,7 +389,7 @@ export function isRecord(item: unknown): item is Record {
 }
 
 export interface Relationship extends langium.AstNode {
-    readonly $container: CrudMap | Module;
+    readonly $container: Attribute | CrudMap | Module;
     readonly $type: 'Properties' | 'Relationship';
     name: string;
     node1: Node;
@@ -426,8 +427,8 @@ export function isWorkflow(item: unknown): item is Workflow {
     return reflection.isInstance(item, Workflow);
 }
 
-export interface Properties extends Attribute, Relationship {
-    readonly $container: CrudMap;
+export interface Properties extends Relationship {
+    readonly $container: Attribute | CrudMap;
     readonly $type: 'Properties';
     properties: Array<Property>;
 }
@@ -510,7 +511,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return this.isSubtype(Handler, supertype) || this.isSubtype(IfBody, supertype);
             }
             case Properties: {
-                return this.isSubtype(Attribute, supertype) || this.isSubtype(Relationship, supertype);
+                return this.isSubtype(Relationship, supertype);
             }
             case Relationship:
             case SchemaDef:
@@ -539,6 +540,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Attribute,
                     properties: [
                         { name: 'name' },
+                        { name: 'props' },
                         { name: 'type' }
                     ]
                 };
@@ -723,8 +725,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'name' },
                         { name: 'node1' },
                         { name: 'node2' },
-                        { name: 'properties', defaultValue: [] },
-                        { name: 'type' }
+                        { name: 'properties', defaultValue: [] }
                     ]
                 };
             }

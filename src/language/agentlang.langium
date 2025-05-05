@@ -19,7 +19,7 @@ Relationship: 'relationship' name=ID ('contains' | 'between') '[' node1=Node ','
 
 Node: name=ID | name=ID 'as' alias=ID;
 
-Attribute: name=ID type=ID Properties?;
+Attribute: name=ID type=ID props=Properties?;
 
 Literal: val=(ID | Decimal | STRING | Ref | Boolean);
 
