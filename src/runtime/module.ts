@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { Attribute, Properties, Property, isProperties } from '../language/generated/ast.js';
+import { Attribute, Properties, Property, isProperties, Pattern } from '../language/generated/ast.js';
 import { Path, splitPath } from "./util.js";
 
 class ModuleEntry {
@@ -10,7 +10,7 @@ class ModuleEntry {
     }
 }
 
-class Entity extends ModuleEntry {
+class Record extends ModuleEntry {
     attributes: Attribute[];
     meta: Map<string, string>;
 
@@ -25,11 +25,25 @@ class Entity extends ModuleEntry {
     }
 }
 
+class Entity extends Record {}
+class Event extends Record {}
+
+class Workflow extends ModuleEntry {
+    patterns: Pattern[];
+
+    constructor(name: string, patterns: Pattern[]) {
+        super(name)
+        this.patterns = patterns
+    }
+}
+
 class Module {
+    name: string;
     entries: ModuleEntry[];
     index: Map<string, number>;
 
-    constructor() {
+    constructor(name: string) {
+        this.name = name;
         this.entries = new Array<ModuleEntry>();
         this.index = new Map<string, number>()
     }
@@ -42,6 +56,13 @@ class Module {
     hasEntry(entryName: string): boolean {
         return this.index.has(entryName)
     }
+
+    getEntry(entryName: string): ModuleEntry {
+        let idx: number | undefined = this.index.get(entryName)
+        if (idx == undefined)
+            throw new Error("Entry " + entryName + " not found in module " + this.name)
+        return this.entries[idx];
+    }
 }
 
 const moduleDb = new Map<string, Module>;
@@ -49,7 +70,7 @@ const moduleDb = new Map<string, Module>;
 let activeModule: string = "";
 
 export function addModule(name: string): string {
-    moduleDb.set(name, new Module());
+    moduleDb.set(name, new Module(name));
     activeModule = name;
     return name;
 }
@@ -105,14 +126,29 @@ export function addEntity(name: string, attrs: Attribute[], moduleName = activeM
     return name;
 }
 
-export function addEvent(name: string, attrs: Attribute[], module = activeModule) {
+export function addEvent(name: string, attrs: Attribute[], moduleName = activeModule) {
+    let module: Module = fetchModule(moduleName);
+    attrs.forEach((a) => verifyAttribute(a));
+    module.addEntry(new Event(name, attrs));
+    return name;
 }
 
-export function addRecord(name: string, attrs: Attribute[], module = activeModule) {
+export function addRecord(name: string, attrs: Attribute[], moduleName = activeModule) {
+    let module: Module = fetchModule(moduleName);
+    attrs.forEach((a) => verifyAttribute(a));
+    module.addEntry(new Record(name, attrs));
+    return name;
 }
 
-export function addRelationship(name: string, attrs: Attribute[], module = activeModule) {
-}
-
-export function addWorkflow(name: string, attrs: Attribute[], module = activeModule) {
+export function addWorkflow(name: string, patterns: Pattern[], moduleName = activeModule) {
+    let module: Module = fetchModule(moduleName);
+    if (module.hasEntry(name)) {
+        let entry: ModuleEntry = module.getEntry(name);
+        if (!(entry instanceof Event))
+            throw new Error("Not an event, cannot attach workflow to " + entry.name)
+    } else {
+        addEvent(name, new Array<Attribute>, moduleName);
+    }
+    module.addEntry(new Workflow(name + "_workflow", patterns));
+    return name;
 }
