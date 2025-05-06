@@ -5,9 +5,9 @@ entry Module: 'module' name=ID (defs+=Def)*;
 Def: SchemaDef | Relationship | Workflow;
 SchemaDef: Entity | Event | Record;
 
-Property: name=TaggedId '=' value=Literal;
+Property: (name=TaggedId '=' value=Literal) | name=TaggedId;
 
-Properties: '(' (properties+=Property (',' properties+=Property)*)+ ')';
+Properties: (properties+=Property) | '(' (properties+=Property (',' properties+=Property)*)+ ')';
 
 fragment RecDef: name=ID '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}';
 

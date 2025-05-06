@@ -366,7 +366,7 @@ export interface Property extends langium.AstNode {
     readonly $container: Properties;
     readonly $type: 'Property';
     name: TaggedId;
-    value: Literal;
+    value?: Literal;
 }
 
 export const Property = 'Property';

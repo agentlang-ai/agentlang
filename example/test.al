@@ -1,10 +1,10 @@
 module Acme
 
 entity Employee {
-    email Email (@id=true),
-    firstName String (@indexed=true),
-    lastName String,
-    salary Double (@default=4500.0, @indexed=true)
+    email Email @id,
+    firstName String @indexed,
+    lastName String @optional,
+    salary Double (@default=4500.0, @indexed)
 }
 
 event SendMail {

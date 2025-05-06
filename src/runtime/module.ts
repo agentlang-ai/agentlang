@@ -1,5 +1,6 @@
 import chalk from 'chalk';
-import { Attribute } from '../language/generated/ast.js';
+import { Attribute, Properties, Property, isProperties } from '../language/generated/ast.js';
+import { Path, splitPath } from "./util.js";
 
 class ModuleEntry {
     name: string;
@@ -37,6 +38,10 @@ class Module {
         this.entries.push(entry);
         this.index.set(entry.name, this.entries.length);
     }
+
+    hasEntry(entryName: string): boolean {
+        return this.index.has(entryName)
+    }
 }
 
 const moduleDb = new Map<string, Module>;
@@ -62,16 +67,29 @@ function fetchModule(moduleName: string): Module {
 }
 
 const builtInTypes = new Set(["String", "Int", "Number", "Email", "Date", "Time", "DateTime", "Boolean"]);
+const propertyNames = new Set(["@id", "@indexed", "@default", "@optional"]);
 
 export function isValidType(type: string): boolean {
-    if (builtInTypes.has(type))
-        return true;
-    let paths = splitPath(type);
+    if (builtInTypes.has(type)) return true;
+    let path: Path = splitPath(type);
+    let modName: string = "";
+    if (path.hasModule()) modName = path.getModuleName()
+    else modName = activeModule
+    return (isModule(modName) && fetchModule(modName).hasEntry(path.getEntryName()))
 }
 
 function checkType(type: string): void {
     if (!isValidType(type)) {
         console.log(chalk.red("WARN: type not found - " + type));
+    }
+}
+
+function validateProperties(props: Properties | undefined): void {
+    if (isProperties(props)) {
+        props.properties.forEach((p: Property) => {
+            if (!propertyNames.has(p.name))
+                throw new Error("Invalid property " + p.name);
+        })
     }
 }
 
