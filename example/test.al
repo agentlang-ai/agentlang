@@ -4,7 +4,7 @@ entity Employee {
     email Email @id,
     firstName String @indexed,
     lastName String @optional,
-    salary Double (@default=4500.0, @indexed)
+    salary Number (@default=4500.0, @indexed)
 }
 
 event SendMail {

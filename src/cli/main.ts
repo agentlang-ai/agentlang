@@ -25,7 +25,7 @@ export default function(): void {
     const fileExtensions = AgentlangLanguageMetaData.fileExtensions.join(', ');
 
     program
-        .command('loads')
+        .command('load')
         .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
         .option('-d, --destination <dir>', 'destination directory of generating')
         // new description

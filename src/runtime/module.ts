@@ -87,8 +87,8 @@ function fetchModule(moduleName: string): Module {
     return module;
 }
 
-const builtInTypes = new Set(["String", "Int", "Number", "Email", "Date", "Time", "DateTime", "Boolean"]);
-const propertyNames = new Set(["@id", "@indexed", "@default", "@optional"]);
+const builtInTypes = new Set(["String", "Int", "Number", "Email", "Date", "Time", "DateTime", "Boolean", "UUID", "URL"]);
+const propertyNames = new Set(["@id", "@indexed", "@default", "@optional", "@unique", "@auto"]);
 
 export function isValidType(type: string): boolean {
     if (builtInTypes.has(type)) return true;

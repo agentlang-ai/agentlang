@@ -21,7 +21,11 @@ Node: name=ID | name=ID 'as' alias=ID;
 
 Attribute: name=ID type=ID props=Properties?;
 
-Literal: val=(ID | Decimal | STRING | Ref | Boolean);
+ArrayLiteral: '[' ']' | '[' vals+=Pattern (',' vals+=Pattern)* ']';
+
+FnCall: ID '(' (args+=Literal (',' args+=Literal)*)+ ')';
+
+Literal: val=(ID | Decimal | STRING | Ref | Boolean | FnCall | ArrayLiteral);
 
 fragment Body: '{' (patterns+=Pattern (';' patterns+=Pattern)*)+ '}' | patterns+=Pattern;
 
@@ -31,7 +35,7 @@ RawPattern: Literal | CrudMap | If | ForEach;
 
 Pattern: pat=RawPattern ('as' (alias+=ID | ('[' alias+=ID (',' alias+=ID)*)+ ']'))?;
 
-CrudMap: '{' name=ID '{' (attributes+=AttributeValue (',' attributes+=AttributeValue)*)+ props=Properties? throws=Throws? '}' '}';
+CrudMap: '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ props=Properties? throws=Throws? '}' '}';
 
 Throws: 'throws' '{' (handlers+=Handler)+ '}';
 
@@ -43,7 +47,7 @@ IfBody: Pattern;
 
 ForEach: 'for' var=ID 'in' src=RawPattern Body;
 
-AttributeValue: name=QueryId ('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')? value=AttributeValueExpression;
+SetAttribute: name=QueryId ('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between'|'+')? value=AttributeValueExpression;
 
 AttributeValueExpression: Expr;
 
@@ -79,6 +83,8 @@ QueryId returns string: ID | ID '?';
 TaggedId returns string: '@' ID;
 
 Ref returns string: ID '.' ID;
+
+Append returns string: ID '+';
 
 // recognize a hexadecimal sequence, used to recognize colors for the 'Color' command
 terminal HEX returns string: /#(\d|[a-fA-F])+/;

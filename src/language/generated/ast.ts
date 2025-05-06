@@ -63,6 +63,12 @@ export type AgentlangKeywordNames =
 
 export type AgentlangTokenNames = AgentlangTerminalNames | AgentlangKeywordNames;
 
+export type Append = string;
+
+export function isAppend(item: unknown): item is Append {
+    return typeof item === 'string';
+}
+
 export type AttributeValueExpression = Expr;
 
 export const AttributeValueExpression = 'AttributeValueExpression';
@@ -165,6 +171,18 @@ export function isTaggedId(item: unknown): item is TaggedId {
     return typeof item === 'string';
 }
 
+export interface ArrayLiteral extends langium.AstNode {
+    readonly $container: Literal;
+    readonly $type: 'ArrayLiteral';
+    vals: Array<Pattern>;
+}
+
+export const ArrayLiteral = 'ArrayLiteral';
+
+export function isArrayLiteral(item: unknown): item is ArrayLiteral {
+    return reflection.isInstance(item, ArrayLiteral);
+}
+
 export interface Attribute extends langium.AstNode {
     readonly $container: Entity | Event | Record;
     readonly $type: 'Attribute';
@@ -179,21 +197,8 @@ export function isAttribute(item: unknown): item is Attribute {
     return reflection.isInstance(item, Attribute);
 }
 
-export interface AttributeValue extends langium.AstNode {
-    readonly $container: CrudMap;
-    readonly $type: 'AttributeValue';
-    name: QueryId;
-    value: AttributeValueExpression;
-}
-
-export const AttributeValue = 'AttributeValue';
-
-export function isAttributeValue(item: unknown): item is AttributeValue {
-    return reflection.isInstance(item, AttributeValue);
-}
-
 export interface BinExpr extends langium.AstNode {
-    readonly $container: AttributeValue | BinExpr | ComparisonExpression | Group | NegExpr;
+    readonly $container: BinExpr | ComparisonExpression | Group | NegExpr | SetAttribute;
     readonly $type: 'BinExpr';
     e1: Expr | PrimExpr;
     e2: Expr | PrimExpr;
@@ -223,7 +228,7 @@ export function isComparisonExpression(item: unknown): item is ComparisonExpress
 export interface CrudMap extends langium.AstNode {
     readonly $container: ForEach | Pattern;
     readonly $type: 'CrudMap';
-    attributes: Array<AttributeValue>;
+    attributes: Array<SetAttribute>;
     name: string;
     props?: Properties;
     throws?: Throws;
@@ -261,6 +266,18 @@ export function isEvent(item: unknown): item is Event {
     return reflection.isInstance(item, Event);
 }
 
+export interface FnCall extends langium.AstNode {
+    readonly $container: Literal;
+    readonly $type: 'FnCall';
+    args: Array<Literal>;
+}
+
+export const FnCall = 'FnCall';
+
+export function isFnCall(item: unknown): item is FnCall {
+    return reflection.isInstance(item, FnCall);
+}
+
 export interface ForEach extends langium.AstNode {
     readonly $container: ForEach | Pattern;
     readonly $type: 'ForEach';
@@ -276,7 +293,7 @@ export function isForEach(item: unknown): item is ForEach {
 }
 
 export interface Group extends langium.AstNode {
-    readonly $container: AttributeValue | BinExpr | ComparisonExpression | Group | NegExpr;
+    readonly $container: BinExpr | ComparisonExpression | Group | NegExpr | SetAttribute;
     readonly $type: 'Group';
     ge: Expr;
 }
@@ -301,9 +318,9 @@ export function isIf(item: unknown): item is If {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: AttributeValue | BinExpr | ComparisonExpression | ForEach | Group | NegExpr | Pattern | Property;
+    readonly $container: BinExpr | ComparisonExpression | FnCall | ForEach | Group | NegExpr | Pattern | Property | SetAttribute;
     readonly $type: 'Literal';
-    val: Boolean | Decimal | Ref | string;
+    val: ArrayLiteral | Boolean | Decimal | FnCall | Ref | string;
 }
 
 export const Literal = 'Literal';
@@ -325,7 +342,7 @@ export function isModule(item: unknown): item is Module {
 }
 
 export interface NegExpr extends langium.AstNode {
-    readonly $container: AttributeValue | BinExpr | ComparisonExpression | Group | NegExpr;
+    readonly $container: BinExpr | ComparisonExpression | Group | NegExpr | SetAttribute;
     readonly $type: 'NegExpr';
     ne: Expr;
 }
@@ -350,7 +367,7 @@ export function isNode(item: unknown): item is Node {
 }
 
 export interface Pattern extends langium.AstNode {
-    readonly $container: ForEach | If | Throws | Workflow;
+    readonly $container: ArrayLiteral | ForEach | If | Throws | Workflow;
     readonly $type: 'Pattern';
     alias: Array<string>;
     pat: RawPattern;
@@ -402,6 +419,19 @@ export function isRelationship(item: unknown): item is Relationship {
     return reflection.isInstance(item, Relationship);
 }
 
+export interface SetAttribute extends langium.AstNode {
+    readonly $container: CrudMap;
+    readonly $type: 'SetAttribute';
+    name: QueryId;
+    value: AttributeValueExpression;
+}
+
+export const SetAttribute = 'SetAttribute';
+
+export function isSetAttribute(item: unknown): item is SetAttribute {
+    return reflection.isInstance(item, SetAttribute);
+}
+
 export interface Throws extends langium.AstNode {
     readonly $container: CrudMap;
     readonly $type: 'Throws';
@@ -440,8 +470,8 @@ export function isProperties(item: unknown): item is Properties {
 }
 
 export type AgentlangAstType = {
+    ArrayLiteral: ArrayLiteral
     Attribute: Attribute
-    AttributeValue: AttributeValue
     AttributeValueExpression: AttributeValueExpression
     BinExpr: BinExpr
     ComparisonExpression: ComparisonExpression
@@ -450,6 +480,7 @@ export type AgentlangAstType = {
     Entity: Entity
     Event: Event
     Expr: Expr
+    FnCall: FnCall
     ForEach: ForEach
     Group: Group
     Handler: Handler
@@ -468,6 +499,7 @@ export type AgentlangAstType = {
     Record: Record
     Relationship: Relationship
     SchemaDef: SchemaDef
+    SetAttribute: SetAttribute
     Throws: Throws
     Workflow: Workflow
 }
@@ -475,7 +507,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [Attribute, AttributeValue, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Entity, Event, Expr, ForEach, Group, Handler, If, IfBody, Literal, LogicalExpression, Module, NegExpr, Node, Pattern, PrimExpr, Properties, Property, RawPattern, Record, Relationship, SchemaDef, Throws, Workflow];
+        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, IfBody, Literal, LogicalExpression, Module, NegExpr, Node, Pattern, PrimExpr, Properties, Property, RawPattern, Record, Relationship, SchemaDef, SetAttribute, Throws, Workflow];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -535,6 +567,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getTypeMetaData(type: string): langium.TypeMetaData {
         switch (type) {
+            case ArrayLiteral: {
+                return {
+                    name: ArrayLiteral,
+                    properties: [
+                        { name: 'vals', defaultValue: [] }
+                    ]
+                };
+            }
             case Attribute: {
                 return {
                     name: Attribute,
@@ -542,15 +582,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'name' },
                         { name: 'props' },
                         { name: 'type' }
-                    ]
-                };
-            }
-            case AttributeValue: {
-                return {
-                    name: AttributeValue,
-                    properties: [
-                        { name: 'name' },
-                        { name: 'value' }
                     ]
                 };
             }
@@ -600,6 +631,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'attributes', defaultValue: [] },
                         { name: 'name' }
+                    ]
+                };
+            }
+            case FnCall: {
+                return {
+                    name: FnCall,
+                    properties: [
+                        { name: 'args', defaultValue: [] }
                     ]
                 };
             }
@@ -698,6 +737,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'name' },
                         { name: 'node1' },
                         { name: 'node2' }
+                    ]
+                };
+            }
+            case SetAttribute: {
+                return {
+                    name: SetAttribute,
+                    properties: [
+                        { name: 'name' },
+                        { name: 'value' }
                     ]
                 };
             }
