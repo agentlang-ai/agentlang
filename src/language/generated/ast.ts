@@ -48,6 +48,7 @@ export type AgentlangKeywordNames =
     | "false"
     | "for"
     | "if"
+    | "import"
     | "in"
     | "like"
     | "module"
@@ -317,6 +318,19 @@ export function isIf(item: unknown): item is If {
     return reflection.isInstance(item, If);
 }
 
+export interface Import extends langium.AstNode {
+    readonly $container: Module;
+    readonly $type: 'Import';
+    name: string;
+    path: string;
+}
+
+export const Import = 'Import';
+
+export function isImport(item: unknown): item is Import {
+    return reflection.isInstance(item, Import);
+}
+
 export interface Literal extends langium.AstNode {
     readonly $container: BinExpr | ComparisonExpression | FnCall | ForEach | Group | NegExpr | Pattern | Property | SetAttribute;
     readonly $type: 'Literal';
@@ -332,6 +346,7 @@ export function isLiteral(item: unknown): item is Literal {
 export interface Module extends langium.AstNode {
     readonly $type: 'Module';
     defs: Array<Def>;
+    imports: Array<Import>;
     name: string;
 }
 
@@ -486,6 +501,7 @@ export type AgentlangAstType = {
     Handler: Handler
     If: If
     IfBody: IfBody
+    Import: Import
     Literal: Literal
     LogicalExpression: LogicalExpression
     Module: Module
@@ -507,7 +523,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, IfBody, Literal, LogicalExpression, Module, NegExpr, Node, Pattern, PrimExpr, Properties, Property, RawPattern, Record, Relationship, SchemaDef, SetAttribute, Throws, Workflow];
+        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, IfBody, Import, Literal, LogicalExpression, Module, NegExpr, Node, Pattern, PrimExpr, Properties, Property, RawPattern, Record, Relationship, SchemaDef, SetAttribute, Throws, Workflow];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -669,6 +685,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case Import: {
+                return {
+                    name: Import,
+                    properties: [
+                        { name: 'name' },
+                        { name: 'path' }
+                    ]
+                };
+            }
             case Literal: {
                 return {
                     name: Literal,
@@ -682,6 +707,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Module,
                     properties: [
                         { name: 'defs', defaultValue: [] },
+                        { name: 'imports', defaultValue: [] },
                         { name: 'name' }
                     ]
                 };

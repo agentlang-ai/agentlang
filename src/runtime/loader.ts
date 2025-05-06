@@ -2,8 +2,9 @@ import chalk from 'chalk';
 import { NodeFileSystem } from 'langium/node';
 import { extractAstNode } from '../cli/cli-util.js';
 import { createAgentlangServices } from '../language/agentlang-module.js';
-import { Module, Def, isEntity, isEvent, isRecord, isWorkflow } from '../language/generated/ast.js';
+import { Module, Def, isEntity, isEvent, isRecord, isWorkflow, Import } from '../language/generated/ast.js';
 import {addModule, addEntity, addEvent, addRecord, addWorkflow} from "./module.js";
+import { importModule } from './util.js';
 
 export const load = async (fileName: string): Promise<void> => {
     const services = createAgentlangServices(NodeFileSystem).Agentlang;
@@ -14,6 +15,13 @@ export const load = async (fileName: string): Promise<void> => {
 
 function internModule(module: Module): string {
     addModule(module.name);
+    module.imports.forEach((imp: Import) => {
+        importModule(imp.path, imp.name);
+    })
+    // Test dynamic fn call.
+    /*setTimeout(function(){
+        console.log("@3#######" + invokeModuleFn("testMod", "add", 10, 20));
+    }, 2000);*/
     module.defs.forEach((def: Def) => {
         if (isEntity(def)) addEntity(def.name, def.attributes)
         else if (isEvent(def)) addEvent(def.name, def.attributes)

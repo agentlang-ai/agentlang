@@ -10,7 +10,7 @@
     },
     {
       "name": "keyword.control.agentlang",
-      "match": "\\b(and|as|between|contains|else|entity|error|event|false|for|if|in|like|module|not_found|or|record|relationship|throws|true|workflow)\\b"
+      "match": "\\b(and|as|between|contains|else|entity|error|event|false|for|if|import|in|like|module|not_found|or|record|relationship|throws|true|workflow)\\b"
     }
   ],
   "repository": {

@@ -1,6 +1,8 @@
 grammar Agentlang
 
-entry Module: 'module' name=ID (defs+=Def)*;
+entry Module: 'module' name=ID (imports+=Import)? (defs+=Def)*;
+
+Import: 'import' path=STRING 'as' name=ID;
 
 Def: SchemaDef | Relationship | Workflow;
 SchemaDef: Entity | Event | Record;

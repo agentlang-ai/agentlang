@@ -1,16 +1,41 @@
+const importedModules = new Map<string, any>();
+
 // Usage: importModule("./mymodels/acme.js")
-export async function importModule(s: string) {
-    let m = await import(s);
+export async function importModule(path: string, name: string) {
+    let m = await import(path);
+    importedModules.set(name, m);
     // e.g of dynamic fn-call:
     //// let f = eval("(a, b) => m.add(a, b)");
     //// console.log(f(10, 20))
     return m;
 }
 
+export function moduleImported(moduleName: string): boolean {
+    return importedModules.has(moduleName);
+}
+
+// TODO: support varargs
+export function invokeModuleFn(moduleName: string, fnName: string, arg1: any, arg2: any): any {
+    let m = importedModules.get(moduleName);
+    if (m != undefined) {
+        let f = m[fnName];
+        return f(arg1, arg2);
+    }
+    return null;
+}
+
+export function isNumber(x: any): boolean {
+    return (typeof x === "number");
+}
+
+export function isBoolean(x: any): boolean {
+    return (typeof x === "boolean");
+}
+
 type MaybeString = string | undefined;
 
-function isString(s: MaybeString): boolean {
-    return s != undefined;
+export function isString(s: MaybeString): boolean {
+    return s != undefined && (typeof s === "string");
 }
 
 function asString(s: MaybeString): string {

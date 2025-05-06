@@ -1,5 +1,7 @@
 module Acme
 
+import "../../example/test.js" as testMod
+
 entity Employee {
     email Email @id,
     firstName String @indexed,

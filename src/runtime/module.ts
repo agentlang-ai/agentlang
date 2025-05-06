@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { Attribute, Properties, Property, isProperties, Pattern } from '../language/generated/ast.js';
-import { Path, splitPath } from "./util.js";
+import { Path, splitPath, isString, isNumber, isBoolean } from "./util.js";
 
 class ModuleEntry {
     name: string;
@@ -10,13 +10,23 @@ class ModuleEntry {
     }
 }
 
+type AttributeSpec = {
+    type: string;
+    properties?: Properties
+}
+
+type RecordAttributes = Map<string, AttributeSpec>;
+
 class Record extends ModuleEntry {
-    attributes: Attribute[];
+    attributes: RecordAttributes;
     meta: Map<string, string>;
 
     constructor(name: string, attributes: Attribute[]) {
         super(name);
-        this.attributes = attributes;
+        this.attributes = new Map<string, AttributeSpec>();
+        attributes.forEach((a: Attribute) => {
+            this.attributes.set(a.name, {type: a.type, properties: a.props})
+        })
         this.meta = new Map<string, string>;
     }
 
@@ -63,6 +73,14 @@ class Module {
             throw new Error("Entry " + entryName + " not found in module " + this.name)
         return this.entries[idx];
     }
+
+    getRecord(recordName: string): Record {
+        let e: ModuleEntry = this.getEntry(recordName);
+        if (e instanceof Record) {
+            return (e as Record);
+        }
+        throw new Error(recordName + " is not a record in module " + this.name);
+    }
 }
 
 const moduleDb = new Map<string, Module>;
@@ -87,7 +105,17 @@ function fetchModule(moduleName: string): Module {
     return module;
 }
 
-const builtInTypes = new Set(["String", "Int", "Number", "Email", "Date", "Time", "DateTime", "Boolean", "UUID", "URL"]);
+const builtInChecks = new Map([["String", isString],
+                               ["Int", Number.isSafeInteger],
+                               ["Number", isNumber],
+                               ["Email", isString],
+                               ["Date", isString],
+                               ["Time", isString],
+                               ["DateTime", isString],
+                               ["Boolean", isBoolean],
+                               ["UUID", isString],
+                               ["URL", isString]]);
+const builtInTypes = new Set(Array.from(builtInChecks.keys()));
 const propertyNames = new Set(["@id", "@indexed", "@default", "@optional", "@unique", "@auto"]);
 
 export function isValidType(type: string): boolean {
@@ -151,4 +179,48 @@ export function addWorkflow(name: string, patterns: Pattern[], moduleName = acti
     }
     module.addEntry(new Workflow(name + "_workflow", patterns));
     return name;
+}
+
+function getAttributeSpec(attrsSpec: RecordAttributes, attrName: string): AttributeSpec {
+    let spec: AttributeSpec | undefined = attrsSpec.get(attrName);
+    if (spec == undefined) {
+        throw new Error("Failed to find spec for attribute " + attrName);
+    }
+    return spec;
+}
+
+function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec) {
+    let predic = builtInChecks.get(attrSpec.type);
+    if (predic != undefined) {
+        if (!predic(attrValue)) {
+            throw new Error("Invalid value " + attrValue + " specified for " + attrName);
+        }
+    }
+}
+
+export class Instance {
+    attributes: Map<String, any>;
+
+    constructor(attributes: Map<String, any>) {
+        this.attributes = attributes;
+    }
+}
+
+export function makeInstance(fullEntryName: string, attributes: Map<string, any>): Instance {
+    let path: Path = splitPath(fullEntryName);
+    let moduleName: string = "";
+    if (path.hasModule()) moduleName = path.getModuleName();
+    else moduleName = activeModule;
+    let module: Module = fetchModule(moduleName);
+    let entryName: string = path.getEntryName();
+    let record: Record = module.getRecord(entryName);
+    let attrsSpec: RecordAttributes = record.attributes;
+    attributes.forEach((value: any, key: string) => {
+        if (!attrsSpec.has(key)) {
+            throw new Error("Invalid attribute " + key + " specified for " + fullEntryName);
+        }
+        let spec: AttributeSpec = getAttributeSpec(attrsSpec, key);
+        validateType(key, value, spec);
+    });
+    return new Instance(attributes);
 }
