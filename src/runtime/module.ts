@@ -1,25 +1,50 @@
+import chalk from 'chalk';
 import { Attribute } from '../language/generated/ast.js';
 
-type Properties = Map<string, object> | undefined;
+class ModuleEntry {
+    name: string;
 
-type AttributeEntry = {
-    type: String;
-    properties: Properties;
+    constructor(name: string) {
+        this.name = name;
+    }
 }
 
-type ModuleEntry = {
-    attributes: Map<string, AttributeEntry>;
-    properties: Properties;
+class Entity extends ModuleEntry {
+    attributes: Attribute[];
+    meta: Map<string, string>;
+
+    constructor(name: string, attributes: Attribute[]) {
+        super(name);
+        this.attributes = attributes;
+        this.meta = new Map<string, string>;
+    }
+
+    addMeta(k: string, v: string): void {
+        this.meta.set(k, v);
+    }
 }
 
-type ModuleEntries = Map<string, Map<string, ModuleEntry>>;
+class Module {
+    entries: ModuleEntry[];
+    index: Map<string, number>;
 
-const moduleDb = new Map<string, ModuleEntries>;
+    constructor() {
+        this.entries = new Array<ModuleEntry>();
+        this.index = new Map<string, number>()
+    }
+
+    addEntry(entry: ModuleEntry): void {
+        this.entries.push(entry);
+        this.index.set(entry.name, this.entries.length);
+    }
+}
+
+const moduleDb = new Map<string, Module>;
 
 let activeModule: string = "";
 
 export function addModule(name: string): string {
-    moduleDb.set(name, new Map());
+    moduleDb.set(name, new Module());
     activeModule = name;
     return name;
 }
@@ -28,23 +53,37 @@ export function isModule(name: string): boolean {
     return moduleDb.has(name);
 }
 
-function getEntries(module: string): ModuleEntries {
-    let entries = moduleDb.get(module);
-    if (entries == undefined) return new Map();
-    return entries;
+function fetchModule(moduleName: string): Module {
+    let module: Module | undefined = moduleDb.get(moduleName);
+    if (module == undefined) {
+        throw new Error("Module not found - " + moduleName);
+    }
+    return module;
 }
 
-export function addEntity(name: string, attrs: Attribute[], module = activeModule) {
-    let entries: ModuleEntries = getEntries(module);
-    let entities = entries.get("entities");
-    if (entities == undefined) entities = new Map();
-    let attrsSpec = new Map();
-    attrs.flatMap((a) => attrsSpec.set(a.name, {type: a.type}));
-    let entityDef: ModuleEntry = {
-        attributes: attrsSpec,
-        properties: undefined
-    };
-    entities.set(name, entityDef);
+const builtInTypes = new Set(["String", "Int", "Number", "Email", "Date", "Time", "DateTime", "Boolean"]);
+
+export function isValidType(type: string): boolean {
+    if (builtInTypes.has(type))
+        return true;
+    let paths = splitPath(type);
+}
+
+function checkType(type: string): void {
+    if (!isValidType(type)) {
+        console.log(chalk.red("WARN: type not found - " + type));
+    }
+}
+
+function verifyAttribute(attr: Attribute): void {
+    checkType(attr.type);
+    validateProperties(attr.props);
+}
+
+export function addEntity(name: string, attrs: Attribute[], moduleName = activeModule): string {
+    let module: Module = fetchModule(moduleName);
+    attrs.forEach((a) => verifyAttribute(a));
+    module.addEntry(new Entity(name, attrs));
     return name;
 }
 

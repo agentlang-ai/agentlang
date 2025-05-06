@@ -29,7 +29,7 @@ Make sure you have a working Node environment with version 22 or higher.
 Install Yeoman and the Langium extension generator.
 
 ```shell
-npm i -g yo generator-langium
+npm i yo generator-langium
 ```
 
 Generate the Agentlang parser and build the project:
@@ -43,5 +43,5 @@ Test with a sample .al file:
 
 ```shell
 node ./bin/cli.js parseAndValidate example/test.al
-node ./bin/cli.js generate example/test.al
+node ./bin/cli.js load example/test.al
 ```
