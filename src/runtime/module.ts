@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { Attribute, Properties, Property, isProperties, Pattern, isProperty } from '../language/generated/ast.js';
+import { Attribute, Property, Pattern, isProperty } from '../language/generated/ast.js';
 import { Path, splitPath, isString, isNumber, isBoolean } from "./util.js";
 
 class ModuleEntry {
@@ -12,7 +12,7 @@ class ModuleEntry {
 
 type AttributeSpec = {
     type: string;
-    properties?: Properties
+    properties?: Property[]
 }
 
 type RecordSchema = Map<string, AttributeSpec>;
@@ -35,7 +35,7 @@ class Record extends ModuleEntry {
         super(name);
         this.schema = newRecordSchema();
         attributes.forEach((a: Attribute) => {
-            this.schema.set(a.name, { type: a.type, properties: a.props })
+            this.schema.set(a.name, { type: a.type, properties: a.properties })
         })
         this.meta = newMeta();
     }
@@ -143,9 +143,9 @@ function checkType(type: string): void {
     }
 }
 
-function validateProperties(props: Properties | undefined): void {
-    if (isProperties(props)) {
-        props.properties.forEach((p: Property) => {
+function validateProperties(props: Property[] | undefined): void {
+    if (props != undefined) {
+        props.forEach((p: Property) => {
             if (!propertyNames.has(p.name))
                 throw new Error("Invalid property " + p.name);
         })
@@ -154,15 +154,15 @@ function validateProperties(props: Properties | undefined): void {
 
 function verifyAttribute(attr: Attribute): void {
     checkType(attr.type);
-    validateProperties(attr.props);
+    validateProperties(attr.properties);
 }
 
 export function defaultAttributes(schema: RecordSchema): Map<string, any> {
     let result: Map<string, any> = new Map<string, any>();
     schema.forEach((v: AttributeSpec, k: string) => {
-        let props: Properties | undefined = v.properties;
-        if (isProperties(props)) {
-            let d: Property | undefined = props.properties.find((v: Property) => v.name == '@default');
+        let props: Property[] | undefined = v.properties;
+        if (props != undefined) {
+            let d: Property | undefined = props.find((v: Property) => v.name == '@default');
             if (isProperty(d)) {
                 result.set(k, d.value)
             }

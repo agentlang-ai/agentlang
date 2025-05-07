@@ -3,7 +3,7 @@ module Blog
 // Ref: https://www.prisma.io/docs/orm/prisma-schema/data-model/relations
 
 entity Profile {
-    id UUID (@id, @auto),
+    id UUID @id @default(uuid()),
     address String @optional,
     email Email,
     photo URL,
@@ -11,20 +11,22 @@ entity Profile {
 }
 
 entity User {
-    id Int (@id, @auto),
-    name String
-    profile Profile (@between, @unique) // 1-1 relationship between user and profile
-    posts Post[] @contains // 1-N contains relationship
+    id Int @id @default(autoincrement()),
+    name String,
+    profile Profile @between @unique,
+    posts Post[]
 }
 
 entity Post {
-    id Int (@id, @auto),
+    id Int @id @default(autoincrement()),
     title String
+    author User @relation(fields: [authorId], references: [id])
+    authorId Int
     categories Category @between // N-N between relationship
 }
 
 entity Category {
-    id Int (@id, @auto),
+    id Int @id @default(autoincrement()),
     description String
 }
 

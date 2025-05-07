@@ -26,6 +26,7 @@ export type AgentlangKeywordNames =
     | "-"
     | "."
     | "/"
+    | ":"
     | ";"
     | "<"
     | "<="
@@ -63,12 +64,6 @@ export type AgentlangKeywordNames =
     | "}";
 
 export type AgentlangTokenNames = AgentlangTerminalNames | AgentlangKeywordNames;
-
-export type Append = string;
-
-export function isAppend(item: unknown): item is Append {
-    return typeof item === 'string';
-}
 
 export type AttributeValueExpression = Expr;
 
@@ -112,14 +107,6 @@ export const Handler = 'Handler';
 
 export function isHandler(item: unknown): item is Handler {
     return reflection.isInstance(item, Handler);
-}
-
-export type IfBody = Pattern;
-
-export const IfBody = 'IfBody';
-
-export function isIfBody(item: unknown): item is IfBody {
-    return reflection.isInstance(item, IfBody);
 }
 
 export type LogicalExpression = ComparisonExpression;
@@ -188,7 +175,7 @@ export interface Attribute extends langium.AstNode {
     readonly $container: Entity | Event | Record;
     readonly $type: 'Attribute';
     name: string;
-    props?: Properties;
+    properties: Array<Property>;
     type: string;
 }
 
@@ -231,7 +218,7 @@ export interface CrudMap extends langium.AstNode {
     readonly $type: 'CrudMap';
     attributes: Array<SetAttribute>;
     name: string;
-    props?: Properties;
+    properties: Array<Property>;
     throws?: Throws;
 }
 
@@ -331,8 +318,33 @@ export function isImport(item: unknown): item is Import {
     return reflection.isInstance(item, Import);
 }
 
+export interface KvPair extends langium.AstNode {
+    readonly $container: KvPairs;
+    readonly $type: 'KvPair';
+    key?: string;
+    value: Literal;
+}
+
+export const KvPair = 'KvPair';
+
+export function isKvPair(item: unknown): item is KvPair {
+    return reflection.isInstance(item, KvPair);
+}
+
+export interface KvPairs extends langium.AstNode {
+    readonly $container: Property;
+    readonly $type: 'KvPairs';
+    pairs: Array<KvPair>;
+}
+
+export const KvPairs = 'KvPairs';
+
+export function isKvPairs(item: unknown): item is KvPairs {
+    return reflection.isInstance(item, KvPairs);
+}
+
 export interface Literal extends langium.AstNode {
-    readonly $container: BinExpr | ComparisonExpression | FnCall | ForEach | Group | NegExpr | Pattern | Property | SetAttribute;
+    readonly $container: BinExpr | ComparisonExpression | FnCall | ForEach | Group | KvPair | NegExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     val: ArrayLiteral | Boolean | Decimal | FnCall | Ref | string;
 }
@@ -395,10 +407,10 @@ export function isPattern(item: unknown): item is Pattern {
 }
 
 export interface Property extends langium.AstNode {
-    readonly $container: Properties;
+    readonly $container: Attribute | CrudMap | Relationship;
     readonly $type: 'Property';
     name: TaggedId;
-    value?: Literal;
+    value?: KvPairs;
 }
 
 export const Property = 'Property';
@@ -421,11 +433,12 @@ export function isRecord(item: unknown): item is Record {
 }
 
 export interface Relationship extends langium.AstNode {
-    readonly $container: Attribute | CrudMap | Module;
-    readonly $type: 'Properties' | 'Relationship';
+    readonly $container: Module;
+    readonly $type: 'Relationship';
     name: string;
     node1: Node;
     node2: Node;
+    properties: Array<Property>;
 }
 
 export const Relationship = 'Relationship';
@@ -472,18 +485,6 @@ export function isWorkflow(item: unknown): item is Workflow {
     return reflection.isInstance(item, Workflow);
 }
 
-export interface Properties extends Relationship {
-    readonly $container: Attribute | CrudMap;
-    readonly $type: 'Properties';
-    properties: Array<Property>;
-}
-
-export const Properties = 'Properties';
-
-export function isProperties(item: unknown): item is Properties {
-    return reflection.isInstance(item, Properties);
-}
-
 export type AgentlangAstType = {
     ArrayLiteral: ArrayLiteral
     Attribute: Attribute
@@ -500,8 +501,9 @@ export type AgentlangAstType = {
     Group: Group
     Handler: Handler
     If: If
-    IfBody: IfBody
     Import: Import
+    KvPair: KvPair
+    KvPairs: KvPairs
     Literal: Literal
     LogicalExpression: LogicalExpression
     Module: Module
@@ -509,7 +511,6 @@ export type AgentlangAstType = {
     Node: Node
     Pattern: Pattern
     PrimExpr: PrimExpr
-    Properties: Properties
     Property: Property
     RawPattern: RawPattern
     Record: Record
@@ -523,7 +524,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, IfBody, Import, Literal, LogicalExpression, Module, NegExpr, Node, Pattern, PrimExpr, Properties, Property, RawPattern, Record, Relationship, SchemaDef, SetAttribute, Throws, Workflow];
+        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, Pattern, PrimExpr, Property, RawPattern, Record, Relationship, SchemaDef, SetAttribute, Throws, Workflow];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -556,10 +557,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return this.isSubtype(PrimExpr, supertype) || this.isSubtype(RawPattern, supertype);
             }
             case Pattern: {
-                return this.isSubtype(Handler, supertype) || this.isSubtype(IfBody, supertype);
-            }
-            case Properties: {
-                return this.isSubtype(Relationship, supertype);
+                return this.isSubtype(Handler, supertype);
             }
             case Relationship:
             case SchemaDef:
@@ -596,7 +594,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Attribute,
                     properties: [
                         { name: 'name' },
-                        { name: 'props' },
+                        { name: 'properties', defaultValue: [] },
                         { name: 'type' }
                     ]
                 };
@@ -627,7 +625,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'attributes', defaultValue: [] },
                         { name: 'name' },
-                        { name: 'props' },
+                        { name: 'properties', defaultValue: [] },
                         { name: 'throws' }
                     ]
                 };
@@ -691,6 +689,23 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'name' },
                         { name: 'path' }
+                    ]
+                };
+            }
+            case KvPair: {
+                return {
+                    name: KvPair,
+                    properties: [
+                        { name: 'key' },
+                        { name: 'value' }
+                    ]
+                };
+            }
+            case KvPairs: {
+                return {
+                    name: KvPairs,
+                    properties: [
+                        { name: 'pairs', defaultValue: [] }
                     ]
                 };
             }
@@ -762,7 +777,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'name' },
                         { name: 'node1' },
-                        { name: 'node2' }
+                        { name: 'node2' },
+                        { name: 'properties', defaultValue: [] }
                     ]
                 };
             }
@@ -789,17 +805,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'name' },
                         { name: 'patterns', defaultValue: [] }
-                    ]
-                };
-            }
-            case Properties: {
-                return {
-                    name: Properties,
-                    properties: [
-                        { name: 'name' },
-                        { name: 'node1' },
-                        { name: 'node2' },
-                        { name: 'properties', defaultValue: [] }
                     ]
                 };
             }

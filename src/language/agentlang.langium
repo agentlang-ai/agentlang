@@ -7,9 +7,10 @@ Import: 'import' path=STRING 'as' name=ID;
 Def: SchemaDef | Relationship | Workflow;
 SchemaDef: Entity | Event | Record;
 
-Property: (name=TaggedId '=' value=Literal) | name=TaggedId;
+Property: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 
-Properties: (properties+=Property) | '(' (properties+=Property (',' properties+=Property)*)+ ')';
+KvPair: value=Literal | key=ID ':' value=Literal;
+KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 
 fragment RecDef: name=ID '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}';
 
@@ -17,11 +18,11 @@ Entity: 'entity' RecDef;
 Event: 'event' RecDef;
 Record: 'record' RecDef;
 
-Relationship: 'relationship' name=ID ('contains' | 'between') '[' node1=Node ',' node2=Node ']' Properties?;
+Relationship: 'relationship' name=ID ('contains' | 'between') '[' node1=Node ',' node2=Node ']' properties+=Property*;
 
 Node: name=ID | name=ID 'as' alias=ID;
 
-Attribute: name=ID type=ID props=Properties?;
+Attribute: name=ID type=ID properties+=Property*;
 
 ArrayLiteral: '[' ']' | '[' vals+=Pattern (',' vals+=Pattern)* ']';
 
@@ -37,7 +38,7 @@ RawPattern: Literal | CrudMap | If | ForEach;
 
 Pattern: pat=RawPattern ('as' (alias+=ID | ('[' alias+=ID (',' alias+=ID)*)+ ']'))?;
 
-CrudMap: '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ props=Properties? throws=Throws? '}' '}';
+CrudMap: '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=Property* throws=Throws? '}' '}';
 
 Throws: 'throws' '{' (handlers+=Handler)+ '}';
 
@@ -45,7 +46,6 @@ Handler: ('not_found' | 'error') Pattern;
 
 If: 'if' '(' cond=LogicalExpression ')' Body ElseIf?;
 ElseIf infers If: 'else' 'if' '(' cond=LogicalExpression ')' Body | 'else' Body;
-IfBody: Pattern;
 
 ForEach: 'for' var=ID 'in' src=RawPattern Body;
 
@@ -85,11 +85,6 @@ QueryId returns string: ID | ID '?';
 TaggedId returns string: '@' ID;
 
 Ref returns string: ID '.' ID;
-
-Append returns string: ID '+';
-
-// recognize a hexadecimal sequence, used to recognize colors for the 'Color' command
-terminal HEX returns string: /#(\d|[a-fA-F])+/;
 
 // recognize an identifier
 terminal ID returns string: /[_a-zA-Z][\w_]*/;
