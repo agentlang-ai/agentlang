@@ -1,5 +1,8 @@
-import { ArrayLiteral, FnCall, isLiteral, Literal, Pattern, Statement } from "../language/generated/ast.js";
-import { getWorkflow, Instance, isEmptyWorkflow, isEventInstance, newInstanceAttributes, PlaceholderRecordEntry, WorkflowEntry } from "./module.js";
+import { ArrayLiteral, CrudMap, FnCall, ForEach, If, Literal, Pattern, Statement } from "../language/generated/ast.js";
+import {
+    arrayAsInstanceAttributes, getWorkflow, Instance, isEmptyWorkflow, isEventInstance, makeInstance,
+    newInstanceAttributes, PlaceholderRecordEntry, WorkflowEntry
+} from "./module.js";
 import { invokeModuleFn, splitRefs } from "./util.js";
 
 export type Result = any;
@@ -26,29 +29,66 @@ class Environment extends Instance {
             } else return EmptyResult
         } else return v
     }
+
+    bind(k: string, v: any) {
+        this.attributes.set(k, v)
+    }
 }
 
 export function evaluate(eventInstance: Instance) {
     if (isEventInstance(eventInstance)) {
         let wf: WorkflowEntry = getWorkflow(eventInstance);
-        let result: Result = EmptyResult;
         if (!isEmptyWorkflow(wf)) {
             let env: Environment = new Environment(eventInstance.name + ".env");
-            wf.statements.forEach((stmt: Statement) => {
-                result = evaluateStatement(stmt, env)
-            })
+            return evaluateStatements(wf.statements, env)
         }
-        return result;
+        return EmptyResult
     }
     throw new Error("Not an event - " + eventInstance.name)
 }
 
+function evaluateStatements(stmts: Statement[], env: Environment): Result {
+    let result: Result = EmptyResult;
+    stmts.forEach((stmt: Statement) => {
+        result = evaluateStatement(stmt, env)
+    })
+    return result
+}
+
 function evaluateStatement(stmt: Statement, env: Environment): Result {
-    let pat: Pattern = stmt.pattern
-    if (isLiteral(pat.literal)) {
-        return evaluateLiteral(pat.literal, env)
+    let result: Result = evaluatePattern(stmt.pattern, env);
+    if (stmt.alias != undefined) {
+        let alias: string[] = stmt.alias
+        if (result instanceof Array) {
+            let resArr: Array<any> = result as Array<any>
+            for (let i = 0; i < alias.length; ++i) {
+                let k: string = alias[i];
+                if (k == "_") {
+                    env.bind(alias[i + 1], resArr.splice(i))
+                    break
+                } else {
+                    env.bind(alias[i], resArr[i])
+                }
+            }
+        } else {
+            env.bind(alias[0], result)
+        }
     }
-    return EmptyResult
+    return result
+}
+
+function evaluatePattern(pat: Pattern, env: Environment): Result {
+    let result: Result = EmptyResult;
+    if (pat.literal != undefined) {
+        result = evaluateLiteral(pat.literal, env)
+    } else if (pat.crudMap != undefined) {
+        result = evaluateCrudMap(pat.crudMap, env)
+    } else if (pat.forEach != undefined) {
+        result = evaluateForEach(pat.forEach, env)
+    } else if (pat.if != undefined) {
+        result = evaluateIf(pat.if, env)
+    }
+    return result
 }
 
 function evaluateLiteral(lit: Literal, env: Environment): Result {
@@ -59,6 +99,30 @@ function evaluateLiteral(lit: Literal, env: Environment): Result {
     else if (lit.num != undefined) return lit.num
     else if (lit.str != undefined) return lit.str
     else if (lit.bool != undefined) return lit.bool
+    return EmptyResult
+}
+
+function evaluateCrudMap(crud: CrudMap, env: Environment): Result {
+    return makeInstance(crud.name, arrayAsInstanceAttributes(crud.attributes))
+}
+
+function evaluateForEach(forEach: ForEach, env: Environment): Result {
+    let loopVar: string = forEach.var;
+    let src: Result = evaluatePattern(forEach.src, env)
+    if (src instanceof Array && src.length > 0) {
+        let loopEnv: Environment = new Environment(env.name + ".child", env)
+        let result: Result = EmptyResult
+        for (let i = 0; i < src.length; ++i) {
+            loopEnv.bind(loopVar, src[i])
+            result = evaluateStatements(forEach.statements, loopEnv)
+        }
+        return result
+    }
+    return EmptyResult
+}
+
+function evaluateIf(ifStmt: If, env: Environment): Result {
+    // TODO:
     return EmptyResult
 }
 

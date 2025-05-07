@@ -18,10 +18,6 @@ function internModule(module: Module): string {
     module.imports.forEach((imp: Import) => {
         importModule(imp.path, imp.name);
     })
-    // Test dynamic fn call.
-    /*setTimeout(function(){
-        console.log("@3#######" + invokeModuleFn("testMod", "add", 10, 20));
-    }, 2000);*/
     module.defs.forEach((def: Def) => {
         if (isEntity(def)) addEntity(def.name, def.attributes)
         else if (isEvent(def)) addEvent(def.name, def.attributes)

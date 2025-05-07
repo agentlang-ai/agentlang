@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { Attribute, Property, isProperty, Statement } from '../language/generated/ast.js';
+import { Attribute, Property, isProperty, Statement, SetAttribute } from '../language/generated/ast.js';
 import { Path, splitPath, isString, isNumber, isBoolean } from "./util.js";
 
 class ModuleEntry {
@@ -265,6 +265,15 @@ export type InstanceAttributes = Map<string, any>;
 
 export function newInstanceAttributes(): InstanceAttributes {
     return new Map<string, any>();
+}
+
+export function arrayAsInstanceAttributes(attrs: SetAttribute[]) {
+    // TODO: cache this against eventName+patternCount
+    let instAttrs: InstanceAttributes = newInstanceAttributes();
+    attrs.forEach((a: SetAttribute) => {
+        instAttrs.set(a.name, a.value)
+    })
+    return instAttrs
 }
 
 export class Instance {
