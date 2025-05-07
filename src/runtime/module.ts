@@ -27,9 +27,14 @@ export function newMeta(): Meta {
     return new Map<string, string>()
 }
 
+export enum RecordType {
+    RECORD, ENTITY, EVENT
+}
+
 class Record extends ModuleEntry {
     schema: RecordSchema;
     meta: Meta;
+    type: RecordType = RecordType.RECORD;
 
     constructor(name: string, attributes: Attribute[]) {
         super(name);
@@ -45,8 +50,13 @@ class Record extends ModuleEntry {
     }
 }
 
-class Entity extends Record { }
-class Event extends Record { }
+class Entity extends Record {
+    override type: RecordType = RecordType.ENTITY
+}
+
+class Event extends Record {
+    override type: RecordType = RecordType.EVENT
+}
 
 class Workflow extends ModuleEntry {
     patterns: Pattern[];
@@ -229,9 +239,13 @@ export function newInstanceAttributes(): InstanceAttributes {
 }
 
 export class Instance {
+    record: Record;
+    name: string
     attributes: InstanceAttributes;
 
-    constructor(attributes: InstanceAttributes) {
+    constructor(record: Record, name: string, attributes: InstanceAttributes) {
+        this.record = record;
+        this.name = name;
         this.attributes = attributes;
     }
 }
@@ -252,5 +266,17 @@ export function makeInstance(fullEntryName: string, attributes: InstanceAttribut
         let spec: AttributeSpec = getAttributeSpec(schema, key);
         validateType(key, value, spec);
     });
-    return new Instance(attributes);
+    return new Instance(record, fullEntryName, attributes);
+}
+
+export function isEventInstance(inst: Instance): boolean {
+    return inst.record.type == RecordType.EVENT;
+}
+
+export function isEntityInstance(inst: Instance): boolean {
+    return inst.record.type == RecordType.ENTITY;
+}
+
+export function isRecordInstance(inst: Instance): boolean {
+    return inst.record.type == RecordType.RECORD;
 }
