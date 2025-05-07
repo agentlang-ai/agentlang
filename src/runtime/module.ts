@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { Attribute, Properties, Property, isProperties, Pattern } from '../language/generated/ast.js';
+import { Attribute, Properties, Property, isProperties, Pattern, isProperty } from '../language/generated/ast.js';
 import { Path, splitPath, isString, isNumber, isBoolean } from "./util.js";
 
 class ModuleEntry {
@@ -15,19 +15,29 @@ type AttributeSpec = {
     properties?: Properties
 }
 
-type RecordAttributes = Map<string, AttributeSpec>;
+type RecordSchema = Map<string, AttributeSpec>;
+
+export function newRecordSchema(): RecordSchema {
+    return new Map<string, AttributeSpec>()
+}
+
+type Meta = Map<string, string>;
+
+export function newMeta(): Meta {
+    return new Map<string, string>()
+}
 
 class Record extends ModuleEntry {
-    attributes: RecordAttributes;
-    meta: Map<string, string>;
+    schema: RecordSchema;
+    meta: Meta;
 
     constructor(name: string, attributes: Attribute[]) {
         super(name);
-        this.attributes = new Map<string, AttributeSpec>();
+        this.schema = newRecordSchema();
         attributes.forEach((a: Attribute) => {
-            this.attributes.set(a.name, {type: a.type, properties: a.props})
+            this.schema.set(a.name, { type: a.type, properties: a.props })
         })
-        this.meta = new Map<string, string>;
+        this.meta = newMeta();
     }
 
     addMeta(k: string, v: string): void {
@@ -35,8 +45,8 @@ class Record extends ModuleEntry {
     }
 }
 
-class Entity extends Record {}
-class Event extends Record {}
+class Entity extends Record { }
+class Event extends Record { }
 
 class Workflow extends ModuleEntry {
     patterns: Pattern[];
@@ -106,15 +116,15 @@ function fetchModule(moduleName: string): Module {
 }
 
 const builtInChecks = new Map([["String", isString],
-                               ["Int", Number.isSafeInteger],
-                               ["Number", isNumber],
-                               ["Email", isString],
-                               ["Date", isString],
-                               ["Time", isString],
-                               ["DateTime", isString],
-                               ["Boolean", isBoolean],
-                               ["UUID", isString],
-                               ["URL", isString]]);
+["Int", Number.isSafeInteger],
+["Number", isNumber],
+["Email", isString],
+["Date", isString],
+["Time", isString],
+["DateTime", isString],
+["Boolean", isBoolean],
+["UUID", isString],
+["URL", isString]]);
 const builtInTypes = new Set(Array.from(builtInChecks.keys()));
 const propertyNames = new Set(["@id", "@indexed", "@default", "@optional", "@unique", "@auto"]);
 
@@ -145,6 +155,20 @@ function validateProperties(props: Properties | undefined): void {
 function verifyAttribute(attr: Attribute): void {
     checkType(attr.type);
     validateProperties(attr.props);
+}
+
+export function defaultAttributes(schema: RecordSchema): Map<string, any> {
+    let result: Map<string, any> = new Map<string, any>();
+    schema.forEach((v: AttributeSpec, k: string) => {
+        let props: Properties | undefined = v.properties;
+        if (isProperties(props)) {
+            let d: Property | undefined = props.properties.find((v: Property) => v.name == '@default');
+            if (isProperty(d)) {
+                result.set(k, d.value)
+            }
+        }
+    });
+    return result;
 }
 
 export function addEntity(name: string, attrs: Attribute[], moduleName = activeModule): string {
@@ -181,7 +205,7 @@ export function addWorkflow(name: string, patterns: Pattern[], moduleName = acti
     return name;
 }
 
-function getAttributeSpec(attrsSpec: RecordAttributes, attrName: string): AttributeSpec {
+function getAttributeSpec(attrsSpec: RecordSchema, attrName: string): AttributeSpec {
     let spec: AttributeSpec | undefined = attrsSpec.get(attrName);
     if (spec == undefined) {
         throw new Error("Failed to find spec for attribute " + attrName);
@@ -198,15 +222,21 @@ function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec)
     }
 }
 
-export class Instance {
-    attributes: Map<String, any>;
+export type InstanceAttributes = Map<string, any>;
 
-    constructor(attributes: Map<String, any>) {
+export function newInstanceAttributes(): InstanceAttributes {
+    return new Map<string, any>();
+}
+
+export class Instance {
+    attributes: InstanceAttributes;
+
+    constructor(attributes: InstanceAttributes) {
         this.attributes = attributes;
     }
 }
 
-export function makeInstance(fullEntryName: string, attributes: Map<string, any>): Instance {
+export function makeInstance(fullEntryName: string, attributes: InstanceAttributes): Instance {
     let path: Path = splitPath(fullEntryName);
     let moduleName: string = "";
     if (path.hasModule()) moduleName = path.getModuleName();
@@ -214,12 +244,12 @@ export function makeInstance(fullEntryName: string, attributes: Map<string, any>
     let module: Module = fetchModule(moduleName);
     let entryName: string = path.getEntryName();
     let record: Record = module.getRecord(entryName);
-    let attrsSpec: RecordAttributes = record.attributes;
+    let schema: RecordSchema = record.schema;
     attributes.forEach((value: any, key: string) => {
-        if (!attrsSpec.has(key)) {
+        if (!schema.has(key)) {
             throw new Error("Invalid attribute " + key + " specified for " + fullEntryName);
         }
-        let spec: AttributeSpec = getAttributeSpec(attrsSpec, key);
+        let spec: AttributeSpec = getAttributeSpec(schema, key);
         validateType(key, value, spec);
     });
     return new Instance(attributes);

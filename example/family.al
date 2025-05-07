@@ -1,4 +1,4 @@
-model Family
+module Family
 
 entity Family {
     id UUID (@id, @auto),

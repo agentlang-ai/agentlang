@@ -1,4 +1,4 @@
-model Blog
+module Blog
 
 // Ref: https://www.prisma.io/docs/orm/prisma-schema/data-model/relations
 
