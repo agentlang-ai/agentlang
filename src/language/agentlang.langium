@@ -24,30 +24,30 @@ Node: name=ID | name=ID 'as' alias=ID;
 
 Attribute: name=ID type=ID properties+=Property*;
 
-ArrayLiteral: '[' ']' | '[' vals+=Pattern (',' vals+=Pattern)* ']';
+ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 
-FnCall: ID '(' (args+=Literal (',' args+=Literal)*)+ ')';
+FnCall: name=ID '(' (args+=Literal (',' args+=Literal)*)+ ')';
 
-Literal: val=(ID | Decimal | STRING | Ref | Boolean | FnCall | ArrayLiteral);
+Literal: (id=ID | num=Decimal | str=STRING | ref=Ref | bool=Boolean | fnCall=FnCall | array=ArrayLiteral);
 
-fragment Body: '{' (patterns+=Pattern (';' patterns+=Pattern)*)+ '}' | patterns+=Pattern;
+fragment Body: '{' (statements+=Statement (';' statements+=Statement)*)+ '}' | statements+=Statement;
 
 Workflow: 'workflow' name=ID Body;
 
-RawPattern: Literal | CrudMap | If | ForEach;
+Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach;
 
-Pattern: pat=RawPattern ('as' (alias+=ID | ('[' alias+=ID (',' alias+=ID)*)+ ']'))?;
+Statement: pattern=Pattern ('as' (alias+=ID | ('[' alias+=ID (',' alias+=ID)*)+ ']'))?;
 
 CrudMap: '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=Property* throws=Throws? '}' '}';
 
 Throws: 'throws' '{' (handlers+=Handler)+ '}';
 
-Handler: ('not_found' | 'error') Pattern;
+Handler: ('not_found' | 'error') Statement;
 
 If: 'if' '(' cond=LogicalExpression ')' Body ElseIf?;
 ElseIf infers If: 'else' 'if' '(' cond=LogicalExpression ')' Body | 'else' Body;
 
-ForEach: 'for' var=ID 'in' src=RawPattern Body;
+ForEach: 'for' var=ID 'in' src=Pattern Body;
 
 SetAttribute: name=QueryId ('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between'|'+')? value=AttributeValueExpression;
 

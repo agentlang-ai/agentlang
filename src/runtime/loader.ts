@@ -26,7 +26,7 @@ function internModule(module: Module): string {
         if (isEntity(def)) addEntity(def.name, def.attributes)
         else if (isEvent(def)) addEvent(def.name, def.attributes)
         else if (isRecord(def)) addRecord(def.name, def.attributes)
-        else if (isWorkflow(def)) addWorkflow(def.name, def.patterns)
+        else if (isWorkflow(def)) addWorkflow(def.name, def.statements)
     })
     return module.name;
 }

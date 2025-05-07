@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { Attribute, Property, Pattern, isProperty } from '../language/generated/ast.js';
+import { Attribute, Property, isProperty, Statement } from '../language/generated/ast.js';
 import { Path, splitPath, isString, isNumber, isBoolean } from "./util.js";
 
 class ModuleEntry {
@@ -31,7 +31,7 @@ export enum RecordType {
     RECORD, ENTITY, EVENT
 }
 
-class Record extends ModuleEntry {
+export class RecordEntry extends ModuleEntry {
     schema: RecordSchema;
     meta: Meta;
     type: RecordType = RecordType.RECORD;
@@ -50,21 +50,29 @@ class Record extends ModuleEntry {
     }
 }
 
-class Entity extends Record {
+export const PlaceholderRecordEntry = new RecordEntry("--", new Array<Attribute>())
+
+export class EntityEntry extends RecordEntry {
     override type: RecordType = RecordType.ENTITY
 }
 
-class Event extends Record {
+export class EventEntry extends RecordEntry {
     override type: RecordType = RecordType.EVENT
 }
 
-class Workflow extends ModuleEntry {
-    patterns: Pattern[];
+export class WorkflowEntry extends ModuleEntry {
+    statements: Statement[];
 
-    constructor(name: string, patterns: Pattern[]) {
+    constructor(name: string, patterns: Statement[]) {
         super(name)
-        this.patterns = patterns
+        this.statements = patterns
     }
+}
+
+const EmptyWorkflow: WorkflowEntry = new WorkflowEntry("", []);
+
+export function isEmptyWorkflow(wf: WorkflowEntry): boolean {
+    return wf == EmptyWorkflow;
 }
 
 class Module {
@@ -80,7 +88,7 @@ class Module {
 
     addEntry(entry: ModuleEntry): void {
         this.entries.push(entry);
-        this.index.set(entry.name, this.entries.length);
+        this.index.set(entry.name, this.entries.length - 1);
     }
 
     hasEntry(entryName: string): boolean {
@@ -94,10 +102,10 @@ class Module {
         return this.entries[idx];
     }
 
-    getRecord(recordName: string): Record {
+    getRecord(recordName: string): RecordEntry {
         let e: ModuleEntry = this.getEntry(recordName);
-        if (e instanceof Record) {
-            return (e as Record);
+        if (e instanceof RecordEntry) {
+            return (e as RecordEntry);
         }
         throw new Error(recordName + " is not a record in module " + this.name);
     }
@@ -112,6 +120,9 @@ export function addModule(name: string): string {
     activeModule = name;
     return name;
 }
+
+addModule("agentlang");
+addRecord("env", new Array<Attribute>());
 
 export function isModule(name: string): boolean {
     return moduleDb.has(name);
@@ -184,35 +195,53 @@ export function defaultAttributes(schema: RecordSchema): Map<string, any> {
 export function addEntity(name: string, attrs: Attribute[], moduleName = activeModule): string {
     let module: Module = fetchModule(moduleName);
     attrs.forEach((a) => verifyAttribute(a));
-    module.addEntry(new Entity(name, attrs));
+    module.addEntry(new EntityEntry(name, attrs));
     return name;
 }
 
 export function addEvent(name: string, attrs: Attribute[], moduleName = activeModule) {
     let module: Module = fetchModule(moduleName);
     attrs.forEach((a) => verifyAttribute(a));
-    module.addEntry(new Event(name, attrs));
+    module.addEntry(new EventEntry(name, attrs));
     return name;
 }
 
 export function addRecord(name: string, attrs: Attribute[], moduleName = activeModule) {
     let module: Module = fetchModule(moduleName);
     attrs.forEach((a) => verifyAttribute(a));
-    module.addEntry(new Record(name, attrs));
+    module.addEntry(new RecordEntry(name, attrs));
     return name;
 }
 
-export function addWorkflow(name: string, patterns: Pattern[], moduleName = activeModule) {
+function asWorkflowName(n: string): string {
+    return n + "--workflow"
+}
+
+export function addWorkflow(name: string, statements: Statement[], moduleName = activeModule) {
     let module: Module = fetchModule(moduleName);
     if (module.hasEntry(name)) {
         let entry: ModuleEntry = module.getEntry(name);
-        if (!(entry instanceof Event))
+        if (!(entry instanceof EventEntry))
             throw new Error("Not an event, cannot attach workflow to " + entry.name)
     } else {
         addEvent(name, new Array<Attribute>, moduleName);
     }
-    module.addEntry(new Workflow(name + "_workflow", patterns));
+    module.addEntry(new WorkflowEntry(asWorkflowName(name), statements));
     return name;
+}
+
+export function getWorkflow(eventInstance: Instance): WorkflowEntry {
+    let name: string = eventInstance.name;
+    let path: Path = splitPath(name);
+    let moduleName: string = activeModule;
+    if (path.hasModule()) moduleName = path.getModuleName();
+    let eventName: string = path.getEntryName();
+    let wfName: string = asWorkflowName(eventName);
+    let module: Module = fetchModule(moduleName);
+    if (module.hasEntry(wfName)) {
+        return module.getEntry(wfName) as WorkflowEntry
+    }
+    return EmptyWorkflow;
 }
 
 function getAttributeSpec(attrsSpec: RecordSchema, attrName: string): AttributeSpec {
@@ -239,14 +268,18 @@ export function newInstanceAttributes(): InstanceAttributes {
 }
 
 export class Instance {
-    record: Record;
+    record: RecordEntry;
     name: string
-    attributes: InstanceAttributes;
+    protected attributes: InstanceAttributes;
 
-    constructor(record: Record, name: string, attributes: InstanceAttributes) {
+    constructor(record: RecordEntry, name: string, attributes: InstanceAttributes) {
         this.record = record;
         this.name = name;
         this.attributes = attributes;
+    }
+
+    lookup(k: string): any | undefined {
+        return this.attributes.get(k)
     }
 }
 
@@ -257,7 +290,7 @@ export function makeInstance(fullEntryName: string, attributes: InstanceAttribut
     else moduleName = activeModule;
     let module: Module = fetchModule(moduleName);
     let entryName: string = path.getEntryName();
-    let record: Record = module.getRecord(entryName);
+    let record: RecordEntry = module.getRecord(entryName);
     let schema: RecordSchema = record.schema;
     attributes.forEach((value: any, key: string) => {
         if (!schema.has(key)) {

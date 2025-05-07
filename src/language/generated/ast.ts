@@ -101,7 +101,7 @@ export function isExpr(item: unknown): item is Expr {
     return reflection.isInstance(item, Expr);
 }
 
-export type Handler = Pattern;
+export type Handler = Statement;
 
 export const Handler = 'Handler';
 
@@ -131,14 +131,6 @@ export function isQueryId(item: unknown): item is QueryId {
     return typeof item === 'string';
 }
 
-export type RawPattern = CrudMap | ForEach | If | Literal;
-
-export const RawPattern = 'RawPattern';
-
-export function isRawPattern(item: unknown): item is RawPattern {
-    return reflection.isInstance(item, RawPattern);
-}
-
 export type Ref = string;
 
 export function isRef(item: unknown): item is Ref {
@@ -162,7 +154,7 @@ export function isTaggedId(item: unknown): item is TaggedId {
 export interface ArrayLiteral extends langium.AstNode {
     readonly $container: Literal;
     readonly $type: 'ArrayLiteral';
-    vals: Array<Pattern>;
+    vals: Array<Statement>;
 }
 
 export const ArrayLiteral = 'ArrayLiteral';
@@ -214,7 +206,7 @@ export function isComparisonExpression(item: unknown): item is ComparisonExpress
 }
 
 export interface CrudMap extends langium.AstNode {
-    readonly $container: ForEach | Pattern;
+    readonly $container: Pattern;
     readonly $type: 'CrudMap';
     attributes: Array<SetAttribute>;
     name: string;
@@ -258,6 +250,7 @@ export interface FnCall extends langium.AstNode {
     readonly $container: Literal;
     readonly $type: 'FnCall';
     args: Array<Literal>;
+    name: string;
 }
 
 export const FnCall = 'FnCall';
@@ -267,10 +260,10 @@ export function isFnCall(item: unknown): item is FnCall {
 }
 
 export interface ForEach extends langium.AstNode {
-    readonly $container: ForEach | Pattern;
+    readonly $container: Pattern;
     readonly $type: 'ForEach';
-    patterns: Array<Pattern>;
-    src: RawPattern;
+    src: Pattern;
+    statements: Array<Statement>;
     var: string;
 }
 
@@ -293,10 +286,10 @@ export function isGroup(item: unknown): item is Group {
 }
 
 export interface If extends langium.AstNode {
-    readonly $container: ForEach | Pattern;
+    readonly $container: Pattern;
     readonly $type: 'If';
     cond: LogicalExpression;
-    patterns: Array<Pattern>;
+    statements: Array<Statement>;
 }
 
 export const If = 'If';
@@ -344,9 +337,15 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: BinExpr | ComparisonExpression | FnCall | ForEach | Group | KvPair | NegExpr | Pattern | SetAttribute;
+    readonly $container: BinExpr | ComparisonExpression | FnCall | Group | KvPair | NegExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
-    val: ArrayLiteral | Boolean | Decimal | FnCall | Ref | string;
+    array?: ArrayLiteral;
+    bool?: Boolean;
+    fnCall?: FnCall;
+    id?: string;
+    num?: Decimal;
+    ref?: Ref;
+    str?: string;
 }
 
 export const Literal = 'Literal';
@@ -394,10 +393,12 @@ export function isNode(item: unknown): item is Node {
 }
 
 export interface Pattern extends langium.AstNode {
-    readonly $container: ArrayLiteral | ForEach | If | Throws | Workflow;
+    readonly $container: ForEach | Statement;
     readonly $type: 'Pattern';
-    alias: Array<string>;
-    pat: RawPattern;
+    crudMap?: CrudMap;
+    forEach?: ForEach;
+    if?: If;
+    literal?: Literal;
 }
 
 export const Pattern = 'Pattern';
@@ -460,6 +461,19 @@ export function isSetAttribute(item: unknown): item is SetAttribute {
     return reflection.isInstance(item, SetAttribute);
 }
 
+export interface Statement extends langium.AstNode {
+    readonly $container: ArrayLiteral | ForEach | If | Throws | Workflow;
+    readonly $type: 'Statement';
+    alias: Array<string>;
+    pattern: Pattern;
+}
+
+export const Statement = 'Statement';
+
+export function isStatement(item: unknown): item is Statement {
+    return reflection.isInstance(item, Statement);
+}
+
 export interface Throws extends langium.AstNode {
     readonly $container: CrudMap;
     readonly $type: 'Throws';
@@ -476,7 +490,7 @@ export interface Workflow extends langium.AstNode {
     readonly $container: Module;
     readonly $type: 'Workflow';
     name: string;
-    patterns: Array<Pattern>;
+    statements: Array<Statement>;
 }
 
 export const Workflow = 'Workflow';
@@ -512,11 +526,11 @@ export type AgentlangAstType = {
     Pattern: Pattern
     PrimExpr: PrimExpr
     Property: Property
-    RawPattern: RawPattern
     Record: Record
     Relationship: Relationship
     SchemaDef: SchemaDef
     SetAttribute: SetAttribute
+    Statement: Statement
     Throws: Throws
     Workflow: Workflow
 }
@@ -524,7 +538,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, Pattern, PrimExpr, Property, RawPattern, Record, Relationship, SchemaDef, SetAttribute, Throws, Workflow];
+        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, Pattern, PrimExpr, Property, Record, Relationship, SchemaDef, SetAttribute, Statement, Throws, Workflow];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -536,11 +550,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case ComparisonExpression: {
                 return this.isSubtype(LogicalExpression, supertype);
             }
-            case CrudMap:
-            case ForEach:
-            case If: {
-                return this.isSubtype(RawPattern, supertype);
-            }
             case Entity:
             case Event:
             case Record: {
@@ -550,19 +559,17 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return this.isSubtype(AttributeValueExpression, supertype);
             }
             case Group:
+            case Literal:
             case NegExpr: {
                 return this.isSubtype(PrimExpr, supertype);
-            }
-            case Literal: {
-                return this.isSubtype(PrimExpr, supertype) || this.isSubtype(RawPattern, supertype);
-            }
-            case Pattern: {
-                return this.isSubtype(Handler, supertype);
             }
             case Relationship:
             case SchemaDef:
             case Workflow: {
                 return this.isSubtype(Def, supertype);
+            }
+            case Statement: {
+                return this.isSubtype(Handler, supertype);
             }
             default: {
                 return false;
@@ -652,7 +659,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: FnCall,
                     properties: [
-                        { name: 'args', defaultValue: [] }
+                        { name: 'args', defaultValue: [] },
+                        { name: 'name' }
                     ]
                 };
             }
@@ -660,8 +668,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: ForEach,
                     properties: [
-                        { name: 'patterns', defaultValue: [] },
                         { name: 'src' },
+                        { name: 'statements', defaultValue: [] },
                         { name: 'var' }
                     ]
                 };
@@ -679,7 +687,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: If,
                     properties: [
                         { name: 'cond' },
-                        { name: 'patterns', defaultValue: [] }
+                        { name: 'statements', defaultValue: [] }
                     ]
                 };
             }
@@ -713,7 +721,13 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: Literal,
                     properties: [
-                        { name: 'val' }
+                        { name: 'array' },
+                        { name: 'bool' },
+                        { name: 'fnCall' },
+                        { name: 'id' },
+                        { name: 'num' },
+                        { name: 'ref' },
+                        { name: 'str' }
                     ]
                 };
             }
@@ -748,8 +762,10 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: Pattern,
                     properties: [
-                        { name: 'alias', defaultValue: [] },
-                        { name: 'pat' }
+                        { name: 'crudMap' },
+                        { name: 'forEach' },
+                        { name: 'if' },
+                        { name: 'literal' }
                     ]
                 };
             }
@@ -791,6 +807,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case Statement: {
+                return {
+                    name: Statement,
+                    properties: [
+                        { name: 'alias', defaultValue: [] },
+                        { name: 'pattern' }
+                    ]
+                };
+            }
             case Throws: {
                 return {
                     name: Throws,
@@ -804,7 +829,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Workflow,
                     properties: [
                         { name: 'name' },
-                        { name: 'patterns', defaultValue: [] }
+                        { name: 'statements', defaultValue: [] }
                     ]
                 };
             }

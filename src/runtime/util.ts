@@ -14,14 +14,26 @@ export function moduleImported(moduleName: string): boolean {
     return importedModules.has(moduleName);
 }
 
-// TODO: support varargs
-export function invokeModuleFn(moduleName: string, fnName: string, arg1: any, arg2: any): any {
-    let m = importedModules.get(moduleName);
-    if (m != undefined) {
-        let f = m[fnName];
-        return f(arg1, arg2);
+export function invokeModuleFn(fqFnName: string, args: Array<any> | null): any {
+    let path: Path = splitPath(fqFnName);
+    if (path.hasModule()) {
+        let m = importedModules.get(path.getModuleName());
+        if (m != undefined) {
+            let f = m[path.getEntryName()];
+            if (f != undefined) {
+                if (args == null) return f.apply(null)
+                else return f.apply(null, args)
+            } else throw new Error("Function not found - " + fqFnName)
+        } else throw new Error("JavaScript module " + path.getModuleName() + " not found")
+    } else {
+        let f = eval(fqFnName);
+        if (f instanceof Function) {
+            if (args == null) return f.apply(null)
+            else return f.apply(null, args)
+        } else {
+            throw new Error("Not a function: " + fqFnName)
+        }
     }
-    return null;
 }
 
 export function isNumber(x: any): boolean {
@@ -90,4 +102,12 @@ export function splitPath(s: string): Path {
         return new Path(parts[0], parts[1], parts.slice(2));
     }
     return new Path(undefined, s, null);
+}
+
+export function splitRefs(s: string): string[] {
+    if (s.indexOf(".") > 0) {
+        return s.split(".")
+    } else {
+        return [s]
+    }
 }
