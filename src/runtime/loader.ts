@@ -10,7 +10,7 @@ export const load = async (fileName: string): Promise<void> => {
     const services = createAgentlangServices(NodeFileSystem).Agentlang;
     const model = await extractAstNode<Module>(fileName, services);
     const moduleName = internModule(model);
-    console.log(chalk.green(`Module loaded successfully: ${moduleName}`));
+    console.log(chalk.green(`Module ${chalk.bold(moduleName)} loaded`));
 };
 
 function internModule(module: Module): string {

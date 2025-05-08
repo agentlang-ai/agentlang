@@ -8,6 +8,8 @@ import { extractDocument } from './cli-util.js';
 import * as url from 'node:url';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { startServer } from '../api/http.js';
+import { ParsedPath } from 'vscode/vscode/vs/base/common/path';
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
 const packagePath = path.resolve(__dirname, '..', '..', 'package.json');
@@ -25,12 +27,10 @@ export default function(): void {
     const fileExtensions = AgentlangLanguageMetaData.fileExtensions.join(', ');
 
     program
-        .command('load')
+        .command('run')
         .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
-        .option('-d, --destination <dir>', 'destination directory of generating')
-        // new description
-        .description('Evaluates an agentlang module')
-        .action(load);
+        .description('Loads and runs an agentlang module')
+        .action(runModule);
 
     program
         .command('parseAndValidate')
@@ -64,4 +64,12 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
     } else {
         console.log(chalk.red(`Failed to parse and validate ${fileName}!`));
     }
-};
+}
+
+export const runModule = async (fileName: string): Promise<void> => {
+    load(fileName).then((_:void) => {
+        let filePaths: ParsedPath = path.parse(fileName)
+        let appName: string = filePaths.name
+        startServer(appName, 8080)
+    })
+}
