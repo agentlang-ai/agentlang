@@ -79,16 +79,19 @@ class Module {
     name: string;
     entries: ModuleEntry[];
     index: Map<string, number>;
+    entriesByTypeCache: Map<RecordType, ModuleEntry[]> | null
 
     constructor(name: string) {
         this.name = name;
         this.entries = new Array<ModuleEntry>();
-        this.index = new Map<string, number>()
+        this.index = new Map<string, number>();
+        this.entriesByTypeCache = null
     }
 
     addEntry(entry: ModuleEntry): void {
         this.entries.push(entry);
         this.index.set(entry.name, this.entries.length - 1);
+        if (this.entriesByTypeCache != null) this.entriesByTypeCache = null
     }
 
     hasEntry(entryName: string): boolean {
@@ -108,6 +111,35 @@ class Module {
             return (e as RecordEntry);
         }
         throw new Error(`${recordName} is not a record in module ${this.name}`);
+    }
+
+    private getEntriesOfType(t: RecordType): ModuleEntry[] {
+        if (this.entriesByTypeCache != null && this.entriesByTypeCache.has(t)) {
+            let result: ModuleEntry[] | undefined = this.entriesByTypeCache.get(t);
+            if (result == undefined)
+                return new Array<ModuleEntry>()
+            return result
+        } else {
+            let result: ModuleEntry[] = this.entries.filter((v: ModuleEntry) => {
+                let r: RecordEntry = v as RecordEntry
+                return r.type == t
+            })
+            if (this.entriesByTypeCache != null) this.entriesByTypeCache = new Map<RecordType, ModuleEntry[]>
+            this.entriesByTypeCache?.set(t, result)
+            return result
+        }
+    }
+
+    getEntityEntries(): ModuleEntry[] {
+        return this.getEntriesOfType(RecordType.ENTITY)
+    }
+
+    getEventEntries(): ModuleEntry[] {
+        return this.getEntriesOfType(RecordType.EVENT)
+    }
+
+    getRecordEntries(): ModuleEntry[] {
+        return this.getEntriesOfType(RecordType.RECORD)
     }
 }
 
@@ -292,13 +324,15 @@ export function makeInstance(fullEntryName: string, attributes: InstanceAttribut
     let entryName: string = path.getEntryName();
     let record: RecordEntry = module.getRecord(entryName);
     let schema: RecordSchema = record.schema;
-    attributes.forEach((value: any, key: string) => {
-        if (!schema.has(key)) {
-            throw new Error(`Invalid attribute ${key} specified for ${fullEntryName}`);
-        }
-        let spec: AttributeSpec = getAttributeSpec(schema, key);
-        validateType(key, value, spec);
-    });
+    if (schema.size > 0) {
+        attributes.forEach((value: any, key: string) => {
+            if (!schema.has(key)) {
+                throw new Error(`Invalid attribute ${key} specified for ${fullEntryName}`);
+            }
+            let spec: AttributeSpec = getAttributeSpec(schema, key);
+            validateType(key, value, spec);
+        });
+    }
     return new Instance(record, fullEntryName, attributes);
 }
 
@@ -312,4 +346,14 @@ export function isEntityInstance(inst: Instance): boolean {
 
 export function isRecordInstance(inst: Instance): boolean {
     return inst.record.type == RecordType.RECORD;
+}
+
+export function getAllEventNames() {
+    let result: Map<string, string[]> = new Map<string, string[]>()
+    moduleDb.forEach((v: Module, k: string) => {
+        result.set(k, v.getEventEntries().map((me: ModuleEntry) => {
+            return me.name
+        }))
+    })
+    return result
 }
