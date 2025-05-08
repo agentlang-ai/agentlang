@@ -1,0 +1,15 @@
+{
+    "projectName": "Agentlang",
+    "languages": [{
+        "id": "agentlang",
+        "grammar": "src/language/agentlang.langium",
+        "fileExtensions": [".al"],
+        "textMate": {
+            "out": "syntaxes/agentlang.tmLanguage.json"
+        },
+        "monarch": {
+            "out": "src/syntaxes/agentlang.monarch.ts"
+        }
+    }],
+    "out": "src/language/generated"
+}

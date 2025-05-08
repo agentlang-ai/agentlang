@@ -21,3 +21,27 @@ AgentLang comes with all the modern tooling, dependency management and REPL need
 ## First-class AI Agents
 
 Agents are a built-in language construct - developers can choose from one of the built-in agent-types, or easily add their own agent-types.
+
+## Build instructions
+
+Make sure you have a working Node environment with version 22 or higher.
+
+Install dependencies:
+
+```shell
+npm install
+```
+
+Generate the Agentlang parser and build the project:
+
+```shell
+npm run langium:generate
+npm run build
+```
+
+Test with a sample .al file:
+
+```shell
+node ./bin/cli.js parseAndValidate example/test.al
+node ./bin/cli.js load example/test.al
+```
