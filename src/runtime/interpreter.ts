@@ -1,6 +1,9 @@
-import { ArrayLiteral, CrudMap, FnCall, ForEach, If, Literal, Pattern, Statement } from "../language/generated/ast.js";
 import {
-    arrayAsInstanceAttributes, getWorkflow, Instance, isEmptyWorkflow, isEventInstance, makeInstance,
+    ArrayLiteral, ComparisonExpression, CrudMap, Expr, FnCall, ForEach, If, isBinExpr, isComparisonExpression,
+    isGroup, isLiteral, isNegExpr, isOrAnd, Literal, LogicalExpression, OrAnd, Pattern, SetAttribute, Statement
+} from "../language/generated/ast.js";
+import {
+    getWorkflow, Instance, InstanceAttributes, isEmptyWorkflow, isEventInstance, makeInstance,
     newInstanceAttributes, PlaceholderRecordEntry, WorkflowEntry
 } from "./module.js";
 import { invokeModuleFn, splitRefs } from "./util.js";
@@ -103,7 +106,11 @@ function evaluateLiteral(lit: Literal, env: Environment): Result {
 }
 
 function evaluateCrudMap(crud: CrudMap, env: Environment): Result {
-    return makeInstance(crud.name, arrayAsInstanceAttributes(crud.attributes))
+    let attrs: InstanceAttributes = newInstanceAttributes()
+    crud.attributes.forEach((a: SetAttribute) => {
+        attrs.set(a.name, evaluateExpression(a.value, env))
+    })
+    return makeInstance(crud.name, attrs)
 }
 
 function evaluateForEach(forEach: ForEach, env: Environment): Result {
@@ -122,8 +129,85 @@ function evaluateForEach(forEach: ForEach, env: Environment): Result {
 }
 
 function evaluateIf(ifStmt: If, env: Environment): Result {
-    // TODO:
+    if (evaluateLogicalExpression(ifStmt.cond, env)) {
+        return evaluateStatements(ifStmt.statements, env)
+    } else if (ifStmt.elseif != undefined) {
+        return evaluateIf(ifStmt.elseif, env)
+    } else if (ifStmt.else != undefined) {
+        return evaluateStatements(ifStmt.else.statements, env)
+    }
     return EmptyResult
+}
+
+function evaluateLogicalExpression(logExpr: LogicalExpression, env: Environment): Result {
+    if (isComparisonExpression(logExpr.expr)) {
+        return evaluateComparisonExpression(logExpr.expr, env)
+    } else if (isOrAnd(logExpr.expr)) {
+        return evaluateOrAnd(logExpr.expr, env)
+    }
+    return EmptyResult
+}
+
+function evaluateComparisonExpression(cmprExpr: ComparisonExpression, env: Environment): Result {
+    let v1 = evaluateExpression(cmprExpr.e1, env)
+    let v2 = evaluateExpression(cmprExpr.e2, env)
+    switch (cmprExpr.op) {
+        case '=': return v1 == v2;
+        case '<': return v1 < v2;
+        case '>': return v1 > v2;
+        case '<=': return v1 <= v2;
+        case '>=': return v1 >= v2;
+        case '<>': return v1 != v2;
+        case 'like': return v1.startsWith(v2)
+        case 'in': return v2.find((x: any) => { x == v1 })
+        default: throw new Error(`Invalid comparison operator ${cmprExpr.op}`)
+    }
+    return EmptyResult
+}
+
+function evaluateExpression(expr: Expr, env: Environment): Result {
+    if (isBinExpr(expr)) {
+        let v1 = evaluateExpression(expr.e1, env);
+        let v2 = evaluateExpression(expr.e2, env);
+        switch (expr.op) {
+            case '+': return v1 + v2;
+            case '-': return v1 - v2;
+            case '*': return v1 * v2;
+            case '/': return v1 / v2;
+            default: throw new Error(`Unrecognized binary operator: ${expr.op}`);
+        }
+    } else if (isNegExpr(expr)) {
+        return -1 * evaluateExpression(expr.ne, env)
+    } else if (isGroup(expr)) {
+        return evaluateExpression(expr.ge, env)
+    } else if (isLiteral(expr)) {
+        return evaluateLiteral(expr, env)
+    }
+    return EmptyResult
+}
+
+function evaluateOrAnd(orAnd: OrAnd, env: Environment): Result {
+    switch (orAnd.op) {
+        case 'or': return evaluateOr(orAnd.exprs, env);
+        case 'and': return evaluateAnd(orAnd.exprs, env);
+        default: throw new Error(`Invalid logical operator: ${orAnd.op}`)
+    }
+}
+
+function evaluateOr(exprs: LogicalExpression[], env: Environment): Result {
+    for (let i = 0; i < exprs.length; ++i) {
+        if (evaluateLogicalExpression(exprs[i], env))
+            return true
+    }
+    return false
+}
+
+function evaluateAnd(exprs: LogicalExpression[], env: Environment): Result {
+    for (let i = 0; i < exprs.length; ++i) {
+        if (!evaluateLogicalExpression(exprs[i], env))
+            return false
+    }
+    return true
 }
 
 function getRef(r: string, src: any): Result | undefined {

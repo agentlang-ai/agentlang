@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { Attribute, Property, isProperty, Statement, SetAttribute } from '../language/generated/ast.js';
+import { Attribute, Property, isProperty, Statement } from '../language/generated/ast.js';
 import { Path, splitPath, isString, isNumber, isBoolean } from "./util.js";
 
 class ModuleEntry {
@@ -98,7 +98,7 @@ class Module {
     getEntry(entryName: string): ModuleEntry {
         let idx: number | undefined = this.index.get(entryName)
         if (idx == undefined)
-            throw new Error("Entry " + entryName + " not found in module " + this.name)
+            throw new Error(`Entry ${entryName} not found in module ${this.name}`)
         return this.entries[idx];
     }
 
@@ -107,7 +107,7 @@ class Module {
         if (e instanceof RecordEntry) {
             return (e as RecordEntry);
         }
-        throw new Error(recordName + " is not a record in module " + this.name);
+        throw new Error(`${recordName} is not a record in module ${this.name}`);
     }
 }
 
@@ -131,7 +131,7 @@ export function isModule(name: string): boolean {
 function fetchModule(moduleName: string): Module {
     let module: Module | undefined = moduleDb.get(moduleName);
     if (module == undefined) {
-        throw new Error("Module not found - " + moduleName);
+        throw new Error(`Module not found - ${moduleName}`);
     }
     return module;
 }
@@ -160,7 +160,7 @@ export function isValidType(type: string): boolean {
 
 function checkType(type: string): void {
     if (!isValidType(type)) {
-        console.log(chalk.red("WARN: type not found - " + type));
+        console.log(chalk.red(`WARN: type not found - ${type}`));
     }
 }
 
@@ -168,7 +168,7 @@ function validateProperties(props: Property[] | undefined): void {
     if (props != undefined) {
         props.forEach((p: Property) => {
             if (!propertyNames.has(p.name))
-                throw new Error("Invalid property " + p.name);
+                throw new Error(`Invalid property ${p.name}`);
         })
     }
 }
@@ -222,7 +222,7 @@ export function addWorkflow(name: string, statements: Statement[], moduleName = 
     if (module.hasEntry(name)) {
         let entry: ModuleEntry = module.getEntry(name);
         if (!(entry instanceof EventEntry))
-            throw new Error("Not an event, cannot attach workflow to " + entry.name)
+            throw new Error(`Not an event, cannot attach workflow to ${entry.name}`)
     } else {
         addEvent(name, new Array<Attribute>, moduleName);
     }
@@ -247,7 +247,7 @@ export function getWorkflow(eventInstance: Instance): WorkflowEntry {
 function getAttributeSpec(attrsSpec: RecordSchema, attrName: string): AttributeSpec {
     let spec: AttributeSpec | undefined = attrsSpec.get(attrName);
     if (spec == undefined) {
-        throw new Error("Failed to find spec for attribute " + attrName);
+        throw new Error(`Failed to find spec for attribute ${attrName}`);
     }
     return spec;
 }
@@ -256,7 +256,7 @@ function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec)
     let predic = builtInChecks.get(attrSpec.type);
     if (predic != undefined) {
         if (!predic(attrValue)) {
-            throw new Error("Invalid value " + attrValue + " specified for " + attrName);
+            throw new Error(`Invalid value ${attrValue} specified for ${attrName}`);
         }
     }
 }
@@ -265,15 +265,6 @@ export type InstanceAttributes = Map<string, any>;
 
 export function newInstanceAttributes(): InstanceAttributes {
     return new Map<string, any>();
-}
-
-export function arrayAsInstanceAttributes(attrs: SetAttribute[]) {
-    // TODO: cache this against eventName+patternCount
-    let instAttrs: InstanceAttributes = newInstanceAttributes();
-    attrs.forEach((a: SetAttribute) => {
-        instAttrs.set(a.name, a.value)
-    })
-    return instAttrs
 }
 
 export class Instance {
@@ -303,7 +294,7 @@ export function makeInstance(fullEntryName: string, attributes: InstanceAttribut
     let schema: RecordSchema = record.schema;
     attributes.forEach((value: any, key: string) => {
         if (!schema.has(key)) {
-            throw new Error("Invalid attribute " + key + " specified for " + fullEntryName);
+            throw new Error(`Invalid attribute ${key} specified for ${fullEntryName}`);
         }
         let spec: AttributeSpec = getAttributeSpec(schema, key);
         validateType(key, value, spec);
