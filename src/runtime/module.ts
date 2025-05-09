@@ -75,7 +75,7 @@ export function isEmptyWorkflow(wf: WorkflowEntry): boolean {
     return wf == EmptyWorkflow;
 }
 
-class Module {
+export class RuntimeModule {
     name: string;
     entries: ModuleEntry[];
     index: Map<string, number>;
@@ -118,6 +118,8 @@ class Module {
         if (idx != undefined) {
             this.index.delete(entryName)
             this.entries.splice(idx, 1)
+            if (this.entriesByTypeCache != null)
+                this.entriesByTypeCache = null
             return true
         }
         return false
@@ -171,14 +173,38 @@ class Module {
     isRecord(name: string): boolean {
         return this.isEntryOfType(RecordType.RECORD, name)
     }
+
+    getEntityNames(): string[] {
+        let names: string[] = new Array();
+        this.getEntityEntries().forEach((me: ModuleEntry) => {
+            names.push(me.name)
+        })
+        return names
+    }
+
+    getEventNames(): string[] {
+        let names: string[] = new Array();
+        this.getEventEntries().forEach((me: ModuleEntry) => {
+            names.push(me.name)
+        })
+        return names
+    }
+
+    getRecordNames(): string[] {
+        let names: string[] = new Array();
+        this.getRecordEntries().forEach((me: ModuleEntry) => {
+            names.push(me.name)
+        })
+        return names
+    }
 }
 
-const moduleDb = new Map<string, Module>;
+const moduleDb = new Map<string, RuntimeModule>;
 
 let activeModule: string = "";
 
 export function addModule(name: string): string {
-    moduleDb.set(name, new Module(name));
+    moduleDb.set(name, new RuntimeModule(name));
     activeModule = name;
     return name;
 }
@@ -186,12 +212,17 @@ export function addModule(name: string): string {
 addModule("agentlang");
 addRecord("env", new Array<Attribute>());
 
+export function getModuleNames(): string[] {
+    let ks: Iterable<string> = moduleDb.keys()
+    return Array.from(ks)
+}
+
 export function isModule(name: string): boolean {
     return moduleDb.has(name);
 }
 
-function fetchModule(moduleName: string): Module {
-    let module: Module | undefined = moduleDb.get(moduleName);
+export function fetchModule(moduleName: string): RuntimeModule {
+    let module: RuntimeModule | undefined = moduleDb.get(moduleName);
     if (module == undefined) {
         throw new Error(`Module not found - ${moduleName}`);
     }
@@ -255,21 +286,21 @@ export function defaultAttributes(schema: RecordSchema): Map<string, any> {
 }
 
 export function addEntity(name: string, attrs: Attribute[], moduleName = activeModule): string {
-    let module: Module = fetchModule(moduleName)
+    let module: RuntimeModule = fetchModule(moduleName)
     attrs.forEach((a) => verifyAttribute(a))
     module.addEntry(new EntityEntry(name, attrs))
     return name
 }
 
 export function addEvent(name: string, attrs: Attribute[], moduleName = activeModule) {
-    let module: Module = fetchModule(moduleName);
+    let module: RuntimeModule = fetchModule(moduleName);
     attrs.forEach((a) => verifyAttribute(a));
     module.addEntry(new EventEntry(name, attrs));
     return name;
 }
 
 export function addRecord(name: string, attrs: Attribute[], moduleName = activeModule) {
-    let module: Module = fetchModule(moduleName);
+    let module: RuntimeModule = fetchModule(moduleName);
     attrs.forEach((a) => verifyAttribute(a));
     module.addEntry(new RecordEntry(name, attrs));
     return name;
@@ -280,7 +311,7 @@ function asWorkflowName(n: string): string {
 }
 
 export function addWorkflow(name: string, statements: Statement[], moduleName = activeModule) {
-    let module: Module = fetchModule(moduleName);
+    let module: RuntimeModule = fetchModule(moduleName);
     if (module.hasEntry(name)) {
         let entry: ModuleEntry = module.getEntry(name);
         if (!(entry instanceof EventEntry))
@@ -299,7 +330,7 @@ export function getWorkflow(eventInstance: Instance): WorkflowEntry {
     if (path.hasModule()) moduleName = path.getModuleName();
     let eventName: string = path.getEntryName();
     let wfName: string = asWorkflowName(eventName);
-    let module: Module = fetchModule(moduleName);
+    let module: RuntimeModule = fetchModule(moduleName);
     if (module.hasEntry(wfName)) {
         return module.getEntry(wfName) as WorkflowEntry
     }
@@ -307,7 +338,7 @@ export function getWorkflow(eventInstance: Instance): WorkflowEntry {
 }
 
 export function removeEntity(name: string, moduleName = activeModule): boolean {
-    let module: Module = fetchModule(moduleName)
+    let module: RuntimeModule = fetchModule(moduleName)
     if (module.isEntity(name)) {
         return module.removeEntry(name)
     }
@@ -315,7 +346,7 @@ export function removeEntity(name: string, moduleName = activeModule): boolean {
 }
 
 export function removeRecord(name: string, moduleName = activeModule): boolean {
-    let module: Module = fetchModule(moduleName)
+    let module: RuntimeModule = fetchModule(moduleName)
     if (module.isRecord(name)) {
         return module.removeEntry(name)
     }
@@ -323,12 +354,12 @@ export function removeRecord(name: string, moduleName = activeModule): boolean {
 }
 
 export function removeWorkflow(name: string, moduleName = activeModule): boolean {
-    let module: Module = fetchModule(moduleName)
+    let module: RuntimeModule = fetchModule(moduleName)
     return module.removeEntry(asWorkflowName(name))
 }
 
 export function removeEvent(name: string, moduleName = activeModule): boolean {
-    let module: Module = fetchModule(moduleName)
+    let module: RuntimeModule = fetchModule(moduleName)
     if (module.isEvent(name)) {
         let r: boolean = module.removeEntry(name)
         if (r) {
@@ -405,7 +436,7 @@ export function makeInstance(fullEntryName: string, attributes: InstanceAttribut
     let moduleName: string = "";
     if (path.hasModule()) moduleName = path.getModuleName();
     else moduleName = activeModule;
-    let module: Module = fetchModule(moduleName);
+    let module: RuntimeModule = fetchModule(moduleName);
     let entryName: string = path.getEntryName();
     let record: RecordEntry = module.getRecord(entryName);
     let schema: RecordSchema = record.schema;
@@ -435,7 +466,7 @@ export function isRecordInstance(inst: Instance): boolean {
 
 export function getAllEventNames() {
     let result: Map<string, string[]> = new Map<string, string[]>()
-    moduleDb.forEach((v: Module, k: string) => {
+    moduleDb.forEach((v: RuntimeModule, k: string) => {
         result.set(k, v.getEventEntries().map((me: ModuleEntry) => {
             return me.name
         }))
