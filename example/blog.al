@@ -13,21 +13,34 @@ entity Profile {
 entity User {
     id Int @id @default(autoincrement()),
     name String,
-    profile Profile @between @unique,
-    posts Post[]
+}
+
+// one-one
+relationship UserProfile between (User, Profile, @one-one) {
+    User.profile Profile,
+    Profile.user Ref(User.id as userId)
 }
 
 entity Post {
     id Int @id @default(autoincrement()),
     title String
-    author User @relation(fields: [authorId], references: [id])
-    authorId Int
-    categories Category @between // N-N between relationship
+}
+
+// one-many
+relationship PostAuthor contains (User, Post) {
+    User.posts Post[],
+    Post.author Ref(User.id as authorId)
 }
 
 entity Category {
     id Int @id @default(autoincrement()),
     description String
+}
+
+// many-many
+relationship PostCategory between (Post, Category) {
+    Post.categories Category[],
+    Category.posts Post[]
 }
 
 workflow CreateUserWithPosts {
@@ -38,14 +51,12 @@ workflow CreateUserWithPosts {
 }
 
 workflow FindUserWithPostsAndProfile {
-    {User {id? FindUserWithPosts.userId}}
+    {User {id? FindUserWithPosts.userId}
+     include [posts, profile]}
 }
 
 workflow FindUserWithoutPostsAndProfile {
-    {User {id? FindUserWithPosts.userId}
-     exclude [posts, profile]} 
-     // `exclude` is a generic way to fetch a subset of attributes, 
-     // we did not have this feature in older Agentlang.
+    {User {id? FindUserWithPosts.userId}}
 }
 
 workflow AddNewPostToUser {
@@ -60,7 +71,12 @@ workflow AddExistingPostToUser {
            posts+ {Post {id? AddExistingPostToUser.postId}}}}
 }
 
-workflow FindUserFromPost {
-    {Post {id? FindUserFromPost.postId}} as post;
-    post.User // return user instance
+// An explicit M-M relations with data-attributes.
+relationship CategoriesOnPost between (Post, Category) {
+    Post.categories CategoriesOnPost[],
+    Category.posts CategoriesOnPosts[],
+    post Post.id @id,
+    category Category.id @id,
+    assignedAt DateTime @default(now()),
+    assignedBy String
 }

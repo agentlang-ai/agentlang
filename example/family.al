@@ -7,11 +7,32 @@ entity Family {
 
 entity Member {
     email Email @id,
-    name String,
-    family Family @contains=members, // an alternative way to add contains from child. 
-    spouse Member (@between, @unique), // self 1-1 between relationship
-    children Member @between, // self N-N between relationship
-    parents Member @between // self N-N between relationship
+    name String
+}
+
+// one-many
+relationship FamilyMember contains (Family, Member) {
+    Family.members Member[],
+    Member.family Ref(Family.id as familyId)
+}
+
+// one-many, self-relation
+relationship ParentChild contains (Member, Member) {
+    Member.parent Ref(Member.id as parentId)
+    Member.children Member[]
+}
+
+// ParentChild could also be a M-M self-relationship
+relationship ParentsChildren between (Member, Member) {
+    Member.parents Member[],
+    Member.children Member[]
+}
+
+// Modelling hierarchy using only refs (or pointers).
+// A member can have zero or more successors and predecessors.
+relationship FamilyHistory between (Member, Member) {
+    Member.successor Ref(Member.id as successorId) @unique,
+    Member.predecessor Ref(successorId)
 }
 
 workflow CreateMember {

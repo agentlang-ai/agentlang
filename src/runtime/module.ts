@@ -1,6 +1,6 @@
 import chalk from 'chalk';
-import { Attribute, Property, isProperty, Statement, SetAttribute } from '../language/generated/ast.js';
-import { Path, splitPath, isString, isNumber, isBoolean } from "./util.js";
+import { Attribute, Property, isProperty, Statement } from '../language/generated/ast.js';
+import { Path, splitFqName, isString, isNumber, isBoolean } from "./util.js";
 
 class ModuleEntry {
     name: string;
@@ -79,16 +79,19 @@ class Module {
     name: string;
     entries: ModuleEntry[];
     index: Map<string, number>;
+    entriesByTypeCache: Map<RecordType, ModuleEntry[]> | null
 
     constructor(name: string) {
         this.name = name;
         this.entries = new Array<ModuleEntry>();
-        this.index = new Map<string, number>()
+        this.index = new Map<string, number>();
+        this.entriesByTypeCache = null
     }
 
     addEntry(entry: ModuleEntry): void {
         this.entries.push(entry);
         this.index.set(entry.name, this.entries.length - 1);
+        if (this.entriesByTypeCache != null) this.entriesByTypeCache = null
     }
 
     hasEntry(entryName: string): boolean {
@@ -98,7 +101,7 @@ class Module {
     getEntry(entryName: string): ModuleEntry {
         let idx: number | undefined = this.index.get(entryName)
         if (idx == undefined)
-            throw new Error("Entry " + entryName + " not found in module " + this.name)
+            throw new Error(`Entry ${entryName} not found in module ${this.name}`)
         return this.entries[idx];
     }
 
@@ -107,7 +110,66 @@ class Module {
         if (e instanceof RecordEntry) {
             return (e as RecordEntry);
         }
-        throw new Error(recordName + " is not a record in module " + this.name);
+        throw new Error(`${recordName} is not a record in module ${this.name}`);
+    }
+
+    removeEntry(entryName: string): boolean {
+        let idx: number | undefined = this.index.get(entryName)
+        if (idx != undefined) {
+            this.index.delete(entryName)
+            this.entries.splice(idx, 1)
+            return true
+        }
+        return false
+    }
+
+    private getEntriesOfType(t: RecordType): ModuleEntry[] {
+        if (this.entriesByTypeCache != null && this.entriesByTypeCache.has(t)) {
+            let result: ModuleEntry[] | undefined = this.entriesByTypeCache.get(t);
+            if (result == undefined)
+                return new Array<ModuleEntry>()
+            return result
+        } else {
+            let result: ModuleEntry[] = this.entries.filter((v: ModuleEntry) => {
+                let r: RecordEntry = v as RecordEntry
+                return r.type == t
+            })
+            if (this.entriesByTypeCache != null) this.entriesByTypeCache = new Map<RecordType, ModuleEntry[]>
+            this.entriesByTypeCache?.set(t, result)
+            return result
+        }
+    }
+
+    getEntityEntries(): ModuleEntry[] {
+        return this.getEntriesOfType(RecordType.ENTITY)
+    }
+
+    getEventEntries(): ModuleEntry[] {
+        return this.getEntriesOfType(RecordType.EVENT)
+    }
+
+    getRecordEntries(): ModuleEntry[] {
+        return this.getEntriesOfType(RecordType.RECORD)
+    }
+
+    isEntryOfType(t: RecordType, name: string): boolean {
+        let entry: ModuleEntry | undefined = this.getEntityEntries().find((v: ModuleEntry) => {
+            let r: RecordEntry = v as RecordEntry
+            return (r.name == name) && (r.type == t)
+        })
+        return entry != undefined
+    }
+
+    isEntity(name: string): boolean {
+        return this.isEntryOfType(RecordType.ENTITY, name)
+    }
+
+    isEvent(name: string): boolean {
+        return this.isEntryOfType(RecordType.EVENT, name)
+    }
+
+    isRecord(name: string): boolean {
+        return this.isEntryOfType(RecordType.RECORD, name)
     }
 }
 
@@ -131,7 +193,7 @@ export function isModule(name: string): boolean {
 function fetchModule(moduleName: string): Module {
     let module: Module | undefined = moduleDb.get(moduleName);
     if (module == undefined) {
-        throw new Error("Module not found - " + moduleName);
+        throw new Error(`Module not found - ${moduleName}`);
     }
     return module;
 }
@@ -151,7 +213,7 @@ const propertyNames = new Set(["@id", "@indexed", "@default", "@optional", "@uni
 
 export function isValidType(type: string): boolean {
     if (builtInTypes.has(type)) return true;
-    let path: Path = splitPath(type);
+    let path: Path = splitFqName(type);
     let modName: string = "";
     if (path.hasModule()) modName = path.getModuleName()
     else modName = activeModule
@@ -160,7 +222,7 @@ export function isValidType(type: string): boolean {
 
 function checkType(type: string): void {
     if (!isValidType(type)) {
-        console.log(chalk.red("WARN: type not found - " + type));
+        console.log(chalk.red(`WARN: type not found - ${type}`));
     }
 }
 
@@ -168,7 +230,7 @@ function validateProperties(props: Property[] | undefined): void {
     if (props != undefined) {
         props.forEach((p: Property) => {
             if (!propertyNames.has(p.name))
-                throw new Error("Invalid property " + p.name);
+                throw new Error(`Invalid property ${p.name}`);
         })
     }
 }
@@ -193,10 +255,10 @@ export function defaultAttributes(schema: RecordSchema): Map<string, any> {
 }
 
 export function addEntity(name: string, attrs: Attribute[], moduleName = activeModule): string {
-    let module: Module = fetchModule(moduleName);
-    attrs.forEach((a) => verifyAttribute(a));
-    module.addEntry(new EntityEntry(name, attrs));
-    return name;
+    let module: Module = fetchModule(moduleName)
+    attrs.forEach((a) => verifyAttribute(a))
+    module.addEntry(new EntityEntry(name, attrs))
+    return name
 }
 
 export function addEvent(name: string, attrs: Attribute[], moduleName = activeModule) {
@@ -222,7 +284,7 @@ export function addWorkflow(name: string, statements: Statement[], moduleName = 
     if (module.hasEntry(name)) {
         let entry: ModuleEntry = module.getEntry(name);
         if (!(entry instanceof EventEntry))
-            throw new Error("Not an event, cannot attach workflow to " + entry.name)
+            throw new Error(`Not an event, cannot attach workflow to ${entry.name}`)
     } else {
         addEvent(name, new Array<Attribute>, moduleName);
     }
@@ -232,7 +294,7 @@ export function addWorkflow(name: string, statements: Statement[], moduleName = 
 
 export function getWorkflow(eventInstance: Instance): WorkflowEntry {
     let name: string = eventInstance.name;
-    let path: Path = splitPath(name);
+    let path: Path = splitFqName(name);
     let moduleName: string = activeModule;
     if (path.hasModule()) moduleName = path.getModuleName();
     let eventName: string = path.getEntryName();
@@ -244,10 +306,43 @@ export function getWorkflow(eventInstance: Instance): WorkflowEntry {
     return EmptyWorkflow;
 }
 
+export function removeEntity(name: string, moduleName = activeModule): boolean {
+    let module: Module = fetchModule(moduleName)
+    if (module.isEntity(name)) {
+        return module.removeEntry(name)
+    }
+    return false
+}
+
+export function removeRecord(name: string, moduleName = activeModule): boolean {
+    let module: Module = fetchModule(moduleName)
+    if (module.isRecord(name)) {
+        return module.removeEntry(name)
+    }
+    return false
+}
+
+export function removeWorkflow(name: string, moduleName = activeModule): boolean {
+    let module: Module = fetchModule(moduleName)
+    return module.removeEntry(asWorkflowName(name))
+}
+
+export function removeEvent(name: string, moduleName = activeModule): boolean {
+    let module: Module = fetchModule(moduleName)
+    if (module.isEvent(name)) {
+        let r: boolean = module.removeEntry(name)
+        if (r) {
+            module.removeEntry(asWorkflowName(name))
+            return r
+        }
+    }
+    return false
+}
+
 function getAttributeSpec(attrsSpec: RecordSchema, attrName: string): AttributeSpec {
     let spec: AttributeSpec | undefined = attrsSpec.get(attrName);
     if (spec == undefined) {
-        throw new Error("Failed to find spec for attribute " + attrName);
+        throw new Error(`Failed to find spec for attribute ${attrName}`);
     }
     return spec;
 }
@@ -256,7 +351,7 @@ function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec)
     let predic = builtInChecks.get(attrSpec.type);
     if (predic != undefined) {
         if (!predic(attrValue)) {
-            throw new Error("Invalid value " + attrValue + " specified for " + attrName);
+            throw new Error(`Invalid value ${attrValue} specified for ${attrName}`);
         }
     }
 }
@@ -267,33 +362,46 @@ export function newInstanceAttributes(): InstanceAttributes {
     return new Map<string, any>();
 }
 
-export function arrayAsInstanceAttributes(attrs: SetAttribute[]) {
-    // TODO: cache this against eventName+patternCount
-    let instAttrs: InstanceAttributes = newInstanceAttributes();
-    attrs.forEach((a: SetAttribute) => {
-        instAttrs.set(a.name, a.value)
-    })
-    return instAttrs
-}
-
 export class Instance {
-    record: RecordEntry;
+    record: RecordEntry
     name: string
-    protected attributes: InstanceAttributes;
+    protected attributes: InstanceAttributes
+    queryAttributes: InstanceAttributes | undefined
 
-    constructor(record: RecordEntry, name: string, attributes: InstanceAttributes) {
-        this.record = record;
-        this.name = name;
-        this.attributes = attributes;
+    constructor(record: RecordEntry, name: string, attributes: InstanceAttributes, queryAttributes?: InstanceAttributes) {
+        this.record = record
+        this.name = name
+        this.attributes = attributes
+        this.queryAttributes = queryAttributes
     }
 
     lookup(k: string): any | undefined {
         return this.attributes.get(k)
     }
+
+    asObject(): Object {
+        let result: Map<string, Object> = new Map<string, Object>()
+        result.set(this.name, Object.fromEntries(this.attributes))
+        return Object.fromEntries(result)
+    }
+
+    addQuery(n: string, op: string) {
+        if (this.queryAttributes == undefined)
+            this.queryAttributes = newInstanceAttributes()
+        this.queryAttributes.set(n, op)
+    }
 }
 
-export function makeInstance(fullEntryName: string, attributes: InstanceAttributes): Instance {
-    let path: Path = splitPath(fullEntryName);
+export function objectAsInstanceAttributes(obj: Object): InstanceAttributes {
+    let attrs: InstanceAttributes = newInstanceAttributes()
+    Object.entries(obj).forEach((v: [string, any]) => {
+        attrs.set(v[0], v[1])
+    })
+    return attrs
+}
+
+export function makeInstance(fullEntryName: string, attributes: InstanceAttributes, queryAttributes?: InstanceAttributes): Instance {
+    let path: Path = splitFqName(fullEntryName);
     let moduleName: string = "";
     if (path.hasModule()) moduleName = path.getModuleName();
     else moduleName = activeModule;
@@ -301,14 +409,16 @@ export function makeInstance(fullEntryName: string, attributes: InstanceAttribut
     let entryName: string = path.getEntryName();
     let record: RecordEntry = module.getRecord(entryName);
     let schema: RecordSchema = record.schema;
-    attributes.forEach((value: any, key: string) => {
-        if (!schema.has(key)) {
-            throw new Error("Invalid attribute " + key + " specified for " + fullEntryName);
-        }
-        let spec: AttributeSpec = getAttributeSpec(schema, key);
-        validateType(key, value, spec);
-    });
-    return new Instance(record, fullEntryName, attributes);
+    if (schema.size > 0) {
+        attributes.forEach((value: any, key: string) => {
+            if (!schema.has(key)) {
+                throw new Error(`Invalid attribute ${key} specified for ${fullEntryName}`);
+            }
+            let spec: AttributeSpec = getAttributeSpec(schema, key);
+            validateType(key, value, spec);
+        });
+    }
+    return new Instance(record, fullEntryName, attributes, queryAttributes);
 }
 
 export function isEventInstance(inst: Instance): boolean {
@@ -321,4 +431,14 @@ export function isEntityInstance(inst: Instance): boolean {
 
 export function isRecordInstance(inst: Instance): boolean {
     return inst.record.type == RecordType.RECORD;
+}
+
+export function getAllEventNames() {
+    let result: Map<string, string[]> = new Map<string, string[]>()
+    moduleDb.forEach((v: Module, k: string) => {
+        result.set(k, v.getEventEntries().map((me: ModuleEntry) => {
+            return me.name
+        }))
+    })
+    return result
 }

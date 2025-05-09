@@ -109,14 +109,6 @@ export function isHandler(item: unknown): item is Handler {
     return reflection.isInstance(item, Handler);
 }
 
-export type LogicalExpression = ComparisonExpression;
-
-export const LogicalExpression = 'LogicalExpression';
-
-export function isLogicalExpression(item: unknown): item is LogicalExpression {
-    return reflection.isInstance(item, LogicalExpression);
-}
-
 export type PrimExpr = Group | Literal | NegExpr;
 
 export const PrimExpr = 'PrimExpr';
@@ -192,11 +184,11 @@ export function isBinExpr(item: unknown): item is BinExpr {
 }
 
 export interface ComparisonExpression extends langium.AstNode {
-    readonly $container: ComparisonExpression | If;
+    readonly $container: LogicalExpression;
     readonly $type: 'ComparisonExpression';
-    e1: ComparisonExpression | Expr;
-    e2: ComparisonExpression | Expr;
-    op: '<' | '<=' | '<>' | '=' | '>' | '>=' | 'and' | 'between' | 'in' | 'like' | 'or';
+    e1: Expr;
+    e2: Expr;
+    op: '<' | '<=' | '<>' | '=' | '>' | '>=' | 'in' | 'like';
 }
 
 export const ComparisonExpression = 'ComparisonExpression';
@@ -218,6 +210,18 @@ export const CrudMap = 'CrudMap';
 
 export function isCrudMap(item: unknown): item is CrudMap {
     return reflection.isInstance(item, CrudMap);
+}
+
+export interface Else extends langium.AstNode {
+    readonly $container: If;
+    readonly $type: 'Else';
+    statements: Array<Statement>;
+}
+
+export const Else = 'Else';
+
+export function isElse(item: unknown): item is Else {
+    return reflection.isInstance(item, Else);
 }
 
 export interface Entity extends langium.AstNode {
@@ -286,9 +290,11 @@ export function isGroup(item: unknown): item is Group {
 }
 
 export interface If extends langium.AstNode {
-    readonly $container: Pattern;
+    readonly $container: If | Pattern;
     readonly $type: 'If';
     cond: LogicalExpression;
+    else?: Else;
+    elseif?: If;
     statements: Array<Statement>;
 }
 
@@ -354,6 +360,18 @@ export function isLiteral(item: unknown): item is Literal {
     return reflection.isInstance(item, Literal);
 }
 
+export interface LogicalExpression extends langium.AstNode {
+    readonly $container: If | OrAnd;
+    readonly $type: 'LogicalExpression';
+    expr: ComparisonExpression | OrAnd;
+}
+
+export const LogicalExpression = 'LogicalExpression';
+
+export function isLogicalExpression(item: unknown): item is LogicalExpression {
+    return reflection.isInstance(item, LogicalExpression);
+}
+
 export interface Module extends langium.AstNode {
     readonly $type: 'Module';
     defs: Array<Def>;
@@ -390,6 +408,19 @@ export const Node = 'Node';
 
 export function isNode(item: unknown): item is Node {
     return reflection.isInstance(item, Node);
+}
+
+export interface OrAnd extends langium.AstNode {
+    readonly $container: LogicalExpression;
+    readonly $type: 'OrAnd';
+    exprs: Array<LogicalExpression>;
+    op: 'and' | 'or';
+}
+
+export const OrAnd = 'OrAnd';
+
+export function isOrAnd(item: unknown): item is OrAnd {
+    return reflection.isInstance(item, OrAnd);
 }
 
 export interface Pattern extends langium.AstNode {
@@ -452,6 +483,7 @@ export interface SetAttribute extends langium.AstNode {
     readonly $container: CrudMap;
     readonly $type: 'SetAttribute';
     name: QueryId;
+    op?: '+' | '<' | '<=' | '<>' | '=' | '>' | '>=' | 'between' | 'in' | 'like';
     value: AttributeValueExpression;
 }
 
@@ -462,7 +494,7 @@ export function isSetAttribute(item: unknown): item is SetAttribute {
 }
 
 export interface Statement extends langium.AstNode {
-    readonly $container: ArrayLiteral | ForEach | If | Throws | Workflow;
+    readonly $container: ArrayLiteral | Else | ForEach | If | Throws | Workflow;
     readonly $type: 'Statement';
     alias: Array<string>;
     pattern: Pattern;
@@ -507,6 +539,7 @@ export type AgentlangAstType = {
     ComparisonExpression: ComparisonExpression
     CrudMap: CrudMap
     Def: Def
+    Else: Else
     Entity: Entity
     Event: Event
     Expr: Expr
@@ -523,6 +556,7 @@ export type AgentlangAstType = {
     Module: Module
     NegExpr: NegExpr
     Node: Node
+    OrAnd: OrAnd
     Pattern: Pattern
     PrimExpr: PrimExpr
     Property: Property
@@ -538,7 +572,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, Pattern, PrimExpr, Property, Record, Relationship, SchemaDef, SetAttribute, Statement, Throws, Workflow];
+        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Else, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, Record, Relationship, SchemaDef, SetAttribute, Statement, Throws, Workflow];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -546,9 +580,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case BinExpr:
             case PrimExpr: {
                 return this.isSubtype(Expr, supertype);
-            }
-            case ComparisonExpression: {
-                return this.isSubtype(LogicalExpression, supertype);
             }
             case Entity:
             case Event:
@@ -637,6 +668,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case Else: {
+                return {
+                    name: Else,
+                    properties: [
+                        { name: 'statements', defaultValue: [] }
+                    ]
+                };
+            }
             case Entity: {
                 return {
                     name: Entity,
@@ -687,6 +726,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: If,
                     properties: [
                         { name: 'cond' },
+                        { name: 'else' },
+                        { name: 'elseif' },
                         { name: 'statements', defaultValue: [] }
                     ]
                 };
@@ -731,6 +772,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case LogicalExpression: {
+                return {
+                    name: LogicalExpression,
+                    properties: [
+                        { name: 'expr' }
+                    ]
+                };
+            }
             case Module: {
                 return {
                     name: Module,
@@ -755,6 +804,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'alias' },
                         { name: 'name' }
+                    ]
+                };
+            }
+            case OrAnd: {
+                return {
+                    name: OrAnd,
+                    properties: [
+                        { name: 'exprs', defaultValue: [] },
+                        { name: 'op' }
                     ]
                 };
             }
@@ -803,6 +861,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: SetAttribute,
                     properties: [
                         { name: 'name' },
+                        { name: 'op' },
                         { name: 'value' }
                     ]
                 };

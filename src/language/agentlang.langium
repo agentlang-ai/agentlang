@@ -30,7 +30,7 @@ FnCall: name=ID '(' (args+=Literal (',' args+=Literal)*)+ ')';
 
 Literal: (id=ID | num=Decimal | str=STRING | ref=Ref | bool=Boolean | fnCall=FnCall | array=ArrayLiteral);
 
-fragment Body: '{' (statements+=Statement (';' statements+=Statement)*)+ '}' | statements+=Statement;
+fragment Body: '{' (statements+=Statement (';' statements+=Statement)*)+ '}' | '{' statements+=Statement ';'+ '}' | statements+=Statement;
 
 Workflow: 'workflow' name=ID Body;
 
@@ -44,22 +44,21 @@ Throws: 'throws' '{' (handlers+=Handler)+ '}';
 
 Handler: ('not_found' | 'error') Statement;
 
-If: 'if' '(' cond=LogicalExpression ')' Body ElseIf?;
-ElseIf infers If: 'else' 'if' '(' cond=LogicalExpression ')' Body | 'else' Body;
+If: 'if' '(' cond=LogicalExpression ')' Body (elseif=ElseIf | else=Else)?;
+ElseIf infers If: 'else' 'if' '(' cond=LogicalExpression ')' Body;
+Else: 'else' Body;
 
 ForEach: 'for' var=ID 'in' src=Pattern Body;
 
-SetAttribute: name=QueryId ('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between'|'+')? value=AttributeValueExpression;
+SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between'|'+')? value=AttributeValueExpression;
 
 AttributeValueExpression: Expr;
 
-LogicalExpression: LogExpr;
-
-LogExpr infers LogicalExpression:
-    ComparisonExpression({infer ComparisonExpression.e1=current} op=('and'|'or') e2=ComparisonExpression)*;
+LogicalExpression: expr=ComparisonExpression | expr=OrAnd;
+OrAnd: op=('or' | 'and') '(' (exprs+=LogicalExpression (',' exprs+=LogicalExpression)*)*')';
 
 ComparisonExpression:
-    e1=Expr op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between') e2=Expr;
+    e1=Expr op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=Expr;
 
 Expr: Add;
 

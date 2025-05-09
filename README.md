@@ -43,5 +43,5 @@ Test with a sample .al file:
 
 ```shell
 node ./bin/cli.js parseAndValidate example/test.al
-node ./bin/cli.js load example/test.al
+node ./bin/cli.js run example/test.al
 ```
