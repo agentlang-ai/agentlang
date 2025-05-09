@@ -50,7 +50,7 @@ Else: 'else' Body;
 
 ForEach: 'for' var=ID 'in' src=Pattern Body;
 
-SetAttribute: name=QueryId ('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between'|'+')? value=AttributeValueExpression;
+SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between'|'+')? value=AttributeValueExpression;
 
 AttributeValueExpression: Expr;
 

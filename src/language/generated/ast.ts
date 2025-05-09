@@ -483,6 +483,7 @@ export interface SetAttribute extends langium.AstNode {
     readonly $container: CrudMap;
     readonly $type: 'SetAttribute';
     name: QueryId;
+    op?: '+' | '<' | '<=' | '<>' | '=' | '>' | '>=' | 'between' | 'in' | 'like';
     value: AttributeValueExpression;
 }
 
@@ -860,6 +861,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: SetAttribute,
                     properties: [
                         { name: 'name' },
+                        { name: 'op' },
                         { name: 'value' }
                     ]
                 };

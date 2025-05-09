@@ -29,7 +29,6 @@ export function startServer(appName: string, port: number) {
 function handleEventPost(eventName: string, req: Request, res: Response): void {
     let inst: Instance = makeInstance(eventName, objectAsInstanceAttributes(req.body))
     let result: Result = normalizedResult(evaluate(inst))
-    console.log(JSON.stringify(result as Object))
     res.send(JSON.stringify(result))
 }
 

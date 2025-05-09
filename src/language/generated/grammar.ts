@@ -1710,49 +1710,54 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             }
           },
           {
-            "$type": "Alternatives",
-            "elements": [
-              {
-                "$type": "Keyword",
-                "value": "="
-              },
-              {
-                "$type": "Keyword",
-                "value": "<>"
-              },
-              {
-                "$type": "Keyword",
-                "value": "<"
-              },
-              {
-                "$type": "Keyword",
-                "value": "<="
-              },
-              {
-                "$type": "Keyword",
-                "value": ">"
-              },
-              {
-                "$type": "Keyword",
-                "value": ">="
-              },
-              {
-                "$type": "Keyword",
-                "value": "in"
-              },
-              {
-                "$type": "Keyword",
-                "value": "like"
-              },
-              {
-                "$type": "Keyword",
-                "value": "between"
-              },
-              {
-                "$type": "Keyword",
-                "value": "+"
-              }
-            ],
+            "$type": "Assignment",
+            "feature": "op",
+            "operator": "=",
+            "terminal": {
+              "$type": "Alternatives",
+              "elements": [
+                {
+                  "$type": "Keyword",
+                  "value": "="
+                },
+                {
+                  "$type": "Keyword",
+                  "value": "<>"
+                },
+                {
+                  "$type": "Keyword",
+                  "value": "<"
+                },
+                {
+                  "$type": "Keyword",
+                  "value": "<="
+                },
+                {
+                  "$type": "Keyword",
+                  "value": ">"
+                },
+                {
+                  "$type": "Keyword",
+                  "value": ">="
+                },
+                {
+                  "$type": "Keyword",
+                  "value": "in"
+                },
+                {
+                  "$type": "Keyword",
+                  "value": "like"
+                },
+                {
+                  "$type": "Keyword",
+                  "value": "between"
+                },
+                {
+                  "$type": "Keyword",
+                  "value": "+"
+                }
+              ]
+            },
             "cardinality": "?"
           },
           {

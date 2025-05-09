@@ -113,6 +113,16 @@ class Module {
         throw new Error(`${recordName} is not a record in module ${this.name}`);
     }
 
+    removeEntry(entryName: string): boolean {
+        let idx: number | undefined = this.index.get(entryName)
+        if (idx != undefined) {
+            this.index.delete(entryName)
+            this.entries.splice(idx, 1)
+            return true
+        }
+        return false
+    }
+
     private getEntriesOfType(t: RecordType): ModuleEntry[] {
         if (this.entriesByTypeCache != null && this.entriesByTypeCache.has(t)) {
             let result: ModuleEntry[] | undefined = this.entriesByTypeCache.get(t);
@@ -140,6 +150,26 @@ class Module {
 
     getRecordEntries(): ModuleEntry[] {
         return this.getEntriesOfType(RecordType.RECORD)
+    }
+
+    isEntryOfType(t: RecordType, name: string): boolean {
+        let entry: ModuleEntry | undefined = this.getEntityEntries().find((v: ModuleEntry) => {
+            let r: RecordEntry = v as RecordEntry
+            return (r.name == name) && (r.type == t)
+        })
+        return entry != undefined
+    }
+
+    isEntity(name: string): boolean {
+        return this.isEntryOfType(RecordType.ENTITY, name)
+    }
+
+    isEvent(name: string): boolean {
+        return this.isEntryOfType(RecordType.EVENT, name)
+    }
+
+    isRecord(name: string): boolean {
+        return this.isEntryOfType(RecordType.RECORD, name)
     }
 }
 
@@ -225,10 +255,10 @@ export function defaultAttributes(schema: RecordSchema): Map<string, any> {
 }
 
 export function addEntity(name: string, attrs: Attribute[], moduleName = activeModule): string {
-    let module: Module = fetchModule(moduleName);
-    attrs.forEach((a) => verifyAttribute(a));
-    module.addEntry(new EntityEntry(name, attrs));
-    return name;
+    let module: Module = fetchModule(moduleName)
+    attrs.forEach((a) => verifyAttribute(a))
+    module.addEntry(new EntityEntry(name, attrs))
+    return name
 }
 
 export function addEvent(name: string, attrs: Attribute[], moduleName = activeModule) {
@@ -276,6 +306,39 @@ export function getWorkflow(eventInstance: Instance): WorkflowEntry {
     return EmptyWorkflow;
 }
 
+export function removeEntity(name: string, moduleName = activeModule): boolean {
+    let module: Module = fetchModule(moduleName)
+    if (module.isEntity(name)) {
+        return module.removeEntry(name)
+    }
+    return false
+}
+
+export function removeRecord(name: string, moduleName = activeModule): boolean {
+    let module: Module = fetchModule(moduleName)
+    if (module.isRecord(name)) {
+        return module.removeEntry(name)
+    }
+    return false
+}
+
+export function removeWorkflow(name: string, moduleName = activeModule): boolean {
+    let module: Module = fetchModule(moduleName)
+    return module.removeEntry(asWorkflowName(name))
+}
+
+export function removeEvent(name: string, moduleName = activeModule): boolean {
+    let module: Module = fetchModule(moduleName)
+    if (module.isEvent(name)) {
+        let r: boolean = module.removeEntry(name)
+        if (r) {
+            module.removeEntry(asWorkflowName(name))
+            return r
+        }
+    }
+    return false
+}
+
 function getAttributeSpec(attrsSpec: RecordSchema, attrName: string): AttributeSpec {
     let spec: AttributeSpec | undefined = attrsSpec.get(attrName);
     if (spec == undefined) {
@@ -300,14 +363,16 @@ export function newInstanceAttributes(): InstanceAttributes {
 }
 
 export class Instance {
-    record: RecordEntry;
+    record: RecordEntry
     name: string
-    protected attributes: InstanceAttributes;
+    protected attributes: InstanceAttributes
+    queryAttributes: InstanceAttributes | undefined
 
-    constructor(record: RecordEntry, name: string, attributes: InstanceAttributes) {
-        this.record = record;
-        this.name = name;
-        this.attributes = attributes;
+    constructor(record: RecordEntry, name: string, attributes: InstanceAttributes, queryAttributes?: InstanceAttributes) {
+        this.record = record
+        this.name = name
+        this.attributes = attributes
+        this.queryAttributes = queryAttributes
     }
 
     lookup(k: string): any | undefined {
@@ -319,6 +384,12 @@ export class Instance {
         result.set(this.name, Object.fromEntries(this.attributes))
         return Object.fromEntries(result)
     }
+
+    addQuery(n: string, op: string) {
+        if (this.queryAttributes == undefined)
+            this.queryAttributes = newInstanceAttributes()
+        this.queryAttributes.set(n, op)
+    }
 }
 
 export function objectAsInstanceAttributes(obj: Object): InstanceAttributes {
@@ -329,7 +400,7 @@ export function objectAsInstanceAttributes(obj: Object): InstanceAttributes {
     return attrs
 }
 
-export function makeInstance(fullEntryName: string, attributes: InstanceAttributes): Instance {
+export function makeInstance(fullEntryName: string, attributes: InstanceAttributes, queryAttributes?: InstanceAttributes): Instance {
     let path: Path = splitFqName(fullEntryName);
     let moduleName: string = "";
     if (path.hasModule()) moduleName = path.getModuleName();
@@ -347,7 +418,7 @@ export function makeInstance(fullEntryName: string, attributes: InstanceAttribut
             validateType(key, value, spec);
         });
     }
-    return new Instance(record, fullEntryName, attributes);
+    return new Instance(record, fullEntryName, attributes, queryAttributes);
 }
 
 export function isEventInstance(inst: Instance): boolean {

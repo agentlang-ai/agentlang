@@ -58,14 +58,10 @@ function asString(s: MaybeString): string {
 export class Path {
     private moduleName: MaybeString;
     private entryName: MaybeString;
-    private refs: string[] | null;
 
-    private static EmptyRefs = new Array<string>();
-
-    constructor(moduleName: MaybeString, entryName: MaybeString, refs: string[] | null) {
-        this.moduleName = moduleName;
-        this.entryName = entryName;
-        this.refs = refs;
+    constructor(moduleName: MaybeString, entryName: MaybeString) {
+        this.moduleName = moduleName
+        this.entryName = entryName
     }
 
     hasModule(): boolean {
@@ -76,12 +72,6 @@ export class Path {
         return isString(this.entryName)
     }
 
-    hasRefs(): boolean {
-        if (this.refs == null) return false
-        if (this.refs.length == 0) return false
-        return true
-    }
-
     getModuleName(): string {
         return asString(this.moduleName)
     }
@@ -89,23 +79,22 @@ export class Path {
     getEntryName(): string {
         return asString(this.entryName)
     }
-
-    getRefs(): string[] {
-        if (this.refs == null) return Path.EmptyRefs
-        return this.refs
-    }
 }
 
 export function makeFqName(moduleName: string, entryName: string): string {
-    return moduleName + "." + entryName
+    return moduleName + "/" + entryName
+}
+
+export function isFqName(s: string): boolean {
+    return s.indexOf("/") > 0
 }
 
 export function splitFqName(s: string): Path {
-    if (s.indexOf(".") > 0) {
-        let parts: string[] = s.split(".");
-        return new Path(parts[0], parts[1], parts.slice(2));
+    if (s.indexOf("/") > 0) {
+        let parts: string[] = s.split("/")
+        return new Path(parts[0], parts[1])
     }
-    return new Path(undefined, s, null);
+    return new Path(undefined, s);
 }
 
 export function splitRefs(s: string): string[] {

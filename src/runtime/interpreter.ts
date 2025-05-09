@@ -6,7 +6,7 @@ import {
     getWorkflow, Instance, InstanceAttributes, isEmptyWorkflow, isEventInstance, makeInstance,
     newInstanceAttributes, PlaceholderRecordEntry, WorkflowEntry
 } from "./module.js";
-import { invokeModuleFn, makeFqName, Path, splitFqName, splitRefs } from "./util.js";
+import { invokeModuleFn, isFqName, makeFqName, Path, splitFqName, splitRefs } from "./util.js";
 
 export type Result = any;
 
@@ -57,7 +57,7 @@ class Environment extends Instance {
             throw new Error(`Not an event instance - ${eventInst.name}`)
         let path: Path = this.bindInstance(eventInst)
         this.attributes.set(Environment.ActiveModuleKey, path.getModuleName())
-        this.attributes.set(Environment.ActiveModuleKey, eventInst.name)
+        this.attributes.set(Environment.ActiveEventKey, eventInst.name)
         return path
     }
 
@@ -139,17 +139,25 @@ function evaluateLiteral(lit: Literal, env: Environment): Result {
 }
 
 function asFqName(n: string, env: Environment): string {
-    let path: Path = splitFqName(n)
-    if (path.hasModule()) return n
+    if (isFqName(n)) return n
     return makeFqName(env.getActiveModuleName(), n)
 }
 
 function evaluateCrudMap(crud: CrudMap, env: Environment): Result {
     let attrs: InstanceAttributes = newInstanceAttributes()
+    let qattrs: InstanceAttributes | undefined = undefined
     crud.attributes.forEach((a: SetAttribute) => {
-        attrs.set(a.name, evaluateExpression(a.value, env))
+        let v: Result = evaluateExpression(a.value, env)
+        let aname: string = a.name
+        if (aname.endsWith("?")) {
+            if (qattrs == undefined)
+                qattrs = newInstanceAttributes()
+            aname = aname.slice(0, aname.length-1)
+            qattrs.set(aname, a.op)
+        }
+        attrs.set(aname, v)
     })
-    return makeInstance(asFqName(crud.name, env), attrs)
+    return makeInstance(asFqName(crud.name, env), attrs, qattrs)
 }
 
 function evaluateForEach(forEach: ForEach, env: Environment): Result {

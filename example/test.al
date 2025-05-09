@@ -19,13 +19,13 @@ workflow CreateEmployee {
                firstName CreateEmployee.firstName,
                lastName CreateEmployee.lastName,
                salary CreateEmployee.basicSalary+1500*0.5}} as emp1;
-    /*{Employee {salary?> 1000}} as [e1, e2, _, employees];
+    {Employee {salary?> 1000}} as [e1, e2, _, employees]
     for emp in employees {
         if (emp.salary > 1500) "hello" else "hi" as message;
         {SendMail
          {email emp.email,
           body message}}
     } as final_result;
-    final_result*/
+    [emp1, e1, final_result]
 }
 
