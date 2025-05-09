@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { Attribute, Property, isProperty, Statement } from '../language/generated/ast.js';
-import { Path, splitPath, isString, isNumber, isBoolean } from "./util.js";
+import { Path, splitFqName, isString, isNumber, isBoolean } from "./util.js";
 
 class ModuleEntry {
     name: string;
@@ -183,7 +183,7 @@ const propertyNames = new Set(["@id", "@indexed", "@default", "@optional", "@uni
 
 export function isValidType(type: string): boolean {
     if (builtInTypes.has(type)) return true;
-    let path: Path = splitPath(type);
+    let path: Path = splitFqName(type);
     let modName: string = "";
     if (path.hasModule()) modName = path.getModuleName()
     else modName = activeModule
@@ -264,7 +264,7 @@ export function addWorkflow(name: string, statements: Statement[], moduleName = 
 
 export function getWorkflow(eventInstance: Instance): WorkflowEntry {
     let name: string = eventInstance.name;
-    let path: Path = splitPath(name);
+    let path: Path = splitFqName(name);
     let moduleName: string = activeModule;
     if (path.hasModule()) moduleName = path.getModuleName();
     let eventName: string = path.getEntryName();
@@ -313,10 +313,24 @@ export class Instance {
     lookup(k: string): any | undefined {
         return this.attributes.get(k)
     }
+
+    asObject(): Object {
+        let result: Map<string, Object> = new Map<string, Object>()
+        result.set(this.name, Object.fromEntries(this.attributes))
+        return Object.fromEntries(result)
+    }
+}
+
+export function objectAsInstanceAttributes(obj: Object): InstanceAttributes {
+    let attrs: InstanceAttributes = newInstanceAttributes()
+    Object.entries(obj).forEach((v: [string, any]) => {
+        attrs.set(v[0], v[1])
+    })
+    return attrs
 }
 
 export function makeInstance(fullEntryName: string, attributes: InstanceAttributes): Instance {
-    let path: Path = splitPath(fullEntryName);
+    let path: Path = splitFqName(fullEntryName);
     let moduleName: string = "";
     if (path.hasModule()) moduleName = path.getModuleName();
     else moduleName = activeModule;

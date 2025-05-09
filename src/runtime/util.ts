@@ -15,7 +15,7 @@ export function moduleImported(moduleName: string): boolean {
 }
 
 export function invokeModuleFn(fqFnName: string, args: Array<any> | null): any {
-    let path: Path = splitPath(fqFnName);
+    let path: Path = splitFqName(fqFnName);
     if (path.hasModule()) {
         let m = importedModules.get(path.getModuleName());
         if (m != undefined) {
@@ -96,7 +96,11 @@ export class Path {
     }
 }
 
-export function splitPath(s: string): Path {
+export function makeFqName(moduleName: string, entryName: string): string {
+    return moduleName + "." + entryName
+}
+
+export function splitFqName(s: string): Path {
     if (s.indexOf(".") > 0) {
         let parts: string[] = s.split(".");
         return new Path(parts[0], parts[1], parts.slice(2));

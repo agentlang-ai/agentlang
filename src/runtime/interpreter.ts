@@ -6,7 +6,7 @@ import {
     getWorkflow, Instance, InstanceAttributes, isEmptyWorkflow, isEventInstance, makeInstance,
     newInstanceAttributes, PlaceholderRecordEntry, WorkflowEntry
 } from "./module.js";
-import { invokeModuleFn, splitRefs } from "./util.js";
+import { invokeModuleFn, makeFqName, Path, splitFqName, splitRefs } from "./util.js";
 
 export type Result = any;
 
@@ -18,6 +18,9 @@ export function isEmptyResult(r: Result): boolean {
 
 class Environment extends Instance {
     parent: Environment | null;
+
+    private static ActiveModuleKey: string = "--active-module--"
+    private static ActiveEventKey: string = "--active-event--"
 
     constructor(name: string, parent: Environment | null = null) {
         super(PlaceholderRecordEntry, name, newInstanceAttributes())
@@ -36,6 +39,35 @@ class Environment extends Instance {
     bind(k: string, v: any) {
         this.attributes.set(k, v)
     }
+
+    bindInstance(inst: Instance): Path {
+        let fqName: string = inst.name
+        let path: Path = splitFqName(fqName)
+        if (!path.hasModule())
+            throw new Error(`Instance name must be fully-qualified - ${inst.name}`)
+        let n: string = path.getEntryName()
+        this.attributes.set(fqName, inst)
+        if (!this.attributes.has(n))
+            this.attributes.set(n, inst)
+        return path
+    }
+
+    bindActiveEvent(eventInst: Instance): Path {
+        if (!isEventInstance(eventInst))
+            throw new Error(`Not an event instance - ${eventInst.name}`)
+        let path: Path = this.bindInstance(eventInst)
+        this.attributes.set(Environment.ActiveModuleKey, path.getModuleName())
+        this.attributes.set(Environment.ActiveModuleKey, eventInst.name)
+        return path
+    }
+
+    getActiveModuleName(): string {
+        return this.attributes.get(Environment.ActiveModuleKey)
+    }
+
+    getActiveEvent(): Instance {
+        return this.attributes.get(this.attributes.get(Environment.ActiveEventKey))
+    }
 }
 
 export function evaluate(eventInstance: Instance) {
@@ -43,6 +75,7 @@ export function evaluate(eventInstance: Instance) {
         let wf: WorkflowEntry = getWorkflow(eventInstance);
         if (!isEmptyWorkflow(wf)) {
             let env: Environment = new Environment(eventInstance.name + ".env");
+            env.bindActiveEvent(eventInstance)
             return evaluateStatements(wf.statements, env)
         }
         return EmptyResult
@@ -105,12 +138,18 @@ function evaluateLiteral(lit: Literal, env: Environment): Result {
     return EmptyResult
 }
 
+function asFqName(n: string, env: Environment): string {
+    let path: Path = splitFqName(n)
+    if (path.hasModule()) return n
+    return makeFqName(env.getActiveModuleName(), n)
+}
+
 function evaluateCrudMap(crud: CrudMap, env: Environment): Result {
     let attrs: InstanceAttributes = newInstanceAttributes()
     crud.attributes.forEach((a: SetAttribute) => {
         attrs.set(a.name, evaluateExpression(a.value, env))
     })
-    return makeInstance(crud.name, attrs)
+    return makeInstance(asFqName(crud.name, env), attrs)
 }
 
 function evaluateForEach(forEach: ForEach, env: Environment): Result {
