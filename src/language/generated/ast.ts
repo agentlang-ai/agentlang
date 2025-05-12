@@ -156,7 +156,7 @@ export function isArrayLiteral(item: unknown): item is ArrayLiteral {
 }
 
 export interface Attribute extends langium.AstNode {
-    readonly $container: Entity | Event | Record;
+    readonly $container: Entity | Event | Record | Relationship;
     readonly $type: 'Attribute';
     name: string;
     properties: Array<Property>;
@@ -203,7 +203,7 @@ export interface CrudMap extends langium.AstNode {
     attributes: Array<SetAttribute>;
     name: string;
     properties: Array<Property>;
-    throws?: Throws;
+    relationships: Array<RelationshipPattern>;
 }
 
 export const CrudMap = 'CrudMap';
@@ -424,7 +424,7 @@ export function isOrAnd(item: unknown): item is OrAnd {
 }
 
 export interface Pattern extends langium.AstNode {
-    readonly $container: ForEach | Statement;
+    readonly $container: ForEach | RelationshipPattern | Statement;
     readonly $type: 'Pattern';
     crudMap?: CrudMap;
     forEach?: ForEach;
@@ -467,6 +467,7 @@ export function isRecord(item: unknown): item is Record {
 export interface Relationship extends langium.AstNode {
     readonly $container: Module;
     readonly $type: 'Relationship';
+    attributes: Array<Attribute>;
     name: string;
     node1: Node;
     node2: Node;
@@ -477,6 +478,19 @@ export const Relationship = 'Relationship';
 
 export function isRelationship(item: unknown): item is Relationship {
     return reflection.isInstance(item, Relationship);
+}
+
+export interface RelationshipPattern extends langium.AstNode {
+    readonly $container: CrudMap;
+    readonly $type: 'RelationshipPattern';
+    name: string;
+    pattern: Pattern;
+}
+
+export const RelationshipPattern = 'RelationshipPattern';
+
+export function isRelationshipPattern(item: unknown): item is RelationshipPattern {
+    return reflection.isInstance(item, RelationshipPattern);
 }
 
 export interface SetAttribute extends langium.AstNode {
@@ -498,6 +512,7 @@ export interface Statement extends langium.AstNode {
     readonly $type: 'Statement';
     alias: Array<string>;
     pattern: Pattern;
+    throws?: Throws;
 }
 
 export const Statement = 'Statement';
@@ -507,7 +522,7 @@ export function isStatement(item: unknown): item is Statement {
 }
 
 export interface Throws extends langium.AstNode {
-    readonly $container: CrudMap;
+    readonly $container: Statement;
     readonly $type: 'Throws';
     handlers: Array<Handler>;
 }
@@ -562,6 +577,7 @@ export type AgentlangAstType = {
     Property: Property
     Record: Record
     Relationship: Relationship
+    RelationshipPattern: RelationshipPattern
     SchemaDef: SchemaDef
     SetAttribute: SetAttribute
     Statement: Statement
@@ -572,7 +588,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Else, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, Record, Relationship, SchemaDef, SetAttribute, Statement, Throws, Workflow];
+        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Else, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, Record, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Workflow];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -664,7 +680,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'attributes', defaultValue: [] },
                         { name: 'name' },
                         { name: 'properties', defaultValue: [] },
-                        { name: 'throws' }
+                        { name: 'relationships', defaultValue: [] }
                     ]
                 };
             }
@@ -849,10 +865,20 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: Relationship,
                     properties: [
+                        { name: 'attributes', defaultValue: [] },
                         { name: 'name' },
                         { name: 'node1' },
                         { name: 'node2' },
                         { name: 'properties', defaultValue: [] }
+                    ]
+                };
+            }
+            case RelationshipPattern: {
+                return {
+                    name: RelationshipPattern,
+                    properties: [
+                        { name: 'name' },
+                        { name: 'pattern' }
                     ]
                 };
             }
@@ -871,7 +897,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Statement,
                     properties: [
                         { name: 'alias', defaultValue: [] },
-                        { name: 'pattern' }
+                        { name: 'pattern' },
+                        { name: 'throws' }
                     ]
                 };
             }

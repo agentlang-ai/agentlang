@@ -11,7 +11,7 @@
             "args": [
                 "./bin/cli.js",
                 "run",
-                "example/erp/app.json"
+                "example/blog/app.json"
             ]
     }
     ]

@@ -18,7 +18,8 @@ Entity: 'entity' RecDef;
 Event: 'event' RecDef;
 Record: 'record' RecDef;
 
-Relationship: 'relationship' name=ID ('contains' | 'between') '[' node1=Node ',' node2=Node ']' properties+=Property*;
+Relationship: 'relationship' name=ID ('contains' | 'between') '(' node1=Node ',' node2=Node ')' properties+=Property*
+('{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}')?;
 
 Node: name=ID | name=ID 'as' alias=ID;
 
@@ -36,9 +37,12 @@ Workflow: 'workflow' name=ID Body;
 
 Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach;
 
-Statement: pattern=Pattern ('as' (alias+=ID | ('[' alias+=ID (',' alias+=ID)*)+ ']'))?;
+Statement: pattern=Pattern ('as' (alias+=ID | ('[' alias+=ID (',' alias+=ID)*)+ ']'))? throws=Throws?;
 
-CrudMap: '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=Property* throws=Throws? '}' '}';
+CrudMap: '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=Property* '}'
+             (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';
+
+RelationshipPattern: name=ID pattern=Pattern;
 
 Throws: 'throws' '{' (handlers+=Handler)+ '}';
 

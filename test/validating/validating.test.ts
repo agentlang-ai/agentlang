@@ -4,15 +4,16 @@ import { expandToString as s } from "langium/generate";
 import { parseHelper } from "langium/test";
 import type { Diagnostic } from "vscode-languageserver-types";
 import { createAgentlangServices } from "../../src/language/agentlang-module.js";
-import { Model, isModel } from "../../src/language/generated/ast.js";
+import { Module, isModule } from "../../src/language/generated/ast.js";
+import { logger, writeLog } from "../../src/runtime/logger.js";
 
 let services: ReturnType<typeof createAgentlangServices>;
-let parse:    ReturnType<typeof parseHelper<Model>>;
-let document: LangiumDocument<Model> | undefined;
+let parse:    ReturnType<typeof parseHelper<Module>>;
+let document: LangiumDocument<Module> | undefined;
 
 beforeAll(async () => {
     services = createAgentlangServices(EmptyFileSystem);
-    const doParse = parseHelper<Model>(services.Agentlang);
+    const doParse = parseHelper<Module>(services.Agentlang);
     parse = (input: string) => doParse(input, { validation: true });
 
     // activate the following if your linking test requires elements from a built-in library, for example
@@ -23,7 +24,8 @@ describe('Validating', () => {
   
     test('check no errors', async () => {
         document = await parse(`
-            person Langium
+            module 1234
+            entity KK {name String}
         `);
 
         expect(
@@ -32,22 +34,7 @@ describe('Validating', () => {
             // and then evaluate the diagnostics by converting them into human readable strings;
             // note that 'toHaveLength()' works for arrays and strings alike ;-)
             checkDocumentValid(document) || document?.diagnostics?.map(diagnosticToString)?.join('\n')
-        ).toHaveLength(0);
-    });
-
-    test('check capital letter validation', async () => {
-        document = await parse(`
-            person langium
-        `);
-
-        expect(
-            checkDocumentValid(document) || document?.diagnostics?.map(diagnosticToString)?.join('\n')
-        ).toEqual(
-            // 'expect.stringContaining()' makes our test robust against future additions of further validation rules
-            expect.stringContaining(s`
-                [1:19..1:26]: Person name should start with a capital.
-            `)
-        );
+        ).contains("Expecting token of type 'ID' but found `1234`")
     });
 });
 
@@ -57,10 +44,16 @@ function checkDocumentValid(document: LangiumDocument): string | undefined {
           ${document.parseResult.parserErrors.map(e => e.message).join('\n  ')}
     `
         || document.parseResult.value === undefined && `ParseResult is 'undefined'.`
-        || !isModel(document.parseResult.value) && `Root AST object is a ${document.parseResult.value.$type}, expected a '${Model}'.`
+        || !isModule(document.parseResult.value) && `Root AST object is a ${document.parseResult.value.$type}, expected a '${Module}'.`
         || undefined;
 }
 
 function diagnosticToString(d: Diagnostic) {
-    return `[${d.range.start.line}:${d.range.start.character}..${d.range.end.line}:${d.range.end.character}]: ${d.message}`;
+    return d.message
 }
+
+if (process.env.NODE_ENV === 'test') {
+    setTimeout(() => process.exit(1), 1000);
+  } else {
+    process.exit(1);
+  }
