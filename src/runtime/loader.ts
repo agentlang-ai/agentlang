@@ -161,8 +161,17 @@ const loadApp = async (
     }
   };
   if (appSpec.dependencies != undefined) {
-    for (const [depName, depVer] of Object.entries(appSpec.dependencies)) {
-      runShellCommand(`npm install ${depName}@${depVer}`, cont2);
+    if (isNodeEnv) {
+      // Only run shell commands in Node.js environment
+      for (const [depName, depVer] of Object.entries(appSpec.dependencies)) {
+        runShellCommand(`npm install ${depName}@${depVer}`, cont2);
+      }
+    } else {
+      // In non-Node environments, log a warning and continue
+      console.warn(
+        "Dependencies cannot be installed in non-Node.js environments"
+      );
+      cont2();
     }
   } else {
     cont2();
