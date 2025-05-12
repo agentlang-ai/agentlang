@@ -17,17 +17,17 @@ export function moduleImported(moduleName: string): boolean {
 }
 
 export function invokeModuleFn(fqFnName: string, args: Array<any> | null): any {
-    let path: Path = splitFqName(fqFnName);
-    if (path.hasModule()) {
-        let m = importedModules.get(path.getModuleName());
+    let refs: string[] = splitRefs(fqFnName);
+    if (refs.length == 2) {
+        let m = importedModules.get(refs[0]);
         if (m != undefined) {
-            let f = m[path.getEntryName()];
+            let f = m[refs[1]];
             if (f != undefined) {
                 if (args == null) return f.apply(null)
                 else return f.apply(null, args)
-            } else throw new Error("Function not found - " + fqFnName)
-        } else throw new Error("JavaScript module " + path.getModuleName() + " not found")
-    } else {
+            } else throw new Error(`Function not found - ${fqFnName}`)
+        } else throw new Error(`JavaScript module ${refs[0]} not found`)
+    } else if (refs.length == 1) {
         let f = eval(fqFnName);
         if (f instanceof Function) {
             if (args == null) return f.apply(null)
@@ -35,6 +35,8 @@ export function invokeModuleFn(fqFnName: string, args: Array<any> | null): any {
         } else {
             throw new Error("Not a function: " + fqFnName)
         }
+    } else {
+        throw new Error(`Cannot call function in nested references - ${fqFnName}`)
     }
 }
 

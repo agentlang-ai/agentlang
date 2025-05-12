@@ -21,7 +21,9 @@ const loadApp = async (appJsonFile: string, continuation: Function): Promise<voi
         let dir: string = path.dirname(appJsonFile)
         let alFiles: Array<string> = new Array<string>()
         fs.readdir(dir, (err, files) => {
-            console.log(err)
+            if (err) {
+                throw new Error(err.message)
+            }
             files.forEach((file) => {
                 if (path.extname(file) == ".al") {
                     alFiles.push(dir + path.sep + file)

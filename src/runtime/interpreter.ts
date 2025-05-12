@@ -152,7 +152,7 @@ function evaluateCrudMap(crud: CrudMap, env: Environment): Result {
         if (aname.endsWith("?")) {
             if (qattrs == undefined)
                 qattrs = newInstanceAttributes()
-            aname = aname.slice(0, aname.length-1)
+            aname = aname.slice(0, aname.length - 1)
             qattrs.set(aname, a.op)
         }
         attrs.set(aname, v)
@@ -280,11 +280,17 @@ function followReference(env: Environment, s: string): Result {
 }
 
 function applyFn(fnCall: FnCall, env: Environment): Result {
-    let fnName: string = fnCall.name
-    let args: Array<Result> = fnCall.args.flatMap((v: Literal) => {
-        return evaluateLiteral(v, env)
-    })
-    return invokeModuleFn(fnName, args)
+    let fnName: string | undefined = fnCall.name
+    if (fnName != undefined) {
+        let args: Array<Result> | null = null;
+        if (fnCall.args != undefined) {
+            args = fnCall.args.flatMap((v: Literal) => {
+                return evaluateLiteral(v, env)
+            })
+        }
+        return invokeModuleFn(fnName, args)
+    }
+    return EmptyResult
 }
 
 function realizeArray(array: ArrayLiteral, env: Environment): Result {

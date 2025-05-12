@@ -26,6 +26,7 @@ workflow CreateEmployee {
          {email emp.email,
           body message}}
     } as final_result;
-    [emp1, e1, final_result]
+    testMod.callHelloWorld() as hello;
+    [hello, emp1, e1, final_result]
 }
 
