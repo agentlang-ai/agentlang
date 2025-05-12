@@ -38,6 +38,7 @@ export const browserPath = {
   resolve: (path: string): string => {
     return path;
   },
+  sep: "/",
 };
 
 // Use either Node.js path or browser path based on environment
