@@ -254,7 +254,7 @@ export interface FnCall extends langium.AstNode {
     readonly $container: Literal;
     readonly $type: 'FnCall';
     args: Array<Literal>;
-    name: string;
+    name?: Ref | string;
 }
 
 export const FnCall = 'FnCall';

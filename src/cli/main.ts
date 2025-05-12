@@ -2,14 +2,14 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 import { AgentlangLanguageMetaData } from '../language/generated/module.js';
 import { createAgentlangServices } from '../language/agentlang-module.js';
-import { load } from '../runtime/loader.js';
+import { ApplicationSpec, load } from '../runtime/loader.js';
 import { NodeFileSystem } from 'langium/node';
 import { extractDocument } from './cli-util.js';
 import * as url from 'node:url';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { startServer } from '../api/http.js';
-import { ParsedPath } from 'vscode/vscode/vs/base/common/path';
+
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
 const packagePath = path.resolve(__dirname, '..', '..', 'package.json');
@@ -67,9 +67,7 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
 }
 
 export const runModule = async (fileName: string): Promise<void> => {
-    load(fileName).then((_:void) => {
-        let filePaths: ParsedPath = path.parse(fileName)
-        let appName: string = filePaths.name
-        startServer(appName, 8080)
+    load(fileName, (appSpec: ApplicationSpec) => {
+        startServer(appSpec, 8080)
     })
 }

@@ -3,10 +3,14 @@ import express, { Request, Response } from 'express'
 import { getAllEventNames, Instance, makeInstance, objectAsInstanceAttributes } from '../runtime/module.js'
 import { evaluate, Result } from '../runtime/interpreter.js'
 import { makeFqName } from '../runtime/util.js'
+import { ApplicationSpec } from '../runtime/loader.js'
 
-export function startServer(appName: string, port: number) {
+export function startServer(appSpec: ApplicationSpec, port: number) {
     const app = express()
     app.use(express.json())
+
+    let appName: string = appSpec.name
+    let appVersion: string = appSpec.version
 
     app.get('/', (req: Request, res: Response) => {
         res.send(appName)
@@ -22,7 +26,7 @@ export function startServer(appName: string, port: number) {
     })
 
     app.listen(port, () => {
-        console.log(chalk.green(`Application ${chalk.bold(appName)} started on port ${chalk.bold(port)}`))
+        console.log(chalk.green(`Application ${chalk.bold(appName + " version " + appVersion)} started on port ${chalk.bold(port)}`))
     })
 }
 

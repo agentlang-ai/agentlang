@@ -1,6 +1,6 @@
 grammar Agentlang
 
-entry Module: 'module' name=ID (imports+=Import)? (defs+=Def)*;
+entry Module: 'module' name=ID (imports+=Import)* (defs+=Def)*;
 
 Import: 'import' path=STRING 'as' name=ID;
 
@@ -26,7 +26,7 @@ Attribute: name=ID type=ID properties+=Property*;
 
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 
-FnCall: name=ID '(' (args+=Literal (',' args+=Literal)*)+ ')';
+FnCall: name=(ID | Ref) ('(' ')') | ('(' (args+=Literal (',' args+=Literal)*)+ ')');
 
 Literal: (id=ID | num=Decimal | str=STRING | ref=Ref | bool=Boolean | fnCall=FnCall | array=ArrayLiteral);
 

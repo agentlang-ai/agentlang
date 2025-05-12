@@ -46,7 +46,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
               },
               "arguments": []
             },
-            "cardinality": "?"
+            "cardinality": "*"
           },
           {
             "$type": "Assignment",
@@ -809,37 +809,33 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
       "$type": "ParserRule",
       "name": "FnCall",
       "definition": {
-        "$type": "Group",
+        "$type": "Alternatives",
         "elements": [
-          {
-            "$type": "Assignment",
-            "feature": "name",
-            "operator": "=",
-            "terminal": {
-              "$type": "RuleCall",
-              "rule": {
-                "$ref": "#/rules@44"
-              },
-              "arguments": []
-            }
-          },
-          {
-            "$type": "Keyword",
-            "value": "("
-          },
           {
             "$type": "Group",
             "elements": [
               {
                 "$type": "Assignment",
-                "feature": "args",
-                "operator": "+=",
+                "feature": "name",
+                "operator": "=",
                 "terminal": {
-                  "$type": "RuleCall",
-                  "rule": {
-                    "$ref": "#/rules@16"
-                  },
-                  "arguments": []
+                  "$type": "Alternatives",
+                  "elements": [
+                    {
+                      "$type": "RuleCall",
+                      "rule": {
+                        "$ref": "#/rules@44"
+                      },
+                      "arguments": []
+                    },
+                    {
+                      "$type": "RuleCall",
+                      "rule": {
+                        "$ref": "#/rules@43"
+                      },
+                      "arguments": []
+                    }
+                  ]
                 }
               },
               {
@@ -847,8 +843,26 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "elements": [
                   {
                     "$type": "Keyword",
-                    "value": ","
+                    "value": "("
                   },
+                  {
+                    "$type": "Keyword",
+                    "value": ")"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "$type": "Group",
+            "elements": [
+              {
+                "$type": "Keyword",
+                "value": "("
+              },
+              {
+                "$type": "Group",
+                "elements": [
                   {
                     "$type": "Assignment",
                     "feature": "args",
@@ -860,16 +874,37 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                       },
                       "arguments": []
                     }
+                  },
+                  {
+                    "$type": "Group",
+                    "elements": [
+                      {
+                        "$type": "Keyword",
+                        "value": ","
+                      },
+                      {
+                        "$type": "Assignment",
+                        "feature": "args",
+                        "operator": "+=",
+                        "terminal": {
+                          "$type": "RuleCall",
+                          "rule": {
+                            "$ref": "#/rules@16"
+                          },
+                          "arguments": []
+                        }
+                      }
+                    ],
+                    "cardinality": "*"
                   }
                 ],
-                "cardinality": "*"
+                "cardinality": "+"
+              },
+              {
+                "$type": "Keyword",
+                "value": ")"
               }
-            ],
-            "cardinality": "+"
-          },
-          {
-            "$type": "Keyword",
-            "value": ")"
+            ]
           }
         ]
       },
