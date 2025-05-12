@@ -37,11 +37,12 @@ Generate the Agentlang parser and build the project:
 ```shell
 npm run langium:generate
 npm run build
+npm test
 ```
 
 Test with a sample .al file:
 
 ```shell
-node ./bin/cli.js parseAndValidate example/test.al
-node ./bin/cli.js run example/test.al
+node ./bin/cli.js parseAndValidate example/blog/blog.al
+node ./bin/cli.js run example/blog/app.json
 ```
