@@ -1,4 +1,4 @@
-module Acme
+module ErpCore
 
 import "../../example/test.js" as testMod
 

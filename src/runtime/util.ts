@@ -1,3 +1,5 @@
+import { exec } from "node:child_process";
+
 const importedModules = new Map<string, any>();
 
 // Usage: importModule("./mymodels/acme.js")
@@ -103,4 +105,17 @@ export function splitRefs(s: string): string[] {
     } else {
         return [s]
     }
+}
+
+export function runShellCommand(cmd: string, continuation: Function) {
+    exec(cmd, (err, stdout: string, stderr: string) => {
+        if (err) {
+            throw new Error(`Failed to execute ${cmd} - ${err.message}`)
+        }
+        if (stdout.length > 0) {
+            console.log(stdout)
+            continuation()
+        }
+        if (stderr.length > 0) console.log(stderr)
+    });
 }
