@@ -18,7 +18,7 @@ entity User {
 relationship UserProfile between (User, Profile) @one_one
 
 entity Post {
-    id Int @id @default(autoincrement()),
+    id UUID @id @default(uuid()),
     title String
 }
 
@@ -26,7 +26,7 @@ entity Post {
 relationship PostAuthor contains (User, Post)
 
 entity Category {
-    id Int @id @default(autoincrement()),
+    id UUID @id @default(uuid()),
     description String
 }
 

@@ -9,7 +9,7 @@ import * as url from "node:url";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { startServer } from "../api/http.js";
-import { initDefaultDatabase } from "../runtime/resolvers/schema.js";
+import { initDefaultDatabase } from "../runtime/resolvers/sqldb/schema.js";
 
 const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 

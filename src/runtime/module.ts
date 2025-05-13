@@ -1,8 +1,8 @@
 import chalk from 'chalk';
-import { Attribute, Property, isProperty, Statement } from '../language/generated/ast.js';
+import { Attribute, Property, Statement, KvPair, Literal, FnCall } from '../language/generated/ast.js';
 import { Path, splitFqName, isString, isNumber, isBoolean } from "./util.js";
 
-class ModuleEntry {
+export class ModuleEntry {
     name: string;
 
     constructor(name: string) {
@@ -10,12 +10,12 @@ class ModuleEntry {
     }
 }
 
-type AttributeSpec = {
+export type AttributeSpec = {
     type: string;
-    properties?: Property[]
+    properties?: Map<string, any> | undefined
 }
 
-type RecordSchema = Map<string, AttributeSpec>;
+export type RecordSchema = Map<string, AttributeSpec>;
 
 export function newRecordSchema(): RecordSchema {
     return new Map<string, AttributeSpec>()
@@ -40,7 +40,7 @@ export class RecordEntry extends ModuleEntry {
         super(name);
         this.schema = newRecordSchema();
         attributes.forEach((a: Attribute) => {
-            this.schema.set(a.name, { type: a.type, properties: a.properties })
+            this.schema.set(a.name, { type: a.type, properties: asPropertiesMap(a.properties) })
         })
         this.meta = newMeta();
     }
@@ -48,6 +48,64 @@ export class RecordEntry extends ModuleEntry {
     addMeta(k: string, v: string): void {
         this.meta.set(k, v);
     }
+}
+
+function asPropertiesMap(props: Property[]): Map<string, any> | undefined {
+    if (props != undefined && props.length > 0) {
+        let result: Map<string, any> = new Map<string, any>()
+        props.forEach((p: Property) => {
+            let n: string = p.name.substring(1)
+            if (p.value != undefined && p.value.pairs != undefined && p.value.pairs.length > 0) {
+                if (p.value.pairs.length == 1) {
+                    let kvp: KvPair = p.value.pairs[0]
+                    if (kvp.key == undefined) {
+                        result.set(n, normalizeKvPairValue(kvp))
+                    } else {
+                        let v: Map<string, any> = new Map<string, any>()
+                        v.set(kvp.key, normalizeKvPairValue(kvp))
+                        result.set(n, v)
+                    }
+                } else {
+                    let v: Map<string, any> = new Map<string, any>()
+                    p.value.pairs.forEach((kvp: KvPair) => {
+                        let k: string = "null"
+                        if (kvp.key != undefined) k = kvp.key
+                        v.set(k, normalizeKvPairValue(kvp))
+                    })
+                    result.set(n, v)
+                }
+            } else {
+                result.set(n, true)
+            }
+        })
+        return result
+    }
+    return undefined
+}
+
+function normalizeKvPairValue(kvp: KvPair): any | null {
+    let v: Literal | undefined = kvp.value
+    if (v == undefined) return true
+    if (v.str != undefined) {
+        return v.str
+    } else if (v.num != undefined) {
+        return v.num
+    } else if (v.bool != undefined) {
+        return v.bool
+    } else if (v.id != undefined) {
+        return v.id
+    } else if (v.ref != undefined) {
+        return v.ref
+    } else if (v.fnCall != undefined) {
+        let fncall: FnCall = v.fnCall
+        if (fncall.args.length > 0) {
+            throw new Error("Cannot allow arguments in properties function-call")
+        }
+        return fncall.name + "()"
+    } else if (v.array != undefined) {
+        return v.array
+    }
+    return null
 }
 
 export const PlaceholderRecordEntry = new RecordEntry("--", new Array<Attribute>())
@@ -199,7 +257,7 @@ export class RuntimeModule {
     }
 }
 
-const moduleDb = new Map<string, RuntimeModule>;
+const moduleDb = new Map<string, RuntimeModule>();
 
 let activeModule: string = "";
 
@@ -274,15 +332,53 @@ function verifyAttribute(attr: Attribute): void {
 export function defaultAttributes(schema: RecordSchema): Map<string, any> {
     let result: Map<string, any> = new Map<string, any>();
     schema.forEach((v: AttributeSpec, k: string) => {
-        let props: Property[] | undefined = v.properties;
+        let props: Map<string, any> | undefined = v.properties;
         if (props != undefined) {
-            let d: Property | undefined = props.find((v: Property) => v.name == '@default');
-            if (isProperty(d)) {
-                result.set(k, d.value)
+            let d: any | undefined = props.get("default");
+            if (d != undefined) {
+                result.set(k, d)
             }
         }
     });
     return result;
+}
+
+function getBooleanProperty(propName: string, attrSpec: AttributeSpec): boolean {
+    if (attrSpec.properties != undefined) {
+        return attrSpec.properties.get(propName) == true
+    }
+    return false
+}
+
+function getAnyProperty(propName: string, attrSpec: AttributeSpec): any | undefined {
+    if (attrSpec.properties != undefined) {
+        return attrSpec.properties.get(propName)
+    }
+    return undefined
+}
+
+export function isIdAttribute(attrSpec: AttributeSpec): boolean {
+    return getBooleanProperty("id", attrSpec)
+}
+
+export function isUniqueAttribute(attrSpec: AttributeSpec): boolean {
+    return getBooleanProperty("unique", attrSpec)
+}
+
+export function isIndexedAttribute(attrSpec: AttributeSpec): boolean {
+    return getBooleanProperty("indexed", attrSpec)
+}
+
+export function isOptionalAttribute(attrSpec: AttributeSpec): boolean {
+    return getBooleanProperty("optional", attrSpec)
+}
+
+export function getAttributeDefaultValue(attrSpec: AttributeSpec): any | undefined {
+    return getAnyProperty("default", attrSpec)
+}
+
+export function getAttributeLength(attrSpec: AttributeSpec): number | undefined {
+    return getAnyProperty("length", attrSpec)
 }
 
 export function addEntity(name: string, attrs: Attribute[], moduleName = activeModule): string {
