@@ -1,10 +1,10 @@
-import { isNodeEnv } from "../utils/runtime.js";
+import { isNodeEnv } from '../utils/runtime.js';
 
 // Conditionally import Node.js specific modules
 let exec: any = undefined;
 if (isNodeEnv) {
   // Dynamic import for node:child_process to avoid browser compatibility issues
-  const childProcess = await import("node:child_process");
+  const childProcess = await import('node:child_process');
   exec = childProcess.exec;
 }
 
@@ -41,7 +41,7 @@ export function invokeModuleFn(fqFnName: string, args: Array<any> | null): any {
       if (args == null) return f();
       else return f(...args);
     } else {
-      throw new Error("Not a function: " + fqFnName);
+      throw new Error('Not a function: ' + fqFnName);
     }
   } else {
     throw new Error(`Cannot call function in nested references - ${fqFnName}`);
@@ -49,21 +49,21 @@ export function invokeModuleFn(fqFnName: string, args: Array<any> | null): any {
 }
 
 export function isNumber(x: any): boolean {
-  return typeof x === "number";
+  return typeof x === 'number';
 }
 
 export function isBoolean(x: any): boolean {
-  return typeof x === "boolean";
+  return typeof x === 'boolean';
 }
 
 type MaybeString = string | undefined;
 
 export function isString(s: MaybeString): boolean {
-  return s != undefined && typeof s === "string";
+  return s != undefined && typeof s === 'string';
 }
 
 function asString(s: MaybeString): string {
-  if (s == undefined) return "";
+  if (s == undefined) return '';
   else return s;
 }
 
@@ -94,24 +94,24 @@ export class Path {
 }
 
 export function makeFqName(moduleName: string, entryName: string): string {
-  return moduleName + "/" + entryName;
+  return moduleName + '/' + entryName;
 }
 
 export function isFqName(s: string): boolean {
-  return s.indexOf("/") > 0;
+  return s.indexOf('/') > 0;
 }
 
 export function splitFqName(s: string): Path {
-  if (s.indexOf("/") > 0) {
-    const parts: string[] = s.split("/");
+  if (s.indexOf('/') > 0) {
+    const parts: string[] = s.split('/');
     return new Path(parts[0], parts[1]);
   }
   return new Path(undefined, s);
 }
 
 export function splitRefs(s: string): string[] {
-  if (s.indexOf(".") > 0) {
-    return s.split(".");
+  if (s.indexOf('.') > 0) {
+    return s.split('.');
   } else {
     return [s];
   }
@@ -119,16 +119,14 @@ export function splitRefs(s: string): string[] {
 
 export function runShellCommand(cmd: string, continuation: Function) {
   if (!isNodeEnv) {
-    console.warn(
-      "Shell commands cannot be executed in non-Node.js environments"
-    );
+    console.warn('Shell commands cannot be executed in non-Node.js environments');
     // Call continuation to allow the program flow to continue
     continuation();
     return;
   }
 
   if (!exec) {
-    console.error("Node.js child_process not available");
+    console.error('Node.js child_process not available');
     continuation();
     return;
   }

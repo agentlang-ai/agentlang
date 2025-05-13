@@ -30,11 +30,14 @@
   "dependencies": {
     "@codingame/monaco-vscode-editor-service-override": "~3.2.3",
     "@codingame/monaco-vscode-keybindings-service-override": "~3.2.3",
+    "@isomorphic-git/lightning-fs": "^4.6.1",
     "@types/express": "^5.0.1",
     "@types/winston": "^2.4.4",
+    "buffer": "^6.0.3",
     "chalk": "~5.3.0",
     "commander": "~11.0.0",
     "express": "^5.1.0",
+    "fs-extra": "^11.3.0",
     "generator-langium": "^3.5.0",
     "langium": "~3.5.0",
     "monaco-editor": "npm:@codingame/monaco-vscode-editor-api@~3.2.3",
@@ -45,10 +48,7 @@
     "vscode-languageserver": "~9.0.1",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
-    "yo": "^5.1.0",
-    "@isomorphic-git/lightning-fs": "^4.6.1",
-    "fs-extra": "^11.3.0",
-    "buffer": "^6.0.3"
+    "yo": "^5.1.0"
   },
   "devDependencies": {
     "@codingame/esbuild-import-meta-url-plugin": "~1.0.2",
@@ -62,6 +62,7 @@
     "http-server": "~14.1.1",
     "langium-cli": "~3.5.0",
     "nodemon": "^3.1.10",
+    "prettier": "^3.5.3",
     "ts-node": "^10.9.2",
     "typescript": "~5.1.6",
     "vite": "^5.4.19",

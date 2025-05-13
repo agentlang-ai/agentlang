@@ -1,10 +1,10 @@
 /**
  * Node.js filesystem implementation
  */
-import * as fs from "fs/promises";
-import { Stats } from "fs";
-import * as path from "path";
-import { ExtendedFileSystem, FileStat } from "./interfaces.js";
+import * as fs from 'fs/promises';
+import { Stats } from 'fs';
+import * as path from 'path';
+import { ExtendedFileSystem, FileStat } from './interfaces.js';
 
 /**
  * Convert Node.js fs.Stats to our FileStat interface
@@ -29,7 +29,7 @@ export class NodeFileSystem implements ExtendedFileSystem {
    * @returns Promise resolving to file content as string
    */
   async readFile(filePath: string): Promise<string> {
-    return fs.readFile(filePath, "utf8");
+    return fs.readFile(filePath, 'utf8');
   }
 
   /**
@@ -79,7 +79,7 @@ export class NodeFileSystem implements ExtendedFileSystem {
       await fs.mkdir(dirPath);
     } catch (err: any) {
       // Ignore if the directory already exists
-      if (err.code !== "EEXIST") {
+      if (err.code !== 'EEXIST') {
         throw err;
       }
     }
@@ -160,7 +160,7 @@ export class NodeFileSystem implements ExtendedFileSystem {
       await fs.mkdir(dirPath, { recursive: true });
     } catch (err: any) {
       // Ignore if the directory already exists
-      if (err.code !== "EEXIST") {
+      if (err.code !== 'EEXIST') {
         throw err;
       }
     }

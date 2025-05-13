@@ -1,8 +1,8 @@
 /**
  * Browser filesystem implementation using Lightning FS
  */
-import { ExtendedFileSystem, FileStat } from "./interfaces.js";
-import LightningFS from "@isomorphic-git/lightning-fs";
+import { ExtendedFileSystem, FileStat } from './interfaces.js';
+import LightningFS from '@isomorphic-git/lightning-fs';
 
 /**
  * Convert Lightning FS stats to our FileStat interface
@@ -34,13 +34,13 @@ export class LightningFileSystem implements ExtendedFileSystem {
       name?: string;
       wipe?: boolean;
       persistentStorage?: boolean;
-    } = {},
+    } = {}
   ): Promise<void> {
     if (this.initialized) {
       return;
     }
 
-    const name = options.name || "fs";
+    const name = options.name || 'fs';
     const lfs = new LightningFS(name, { wipe: options.wipe });
     this.fs = lfs.promises;
     this.initialized = true;
@@ -51,9 +51,7 @@ export class LightningFileSystem implements ExtendedFileSystem {
    */
   private ensureInitialized(): void {
     if (!this.initialized) {
-      throw new Error(
-        "LightningFileSystem is not initialized. Call initialize() first.",
-      );
+      throw new Error('LightningFileSystem is not initialized. Call initialize() first.');
     }
   }
 
@@ -64,7 +62,7 @@ export class LightningFileSystem implements ExtendedFileSystem {
    */
   async readFile(filePath: string): Promise<string> {
     this.ensureInitialized();
-    const buffer = await this.fs.readFile(filePath, { encoding: "utf8" });
+    const buffer = await this.fs.readFile(filePath, { encoding: 'utf8' });
     return buffer.toString();
   }
 
@@ -88,7 +86,7 @@ export class LightningFileSystem implements ExtendedFileSystem {
     this.ensureInitialized();
 
     // Ensure the directory exists
-    const dir = filePath.substring(0, filePath.lastIndexOf("/"));
+    const dir = filePath.substring(0, filePath.lastIndexOf('/'));
     if (dir) {
       await this.ensureDir(dir);
     }
@@ -122,7 +120,7 @@ export class LightningFileSystem implements ExtendedFileSystem {
       return await this.fs.mkdir(dirPath);
     } catch (err: any) {
       // Ignore if the directory already exists
-      if (err.code !== "EEXIST") {
+      if (err.code !== 'EEXIST') {
         throw err;
       }
     }
@@ -179,7 +177,7 @@ export class LightningFileSystem implements ExtendedFileSystem {
     this.ensureInitialized();
 
     // Ensure destination directory exists
-    const destDir = dest.substring(0, dest.lastIndexOf("/"));
+    const destDir = dest.substring(0, dest.lastIndexOf('/'));
     if (destDir) {
       await this.ensureDir(destDir);
     }
@@ -199,7 +197,7 @@ export class LightningFileSystem implements ExtendedFileSystem {
     this.ensureInitialized();
 
     // Ensure destination directory exists
-    const destDir = dest.substring(0, dest.lastIndexOf("/"));
+    const destDir = dest.substring(0, dest.lastIndexOf('/'));
     if (destDir) {
       await this.ensureDir(destDir);
     }
@@ -228,7 +226,7 @@ export class LightningFileSystem implements ExtendedFileSystem {
       await this.fs.mkdir(dirPath, { recursive: true });
     } catch (err: any) {
       // Ignore if the directory already exists (race condition)
-      if (err.code !== "EEXIST") {
+      if (err.code !== 'EEXIST') {
         throw err;
       }
     }
