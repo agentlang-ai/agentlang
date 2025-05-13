@@ -13,8 +13,9 @@ export async function initDefaultDatabase() {
         })
         defaultDataSource.initialize()
             .then(() => {
-                logger.debug("Data Source has been initialized!")
-                createTables()
+                createTables().then((_: void) => {
+                    logger.debug("Data Source has been initialized!")
+                })
             })
             .catch((err) => {
                 logger.error("Error during Data Source initialization", err)
