@@ -12,7 +12,7 @@ const importedModules = new Map<string, any>();
 
 // Usage: importModule("./mymodels/acme.js")
 export async function importModule(path: string, name: string) {
-  let m = await import(path);
+  const m = await import(path);
   importedModules.set(name, m);
   // e.g of dynamic fn-call:
   //// let f = eval("(a, b) => m.add(a, b)");
@@ -25,21 +25,21 @@ export function moduleImported(moduleName: string): boolean {
 }
 
 export function invokeModuleFn(fqFnName: string, args: Array<any> | null): any {
-  let refs: string[] = splitRefs(fqFnName);
+  const refs: string[] = splitRefs(fqFnName);
   if (refs.length == 2) {
-    let m = importedModules.get(refs[0]);
+    const m = importedModules.get(refs[0]);
     if (m != undefined) {
-      let f = m[refs[1]];
+      const f = m[refs[1]];
       if (f != undefined) {
-        if (args == null) return f.apply(null);
-        else return f.apply(null, args);
+        if (args == null) return f();
+        else return f(...args);
       } else throw new Error(`Function not found - ${fqFnName}`);
     } else throw new Error(`JavaScript module ${refs[0]} not found`);
   } else if (refs.length == 1) {
-    let f = eval(fqFnName);
+    const f = eval(fqFnName);
     if (f instanceof Function) {
-      if (args == null) return f.apply(null);
-      else return f.apply(null, args);
+      if (args == null) return f();
+      else return f(...args);
     } else {
       throw new Error("Not a function: " + fqFnName);
     }
@@ -103,7 +103,7 @@ export function isFqName(s: string): boolean {
 
 export function splitFqName(s: string): Path {
   if (s.indexOf("/") > 0) {
-    let parts: string[] = s.split("/");
+    const parts: string[] = s.split("/");
     return new Path(parts[0], parts[1]);
   }
   return new Path(undefined, s);

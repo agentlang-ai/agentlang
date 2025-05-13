@@ -44,3 +44,20 @@ Test with a sample .al file:
 node ./bin/cli.js parseAndValidate example/blog/blog.al
 node ./bin/cli.js run example/blog/app.json
 ```
+
+## Linting and Code Style
+
+AgentLang uses ESLint and Prettier to maintain code quality. Run the following commands to check and fix linting issues:
+
+```shell
+# Run ESLint
+npm run lint
+
+# Fix ESLint issues automatically
+npm run lint -- --fix
+
+# Format code with Prettier
+npm run format
+```
+
+The project is currently in the process of adopting stricter TypeScript standards. The ESLint configuration currently allows the use of `any` types and certain deprecated type constructors, but these will be gradually phased out in future releases.

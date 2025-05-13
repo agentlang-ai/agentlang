@@ -9,14 +9,14 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
     const app = express()
     app.use(express.json())
 
-    let appName: string = appSpec.name
-    let appVersion: string = appSpec.version
+    const appName: string = appSpec.name
+    const appVersion: string = appSpec.version
 
     app.get('/', (req: Request, res: Response) => {
         res.send(appName)
     })
 
-    let eventNames: Map<string, string[]> = getAllEventNames()
+    const eventNames: Map<string, string[]> = getAllEventNames()
     eventNames.forEach((eventNames: string[], moduleName: string) => {
         eventNames.forEach((n: string) => {
             app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
@@ -31,8 +31,8 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
 }
 
 function handleEventPost(eventName: string, req: Request, res: Response): void {
-    let inst: Instance = makeInstance(eventName, objectAsInstanceAttributes(req.body))
-    let result: Result = normalizedResult(evaluate(inst))
+    const inst: Instance = makeInstance(eventName, objectAsInstanceAttributes(req.body))
+    const result: Result = normalizedResult(evaluate(inst))
     res.send(JSON.stringify(result))
 }
 

@@ -133,11 +133,11 @@ const loadApp = async (
 
   const s: string = await fs.readFile(appJsonFile);
   const appSpec: ApplicationSpec = JSON.parse(s);
-  let dir: string = path.dirname(appJsonFile);
-  let alFiles: Array<string> = new Array<string>();
+  const dir: string = path.dirname(appJsonFile);
+  const alFiles: Array<string> = new Array<string>();
   const directoryContents = await fs.readdir(dir);
 
-  let cont2: Function = () => {
+  const cont2: Function = () => {
     if (!directoryContents) {
       console.error(chalk.red(`Directory ${dir} does not exist or is empty.`));
       return;
@@ -149,7 +149,7 @@ const loadApp = async (
     });
     if (alFiles.length > 0) {
       let loadedCount: number = 0;
-      let cont: Function = (_: string) => {
+      const cont: Function = (_: string) => {
         ++loadedCount;
         if (loadedCount >= alFiles.length) {
           continuation(appSpec);

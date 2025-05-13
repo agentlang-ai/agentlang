@@ -28,7 +28,7 @@ class Environment extends Instance {
     }
 
     override lookup(k: string): Result {
-        let v = this.attributes.get(k);
+        const v = this.attributes.get(k);
         if (v == undefined) {
             if (this.parent != null) {
                 return this.parent.lookup(k)
@@ -41,11 +41,11 @@ class Environment extends Instance {
     }
 
     bindInstance(inst: Instance): Path {
-        let fqName: string = inst.name
-        let path: Path = splitFqName(fqName)
+        const fqName: string = inst.name
+        const path: Path = splitFqName(fqName)
         if (!path.hasModule())
             throw new Error(`Instance name must be fully-qualified - ${inst.name}`)
-        let n: string = path.getEntryName()
+        const n: string = path.getEntryName()
         this.attributes.set(fqName, inst)
         if (!this.attributes.has(n))
             this.attributes.set(n, inst)
@@ -55,7 +55,7 @@ class Environment extends Instance {
     bindActiveEvent(eventInst: Instance): Path {
         if (!isEventInstance(eventInst))
             throw new Error(`Not an event instance - ${eventInst.name}`)
-        let path: Path = this.bindInstance(eventInst)
+        const path: Path = this.bindInstance(eventInst)
         this.attributes.set(Environment.ActiveModuleKey, path.getModuleName())
         this.attributes.set(Environment.ActiveEventKey, eventInst.name)
         return path
@@ -72,9 +72,9 @@ class Environment extends Instance {
 
 export function evaluate(eventInstance: Instance) {
     if (isEventInstance(eventInstance)) {
-        let wf: WorkflowEntry = getWorkflow(eventInstance);
+        const wf: WorkflowEntry = getWorkflow(eventInstance);
         if (!isEmptyWorkflow(wf)) {
-            let env: Environment = new Environment(eventInstance.name + ".env");
+            const env: Environment = new Environment(eventInstance.name + ".env");
             env.bindActiveEvent(eventInstance)
             return evaluateStatements(wf.statements, env)
         }
@@ -92,13 +92,13 @@ function evaluateStatements(stmts: Statement[], env: Environment): Result {
 }
 
 function evaluateStatement(stmt: Statement, env: Environment): Result {
-    let result: Result = evaluatePattern(stmt.pattern, env);
+    const result: Result = evaluatePattern(stmt.pattern, env);
     if (stmt.alias != undefined) {
-        let alias: string[] = stmt.alias
+        const alias: string[] = stmt.alias
         if (result instanceof Array) {
-            let resArr: Array<any> = result as Array<any>
+            const resArr: Array<any> = result as Array<any>
             for (let i = 0; i < alias.length; ++i) {
-                let k: string = alias[i];
+                const k: string = alias[i];
                 if (k == "_") {
                     env.bind(alias[i + 1], resArr.splice(i))
                     break
@@ -144,10 +144,10 @@ function asFqName(n: string, env: Environment): string {
 }
 
 function evaluateCrudMap(crud: CrudMap, env: Environment): Result {
-    let attrs: InstanceAttributes = newInstanceAttributes()
+    const attrs: InstanceAttributes = newInstanceAttributes()
     let qattrs: InstanceAttributes | undefined = undefined
     crud.attributes.forEach((a: SetAttribute) => {
-        let v: Result = evaluateExpression(a.value, env)
+        const v: Result = evaluateExpression(a.value, env)
         let aname: string = a.name
         if (aname.endsWith("?")) {
             if (qattrs == undefined)
@@ -161,10 +161,10 @@ function evaluateCrudMap(crud: CrudMap, env: Environment): Result {
 }
 
 function evaluateForEach(forEach: ForEach, env: Environment): Result {
-    let loopVar: string = forEach.var;
-    let src: Result = evaluatePattern(forEach.src, env)
+    const loopVar: string = forEach.var;
+    const src: Result = evaluatePattern(forEach.src, env)
     if (src instanceof Array && src.length > 0) {
-        let loopEnv: Environment = new Environment(env.name + ".child", env)
+        const loopEnv: Environment = new Environment(env.name + ".child", env)
         let result: Result = EmptyResult
         for (let i = 0; i < src.length; ++i) {
             loopEnv.bind(loopVar, src[i])
@@ -196,8 +196,8 @@ function evaluateLogicalExpression(logExpr: LogicalExpression, env: Environment)
 }
 
 function evaluateComparisonExpression(cmprExpr: ComparisonExpression, env: Environment): Result {
-    let v1 = evaluateExpression(cmprExpr.e1, env)
-    let v2 = evaluateExpression(cmprExpr.e2, env)
+    const v1 = evaluateExpression(cmprExpr.e1, env)
+    const v2 = evaluateExpression(cmprExpr.e2, env)
     switch (cmprExpr.op) {
         case '=': return v1 == v2;
         case '<': return v1 < v2;
@@ -214,8 +214,8 @@ function evaluateComparisonExpression(cmprExpr: ComparisonExpression, env: Envir
 
 function evaluateExpression(expr: Expr, env: Environment): Result {
     if (isBinExpr(expr)) {
-        let v1 = evaluateExpression(expr.e1, env);
-        let v2 = evaluateExpression(expr.e2, env);
+        const v1 = evaluateExpression(expr.e1, env);
+        const v2 = evaluateExpression(expr.e2, env);
         switch (expr.op) {
             case '+': return v1 + v2;
             case '-': return v1 - v2;
@@ -266,12 +266,12 @@ function getRef(r: string, src: any): Result | undefined {
 }
 
 function followReference(env: Environment, s: string): Result {
-    let refs: string[] = splitRefs(s);
+    const refs: string[] = splitRefs(s);
     let result: Result = EmptyResult;
     let src: any = env;
     for (let i = 0; i < refs.length; ++i) {
-        let r: string = refs[i]
-        let v: Result | undefined = getRef(r, src)
+        const r: string = refs[i]
+        const v: Result | undefined = getRef(r, src)
         if (v == undefined) return EmptyResult
         result = v
         src = v
@@ -280,7 +280,7 @@ function followReference(env: Environment, s: string): Result {
 }
 
 function applyFn(fnCall: FnCall, env: Environment): Result {
-    let fnName: string | undefined = fnCall.name
+    const fnName: string | undefined = fnCall.name
     if (fnName != undefined) {
         let args: Array<Result> | null = null;
         if (fnCall.args != undefined) {
