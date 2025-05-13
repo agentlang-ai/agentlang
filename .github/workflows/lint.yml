@@ -1,4 +1,4 @@
-name: Lint
+name: Lint and Format
 
 on:
   push:
@@ -7,12 +7,16 @@ on:
     branches: [main]
 
 jobs:
-  lint:
+  lint-and-format:
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          # Important: This ensures we can push back to the PR branch
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -22,6 +26,20 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+          
+      - name: Install Prettier
+        run: npm install --save-dev prettier
 
-      - name: Run ESLint
-        run: npm run lint
+      - name: Run ESLint with auto-fix
+        run: npm run lint -- --fix
+        
+      - name: Run Prettier
+        run: npx prettier --write "src/**/*.{js,ts,tsx,json,md}"
+        
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: apply eslint and prettier fixes"
+          commit_user_name: "GitHub Actions"
+          commit_user_email: "github-actions@github.com"
+          commit_author: "GitHub Actions <github-actions@github.com>"

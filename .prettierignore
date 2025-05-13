@@ -1,0 +1,10 @@
+# Ignore build artifacts
+out/
+bin/
+dist/
+
+# Ignore node_modules
+node_modules/
+
+# Ignore generated files
+src/language/generated/
