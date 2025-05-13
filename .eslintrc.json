@@ -17,6 +17,18 @@
         "@typescript-eslint/no-explicit-any": "off",
         "@typescript-eslint/ban-types": "off"
       }
+    },
+    {
+      "files": ["**/agentlang.monarch.ts"],
+      "rules": {
+        "no-useless-escape": "off",
+        "@typescript-eslint/no-explicit-any": "off",
+        "@typescript-eslint/ban-types": "off",
+        "@typescript-eslint/no-unused-vars": "off",
+        "prefer-spread": "off",
+        // Disable all rules for this file
+        "eslint-comments/no-unlimited-disable": "off"
+      }
     }
   ]
 }

@@ -14,9 +14,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
-          # Important: This ensures we can push back to the PR branch
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Only fetch PR head ref when running on PR
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || '' }}
+          # Use token when on PR for push access
+          token: ${{ github.event_name == 'pull_request' && secrets.GITHUB_TOKEN || github.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,13 +31,24 @@ jobs:
       - name: Install Prettier
         run: npm install --save-dev prettier
 
-      - name: Run ESLint with auto-fix
+      # For main branch: just check, don't fix
+      - name: Run ESLint (main branch)
+        if: github.event_name == 'push'
+        run: npm run lint
+
+      # For PR: check and fix
+      - name: Run ESLint with auto-fix (PR only)
+        if: github.event_name == 'pull_request'
         run: npm run lint -- --fix || true
         
-      - name: Run Prettier
+      # For PR: format code
+      - name: Run Prettier (PR only)
+        if: github.event_name == 'pull_request'
         run: npx prettier --write "src/**/*.{js,ts,tsx,json,md}"
         
-      - name: Commit changes
+      # For PR: commit changes
+      - name: Commit changes (PR only)
+        if: github.event_name == 'pull_request'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "style: apply eslint and prettier fixes"
