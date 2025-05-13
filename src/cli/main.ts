@@ -1,15 +1,15 @@
-import chalk from "chalk";
-import { Command } from "commander";
-import { AgentlangLanguageMetaData } from "../language/generated/module.js";
-import { createAgentlangServices } from "../language/agentlang-module.js";
-import { ApplicationSpec, load } from "../runtime/loader.js";
-import { NodeFileSystem } from "langium/node";
-import { extractDocument } from "../runtime/loader.js";
-import * as url from "node:url";
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
-import { startServer } from "../api/http.js";
-import { initDefaultDatabase } from "../runtime/resolvers/sqldb/schema.js";
+import chalk from 'chalk';
+import { Command } from 'commander';
+import { AgentlangLanguageMetaData } from '../language/generated/module.js';
+import { createAgentlangServices } from '../language/agentlang-module.js';
+import { ApplicationSpec, load } from '../runtime/loader.js';
+import { NodeFileSystem } from 'langium/node';
+import { extractDocument } from '../runtime/loader.js';
+import * as url from 'node:url';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { startServer } from '../api/http.js';
+import { initDefaultDatabase } from '../runtime/resolvers/sqldb/schema.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -66,8 +66,8 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
 };
 
 export const runModule = async (fileName: string): Promise<void> => {
-    load(fileName, (appSpec: ApplicationSpec) => {
-      initDefaultDatabase()
-      startServer(appSpec, 8080)
-    });
+  load(fileName, (appSpec: ApplicationSpec) => {
+    initDefaultDatabase();
+    startServer(appSpec, 8080);
+  });
 };
