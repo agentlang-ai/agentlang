@@ -2,10 +2,10 @@
  * Filesystem module exports
  */
 
-export * from "./interfaces.js";
-import { ExtendedFileSystem } from "./interfaces.js";
-import { createNodeFS } from "./node-fs.js";
-import { createLightningFS } from "./lightning-fs.js";
+export * from './interfaces.js';
+import { ExtendedFileSystem } from './interfaces.js';
+import { createNodeFS } from './node-fs.js';
+import { createLightningFS } from './lightning-fs.js';
 
 /**
  * Create the appropriate filesystem implementation based on environment
@@ -13,7 +13,7 @@ import { createLightningFS } from "./lightning-fs.js";
  */
 export async function createFS(options?: any): Promise<ExtendedFileSystem> {
   // Check if we're in a browser or Node environment
-  if (typeof window === "undefined") {
+  if (typeof window === 'undefined') {
     // Node.js environment
     return createNodeFS();
   } else {
@@ -23,6 +23,6 @@ export async function createFS(options?: any): Promise<ExtendedFileSystem> {
 }
 
 // Export the specific filesystem implementations
-export { createNodeFS } from "./node-fs.js";
-export { createLightningFS } from "./lightning-fs.js";
-export * from "./interfaces.js";
+export { createNodeFS } from './node-fs.js';
+export { createLightningFS } from './lightning-fs.js';
+export * from './interfaces.js';
