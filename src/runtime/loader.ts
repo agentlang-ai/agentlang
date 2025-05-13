@@ -1,5 +1,5 @@
-import chalk from "chalk";
-import { createAgentlangServices } from "../language/agentlang-module.js";
+import chalk from 'chalk';
+import { createAgentlangServices } from '../language/agentlang-module.js';
 import {
   Module,
   Def,
@@ -8,25 +8,13 @@ import {
   isRecord,
   isWorkflow,
   Import,
-} from "../language/generated/ast.js";
-import {
-  addModule,
-  addEntity,
-  addEvent,
-  addRecord,
-  addWorkflow,
-} from "./module.js";
-import { importModule, runShellCommand } from "./util.js";
-import {
-  getFileSystem,
-  toFsPath,
-  readFile,
-  readdir,
-  exists,
-} from "../utils/fs-utils.js";
-import { URI } from "vscode-uri";
-import { AstNode, LangiumCoreServices, LangiumDocument } from "langium";
-import { isNodeEnv, path } from "../utils/runtime.js";
+} from '../language/generated/ast.js';
+import { addModule, addEntity, addEvent, addRecord, addWorkflow } from './module.js';
+import { importModule, runShellCommand } from './util.js';
+import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
+import { URI } from 'vscode-uri';
+import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
+import { isNodeEnv, path } from '../utils/runtime.js';
 
 export async function extractDocument(
   fileName: string,
@@ -34,12 +22,10 @@ export async function extractDocument(
 ): Promise<LangiumDocument> {
   const extensions = services.LanguageMetaData.fileExtensions;
 
-  if (isNodeEnv && typeof fileName === "string") {
+  if (isNodeEnv && typeof fileName === 'string') {
     if (!extensions.includes(path.extname(fileName))) {
       console.error(
-        chalk.yellow(
-          `Please choose a file with one of these extensions: ${extensions}.`
-        )
+        chalk.yellow(`Please choose a file with one of these extensions: ${extensions}.`)
       );
       process.exit(1);
     }
@@ -57,7 +43,7 @@ export async function extractDocument(
       }
       throw new Error(errorMsg);
     }
-  } else if (!isNodeEnv && typeof fileName === "string") {
+  } else if (!isNodeEnv && typeof fileName === 'string') {
     const fullFilePath = path.resolve(fileName);
 
     const fileExists = await exists(fullFilePath);
@@ -66,15 +52,12 @@ export async function extractDocument(
       console.error(`File ${fileName} does not exist.`);
     }
   } else {
-    throw new Error(
-      "Invalid input: expected file path (Node.js) or File object/content (browser)"
-    );
+    throw new Error('Invalid input: expected file path (Node.js) or File object/content (browser)');
   }
 
-  const document =
-    await services.shared.workspace.LangiumDocuments.getOrCreateDocument(
-      URI.file(path.resolve(fileName))
-    );
+  const document = await services.shared.workspace.LangiumDocuments.getOrCreateDocument(
+    URI.file(path.resolve(fileName))
+  );
 
   // Build document
   await services.shared.workspace.DocumentBuilder.build([document], {
@@ -82,15 +65,13 @@ export async function extractDocument(
   });
 
   // Handle validation errors
-  const validationErrors = (document.diagnostics ?? []).filter(
-    (e) => e.severity === 1
-  );
+  const validationErrors = (document.diagnostics ?? []).filter(e => e.severity === 1);
 
   if (validationErrors.length > 0) {
     console.error(
       isNodeEnv && chalk
-        ? chalk.red("There are validation errors:")
-        : "There are validation errors:"
+        ? chalk.red('There are validation errors:')
+        : 'There are validation errors:'
     );
 
     for (const validationError of validationErrors) {
@@ -103,7 +84,7 @@ export async function extractDocument(
       }
     }
 
-    throw new Error("Validation errors found");
+    throw new Error('Validation errors found');
   }
 
   return document;
@@ -132,23 +113,23 @@ const loadApp = async (
 
   const s: string = await fs.readFile(appJsonFile);
   const appSpec: ApplicationSpec = JSON.parse(s);
-  let dir: string = path.dirname(appJsonFile);
-  let alFiles: Array<string> = new Array<string>();
+  const dir: string = path.dirname(appJsonFile);
+  const alFiles: Array<string> = new Array<string>();
   const directoryContents = await fs.readdir(dir);
 
-  let cont2: Function = () => {
+  const cont2: Function = () => {
     if (!directoryContents) {
       console.error(chalk.red(`Directory ${dir} does not exist or is empty.`));
       return;
     }
-    directoryContents.forEach((file) => {
-      if (path.extname(file) == ".al") {
+    directoryContents.forEach(file => {
+      if (path.extname(file) == '.al') {
         alFiles.push(dir + path.sep + file);
       }
     });
     if (alFiles.length > 0) {
       let loadedCount: number = 0;
-      let cont: Function = (_: string) => {
+      const cont: Function = (_: string) => {
         ++loadedCount;
         if (loadedCount >= alFiles.length) {
           continuation(appSpec);
@@ -167,9 +148,7 @@ const loadApp = async (
       }
     } else {
       // In non-Node environments, log a warning and continue
-      console.warn(
-        "Dependencies cannot be installed in non-Node.js environments"
-      );
+      console.warn('Dependencies cannot be installed in non-Node.js environments');
       cont2();
     }
   } else {
@@ -188,7 +167,7 @@ export const load = async (
   continuation: Function,
   fsOptions?: any
 ): Promise<void> => {
-  if (path.basename(fileName) == "app.json") {
+  if (path.basename(fileName) == 'app.json') {
     loadApp(fileName, continuation, fsOptions);
   } else {
     loadModule(
@@ -196,7 +175,7 @@ export const load = async (
       (moduleName: string) => {
         continuation({
           name: moduleName,
-          version: "0.0.1",
+          version: '0.0.1',
         });
       },
       fsOptions
@@ -216,7 +195,7 @@ const loadModule = async (
 
   // Create services with our custom filesystem adapter
   const services = createAgentlangServices({
-    fileSystemProvider: (_services) => fsAdapter,
+    fileSystemProvider: _services => fsAdapter,
   }).Agentlang;
 
   // Extract the AST node

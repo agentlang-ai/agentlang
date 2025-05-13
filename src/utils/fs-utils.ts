@@ -1,5 +1,5 @@
-import { ExtendedFileSystem, createFS } from "../utils/fs/index.js";
-import { URI as VSCodeURI } from "vscode-uri";
+import { ExtendedFileSystem, createFS } from '../utils/fs/index.js';
+import { URI as VSCodeURI } from 'vscode-uri';
 
 /**
  * Re-export the URI type from vscode-uri
@@ -31,7 +31,7 @@ export function createFileURI(filePath: string): URI {
  */
 export function createDirectoryURI(dirPath: string): URI {
   // Ensure path ends with a slash for directories
-  if (!dirPath.endsWith("/") && !dirPath.endsWith("\\")) {
+  if (!dirPath.endsWith('/') && !dirPath.endsWith('\\')) {
     dirPath = `${dirPath}/`;
   }
   return VSCodeURI.file(dirPath);
@@ -43,7 +43,7 @@ export function createDirectoryURI(dirPath: string): URI {
  * @returns Filesystem path
  */
 export function toFsPath(uri: URI | string): string {
-  return typeof uri === "string" ? VSCodeURI.parse(uri).fsPath : uri.fsPath;
+  return typeof uri === 'string' ? VSCodeURI.parse(uri).fsPath : uri.fsPath;
 }
 
 /**
@@ -56,9 +56,7 @@ let fsInstance: ExtendedFileSystem | null = null;
  * @param options Optional configuration for the filesystem
  * @returns Promise resolving to the filesystem instance
  */
-export async function initializeFileSystem(
-  options?: any
-): Promise<ExtendedFileSystem> {
+export async function initializeFileSystem(options?: any): Promise<ExtendedFileSystem> {
   if (!fsInstance) {
     fsInstance = await createFS(options);
   }
@@ -70,9 +68,7 @@ export async function initializeFileSystem(
  * @param options Optional configuration for the filesystem
  * @returns Promise resolving to the filesystem instance
  */
-export async function getFileSystem(
-  options?: any
-): Promise<ExtendedFileSystem> {
+export async function getFileSystem(options?: any): Promise<ExtendedFileSystem> {
   return fsInstance || initializeFileSystem(options);
 }
 
@@ -104,10 +100,7 @@ export async function readFileBuffer(uri: URI | string): Promise<Buffer> {
  * @param data Content to write (string or Buffer)
  * @returns Promise that resolves when write is complete
  */
-export async function writeFile(
-  uri: URI | string,
-  data: string | Buffer
-): Promise<void> {
+export async function writeFile(uri: URI | string, data: string | Buffer): Promise<void> {
   const fs = await getFileSystem();
   const path = toFsPath(uri);
   return fs.writeFile(path, data);
@@ -194,10 +187,7 @@ export async function rmdir(uri: URI | string): Promise<void> {
  * @param destUri Destination URI
  * @returns Promise that resolves when copy is complete
  */
-export async function copyFile(
-  srcUri: URI | string,
-  destUri: URI | string
-): Promise<void> {
+export async function copyFile(srcUri: URI | string, destUri: URI | string): Promise<void> {
   const fs = await getFileSystem();
   const srcPath = toFsPath(srcUri);
   const destPath = toFsPath(destUri);
@@ -210,10 +200,7 @@ export async function copyFile(
  * @param destUri Destination URI
  * @returns Promise that resolves when move is complete
  */
-export async function moveFile(
-  srcUri: URI | string,
-  destUri: URI | string
-): Promise<void> {
+export async function moveFile(srcUri: URI | string, destUri: URI | string): Promise<void> {
   const fs = await getFileSystem();
   const srcPath = toFsPath(srcUri);
   const destPath = toFsPath(destUri);
@@ -247,7 +234,7 @@ export async function removeDir(uri: URI | string): Promise<void> {
  * @returns boolean indicating if in browser
  */
 export function isBrowser(): boolean {
-  return typeof window !== "undefined";
+  return typeof window !== 'undefined';
 }
 
 /**
@@ -255,7 +242,7 @@ export function isBrowser(): boolean {
  * @returns boolean indicating if in Node.js
  */
 export function isNode(): boolean {
-  return typeof window === "undefined";
+  return typeof window === 'undefined';
 }
 
 /**
@@ -265,16 +252,16 @@ export function isNode(): boolean {
  * @returns New URI with joined path
  */
 export function joinURI(base: URI | string, ...pathSegments: string[]): URI {
-  const baseUri = typeof base === "string" ? VSCodeURI.parse(base) : base;
+  const baseUri = typeof base === 'string' ? VSCodeURI.parse(base) : base;
   let path = baseUri.path;
 
   // Join the path segments
   for (const segment of pathSegments) {
     // Make sure we don't double up on slashes
-    if (path.endsWith("/") && segment.startsWith("/")) {
+    if (path.endsWith('/') && segment.startsWith('/')) {
       path += segment.substring(1);
-    } else if (!path.endsWith("/") && !segment.startsWith("/")) {
-      path += "/" + segment;
+    } else if (!path.endsWith('/') && !segment.startsWith('/')) {
+      path += '/' + segment;
     } else {
       path += segment;
     }
@@ -296,16 +283,16 @@ export function joinURI(base: URI | string, ...pathSegments: string[]): URI {
  * @returns Parent directory URI
  */
 export function getParentURI(uri: URI | string): URI {
-  const uriObj = typeof uri === "string" ? VSCodeURI.parse(uri) : uri;
+  const uriObj = typeof uri === 'string' ? VSCodeURI.parse(uri) : uri;
 
   // Split the path into segments
-  const segments = uriObj.path.split("/").filter(Boolean);
+  const segments = uriObj.path.split('/').filter(Boolean);
 
   // Remove the last segment (file or directory name)
   segments.pop();
 
   // Create a new path with the parent segments
-  const parentPath = "/" + segments.join("/");
+  const parentPath = '/' + segments.join('/');
 
   return VSCodeURI.from({
     scheme: uriObj.scheme,

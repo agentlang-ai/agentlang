@@ -11,10 +11,10 @@ import * as path from "node:path";
 import { startServer } from "../api/http.js";
 import { initDefaultDatabase } from "../runtime/resolvers/sqldb/schema.js";
 
-const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
+const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
-const packagePath = path.resolve(__dirname, "..", "..", "package.json");
-const packageContent = await fs.readFile(packagePath, "utf-8");
+const packagePath = path.resolve(__dirname, '..', '..', 'package.json');
+const packageContent = await fs.readFile(packagePath, 'utf-8');
 
 export type GenerateOptions = {
   destination?: string;
@@ -25,25 +25,19 @@ export default function (): void {
 
   program.version(JSON.parse(packageContent).version);
 
-  const fileExtensions = AgentlangLanguageMetaData.fileExtensions.join(", ");
+  const fileExtensions = AgentlangLanguageMetaData.fileExtensions.join(', ');
 
   program
-    .command("run")
-    .argument(
-      "<file>",
-      `source file (possible file extensions: ${fileExtensions})`
-    )
-    .description("Loads and runs an agentlang module")
+    .command('run')
+    .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+    .description('Loads and runs an agentlang module')
     .action(runModule);
 
   program
-    .command("parseAndValidate")
-    .argument(
-      "<file>",
-      `source file (possible file extensions: ${fileExtensions})`
-    )
-    .option("-d, --destination <dir>", "destination directory of generating")
-    .description("Parses and validates an Agentlang module")
+    .command('parseAndValidate')
+    .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+    .option('-d, --destination <dir>', 'destination directory of generating')
+    .description('Parses and validates an Agentlang module')
     .action(parseAndValidate);
 
   program.parse(process.argv);
@@ -64,10 +58,7 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
   // extract the parse result details
   const parseResult = document.parseResult;
   // verify no lexer, parser, or general diagnostic errors show up
-  if (
-    parseResult.lexerErrors.length === 0 &&
-    parseResult.parserErrors.length === 0
-  ) {
+  if (parseResult.lexerErrors.length === 0 && parseResult.parserErrors.length === 0) {
     console.log(chalk.green(`Parsed and validated ${fileName} successfully!`));
   } else {
     console.log(chalk.red(`Failed to parse and validate ${fileName}!`));
