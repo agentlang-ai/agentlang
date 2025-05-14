@@ -33,6 +33,10 @@ entity Category {
 // many-many
 relationship PostCategory between (Post, Category)
 
+workflow FindUsersByName {
+    {User {name? FindUsersByName.name}}
+}
+
 workflow CreateUserWithPosts {
     {User {name "Sam"},
      PostAuthor [{Post {title "Getting started in NodeJS"}},
