@@ -1,13 +1,7 @@
 import chalk from 'chalk';
 import { createAgentlangServices } from '../language/agentlang-module.js';
 import {
-  Module,
-  Def,
-  isEntity,
-  isEvent,
-  isRecord,
-  isWorkflow,
-  Import,
+  Module, Def, isEntity, isEvent, isRecord, isWorkflow, Import
 } from '../language/generated/ast.js';
 import { addModule, addEntity, addEvent, addRecord, addWorkflow } from './module.js';
 import { importModule, runShellCommand } from './util.js';
@@ -75,9 +69,8 @@ export async function extractDocument(
     );
 
     for (const validationError of validationErrors) {
-      const errorMsg = `line ${validationError.range.start.line + 1}: ${
-        validationError.message
-      } [${document.textDocument.getText(validationError.range)}]`;
+      const errorMsg = `line ${validationError.range.start.line + 1}: ${validationError.message
+        } [${document.textDocument.getText(validationError.range)}]`;
       if (isNodeEnv && chalk) {
         console.error(chalk.red(errorMsg));
       } else {
