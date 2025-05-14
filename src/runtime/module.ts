@@ -1,5 +1,11 @@
 import chalk from 'chalk';
-import { Attribute, Property, Statement, KvPair, Literal, FnCall
+import {
+  Attribute,
+  Property,
+  Statement,
+  KvPair,
+  Literal,
+  FnCall,
 } from '../language/generated/ast.js';
 import { Path, splitFqName, isString, isNumber, isBoolean } from './util.js';
 
