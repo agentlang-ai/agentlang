@@ -10,15 +10,17 @@ export class SqlDbResolver extends Resolver {
     return inst;
   }
   public override upsertInstance(inst: Instance): Instance {
-    throw new Error('Method not implemented.');
+    return inst;
   }
   public override updateInstance(inst: Instance): Instance {
-    throw new Error('Method not implemented.');
+    return inst;
   }
   public override queryInstances(inst: Instance): Instance[] | null {
-    throw new Error('Method not implemented.');
+    const result: Array<Instance> = new Array<Instance>();
+    result.push(inst);
+    return result;
   }
   public override deleteInstance(inst: Instance): Instance | null {
-    throw new Error('Method not implemented.');
+    return inst;
   }
 }
