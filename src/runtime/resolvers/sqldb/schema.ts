@@ -1,28 +1,28 @@
-import { DataSource, Table } from 'typeorm';
+import { DataSource, Table, TableColumnOptions } from 'typeorm';
 import { logger } from '../../logger.js';
-import { modulesAsDbSchema, TableSchema, asSqlType } from './dbutil.js';
+import { modulesAsDbSchema, TableSchema } from './dbutil.js';
 
 let defaultDataSource: DataSource | undefined
 
 export const PathAttributeName: string = "__path__"
 
 export async function initDefaultDatabase() {
-  if (defaultDataSource == undefined) {
-    defaultDataSource = new DataSource({
-      type: 'sqlite',
-      database: 'db',
-    });
-    defaultDataSource
-      .initialize()
-      .then(() => {
-        createTables().then((_: void) => {
-          logger.debug('Data Source has been initialized!');
+    if (defaultDataSource == undefined) {
+        defaultDataSource = new DataSource({
+            type: 'sqlite',
+            database: 'db',
         });
-      })
-      .catch(err => {
-        logger.error('Error during Data Source initialization', err);
-      });
-  }
+        defaultDataSource
+            .initialize()
+            .then(() => {
+                createTables().then((_: void) => {
+                    logger.debug('Data Source has been initialized!');
+                });
+            })
+            .catch(err => {
+                logger.error('Error during Data Source initialization', err);
+            });
+    }
 }
 
 async function createTables(): Promise<void> {
@@ -30,13 +30,19 @@ async function createTables(): Promise<void> {
         const queryRunner = defaultDataSource.createQueryRunner()
         const tableSpecs: TableSchema[] = modulesAsDbSchema()
         tableSpecs.forEach((ts: TableSchema) => {
+            const hasPk: boolean = (ts.columns.columns.find((tco: TableColumnOptions) => {
+                return tco.isPrimary == true
+            })) == undefined ? false : true
             ts.columns.columns.push({
                 name: PathAttributeName,
                 type: "varchar",
-                isUnique: true,
+                isPrimary: !hasPk,
+                isUnique: hasPk,
                 isNullable: false
             })
-            ts.columns.indices.push({columnNames: [PathAttributeName]})
+            if (hasPk) {
+                ts.columns.indices.push({ columnNames: [PathAttributeName] })
+            }
             queryRunner.createTable(new Table({
                 name: ts.name,
                 columns: ts.columns.columns,
