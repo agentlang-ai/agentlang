@@ -12,7 +12,7 @@ const importedModules = new Map<string, any>();
 
 // Usage: importModule("./mymodels/acme.js")
 export async function importModule(path: string, name: string) {
-  const m = await import(path);
+  const m = await import(/* @vite-ignore */ path);
   importedModules.set(name, m);
   // e.g of dynamic fn-call:
   //// let f = eval("(a, b) => m.add(a, b)");
