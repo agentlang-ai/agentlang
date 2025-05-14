@@ -8,6 +8,7 @@ import {
 } from '../runtime/module.js';
 import { evaluate, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
+import { logger } from '../runtime/logger.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number) {
   const app = express();
@@ -40,8 +41,15 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
 
 function handleEventPost(moduleName: string, eventName: string, req: Request, res: Response): void {
   const inst: Instance = makeInstance(moduleName, eventName, objectAsInstanceAttributes(req.body));
-  const result: Result = normalizedResult(evaluate(inst));
-  res.send(JSON.stringify(result));
+  evaluate(inst)
+  .then((value: Result) => {
+    const result: Result = normalizedResult(value);
+    res.send(JSON.stringify(result));
+  })
+  .catch((reason: any) => {
+    logger.error(reason)
+    res.status(500).send(reason)
+  })
 }
 
 function normalizedResult(r: Result): Result {

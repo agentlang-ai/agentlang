@@ -67,22 +67,16 @@ class Environment extends Instance {
     this.attributes.set(k, v);
   }
 
-  bindInstance(inst: Instance): Path {
-    const fqName: string = inst.name;
-    const path: Path = splitFqName(fqName);
-    if (!path.hasModule()) throw new Error(`Instance name must be fully-qualified - ${inst.name}`);
-    const n: string = path.getEntryName();
-    this.attributes.set(fqName, inst);
-    if (!this.attributes.has(n)) this.attributes.set(n, inst);
-    return path;
+  bindInstance(inst: Instance): void {
+    const n: string = inst.name;
+    this.attributes.set(n, inst)
   }
 
-  bindActiveEvent(eventInst: Instance): Path {
+  bindActiveEvent(eventInst: Instance): void {
     if (!isEventInstance(eventInst)) throw new Error(`Not an event instance - ${eventInst.name}`);
-    const path: Path = this.bindInstance(eventInst);
-    this.attributes.set(Environment.ActiveModuleKey, path.getModuleName());
+    this.bindInstance(eventInst)
+    this.attributes.set(Environment.ActiveModuleKey, eventInst.moduleName);
     this.attributes.set(Environment.ActiveEventKey, eventInst.name);
-    return path;
   }
 
   getActiveModuleName(): string {
@@ -94,7 +88,7 @@ class Environment extends Instance {
   }
 }
 
-export function evaluate(eventInstance: Instance) {
+export async function evaluate(eventInstance: Instance): Promise<Result> {
   if (isEventInstance(eventInstance)) {
     const wf: WorkflowEntry = getWorkflow(eventInstance);
     if (!isEmptyWorkflow(wf)) {

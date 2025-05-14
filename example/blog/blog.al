@@ -11,7 +11,7 @@ entity Profile {
 }
 
 entity User {
-    id Int @id @default(autoincrement()),
+    id UUID @id @default(uuid()),
     name String
 }
 

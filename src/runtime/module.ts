@@ -528,6 +528,10 @@ export class Instance {
     return Object.fromEntries(result);
   }
 
+  attributesAsObject(): Object {
+    return Object.fromEntries(this.attributes)
+  }
+
   addQuery(n: string, op: string) {
     if (this.queryAttributes == undefined) this.queryAttributes = newInstanceAttributes();
     this.queryAttributes.set(n, op);
@@ -546,15 +550,34 @@ export function objectAsInstanceAttributes(obj: Object): InstanceAttributes {
   return attrs;
 }
 
+export type AttributeEntry = {
+  name: string,
+  props: Map<string, any> | undefined
+}
+
+export function findIdAttribute(inst: Instance): AttributeEntry | undefined {
+  const schema: RecordSchema = inst.record.schema
+  for (let [key, value] of schema) {
+    const attrSpec: AttributeSpec = value as AttributeSpec
+    if (isIdAttribute(attrSpec)) {
+        return {
+          name: key as string,
+          props: attrSpec.properties
+        }
+      }
+    }
+  return undefined
+}
+
 export function makeInstance(
   moduleName: string,
   entryName: string,
   attributes: InstanceAttributes,
   queryAttributes?: InstanceAttributes
 ): Instance {
-  const module: RuntimeModule = fetchModule(moduleName);
-  const record: RecordEntry = module.getRecord(entryName);
-  const schema: RecordSchema = record.schema;
+  const module: RuntimeModule = fetchModule(moduleName)
+  const record: RecordEntry = module.getRecord(entryName)
+  const schema: RecordSchema = record.schema
   if (schema.size > 0) {
     attributes.forEach((value: any, key: string) => {
       if (!schema.has(key)) {
