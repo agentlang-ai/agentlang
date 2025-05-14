@@ -1,34 +1,47 @@
-import { TableColumnOptions, TableIndexOptions } from "typeorm";
+import { TableColumnOptions, TableIndexOptions } from 'typeorm';
 import {
-    AttributeSpec, EntityEntry, fetchModule, getAttributeDefaultValue, getAttributeLength, getModuleNames,
-    isIdAttribute, isIndexedAttribute, isOptionalAttribute, isUniqueAttribute, ModuleEntry,
-    RecordSchema, RuntimeModule
-} from "../../module.js";
+  AttributeSpec,
+  EntityEntry,
+  fetchModule,
+  getAttributeDefaultValue,
+  getAttributeLength,
+  getModuleNames,
+  isIdAttribute,
+  isIndexedAttribute,
+  isOptionalAttribute,
+  isUniqueAttribute,
+  ModuleEntry,
+  RecordSchema,
+  RuntimeModule,
+} from '../../module.js';
 
 export type TableSchema = {
-    name: string,
-    columns: TableSpec
-}
+  name: string;
+  columns: TableSpec;
+};
 
 export function modulesAsDbSchema(): TableSchema[] {
-    let result: TableSchema[] = new Array<TableSchema>()
-    getModuleNames().forEach((n: string) => {
-        let mod: RuntimeModule = fetchModule(n)
-        let modEntries: ModuleEntry[] = mod.getEntityEntries()
-        let entities: EntityEntry[] = modEntries as EntityEntry[]
-        entities.forEach((ent: EntityEntry) => {
-            let tspec: TableSchema = { name: n + "_" + ent.name, columns: entitySchemaToTable(ent.schema) }
-            result.push(tspec)
-        })
-    })
-    return result
+  const result: TableSchema[] = new Array<TableSchema>();
+  getModuleNames().forEach((n: string) => {
+    const mod: RuntimeModule = fetchModule(n);
+    const modEntries: ModuleEntry[] = mod.getEntityEntries();
+    const entities: EntityEntry[] = modEntries as EntityEntry[];
+    entities.forEach((ent: EntityEntry) => {
+      const tspec: TableSchema = {
+        name: n + '_' + ent.name,
+        columns: entitySchemaToTable(ent.schema),
+      };
+      result.push(tspec);
+    });
+  });
+  return result;
 }
 
 export type TableSpec = {
-    columns: TableColumnOptions[],
-    indices: Array<TableIndexOptions>,
-    idColumns: Map<string, AttributeSpec>
-}
+  columns: TableColumnOptions[];
+  indices: Array<TableIndexOptions>;
+  idColumns: Map<string, AttributeSpec>;
+};
 
 function entitySchemaToTable(scm: RecordSchema): TableSpec {
     let cols: Array<TableColumnOptions> = new Array<TableColumnOptions>()
@@ -72,7 +85,7 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
 }
 
 export function asSqlType(type: string): string {
-    if (type == "String" || type == "Email") return "varchar"
-    else if (type == "Int") return "integer"
-    else return type.toLowerCase()
+  if (type == 'String' || type == 'Email') return 'varchar';
+  else if (type == 'Int') return 'integer';
+  else return type.toLowerCase();
 }

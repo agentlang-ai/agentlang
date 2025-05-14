@@ -75,8 +75,9 @@ export async function extractDocument(
     );
 
     for (const validationError of validationErrors) {
-      const errorMsg = `line ${validationError.range.start.line + 1}: ${validationError.message
-        } [${document.textDocument.getText(validationError.range)}]`;
+      const errorMsg = `line ${validationError.range.start.line + 1}: ${
+        validationError.message
+      } [${document.textDocument.getText(validationError.range)}]`;
       if (isNodeEnv && chalk) {
         console.error(chalk.red(errorMsg));
       } else {
@@ -191,7 +192,7 @@ const loadModule = async (
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
 
-  const fsAdapter = getFsAdapter(fs)
+  const fsAdapter = getFsAdapter(fs);
 
   // Create services with our custom filesystem adapter
   const services = createAgentlangServices({
@@ -205,7 +206,7 @@ const loadModule = async (
   if (continuation != undefined) continuation(moduleName);
 };
 
-let cachedFsAdapter: any = null
+let cachedFsAdapter: any = null;
 
 function getFsAdapter(fs: any) {
   if (cachedFsAdapter == null) {
@@ -223,10 +224,8 @@ function getFsAdapter(fs: any) {
 
         // Convert string[] to FileSystemNode[] as required by Langium
         return Promise.all(
-          result.map(async (name) => {
-            const filePath = dirPath.endsWith("/")
-              ? `${dirPath}${name}`
-              : `${dirPath}/${name}`;
+          result.map(async name => {
+            const filePath = dirPath.endsWith('/') ? `${dirPath}${name}` : `${dirPath}/${name}`;
             const stats = await fs
               .stat(filePath)
               .catch(() => ({ isFile: () => true, isDirectory: () => false }));
@@ -241,7 +240,7 @@ function getFsAdapter(fs: any) {
       },
     };
   }
-  return cachedFsAdapter
+  return cachedFsAdapter;
 }
 
 function internModule(module: Module): string {

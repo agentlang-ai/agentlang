@@ -1,27 +1,28 @@
-import { DataSource, Table } from "typeorm";
-import { logger } from "../../logger.js";
-import { modulesAsDbSchema, TableSchema } from "./dbutil.js";
+import { DataSource, Table } from 'typeorm';
+import { logger } from '../../logger.js';
+import { modulesAsDbSchema, TableSchema, asSqlType } from './dbutil.js';
 
 let defaultDataSource: DataSource | undefined
 
 export const PathAttributeName: string = "__path__"
 
 export async function initDefaultDatabase() {
-    if (defaultDataSource == undefined) {
-        defaultDataSource = new DataSource({
-            type: "sqlite",
-            database: "db"
-        })
-        defaultDataSource.initialize()
-            .then(() => {
-                createTables().then((_: void) => {
-                    logger.debug("Data Source has been initialized!")
-                })
-            })
-            .catch((err) => {
-                logger.error("Error during Data Source initialization", err)
-            })
-    }
+  if (defaultDataSource == undefined) {
+    defaultDataSource = new DataSource({
+      type: 'sqlite',
+      database: 'db',
+    });
+    defaultDataSource
+      .initialize()
+      .then(() => {
+        createTables().then((_: void) => {
+          logger.debug('Data Source has been initialized!');
+        });
+      })
+      .catch(err => {
+        logger.error('Error during Data Source initialization', err);
+      });
+  }
 }
 
 async function createTables(): Promise<void> {
