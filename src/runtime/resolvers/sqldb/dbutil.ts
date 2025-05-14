@@ -20,6 +20,10 @@ export type TableSchema = {
   columns: TableSpec;
 };
 
+export function asTableName(moduleName: string, entityName: string): string {
+  return `${moduleName}_${entityName}`;
+}
+
 export function modulesAsDbSchema(): TableSchema[] {
   const result: TableSchema[] = new Array<TableSchema>();
   getModuleNames().forEach((n: string) => {
@@ -28,7 +32,7 @@ export function modulesAsDbSchema(): TableSchema[] {
     const entities: EntityEntry[] = modEntries as EntityEntry[];
     entities.forEach((ent: EntityEntry) => {
       const tspec: TableSchema = {
-        name: n + '_' + ent.name,
+        name: asTableName(n, ent.name),
         columns: entitySchemaToTable(ent.schema),
       };
       result.push(tspec);

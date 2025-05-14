@@ -24,13 +24,16 @@ import {
   Instance,
   InstanceAttributes,
   isEmptyWorkflow,
+  isEntityInstance,
   isEventInstance,
   makeInstance,
   newInstanceAttributes,
   PlaceholderRecordEntry,
   WorkflowEntry,
 } from './module.js';
-import { invokeModuleFn, isFqName, makeFqName, Path, splitFqName, splitRefs } from './util.js';
+import { Resolver } from './resolvers/interface.js';
+import { SqlDbResolver } from './resolvers/sqldb/impl.js';
+import { invokeModuleFn, isFqName, Path, splitFqName, splitRefs } from './util.js';
 
 export type Result = any;
 
@@ -47,7 +50,7 @@ class Environment extends Instance {
   private static ActiveEventKey: string = '--active-event--';
 
   constructor(name: string, parent: Environment | null = null) {
-    super(PlaceholderRecordEntry, name, newInstanceAttributes());
+    super(PlaceholderRecordEntry, 'agentlang', name, newInstanceAttributes());
     this.parent = parent;
   }
 
@@ -159,10 +162,7 @@ function evaluateLiteral(lit: Literal, env: Environment): Result {
   return EmptyResult;
 }
 
-function asFqName(n: string, env: Environment): string {
-  if (isFqName(n)) return n;
-  return makeFqName(env.getActiveModuleName(), n);
-}
+const defaultResolver: Resolver = new SqlDbResolver();
 
 function evaluateCrudMap(crud: CrudMap, env: Environment): Result {
   const attrs: InstanceAttributes = newInstanceAttributes();
@@ -173,12 +173,30 @@ function evaluateCrudMap(crud: CrudMap, env: Environment): Result {
     if (aname.endsWith('?')) {
       if (qattrs == undefined) qattrs = newInstanceAttributes();
       aname = aname.slice(0, aname.length - 1);
-      qattrs.set(aname, a.op == undefined ? "=" : a.op);
+      qattrs.set(aname, a.op == undefined ? '=' : a.op);
     } else {
       attrs.set(aname, v);
     }
   });
-  return makeInstance(asFqName(crud.name, env), attrs, qattrs);
+  let moduleName: string = env.getActiveModuleName();
+  let entryName: string = crud.name;
+  if (isFqName(entryName)) {
+    const p: Path = splitFqName(entryName);
+    if (p.hasModule()) moduleName = p.getModuleName();
+    if (p.hasEntry()) entryName = p.getEntryName();
+  }
+  const inst: Instance = makeInstance(moduleName, entryName, attrs, qattrs);
+  if (isEntityInstance(inst)) {
+    if (qattrs == undefined) {
+      return defaultResolver.createInstance(inst);
+    } else if (attrs.size == 0) {
+      return defaultResolver.queryInstances(inst);
+    } else {
+      return defaultResolver.updateInstance(inst);
+    }
+  } else {
+    return inst;
+  }
 }
 
 function evaluateForEach(forEach: ForEach, env: Environment): Result {

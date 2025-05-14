@@ -7,7 +7,6 @@ import {
   objectAsInstanceAttributes,
 } from '../runtime/module.js';
 import { evaluate, Result } from '../runtime/interpreter.js';
-import { makeFqName } from '../runtime/util.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number) {
@@ -25,7 +24,7 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
   eventNames.forEach((eventNames: string[], moduleName: string) => {
     eventNames.forEach((n: string) => {
       app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
-        handleEventPost(makeFqName(moduleName, n), req, res);
+        handleEventPost(moduleName, n, req, res);
       });
     });
   });
@@ -39,8 +38,8 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
   });
 }
 
-function handleEventPost(eventName: string, req: Request, res: Response): void {
-  const inst: Instance = makeInstance(eventName, objectAsInstanceAttributes(req.body));
+function handleEventPost(moduleName: string, eventName: string, req: Request, res: Response): void {
+  const inst: Instance = makeInstance(moduleName, eventName, objectAsInstanceAttributes(req.body));
   const result: Result = normalizedResult(evaluate(inst));
   res.send(JSON.stringify(result));
 }

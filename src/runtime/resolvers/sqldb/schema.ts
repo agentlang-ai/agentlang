@@ -96,3 +96,15 @@ async function createTables(): Promise<void> {
     throw new Error('Datasource not initialized, cannot create tables.');
   }
 }
+
+export async function insertRows(tableName: string, rows: Object[]): Promise<void> {
+  if (defaultDataSource != undefined) {
+    await defaultDataSource.createQueryBuilder().insert().into(tableName).values(rows).execute();
+  }
+}
+
+export async function insertRow(tableName: string, row: Object): Promise<void> {
+  const rows: Array<Object> = new Array<Object>();
+  rows.push(row);
+  return insertRows(tableName, rows);
+}

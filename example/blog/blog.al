@@ -33,6 +33,10 @@ entity Category {
 // many-many
 relationship PostCategory between (Post, Category)
 
+workflow CreateUser {
+    {User {name CreateUser.name}}
+}
+
 workflow FindUsersByName {
     {User {name? FindUsersByName.name}}
 }

@@ -500,17 +500,20 @@ export function newInstanceAttributes(): InstanceAttributes {
 export class Instance {
   record: RecordEntry;
   name: string;
+  moduleName: string;
   protected attributes: InstanceAttributes;
   queryAttributes: InstanceAttributes | undefined;
 
   constructor(
     record: RecordEntry,
+    moduleName: string,
     name: string,
     attributes: InstanceAttributes,
     queryAttributes?: InstanceAttributes
   ) {
     this.record = record;
     this.name = name;
+    this.moduleName = moduleName;
     this.attributes = attributes;
     this.queryAttributes = queryAttributes;
   }
@@ -529,6 +532,10 @@ export class Instance {
     if (this.queryAttributes == undefined) this.queryAttributes = newInstanceAttributes();
     this.queryAttributes.set(n, op);
   }
+
+  getAttributes(): InstanceAttributes {
+    return this.attributes;
+  }
 }
 
 export function objectAsInstanceAttributes(obj: Object): InstanceAttributes {
@@ -540,28 +547,24 @@ export function objectAsInstanceAttributes(obj: Object): InstanceAttributes {
 }
 
 export function makeInstance(
-  fullEntryName: string,
+  moduleName: string,
+  entryName: string,
   attributes: InstanceAttributes,
   queryAttributes?: InstanceAttributes
 ): Instance {
-  const path: Path = splitFqName(fullEntryName);
-  let moduleName: string = '';
-  if (path.hasModule()) moduleName = path.getModuleName();
-  else moduleName = activeModule;
   const module: RuntimeModule = fetchModule(moduleName);
-  const entryName: string = path.getEntryName();
   const record: RecordEntry = module.getRecord(entryName);
   const schema: RecordSchema = record.schema;
   if (schema.size > 0) {
     attributes.forEach((value: any, key: string) => {
       if (!schema.has(key)) {
-        throw new Error(`Invalid attribute ${key} specified for ${fullEntryName}`);
+        throw new Error(`Invalid attribute ${key} specified for ${moduleName}/${entryName}`);
       }
       const spec: AttributeSpec = getAttributeSpec(schema, key);
       validateType(key, value, spec);
     });
   }
-  return new Instance(record, fullEntryName, attributes, queryAttributes);
+  return new Instance(record, moduleName, entryName, attributes, queryAttributes);
 }
 
 export function isEventInstance(inst: Instance): boolean {
