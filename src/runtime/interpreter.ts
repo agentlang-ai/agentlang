@@ -173,7 +173,7 @@ function evaluateCrudMap(crud: CrudMap, env: Environment): Result {
     if (aname.endsWith('?')) {
       if (qattrs == undefined) qattrs = newInstanceAttributes();
       aname = aname.slice(0, aname.length - 1);
-      qattrs.set(aname, a.op == undefined ? "=" : a.op);
+      qattrs.set(aname, a.op == undefined ? '=' : a.op);
     } else {
       attrs.set(aname, v);
     }
