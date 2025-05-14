@@ -44,11 +44,10 @@ function handleEventPost(moduleName: string, eventName: string, req: Request, re
   evaluate(inst, (value: Result) => {
     const result: Result = normalizedResult(value);
     res.send(JSON.stringify(result));
-  })
-  .catch((reason: any) => {
-    logger.error(reason)
-    res.status(500).send(reason)
-  })
+  }).catch((reason: any) => {
+    logger.error(reason);
+    res.status(500).send(reason);
+  });
 }
 
 function normalizedResult(r: Result): Result {

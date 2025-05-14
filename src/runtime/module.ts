@@ -518,7 +518,7 @@ export class Instance {
     this.moduleName = moduleName;
     this.attributes = attributes;
     this.queryAttributes = queryAttributes;
-    this.queryAttributeValues = queryAttributeValues
+    this.queryAttributeValues = queryAttributeValues;
   }
 
   lookup(k: string): any | undefined {
@@ -532,21 +532,21 @@ export class Instance {
   }
 
   attributesAsObject(): Object {
-    return Object.fromEntries(this.attributes)
+    return Object.fromEntries(this.attributes);
   }
 
   queryAttributesAsObject(): Object {
     if (this.queryAttributes != undefined) {
-      return Object.fromEntries(this.queryAttributes)
+      return Object.fromEntries(this.queryAttributes);
     }
-    return {}
+    return {};
   }
 
   queryAttributeValuesAsObject(): Object {
     if (this.queryAttributeValues != undefined) {
-      return Object.fromEntries(this.queryAttributeValues)
+      return Object.fromEntries(this.queryAttributeValues);
     }
-    return {}
+    return {};
   }
 
   addQuery(n: string, op: string) {
@@ -568,22 +568,22 @@ export function objectAsInstanceAttributes(obj: Object): InstanceAttributes {
 }
 
 export type AttributeEntry = {
-  name: string,
-  props: Map<string, any> | undefined
-}
+  name: string;
+  props: Map<string, any> | undefined;
+};
 
 export function findIdAttribute(inst: Instance): AttributeEntry | undefined {
-  const schema: RecordSchema = inst.record.schema
-  for (let [key, value] of schema) {
-    const attrSpec: AttributeSpec = value as AttributeSpec
+  const schema: RecordSchema = inst.record.schema;
+  for (const [key, value] of schema) {
+    const attrSpec: AttributeSpec = value as AttributeSpec;
     if (isIdAttribute(attrSpec)) {
       return {
         name: key as string,
-        props: attrSpec.properties
-      }
+        props: attrSpec.properties,
+      };
     }
   }
-  return undefined
+  return undefined;
 }
 
 export function makeInstance(
@@ -593,9 +593,9 @@ export function makeInstance(
   queryAttributes?: InstanceAttributes,
   queryAttributeValues?: InstanceAttributes
 ): Instance {
-  const module: RuntimeModule = fetchModule(moduleName)
-  const record: RecordEntry = module.getRecord(entryName)
-  const schema: RecordSchema = record.schema
+  const module: RuntimeModule = fetchModule(moduleName);
+  const record: RecordEntry = module.getRecord(entryName);
+  const schema: RecordSchema = record.schema;
   if (schema.size > 0) {
     attributes.forEach((value: any, key: string) => {
       if (!schema.has(key)) {
@@ -605,7 +605,14 @@ export function makeInstance(
       validateType(key, value, spec);
     });
   }
-  return new Instance(record, moduleName, entryName, attributes, queryAttributes, queryAttributeValues);
+  return new Instance(
+    record,
+    moduleName,
+    entryName,
+    attributes,
+    queryAttributes,
+    queryAttributeValues
+  );
 }
 
 export function isEventInstance(inst: Instance): boolean {
