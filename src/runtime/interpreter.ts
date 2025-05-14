@@ -1,11 +1,34 @@
 import {
-  ArrayLiteral, ComparisonExpression, CrudMap, Expr, FnCall, ForEach, If,
-  isBinExpr, isComparisonExpression, isGroup, isLiteral, isNegExpr, isOrAnd, Literal,
-  LogicalExpression, OrAnd, Pattern, SetAttribute, Statement
+  ArrayLiteral,
+  ComparisonExpression,
+  CrudMap,
+  Expr,
+  FnCall,
+  ForEach,
+  If,
+  isBinExpr,
+  isComparisonExpression,
+  isGroup,
+  isLiteral,
+  isNegExpr,
+  isOrAnd,
+  Literal,
+  LogicalExpression,
+  OrAnd,
+  Pattern,
+  SetAttribute,
+  Statement,
 } from '../language/generated/ast.js';
 import {
-  getWorkflow, Instance, InstanceAttributes, isEmptyWorkflow, isEventInstance,
-  makeInstance, newInstanceAttributes, PlaceholderRecordEntry, WorkflowEntry
+  getWorkflow,
+  Instance,
+  InstanceAttributes,
+  isEmptyWorkflow,
+  isEventInstance,
+  makeInstance,
+  newInstanceAttributes,
+  PlaceholderRecordEntry,
+  WorkflowEntry,
 } from './module.js';
 import { invokeModuleFn, isFqName, makeFqName, Path, splitFqName, splitRefs } from './util.js';
 
