@@ -1,7 +1,7 @@
 import { AttributeEntry, findIdAttribute, Instance, InstanceAttributes } from '../../module.js';
 import { Resolver } from '../interface.js';
 import { asTableName } from './dbutil.js';
-import { insertRow, PathAttributeName } from './schema.js';
+import { getMany, insertRow, PathAttributeName } from './schema.js';
 
 function addDefaultIdAttribute(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst)
@@ -18,7 +18,7 @@ function addDefaultIdAttribute(inst: Instance): string | undefined {
 
 export class SqlDbResolver extends Resolver {
 
-  public override async createInstance(inst: Instance): Promise<Instance | undefined> {
+  public override async createInstance(inst: Instance): Promise<Instance> {
     const idAttrName: string | undefined = addDefaultIdAttribute(inst)
     const attrs: InstanceAttributes = inst.getAttributes()
     if (idAttrName != undefined) {
@@ -31,21 +31,19 @@ export class SqlDbResolver extends Resolver {
     return inst
   }
 
-  public override upsertInstance(inst: Instance): Instance | undefined {
-    return inst;
+  public override async upsertInstance(inst: Instance): Promise<Instance> {
+    return inst
   }
 
-  public override updateInstance(inst: Instance): Instance | null | undefined {
-    return inst;
+  public override async updateInstance(inst: Instance): Promise<Instance> {
+    return inst
   }
 
-  public override queryInstances(inst: Instance): Instance[] | null | undefined {
-    const result: Array<Instance> = new Array<Instance>();
-    result.push(inst);
-    return result;
+  public override async queryInstances(inst: Instance): Promise<Instance[]> {
+      return getMany(asTableName(inst.moduleName, inst.name), inst.queryAttributesAsObject(), inst.queryAttributeValuesAsObject())
   }
 
-  public override deleteInstance(inst: Instance): Instance | null | undefined {
-    return inst;
+  public override async deleteInstance(inst: Instance): Promise<Instance> {
+    return (inst)
   }
 }

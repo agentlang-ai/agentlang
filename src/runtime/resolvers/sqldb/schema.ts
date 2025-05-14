@@ -111,3 +111,28 @@ export async function insertRow(tableName: string, row: Object): Promise<void> {
     rows.push(row);
     await insertRows(tableName, rows);
 }
+
+function objectToWhereClause(tableName: string, queryObj: Object): string {
+    const clauses: Array<string> = new Array<string>()
+    Object.entries(queryObj).forEach((value: [string, any]) => {
+        clauses.push(`${tableName}.${value[0]} = :${value[0]}`)
+    })
+    return clauses.join(" AND ")
+}
+
+const EmptyResultPromise: Promise<any[]> = new Promise(function (resolve) {
+    resolve(new Array<any[]>)
+})
+
+export async function getMany(tableName: string, queryObj: Object, queryVals: Object): Promise<any[]> {
+    if (defaultDataSource != undefined) {
+        return defaultDataSource
+            .createQueryBuilder()
+            .select()
+            .from(tableName, "user")
+            .where(objectToWhereClause('user', queryObj), queryVals)
+            .getRawMany()
+    } else {
+        return EmptyResultPromise
+    }
+}

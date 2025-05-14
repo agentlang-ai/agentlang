@@ -12,7 +12,7 @@ entity Profile {
 
 entity User {
     id UUID @id @default(uuid()),
-    name String
+    name String @indexed
 }
 
 relationship UserProfile between (User, Profile) @one_one
@@ -34,7 +34,9 @@ entity Category {
 relationship PostCategory between (Post, Category)
 
 workflow CreateUser {
-    {User {name CreateUser.name}}
+    {User {name CreateUser.name}} as u1;
+    {User {name "vijay"}} as u2;
+    [u2, u1]
 }
 
 workflow FindUsersByName {
