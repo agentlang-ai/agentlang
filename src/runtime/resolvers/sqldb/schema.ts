@@ -2,9 +2,9 @@ import { DataSource, Table, TableColumnOptions } from 'typeorm';
 import { logger } from '../../logger.js';
 import { modulesAsDbSchema, TableSchema } from './dbutil.js';
 
-let defaultDataSource: DataSource | undefined
+let defaultDataSource: DataSource | undefined;
 
-export const PathAttributeName: string = "__path__"
+export const PathAttributeName: string = '__path__';
 
 export async function initDefaultDatabase() {
     if (defaultDataSource == undefined) {
