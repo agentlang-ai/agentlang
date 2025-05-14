@@ -1,4 +1,4 @@
-name: Lint and Format
+name: Lint and Format checker
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-format:
+  lint-and-format-check:
     runs-on: ubuntu-latest
     
     steps:
@@ -16,8 +16,6 @@ jobs:
         with:
           # Only fetch PR head ref when running on PR
           ref: ${{ github.event_name == 'pull_request' && github.head_ref || '' }}
-          # Use token when on PR for push access
-          token: ${{ github.event_name == 'pull_request' && secrets.GITHUB_TOKEN || github.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -28,30 +26,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
           
-      - name: Install Prettier
-        run: npm install --save-dev prettier
-
-      # For main branch: just check, don't fix
-      - name: Run ESLint (main branch)
-        if: github.event_name == 'push'
+      - name: Run ESLint
         run: npm run lint
 
-      # For PR: check and fix
-      - name: Run ESLint with auto-fix (PR only)
-        if: github.event_name == 'pull_request'
-        run: npm run lint -- --fix || true
-        
-      # For PR: format code
-      - name: Run Prettier (PR only)
-        if: github.event_name == 'pull_request'
-        run: npx prettier --write "src/**/*.{js,ts,tsx,json,md}"
-        
-      # For PR: commit changes
-      - name: Commit changes (PR only)
-        if: github.event_name == 'pull_request'
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "style: apply eslint and prettier fixes"
-          commit_user_name: "GitHub Actions"
-          commit_user_email: "github-actions@github.com"
-          commit_author: "GitHub Actions <github-actions@github.com>"
+      - name: Run Prettier check
+        run: npm run format:check
