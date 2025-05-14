@@ -60,10 +60,11 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
             colOpt.length = len.toString()
         }
         cols.push(colOpt)
-        if (isIdAttribute(attrSpec)) {
+        let isId: boolean = isIdAttribute(attrSpec)
+        if (isId) {
             idCols.set(attrName, attrSpec)
         }
-        if (isIndexedAttribute(attrSpec)) {
+        if (isIndexedAttribute(attrSpec) || isId) {
             indices.push({columnNames: [attrName]})
         }
     })
