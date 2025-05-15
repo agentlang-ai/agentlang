@@ -10,8 +10,9 @@ import {
   isIndexedAttribute,
   isOptionalAttribute,
   isUniqueAttribute,
-  ModuleEntry,
+  RecordEntry,
   RecordSchema,
+  RelationshipEntry,
   RuntimeModule,
 } from '../../module.js';
 
@@ -28,9 +29,10 @@ export function modulesAsDbSchema(): TableSchema[] {
   const result: TableSchema[] = new Array<TableSchema>();
   getModuleNames().forEach((n: string) => {
     const mod: RuntimeModule = fetchModule(n);
-    const modEntries: ModuleEntry[] = mod.getEntityEntries();
-    const entities: EntityEntry[] = modEntries as EntityEntry[];
-    entities.forEach((ent: EntityEntry) => {
+    const entities: EntityEntry[] = mod.getEntityEntries();
+    const betRels: RelationshipEntry[] = mod.getBetweenRelationshipEntries()
+    const allEntries: RecordEntry[] = entities.concat(betRels) as RecordEntry[]
+    allEntries.forEach((ent: RecordEntry) => {
       const tspec: TableSchema = {
         name: asTableName(n, ent.name),
         columns: entitySchemaToTable(ent.schema),

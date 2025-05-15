@@ -8,8 +8,9 @@ import {
   isRecord,
   isWorkflow,
   Import,
+  isRelationship,
 } from '../language/generated/ast.js';
-import { addModule, addEntity, addEvent, addRecord, addWorkflow } from './module.js';
+import { addModule, addEntity, addEvent, addRecord, addWorkflow, addRelationship } from './module.js';
 import { importModule, runShellCommand } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
@@ -252,6 +253,7 @@ function internModule(module: Module): string {
     if (isEntity(def)) addEntity(def.name, def.attributes);
     else if (isEvent(def)) addEvent(def.name, def.attributes);
     else if (isRecord(def)) addRecord(def.name, def.attributes);
+    else if (isRelationship(def)) addRelationship(def.name, def.type, def.nodes, def.attributes, def.properties);
     else if (isWorkflow(def)) addWorkflow(def.name, def.statements);
   });
   return module.name;

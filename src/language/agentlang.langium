@@ -18,10 +18,14 @@ Entity: 'entity' RecDef;
 Event: 'event' RecDef;
 Record: 'record' RecDef;
 
-Relationship: 'relationship' name=ID ('contains' | 'between') '(' node1=Node ',' node2=Node ')' properties+=Property*
+Relationship: 'relationship' name=ID type=('contains' | 'between') nodes=RelNodes properties+=Property*
 ('{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}')?;
 
 Node: name=ID | name=ID 'as' alias=ID;
+
+RelNodes: '(' node1=Node node1Alias=RelNodeAlias? ',' node2=Node node2Alias=RelNodeAlias? ')';
+
+RelNodeAlias: 'as' name=ID;
 
 Attribute: name=ID type=ID properties+=Property*;
 

@@ -6,6 +6,8 @@ import {
   KvPair,
   Literal,
   FnCall,
+  RelNodes,
+  Node,
 } from '../language/generated/ast.js';
 import { Path, splitFqName, isString, isNumber, isBoolean } from './util.js';
 
@@ -38,6 +40,7 @@ export enum RecordType {
   RECORD,
   ENTITY,
   EVENT,
+  RELATIONSHIP
 }
 
 export class RecordEntry extends ModuleEntry {
@@ -127,6 +130,82 @@ export class EventEntry extends RecordEntry {
   override type: RecordType = RecordType.EVENT;
 }
 
+enum RelType {
+  CONTAINS,
+  BETWEEN
+}
+
+export type RelNodeEntry = {
+  moduleName: string,
+  entryName: string,
+  alias: string
+}
+
+function asRelNodeEntry(n: Node): RelNodeEntry {
+  const path: Path = splitFqName(n.name)
+  let modName = activeModule
+  const entryName = path.getEntryName()
+  if (path.hasModule()) {
+    modName = path.getModuleName()
+  }
+  let alias = entryName
+  if (n.alias != undefined) {
+    alias = n.alias
+  }
+  return {
+    moduleName: modName,
+    entryName: entryName,
+    alias: alias
+  }
+}
+
+export class RelationshipEntry extends RecordEntry {
+  override type: RecordType = RecordType.RELATIONSHIP
+  relType: RelType = RelType.CONTAINS
+  node1: RelNodeEntry
+  node2: RelNodeEntry
+  properties: Map<string, any> | undefined
+
+  constructor(name: string, typ: string, node1: RelNodeEntry, node2: RelNodeEntry, attributes: Attribute[], props?: Map<string, any>) {
+    super(name, attributes)
+    if (typ == "between") this.relType = RelType.BETWEEN
+    this.node1 = node1
+    this.node2 = node2
+    this.properties = props
+    this.updateSchemaWithNodeAttributes()
+  }
+
+  private makeUniqueProp(flag: boolean): Map<string, any> | undefined {
+    if (flag) {
+      let props: Map<string, any> = new Map<string, any>()
+      props.set("unique", true)
+      return props
+    }
+    return undefined
+  }
+
+  private updateSchemaWithNodeAttributes() {
+    const attrSpec1: AttributeSpec = {
+      type: "string",
+      properties: this.makeUniqueProp(this.properties != undefined && (this.properties.get("one_one") == true || this.properties.get("one_many") == true))
+    }
+    this.schema.set(this.node1.alias, attrSpec1)
+    const attrSpec2: AttributeSpec = {
+      type: "string",
+      properties: this.makeUniqueProp(this.properties != undefined && (this.properties.get("one_one") == true))
+    }
+    this.schema.set(this.node2.alias, attrSpec2)
+  }
+
+  isContains(): boolean {
+    return this.relType == RelType.CONTAINS
+  }
+
+  isBetween(): boolean {
+    return this.relType == RelType.BETWEEN
+  }
+}
+
 export class WorkflowEntry extends ModuleEntry {
   statements: Statement[];
 
@@ -207,16 +286,27 @@ export class RuntimeModule {
     }
   }
 
-  getEntityEntries(): ModuleEntry[] {
-    return this.getEntriesOfType(RecordType.ENTITY);
+  getEntityEntries(): EntityEntry[] {
+    return this.getEntriesOfType(RecordType.ENTITY) as EntityEntry[];
   }
 
-  getEventEntries(): ModuleEntry[] {
-    return this.getEntriesOfType(RecordType.EVENT);
+  getEventEntries(): EventEntry[] {
+    return this.getEntriesOfType(RecordType.EVENT) as EventEntry[];
   }
 
-  getRecordEntries(): ModuleEntry[] {
-    return this.getEntriesOfType(RecordType.RECORD);
+  getRecordEntries(): RecordEntry[] {
+    return this.getEntriesOfType(RecordType.RECORD) as RecordEntry[];
+  }
+
+  getRelationshipEntries(): RelationshipEntry[] {
+    return this.getEntriesOfType(RecordType.RELATIONSHIP) as RelationshipEntry[];
+  }
+
+  getBetweenRelationshipEntries(): RelationshipEntry[] {
+    const rels: RelationshipEntry[] = this.getRelationshipEntries()
+    return rels.filter((e: RelationshipEntry) => {
+      return e.isBetween()
+    })
   }
 
   isEntryOfType(t: RecordType, name: string): boolean {
@@ -237,6 +327,10 @@ export class RuntimeModule {
 
   isRecord(name: string): boolean {
     return this.isEntryOfType(RecordType.RECORD, name);
+  }
+
+  isRelationship(name: string): boolean {
+    return this.isEntryOfType(RecordType.RELATIONSHIP, name);
   }
 
   getEntityNames(): string[] {
@@ -262,6 +356,14 @@ export class RuntimeModule {
     });
     return names;
   }
+
+  getRelationshipNames(): string[] {
+    const names: string[] = [];
+    this.getRelationshipEntries().forEach((me: ModuleEntry) => {
+      names.push(me.name);
+    });
+    return names;
+  }
 }
 
 const moduleDb = new Map<string, RuntimeModule>();
@@ -272,6 +374,14 @@ export function addModule(name: string): string {
   moduleDb.set(name, new RuntimeModule(name));
   activeModule = name;
   return name;
+}
+
+export function removeModule(name: string): boolean {
+  if (moduleDb.has(name)) {
+    moduleDb.delete(name)
+    return true
+  }
+  return false
 }
 
 addModule('agentlang');
@@ -410,6 +520,21 @@ export function addRecord(name: string, attrs: Attribute[], moduleName = activeM
   return name;
 }
 
+const DefaultRelAttrbutes: Array<Attribute> = new Array<Attribute>()
+
+export function addRelationship(name: string, type: 'contains' | 'between', nodes: RelNodes, attrs: Attribute[] | undefined,
+  props: Property[] | undefined, moduleName = activeModule) {
+  const module: RuntimeModule = fetchModule(moduleName)
+  if (attrs != undefined) attrs.forEach(a => verifyAttribute(a))
+  else attrs = DefaultRelAttrbutes
+  const n1: RelNodeEntry = asRelNodeEntry(nodes.node1)
+  const n2: RelNodeEntry = asRelNodeEntry(nodes.node2)
+  let propsMap: Map<string, any> | undefined
+  if (props != undefined) propsMap = asPropertiesMap(props)
+  module.addEntry(new RelationshipEntry(name, type, n1, n2, attrs, propsMap))
+  return name
+}
+
 function asWorkflowName(n: string): string {
   return n + '--workflow';
 }
@@ -452,6 +577,14 @@ export function removeEntity(name: string, moduleName = activeModule): boolean {
 export function removeRecord(name: string, moduleName = activeModule): boolean {
   const module: RuntimeModule = fetchModule(moduleName);
   if (module.isRecord(name)) {
+    return module.removeEntry(name);
+  }
+  return false;
+}
+
+export function removeRelationship(name: string, moduleName = activeModule): boolean {
+  const module: RuntimeModule = fetchModule(moduleName);
+  if (module.isRelationship(name)) {
     return module.removeEntry(name);
   }
   return false;
