@@ -863,35 +863,35 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
       "$type": "ParserRule",
       "name": "FnCall",
       "definition": {
-        "$type": "Alternatives",
+        "$type": "Group",
         "elements": [
           {
-            "$type": "Group",
-            "elements": [
-              {
-                "$type": "Assignment",
-                "feature": "name",
-                "operator": "=",
-                "terminal": {
-                  "$type": "Alternatives",
-                  "elements": [
-                    {
-                      "$type": "RuleCall",
-                      "rule": {
-                        "$ref": "#/rules@45"
-                      },
-                      "arguments": []
-                    },
-                    {
-                      "$type": "RuleCall",
-                      "rule": {
-                        "$ref": "#/rules@44"
-                      },
-                      "arguments": []
-                    }
-                  ]
+            "$type": "Assignment",
+            "feature": "name",
+            "operator": "=",
+            "terminal": {
+              "$type": "Alternatives",
+              "elements": [
+                {
+                  "$type": "RuleCall",
+                  "rule": {
+                    "$ref": "#/rules@45"
+                  },
+                  "arguments": []
+                },
+                {
+                  "$type": "RuleCall",
+                  "rule": {
+                    "$ref": "#/rules@44"
+                  },
+                  "arguments": []
                 }
-              },
+              ]
+            }
+          },
+          {
+            "$type": "Alternatives",
+            "elements": [
               {
                 "$type": "Group",
                 "elements": [
@@ -904,38 +904,17 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "value": ")"
                   }
                 ]
-              }
-            ]
-          },
-          {
-            "$type": "Group",
-            "elements": [
-              {
-                "$type": "Keyword",
-                "value": "("
               },
               {
                 "$type": "Group",
                 "elements": [
                   {
-                    "$type": "Assignment",
-                    "feature": "args",
-                    "operator": "+=",
-                    "terminal": {
-                      "$type": "RuleCall",
-                      "rule": {
-                        "$ref": "#/rules@16"
-                      },
-                      "arguments": []
-                    }
+                    "$type": "Keyword",
+                    "value": "("
                   },
                   {
                     "$type": "Group",
                     "elements": [
-                      {
-                        "$type": "Keyword",
-                        "value": ","
-                      },
                       {
                         "$type": "Assignment",
                         "feature": "args",
@@ -947,16 +926,37 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                           },
                           "arguments": []
                         }
+                      },
+                      {
+                        "$type": "Group",
+                        "elements": [
+                          {
+                            "$type": "Keyword",
+                            "value": ","
+                          },
+                          {
+                            "$type": "Assignment",
+                            "feature": "args",
+                            "operator": "+=",
+                            "terminal": {
+                              "$type": "RuleCall",
+                              "rule": {
+                                "$ref": "#/rules@16"
+                              },
+                              "arguments": []
+                            }
+                          }
+                        ],
+                        "cardinality": "*"
                       }
                     ],
-                    "cardinality": "*"
+                    "cardinality": "+"
+                  },
+                  {
+                    "$type": "Keyword",
+                    "value": ")"
                   }
-                ],
-                "cardinality": "+"
-              },
-              {
-                "$type": "Keyword",
-                "value": ")"
+                ]
               }
             ]
           }
@@ -1310,7 +1310,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                   {
                     "$type": "Assignment",
                     "feature": "alias",
-                    "operator": "+=",
+                    "operator": "=",
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
@@ -1331,7 +1331,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                           },
                           {
                             "$type": "Assignment",
-                            "feature": "alias",
+                            "feature": "aliases",
                             "operator": "+=",
                             "terminal": {
                               "$type": "RuleCall",
@@ -1350,7 +1350,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                               },
                               {
                                 "$type": "Assignment",
-                                "feature": "alias",
+                                "feature": "aliases",
                                 "operator": "+=",
                                 "terminal": {
                                   "$type": "RuleCall",

@@ -115,7 +115,8 @@ export async function insertRow(tableName: string, row: Object): Promise<void> {
 function objectToWhereClause(tableName: string, queryObj: Object): string {
   const clauses: Array<string> = new Array<string>();
   Object.entries(queryObj).forEach((value: [string, any]) => {
-    clauses.push(`${tableName}.${value[0]} = :${value[0]}`);
+    const op: string = value[1] as string
+    clauses.push(`${tableName}.${value[0]} ${op} :${value[0]}`);
   });
   return clauses.join(' AND ');
 }

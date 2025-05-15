@@ -27,7 +27,7 @@ Attribute: name=ID type=ID properties+=Property*;
 
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 
-FnCall: name=(ID | Ref) ('(' ')') | ('(' (args+=Literal (',' args+=Literal)*)+ ')');
+FnCall: name=(ID | Ref) (('(' ')') | ('(' (args+=Literal (',' args+=Literal)*)+ ')'));
 
 Literal: (id=ID | num=Decimal | str=STRING | ref=Ref | bool=Boolean | fnCall=FnCall | array=ArrayLiteral);
 
@@ -37,7 +37,7 @@ Workflow: 'workflow' name=ID Body;
 
 Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach;
 
-Statement: pattern=Pattern ('as' (alias+=ID | ('[' alias+=ID (',' alias+=ID)*)+ ']'))? throws=Throws?;
+Statement: pattern=Pattern ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*)+ ']'))? throws=Throws?;
 
 CrudMap: '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=Property* '}'
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';

@@ -44,21 +44,26 @@ export function isEmptyResult(r: Result): boolean {
 }
 
 class Environment extends Instance {
-  parent: Environment | null;
+  parent: Environment | undefined;
 
   private static ActiveModuleKey: string = '--active-module--';
   private static ActiveEventKey: string = '--active-event--';
+  private static ActiveEventInstanceKey: string = '--active-event-instance--';
   private static LastResultKey: string = '--last-result--';
 
-  constructor(name: string, parent: Environment | null = null) {
+  constructor(name: string, parent?: Environment) {
     super(PlaceholderRecordEntry, 'agentlang', name, newInstanceAttributes());
-    this.parent = parent;
+    if (parent != undefined) {
+      this.parent = parent;
+      this.bindActiveEvent(parent.getActiveEventInstance())
+      this.bindLastResult(parent.getLastResult())
+    }
   }
 
   override lookup(k: string): Result {
     const v = this.attributes.get(k);
     if (v == undefined) {
-      if (this.parent != null) {
+      if (this.parent != undefined) {
         return this.parent.lookup(k);
       } else return EmptyResult;
     } else return v;
@@ -78,6 +83,11 @@ class Environment extends Instance {
     this.bindInstance(eventInst);
     this.attributes.set(Environment.ActiveModuleKey, eventInst.moduleName);
     this.attributes.set(Environment.ActiveEventKey, eventInst.name);
+    this.attributes.set(Environment.ActiveEventInstanceKey, eventInst)
+  }
+
+  protected getActiveEventInstance(): Instance {
+    return this.attributes.get(Environment.ActiveEventInstanceKey)
   }
 
   bindLastResult(result: Result): void {
@@ -97,47 +107,51 @@ class Environment extends Instance {
   }
 }
 
-export async function evaluate(eventInstance: Instance, continuation: Function): Promise<void> {
+export async function evaluate(eventInstance: Instance, continuation?: Function, activeEnv?: Environment): Promise<void> {
   if (isEventInstance(eventInstance)) {
     const wf: WorkflowEntry = getWorkflow(eventInstance);
     if (!isEmptyWorkflow(wf)) {
-      const env: Environment = new Environment(eventInstance.name + '.env');
+      const env: Environment = new Environment(eventInstance.name + '.env', activeEnv);
       env.bindActiveEvent(eventInstance);
       await evaluateStatements(wf.statements, env, continuation);
     }
-    return EmptyResult;
+  } else {
+    throw new Error('Not an event - ' + eventInstance.name);
   }
-  throw new Error('Not an event - ' + eventInstance.name);
 }
 
 async function evaluateStatements(stmts: Statement[], env: Environment, continuation?: Function) {
-  if (stmts.length > 0) {
-    await evaluateStatement(stmts[0], env).then((_: void) => {
-      evaluateStatements(stmts.slice(1), env, continuation);
-    });
-  } else if (continuation != undefined) {
+  for (let i = 0; i < stmts.length; ++i) {
+    await evaluateStatement(stmts[i], env)
+  }
+  if (continuation != undefined) {
     continuation(env.getLastResult());
   }
 }
 
 async function evaluateStatement(stmt: Statement, env: Environment): Promise<void> {
   await evaluatePattern(stmt.pattern, env).then((_: void) => {
-    if (stmt.alias != undefined) {
+    if (stmt.alias != undefined || stmt.aliases.length > 0) {
       const result: Result = env.getLastResult();
-      const alias: string[] = stmt.alias;
-      if (result instanceof Array) {
-        const resArr: Array<any> = result as Array<any>;
-        for (let i = 0; i < alias.length; ++i) {
-          const k: string = alias[i];
-          if (k == '_') {
-            env.bind(alias[i + 1], resArr.splice(i));
-            break;
-          } else {
-            env.bind(alias[i], resArr[i]);
-          }
-        }
+      const alias: string | undefined = stmt.alias;
+      if (alias != undefined) {
+        env.bind(alias, result)
       } else {
-        env.bind(alias[0], result);
+        const aliases: string[] = stmt.aliases
+        if (result instanceof Array) {
+          const resArr: Array<any> = result as Array<any>;
+          for (let i = 0; i < aliases.length; ++i) {
+            const k: string = aliases[i];
+            if (k == '_') {
+              env.bind(aliases[i + 1], resArr.splice(i));
+              break;
+            } else {
+              env.bind(aliases[i], resArr[i]);
+            }
+          }
+        } else {
+          env.bind(aliases[0], result);
+        }
       }
     }
   });
@@ -158,7 +172,7 @@ async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
 async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
   if (lit.id != undefined) env.bindLastResult(env.lookup(lit.id));
   else if (lit.ref != undefined) env.bindLastResult(followReference(env, lit.ref));
-  else if (lit.fnCall != undefined) env.bindLastResult(applyFn(lit.fnCall, env));
+  else if (lit.fnCall != undefined) await applyFn(lit.fnCall, env);
   else if (lit.array != undefined) await realizeArray(lit.array, env);
   else if (lit.num != undefined) env.bindLastResult(lit.num);
   else if (lit.str != undefined) env.bindLastResult(lit.str);
@@ -198,39 +212,42 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (qattrs == undefined) {
       await defaultResolver.createInstance(inst).then((inst: Instance) => env.bindLastResult(inst));
     } else if (attrs.size == 0) {
-      await defaultResolver
-        .queryInstances(inst)
-        .then((insts: Instance[]) => env.bindLastResult(insts));
+      await defaultResolver.queryInstances(inst).then((insts: Instance[]) => env.bindLastResult(insts));
     } else {
       await defaultResolver.updateInstance(inst).then((inst: Instance) => env.bindLastResult(inst));
     }
+  } else if (isEventInstance(inst)) {
+    await evaluate(inst, ((result: Result) => env.bindLastResult(result)), env)
   } else {
     env.bindLastResult(inst);
   }
 }
 
 async function evaluateForEach(forEach: ForEach, env: Environment): Promise<void> {
-  const loopVar: string = forEach.var;
-  const src: Result = evaluatePattern(forEach.src, env);
+  const loopVar: string = forEach.var
+  await evaluatePattern(forEach.src, env)
+  const src: Result = env.getLastResult()
   if (src instanceof Array && src.length > 0) {
     const loopEnv: Environment = new Environment(env.name + '.child', env);
     for (let i = 0; i < src.length; ++i) {
       loopEnv.bind(loopVar, src[i]);
       await evaluateStatements(forEach.statements, loopEnv);
     }
+    env.bindLastResult(loopEnv.getLastResult())
+  } else {
+    env.bindLastResult(EmptyResult)
   }
 }
 
 async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
-  await evaluateLogicalExpression(ifStmt.cond, env).then((_: void) => {
-    if (env.getLastResult()) {
-      evaluateStatements(ifStmt.statements, env);
-    } else if (ifStmt.elseif != undefined) {
-      evaluateIf(ifStmt.elseif, env);
-    } else if (ifStmt.else != undefined) {
-      evaluateStatements(ifStmt.else.statements, env);
-    }
-  });
+  await evaluateLogicalExpression(ifStmt.cond, env)
+  if (env.getLastResult()) {
+    await evaluateStatements(ifStmt.statements, env);
+  } else if (ifStmt.elseif != undefined) {
+    await evaluateIf(ifStmt.elseif, env);
+  } else if (ifStmt.else != undefined) {
+    await evaluateStatements(ifStmt.else.statements, env);
+  }
 }
 
 async function evaluateLogicalExpression(
@@ -352,8 +369,9 @@ async function evaluateAnd(exprs: LogicalExpression[], env: Environment): Promis
 }
 
 function getRef(r: string, src: any): Result | undefined {
-  if (src instanceof Instance) return src.lookup(r);
-  else if (src instanceof Map) return src.get(r);
+  if (src instanceof Instance) return src.lookup(r)
+  else if (src instanceof Map) return src.get(r)
+  else if (src instanceof Object) return src[r]
   else return undefined;
 }
 
@@ -374,9 +392,9 @@ function followReference(env: Environment, s: string): Result {
 async function applyFn(fnCall: FnCall, env: Environment): Promise<void> {
   const fnName: string | undefined = fnCall.name;
   if (fnName != undefined) {
-    const args: Array<Result> | null = null;
+    let args: Array<Result> | null = null;
     if (fnCall.args != undefined) {
-      const args: Array<Result> = new Array<Result>();
+      args = new Array<Result>();
       for (let i = 0; i < fnCall.args.length; ++i) {
         await evaluateLiteral(fnCall.args[i], env);
         args.push(env.getLastResult());

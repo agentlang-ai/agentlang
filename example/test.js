@@ -8,3 +8,9 @@ export function add(a, b) {
 export function callHelloWorld() {
     return helloWorld()
 }
+
+export function sendMail(to, body) {
+    console.log("To: " + to)
+    console.log("Body: " + body)
+    return `mail sent to ${to}`
+}

@@ -6,14 +6,16 @@ import { getMany, insertRow, PathAttributeName } from './schema.js';
 function addDefaultIdAttribute(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
   const attributes: InstanceAttributes = inst.getAttributes();
-  if (attrEntry != undefined && attrEntry.props != undefined && !attributes.has(attrEntry.name)) {
-    const d: any | undefined = attrEntry.props.get('default');
-    if (d != undefined && d == 'uuid()') {
-      attributes.set(attrEntry.name, crypto.randomUUID());
-      return attrEntry.name;
+  if (attrEntry != undefined) {
+    if (attrEntry.props != undefined && !attributes.has(attrEntry.name)) {
+      const d: any | undefined = attrEntry.props.get('default');
+      if (d != undefined && d == 'uuid()') {
+        attributes.set(attrEntry.name, crypto.randomUUID());
+      }
     }
+    return attrEntry.name
   }
-  return undefined;
+  return undefined
 }
 
 export class SqlDbResolver extends Resolver {
