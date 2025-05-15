@@ -40,7 +40,7 @@ export enum RecordType {
   RECORD,
   ENTITY,
   EVENT,
-  RELATIONSHIP
+  RELATIONSHIP,
 }
 
 export class RecordEntry extends ModuleEntry {
@@ -132,77 +132,89 @@ export class EventEntry extends RecordEntry {
 
 enum RelType {
   CONTAINS,
-  BETWEEN
+  BETWEEN,
 }
 
 export type RelNodeEntry = {
-  moduleName: string,
-  entryName: string,
-  alias: string
-}
+  moduleName: string;
+  entryName: string;
+  alias: string;
+};
 
 function asRelNodeEntry(n: Node): RelNodeEntry {
-  const path: Path = splitFqName(n.name)
-  let modName = activeModule
-  const entryName = path.getEntryName()
+  const path: Path = splitFqName(n.name);
+  let modName = activeModule;
+  const entryName = path.getEntryName();
   if (path.hasModule()) {
-    modName = path.getModuleName()
+    modName = path.getModuleName();
   }
-  let alias = entryName
+  let alias = entryName;
   if (n.alias != undefined) {
-    alias = n.alias
+    alias = n.alias;
   }
   return {
     moduleName: modName,
     entryName: entryName,
-    alias: alias
-  }
+    alias: alias,
+  };
 }
 
 export class RelationshipEntry extends RecordEntry {
-  override type: RecordType = RecordType.RELATIONSHIP
-  relType: RelType = RelType.CONTAINS
-  node1: RelNodeEntry
-  node2: RelNodeEntry
-  properties: Map<string, any> | undefined
+  override type: RecordType = RecordType.RELATIONSHIP;
+  relType: RelType = RelType.CONTAINS;
+  node1: RelNodeEntry;
+  node2: RelNodeEntry;
+  properties: Map<string, any> | undefined;
 
-  constructor(name: string, typ: string, node1: RelNodeEntry, node2: RelNodeEntry, attributes: Attribute[], props?: Map<string, any>) {
-    super(name, attributes)
-    if (typ == "between") this.relType = RelType.BETWEEN
-    this.node1 = node1
-    this.node2 = node2
-    this.properties = props
-    this.updateSchemaWithNodeAttributes()
+  constructor(
+    name: string,
+    typ: string,
+    node1: RelNodeEntry,
+    node2: RelNodeEntry,
+    attributes: Attribute[],
+    props?: Map<string, any>
+  ) {
+    super(name, attributes);
+    if (typ == 'between') this.relType = RelType.BETWEEN;
+    this.node1 = node1;
+    this.node2 = node2;
+    this.properties = props;
+    this.updateSchemaWithNodeAttributes();
   }
 
   private makeUniqueProp(flag: boolean): Map<string, any> | undefined {
     if (flag) {
-      let props: Map<string, any> = new Map<string, any>()
-      props.set("unique", true)
-      return props
+      const props: Map<string, any> = new Map<string, any>();
+      props.set('unique', true);
+      return props;
     }
-    return undefined
+    return undefined;
   }
 
   private updateSchemaWithNodeAttributes() {
     const attrSpec1: AttributeSpec = {
-      type: "string",
-      properties: this.makeUniqueProp(this.properties != undefined && (this.properties.get("one_one") == true || this.properties.get("one_many") == true))
-    }
-    this.schema.set(this.node1.alias, attrSpec1)
+      type: 'string',
+      properties: this.makeUniqueProp(
+        this.properties != undefined &&
+          (this.properties.get('one_one') == true || this.properties.get('one_many') == true)
+      ),
+    };
+    this.schema.set(this.node1.alias, attrSpec1);
     const attrSpec2: AttributeSpec = {
-      type: "string",
-      properties: this.makeUniqueProp(this.properties != undefined && (this.properties.get("one_one") == true))
-    }
-    this.schema.set(this.node2.alias, attrSpec2)
+      type: 'string',
+      properties: this.makeUniqueProp(
+        this.properties != undefined && this.properties.get('one_one') == true
+      ),
+    };
+    this.schema.set(this.node2.alias, attrSpec2);
   }
 
   isContains(): boolean {
-    return this.relType == RelType.CONTAINS
+    return this.relType == RelType.CONTAINS;
   }
 
   isBetween(): boolean {
-    return this.relType == RelType.BETWEEN
+    return this.relType == RelType.BETWEEN;
   }
 }
 
@@ -303,10 +315,10 @@ export class RuntimeModule {
   }
 
   getBetweenRelationshipEntries(): RelationshipEntry[] {
-    const rels: RelationshipEntry[] = this.getRelationshipEntries()
+    const rels: RelationshipEntry[] = this.getRelationshipEntries();
     return rels.filter((e: RelationshipEntry) => {
-      return e.isBetween()
-    })
+      return e.isBetween();
+    });
   }
 
   isEntryOfType(t: RecordType, name: string): boolean {
@@ -378,10 +390,10 @@ export function addModule(name: string): string {
 
 export function removeModule(name: string): boolean {
   if (moduleDb.has(name)) {
-    moduleDb.delete(name)
-    return true
+    moduleDb.delete(name);
+    return true;
   }
-  return false
+  return false;
 }
 
 addModule('agentlang');
@@ -520,19 +532,25 @@ export function addRecord(name: string, attrs: Attribute[], moduleName = activeM
   return name;
 }
 
-const DefaultRelAttrbutes: Array<Attribute> = new Array<Attribute>()
+const DefaultRelAttrbutes: Array<Attribute> = new Array<Attribute>();
 
-export function addRelationship(name: string, type: 'contains' | 'between', nodes: RelNodes, attrs: Attribute[] | undefined,
-  props: Property[] | undefined, moduleName = activeModule) {
-  const module: RuntimeModule = fetchModule(moduleName)
-  if (attrs != undefined) attrs.forEach(a => verifyAttribute(a))
-  else attrs = DefaultRelAttrbutes
-  const n1: RelNodeEntry = asRelNodeEntry(nodes.node1)
-  const n2: RelNodeEntry = asRelNodeEntry(nodes.node2)
-  let propsMap: Map<string, any> | undefined
-  if (props != undefined) propsMap = asPropertiesMap(props)
-  module.addEntry(new RelationshipEntry(name, type, n1, n2, attrs, propsMap))
-  return name
+export function addRelationship(
+  name: string,
+  type: 'contains' | 'between',
+  nodes: RelNodes,
+  attrs: Attribute[] | undefined,
+  props: Property[] | undefined,
+  moduleName = activeModule
+) {
+  const module: RuntimeModule = fetchModule(moduleName);
+  if (attrs != undefined) attrs.forEach(a => verifyAttribute(a));
+  else attrs = DefaultRelAttrbutes;
+  const n1: RelNodeEntry = asRelNodeEntry(nodes.node1);
+  const n2: RelNodeEntry = asRelNodeEntry(nodes.node2);
+  let propsMap: Map<string, any> | undefined;
+  if (props != undefined) propsMap = asPropertiesMap(props);
+  module.addEntry(new RelationshipEntry(name, type, n1, n2, attrs, propsMap));
+  return name;
 }
 
 function asWorkflowName(n: string): string {
