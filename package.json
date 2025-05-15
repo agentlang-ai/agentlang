@@ -43,12 +43,18 @@
     "monaco-editor": "npm:@codingame/monaco-vscode-editor-api@~3.2.3",
     "monaco-editor-wrapper": "~4.0.2",
     "monaco-languageclient": "~8.1.1",
+    "sqlite3": "^5.1.7",
+    "typeorm": "^0.3.23",
     "vscode": "npm:@codingame/monaco-vscode-api@~3.2.3",
     "vscode-languageclient": "~9.0.1",
     "vscode-languageserver": "~9.0.1",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
     "yo": "^5.1.0"
+  },
+  "overrides": {
+    "semver": "^7.5.3",
+    "trim-newlines": ">=3.0.1"
   },
   "devDependencies": {
     "@codingame/esbuild-import-meta-url-plugin": "~1.0.2",

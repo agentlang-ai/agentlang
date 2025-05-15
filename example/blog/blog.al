@@ -11,14 +11,14 @@ entity Profile {
 }
 
 entity User {
-    id Int @id @default(autoincrement()),
-    name String
+    id UUID @id @default(uuid()),
+    name String @indexed
 }
 
 relationship UserProfile between (User, Profile) @one_one
 
 entity Post {
-    id Int @id @default(autoincrement()),
+    id UUID @id @default(uuid()),
     title String
 }
 
@@ -26,12 +26,22 @@ entity Post {
 relationship PostAuthor contains (User, Post)
 
 entity Category {
-    id Int @id @default(autoincrement()),
+    id UUID @id @default(uuid()),
     description String
 }
 
 // many-many
 relationship PostCategory between (Post, Category)
+
+workflow CreateUser {
+    {User {name CreateUser.name}} as u1;
+    {User {name "vijay"}} as u2;
+    [u2, u1]
+}
+
+workflow FindUsersByName {
+    {User {name? FindUsersByName.name}}
+}
 
 workflow CreateUserWithPosts {
     {User {name "Sam"},

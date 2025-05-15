@@ -25,7 +25,7 @@ export class AgentlangValidator {
     // and report an error when we see one we've already seen
     const reported = new Set();
     module.defs.forEach(d => {
-      if (reported.has(d.name)) {
+      if (d.$type != 'Workflow' && reported.has(d.name)) {
         accept('error', `Definition has non-unique name '${d.name}'.`, {
           node: d,
           property: 'name',

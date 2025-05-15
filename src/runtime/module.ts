@@ -1,8 +1,15 @@
 import chalk from 'chalk';
-import { Attribute, Property, isProperty, Statement } from '../language/generated/ast.js';
+import {
+  Attribute,
+  Property,
+  Statement,
+  KvPair,
+  Literal,
+  FnCall,
+} from '../language/generated/ast.js';
 import { Path, splitFqName, isString, isNumber, isBoolean } from './util.js';
 
-class ModuleEntry {
+export class ModuleEntry {
   name: string;
 
   constructor(name: string) {
@@ -10,12 +17,12 @@ class ModuleEntry {
   }
 }
 
-type AttributeSpec = {
+export type AttributeSpec = {
   type: string;
-  properties?: Property[];
+  properties?: Map<string, any> | undefined;
 };
 
-type RecordSchema = Map<string, AttributeSpec>;
+export type RecordSchema = Map<string, AttributeSpec>;
 
 export function newRecordSchema(): RecordSchema {
   return new Map<string, AttributeSpec>();
@@ -42,7 +49,7 @@ export class RecordEntry extends ModuleEntry {
     super(name);
     this.schema = newRecordSchema();
     attributes.forEach((a: Attribute) => {
-      this.schema.set(a.name, { type: a.type, properties: a.properties });
+      this.schema.set(a.name, { type: a.type, properties: asPropertiesMap(a.properties) });
     });
     this.meta = newMeta();
   }
@@ -50,6 +57,64 @@ export class RecordEntry extends ModuleEntry {
   addMeta(k: string, v: string): void {
     this.meta.set(k, v);
   }
+}
+
+function asPropertiesMap(props: Property[]): Map<string, any> | undefined {
+  if (props != undefined && props.length > 0) {
+    const result: Map<string, any> = new Map<string, any>();
+    props.forEach((p: Property) => {
+      const n: string = p.name.substring(1);
+      if (p.value != undefined && p.value.pairs != undefined && p.value.pairs.length > 0) {
+        if (p.value.pairs.length == 1) {
+          const kvp: KvPair = p.value.pairs[0];
+          if (kvp.key == undefined) {
+            result.set(n, normalizeKvPairValue(kvp));
+          } else {
+            const v: Map<string, any> = new Map<string, any>();
+            v.set(kvp.key, normalizeKvPairValue(kvp));
+            result.set(n, v);
+          }
+        } else {
+          const v: Map<string, any> = new Map<string, any>();
+          p.value.pairs.forEach((kvp: KvPair) => {
+            let k: string = 'null';
+            if (kvp.key != undefined) k = kvp.key;
+            v.set(k, normalizeKvPairValue(kvp));
+          });
+          result.set(n, v);
+        }
+      } else {
+        result.set(n, true);
+      }
+    });
+    return result;
+  }
+  return undefined;
+}
+
+function normalizeKvPairValue(kvp: KvPair): any | null {
+  const v: Literal | undefined = kvp.value;
+  if (v == undefined) return true;
+  if (v.str != undefined) {
+    return v.str;
+  } else if (v.num != undefined) {
+    return v.num;
+  } else if (v.bool != undefined) {
+    return v.bool;
+  } else if (v.id != undefined) {
+    return v.id;
+  } else if (v.ref != undefined) {
+    return v.ref;
+  } else if (v.fnCall != undefined) {
+    const fncall: FnCall = v.fnCall;
+    if (fncall.args.length > 0) {
+      throw new Error('Cannot allow arguments in properties function-call');
+    }
+    return fncall.name + '()';
+  } else if (v.array != undefined) {
+    return v.array;
+  }
+  return null;
 }
 
 export const PlaceholderRecordEntry = new RecordEntry('--', new Array<Attribute>());
@@ -275,15 +340,53 @@ function verifyAttribute(attr: Attribute): void {
 export function defaultAttributes(schema: RecordSchema): Map<string, any> {
   const result: Map<string, any> = new Map<string, any>();
   schema.forEach((v: AttributeSpec, k: string) => {
-    const props: Property[] | undefined = v.properties;
+    const props: Map<string, any> | undefined = v.properties;
     if (props != undefined) {
-      const d: Property | undefined = props.find((v: Property) => v.name == '@default');
-      if (isProperty(d)) {
-        result.set(k, d.value);
+      const d: any | undefined = props.get('default');
+      if (d != undefined) {
+        result.set(k, d);
       }
     }
   });
   return result;
+}
+
+function getBooleanProperty(propName: string, attrSpec: AttributeSpec): boolean {
+  if (attrSpec.properties != undefined) {
+    return attrSpec.properties.get(propName) == true;
+  }
+  return false;
+}
+
+function getAnyProperty(propName: string, attrSpec: AttributeSpec): any | undefined {
+  if (attrSpec.properties != undefined) {
+    return attrSpec.properties.get(propName);
+  }
+  return undefined;
+}
+
+export function isIdAttribute(attrSpec: AttributeSpec): boolean {
+  return getBooleanProperty('id', attrSpec);
+}
+
+export function isUniqueAttribute(attrSpec: AttributeSpec): boolean {
+  return getBooleanProperty('unique', attrSpec);
+}
+
+export function isIndexedAttribute(attrSpec: AttributeSpec): boolean {
+  return getBooleanProperty('indexed', attrSpec);
+}
+
+export function isOptionalAttribute(attrSpec: AttributeSpec): boolean {
+  return getBooleanProperty('optional', attrSpec);
+}
+
+export function getAttributeDefaultValue(attrSpec: AttributeSpec): any | undefined {
+  return getAnyProperty('default', attrSpec);
+}
+
+export function getAttributeLength(attrSpec: AttributeSpec): number | undefined {
+  return getAnyProperty('length', attrSpec);
 }
 
 export function addEntity(name: string, attrs: Attribute[], moduleName = activeModule): string {
@@ -397,19 +500,25 @@ export function newInstanceAttributes(): InstanceAttributes {
 export class Instance {
   record: RecordEntry;
   name: string;
+  moduleName: string;
   protected attributes: InstanceAttributes;
   queryAttributes: InstanceAttributes | undefined;
+  queryAttributeValues: InstanceAttributes | undefined;
 
   constructor(
     record: RecordEntry,
+    moduleName: string,
     name: string,
     attributes: InstanceAttributes,
-    queryAttributes?: InstanceAttributes
+    queryAttributes?: InstanceAttributes,
+    queryAttributeValues?: InstanceAttributes
   ) {
     this.record = record;
     this.name = name;
+    this.moduleName = moduleName;
     this.attributes = attributes;
     this.queryAttributes = queryAttributes;
+    this.queryAttributeValues = queryAttributeValues;
   }
 
   lookup(k: string): any | undefined {
@@ -422,9 +531,31 @@ export class Instance {
     return Object.fromEntries(result);
   }
 
+  attributesAsObject(): Object {
+    return Object.fromEntries(this.attributes);
+  }
+
+  queryAttributesAsObject(): Object {
+    if (this.queryAttributes != undefined) {
+      return Object.fromEntries(this.queryAttributes);
+    }
+    return {};
+  }
+
+  queryAttributeValuesAsObject(): Object {
+    if (this.queryAttributeValues != undefined) {
+      return Object.fromEntries(this.queryAttributeValues);
+    }
+    return {};
+  }
+
   addQuery(n: string, op: string) {
     if (this.queryAttributes == undefined) this.queryAttributes = newInstanceAttributes();
     this.queryAttributes.set(n, op);
+  }
+
+  getAttributes(): InstanceAttributes {
+    return this.attributes;
   }
 }
 
@@ -436,29 +567,52 @@ export function objectAsInstanceAttributes(obj: Object): InstanceAttributes {
   return attrs;
 }
 
+export type AttributeEntry = {
+  name: string;
+  props: Map<string, any> | undefined;
+};
+
+export function findIdAttribute(inst: Instance): AttributeEntry | undefined {
+  const schema: RecordSchema = inst.record.schema;
+  for (const [key, value] of schema) {
+    const attrSpec: AttributeSpec = value as AttributeSpec;
+    if (isIdAttribute(attrSpec)) {
+      return {
+        name: key as string,
+        props: attrSpec.properties,
+      };
+    }
+  }
+  return undefined;
+}
+
 export function makeInstance(
-  fullEntryName: string,
+  moduleName: string,
+  entryName: string,
   attributes: InstanceAttributes,
-  queryAttributes?: InstanceAttributes
+  queryAttributes?: InstanceAttributes,
+  queryAttributeValues?: InstanceAttributes
 ): Instance {
-  const path: Path = splitFqName(fullEntryName);
-  let moduleName: string = '';
-  if (path.hasModule()) moduleName = path.getModuleName();
-  else moduleName = activeModule;
   const module: RuntimeModule = fetchModule(moduleName);
-  const entryName: string = path.getEntryName();
   const record: RecordEntry = module.getRecord(entryName);
   const schema: RecordSchema = record.schema;
   if (schema.size > 0) {
     attributes.forEach((value: any, key: string) => {
       if (!schema.has(key)) {
-        throw new Error(`Invalid attribute ${key} specified for ${fullEntryName}`);
+        throw new Error(`Invalid attribute ${key} specified for ${moduleName}/${entryName}`);
       }
       const spec: AttributeSpec = getAttributeSpec(schema, key);
       validateType(key, value, spec);
     });
   }
-  return new Instance(record, fullEntryName, attributes, queryAttributes);
+  return new Instance(
+    record,
+    moduleName,
+    entryName,
+    attributes,
+    queryAttributes,
+    queryAttributeValues
+  );
 }
 
 export function isEventInstance(inst: Instance): boolean {

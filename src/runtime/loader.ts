@@ -192,35 +192,7 @@ const loadModule = async (
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
 
-  // Create an adapter to make our filesystem compatible with Langium
-  const fsAdapter = {
-    // Read file contents as text
-    readFile: async (uri: URI) => {
-      return await readFile(uri);
-    },
-
-    // List directory contents with proper metadata
-    readDirectory: async (uri: URI) => {
-      const result = await readdir(uri);
-      const dirPath = toFsPath(uri);
-
-      // Convert string[] to FileSystemNode[] as required by Langium
-      return Promise.all(
-        result.map(async name => {
-          const filePath = dirPath.endsWith('/') ? `${dirPath}${name}` : `${dirPath}/${name}`;
-          const stats = await fs
-            .stat(filePath)
-            .catch(() => ({ isFile: () => true, isDirectory: () => false }));
-
-          return {
-            uri: URI.file(filePath),
-            isFile: stats.isFile?.() ?? true,
-            isDirectory: stats.isDirectory?.() ?? false,
-          };
-        })
-      );
-    },
-  };
+  const fsAdapter = getFsAdapter(fs);
 
   // Create services with our custom filesystem adapter
   const services = createAgentlangServices({
@@ -233,6 +205,43 @@ const loadModule = async (
   console.log(chalk.green(`Module ${chalk.bold(moduleName)} loaded`));
   if (continuation != undefined) continuation(moduleName);
 };
+
+let cachedFsAdapter: any = null;
+
+function getFsAdapter(fs: any) {
+  if (cachedFsAdapter == null) {
+    // Create an adapter to make our filesystem compatible with Langium
+    cachedFsAdapter = {
+      // Read file contents as text
+      readFile: async (uri: URI) => {
+        return await readFile(uri);
+      },
+
+      // List directory contents with proper metadata
+      readDirectory: async (uri: URI) => {
+        const result = await readdir(uri);
+        const dirPath = toFsPath(uri);
+
+        // Convert string[] to FileSystemNode[] as required by Langium
+        return Promise.all(
+          result.map(async name => {
+            const filePath = dirPath.endsWith('/') ? `${dirPath}${name}` : `${dirPath}/${name}`;
+            const stats = await fs
+              .stat(filePath)
+              .catch(() => ({ isFile: () => true, isDirectory: () => false }));
+
+            return {
+              uri: URI.file(filePath),
+              isFile: stats.isFile?.() ?? true,
+              isDirectory: stats.isDirectory?.() ?? false,
+            };
+          })
+        );
+      },
+    };
+  }
+  return cachedFsAdapter;
+}
 
 function internModule(module: Module): string {
   addModule(module.name);

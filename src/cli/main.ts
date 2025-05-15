@@ -9,7 +9,7 @@ import * as url from 'node:url';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { startServer } from '../api/http.js';
-import { logger } from '../runtime/logger.js';
+import { initDefaultDatabase } from '../runtime/resolvers/sqldb/schema.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -66,8 +66,8 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
 };
 
 export const runModule = async (fileName: string): Promise<void> => {
-  logger.debug('hello');
   load(fileName, (appSpec: ApplicationSpec) => {
+    initDefaultDatabase();
     startServer(appSpec, 8080);
   });
 };

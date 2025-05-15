@@ -254,7 +254,7 @@ export interface FnCall extends langium.AstNode {
     readonly $container: Literal;
     readonly $type: 'FnCall';
     args: Array<Literal>;
-    name?: Ref | string;
+    name: Ref | string;
 }
 
 export const FnCall = 'FnCall';
@@ -510,7 +510,8 @@ export function isSetAttribute(item: unknown): item is SetAttribute {
 export interface Statement extends langium.AstNode {
     readonly $container: ArrayLiteral | Else | ForEach | If | Throws | Workflow;
     readonly $type: 'Statement';
-    alias: Array<string>;
+    alias?: string;
+    aliases: Array<string>;
     pattern: Pattern;
     throws?: Throws;
 }
@@ -896,7 +897,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: Statement,
                     properties: [
-                        { name: 'alias', defaultValue: [] },
+                        { name: 'alias' },
+                        { name: 'aliases', defaultValue: [] },
                         { name: 'pattern' },
                         { name: 'throws' }
                     ]
