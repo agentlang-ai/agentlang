@@ -13,9 +13,9 @@ function addDefaultIdAttribute(inst: Instance): string | undefined {
         attributes.set(attrEntry.name, crypto.randomUUID());
       }
     }
-    return attrEntry.name
+    return attrEntry.name;
   }
-  return undefined
+  return undefined;
 }
 
 export class SqlDbResolver extends Resolver {

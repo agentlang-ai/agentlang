@@ -55,8 +55,8 @@ class Environment extends Instance {
     super(PlaceholderRecordEntry, 'agentlang', name, newInstanceAttributes());
     if (parent != undefined) {
       this.parent = parent;
-      this.bindActiveEvent(parent.getActiveEventInstance())
-      this.bindLastResult(parent.getLastResult())
+      this.bindActiveEvent(parent.getActiveEventInstance());
+      this.bindLastResult(parent.getLastResult());
     }
   }
 
@@ -83,11 +83,11 @@ class Environment extends Instance {
     this.bindInstance(eventInst);
     this.attributes.set(Environment.ActiveModuleKey, eventInst.moduleName);
     this.attributes.set(Environment.ActiveEventKey, eventInst.name);
-    this.attributes.set(Environment.ActiveEventInstanceKey, eventInst)
+    this.attributes.set(Environment.ActiveEventInstanceKey, eventInst);
   }
 
   protected getActiveEventInstance(): Instance {
-    return this.attributes.get(Environment.ActiveEventInstanceKey)
+    return this.attributes.get(Environment.ActiveEventInstanceKey);
   }
 
   bindLastResult(result: Result): void {
@@ -107,7 +107,11 @@ class Environment extends Instance {
   }
 }
 
-export async function evaluate(eventInstance: Instance, continuation?: Function, activeEnv?: Environment): Promise<void> {
+export async function evaluate(
+  eventInstance: Instance,
+  continuation?: Function,
+  activeEnv?: Environment
+): Promise<void> {
   if (isEventInstance(eventInstance)) {
     const wf: WorkflowEntry = getWorkflow(eventInstance);
     if (!isEmptyWorkflow(wf)) {
@@ -122,7 +126,7 @@ export async function evaluate(eventInstance: Instance, continuation?: Function,
 
 async function evaluateStatements(stmts: Statement[], env: Environment, continuation?: Function) {
   for (let i = 0; i < stmts.length; ++i) {
-    await evaluateStatement(stmts[i], env)
+    await evaluateStatement(stmts[i], env);
   }
   if (continuation != undefined) {
     continuation(env.getLastResult());
@@ -135,9 +139,9 @@ async function evaluateStatement(stmt: Statement, env: Environment): Promise<voi
       const result: Result = env.getLastResult();
       const alias: string | undefined = stmt.alias;
       if (alias != undefined) {
-        env.bind(alias, result)
+        env.bind(alias, result);
       } else {
-        const aliases: string[] = stmt.aliases
+        const aliases: string[] = stmt.aliases;
         if (result instanceof Array) {
           const resArr: Array<any> = result as Array<any>;
           for (let i = 0; i < aliases.length; ++i) {
@@ -212,35 +216,37 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (qattrs == undefined) {
       await defaultResolver.createInstance(inst).then((inst: Instance) => env.bindLastResult(inst));
     } else if (attrs.size == 0) {
-      await defaultResolver.queryInstances(inst).then((insts: Instance[]) => env.bindLastResult(insts));
+      await defaultResolver
+        .queryInstances(inst)
+        .then((insts: Instance[]) => env.bindLastResult(insts));
     } else {
       await defaultResolver.updateInstance(inst).then((inst: Instance) => env.bindLastResult(inst));
     }
   } else if (isEventInstance(inst)) {
-    await evaluate(inst, ((result: Result) => env.bindLastResult(result)), env)
+    await evaluate(inst, (result: Result) => env.bindLastResult(result), env);
   } else {
     env.bindLastResult(inst);
   }
 }
 
 async function evaluateForEach(forEach: ForEach, env: Environment): Promise<void> {
-  const loopVar: string = forEach.var
-  await evaluatePattern(forEach.src, env)
-  const src: Result = env.getLastResult()
+  const loopVar: string = forEach.var;
+  await evaluatePattern(forEach.src, env);
+  const src: Result = env.getLastResult();
   if (src instanceof Array && src.length > 0) {
     const loopEnv: Environment = new Environment(env.name + '.child', env);
     for (let i = 0; i < src.length; ++i) {
       loopEnv.bind(loopVar, src[i]);
       await evaluateStatements(forEach.statements, loopEnv);
     }
-    env.bindLastResult(loopEnv.getLastResult())
+    env.bindLastResult(loopEnv.getLastResult());
   } else {
-    env.bindLastResult(EmptyResult)
+    env.bindLastResult(EmptyResult);
   }
 }
 
 async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
-  await evaluateLogicalExpression(ifStmt.cond, env)
+  await evaluateLogicalExpression(ifStmt.cond, env);
   if (env.getLastResult()) {
     await evaluateStatements(ifStmt.statements, env);
   } else if (ifStmt.elseif != undefined) {
@@ -369,9 +375,9 @@ async function evaluateAnd(exprs: LogicalExpression[], env: Environment): Promis
 }
 
 function getRef(r: string, src: any): Result | undefined {
-  if (src instanceof Instance) return src.lookup(r)
-  else if (src instanceof Map) return src.get(r)
-  else if (src instanceof Object) return src[r]
+  if (src instanceof Instance) return src.lookup(r);
+  else if (src instanceof Map) return src.get(r);
+  else if (src instanceof Object) return src[r];
   else return undefined;
 }
 

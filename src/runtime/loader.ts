@@ -75,8 +75,9 @@ export async function extractDocument(
     );
 
     for (const validationError of validationErrors) {
-      const errorMsg = `line ${validationError.range.start.line + 1}: ${validationError.message
-        } [${document.textDocument.getText(validationError.range)}]`;
+      const errorMsg = `line ${validationError.range.start.line + 1}: ${
+        validationError.message
+      } [${document.textDocument.getText(validationError.range)}]`;
       if (isNodeEnv && chalk) {
         console.error(chalk.red(errorMsg));
       } else {
