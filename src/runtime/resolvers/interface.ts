@@ -1,4 +1,4 @@
-import { Instance } from '../module.js';
+import { Instance, RelationshipEntry } from '../module.js';
 
 export abstract class Resolver {
   public abstract createInstance(inst: Instance): any;
@@ -19,4 +19,16 @@ export abstract class Resolver {
    * @param {Instance} inst - an Instance with query attributes
    */
   public abstract deleteInstance(inst: Instance): any;
+
+  /**
+   * Connect instances via a between relationship
+   * @param node1 The main node to connect
+   * @param otherNodeOrNodes Nodes to be connected to node1
+   * @param relEntry Details of the repationship
+   */
+  public abstract connectInstances(
+    node1: Instance,
+    otherNodeOrNodes: Instance | Instance[],
+    relEntry: RelationshipEntry
+  ): any;
 }

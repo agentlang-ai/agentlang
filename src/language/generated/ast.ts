@@ -46,6 +46,7 @@ export type AgentlangKeywordNames =
     | "entity"
     | "error"
     | "event"
+    | "extends"
     | "false"
     | "for"
     | "if"
@@ -228,6 +229,7 @@ export interface Entity extends langium.AstNode {
     readonly $container: Module;
     readonly $type: 'Entity';
     attributes: Array<Attribute>;
+    extends?: ExtendsClause;
     name: string;
 }
 
@@ -241,6 +243,7 @@ export interface Event extends langium.AstNode {
     readonly $container: Module;
     readonly $type: 'Event';
     attributes: Array<Attribute>;
+    extends?: ExtendsClause;
     name: string;
 }
 
@@ -248,6 +251,18 @@ export const Event = 'Event';
 
 export function isEvent(item: unknown): item is Event {
     return reflection.isInstance(item, Event);
+}
+
+export interface ExtendsClause extends langium.AstNode {
+    readonly $container: Entity | Event | Record;
+    readonly $type: 'ExtendsClause';
+    parentName: string;
+}
+
+export const ExtendsClause = 'ExtendsClause';
+
+export function isExtendsClause(item: unknown): item is ExtendsClause {
+    return reflection.isInstance(item, ExtendsClause);
 }
 
 export interface FnCall extends langium.AstNode {
@@ -455,6 +470,7 @@ export interface Record extends langium.AstNode {
     readonly $container: Module;
     readonly $type: 'Record';
     attributes: Array<Attribute>;
+    extends?: ExtendsClause;
     name: string;
 }
 
@@ -586,6 +602,7 @@ export type AgentlangAstType = {
     Entity: Entity
     Event: Event
     Expr: Expr
+    ExtendsClause: ExtendsClause
     FnCall: FnCall
     ForEach: ForEach
     Group: Group
@@ -618,7 +635,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Else, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, Record, RelNodeAlias, RelNodes, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Workflow];
+        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Else, Entity, Event, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, Record, RelNodeAlias, RelNodes, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Workflow];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -727,6 +744,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Entity,
                     properties: [
                         { name: 'attributes', defaultValue: [] },
+                        { name: 'extends' },
                         { name: 'name' }
                     ]
                 };
@@ -736,7 +754,16 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Event,
                     properties: [
                         { name: 'attributes', defaultValue: [] },
+                        { name: 'extends' },
                         { name: 'name' }
+                    ]
+                };
+            }
+            case ExtendsClause: {
+                return {
+                    name: ExtendsClause,
+                    properties: [
+                        { name: 'parentName' }
                     ]
                 };
             }
@@ -887,6 +914,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Record,
                     properties: [
                         { name: 'attributes', defaultValue: [] },
+                        { name: 'extends' },
                         { name: 'name' }
                     ]
                 };

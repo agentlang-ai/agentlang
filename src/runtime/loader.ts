@@ -9,6 +9,7 @@ import {
   isWorkflow,
   Import,
   isRelationship,
+  ExtendsClause,
 } from '../language/generated/ast.js';
 import {
   addModule,
@@ -251,15 +252,19 @@ function getFsAdapter(fs: any) {
   return cachedFsAdapter;
 }
 
+function maybeExtends(ext: ExtendsClause | undefined): string | undefined {
+  return ext ? ext.parentName : undefined;
+}
+
 function internModule(module: Module): string {
   addModule(module.name);
   module.imports.forEach((imp: Import) => {
     importModule(imp.path, imp.name);
   });
   module.defs.forEach((def: Def) => {
-    if (isEntity(def)) addEntity(def.name, def.attributes);
-    else if (isEvent(def)) addEvent(def.name, def.attributes);
-    else if (isRecord(def)) addRecord(def.name, def.attributes);
+    if (isEntity(def)) addEntity(def.name, def.attributes, maybeExtends(def.extends));
+    else if (isEvent(def)) addEvent(def.name, def.attributes, maybeExtends(def.extends));
+    else if (isRecord(def)) addRecord(def.name, def.attributes, maybeExtends(def.extends));
     else if (isRelationship(def))
       addRelationship(def.name, def.type, def.nodes, def.attributes, def.properties);
     else if (isWorkflow(def)) addWorkflow(def.name, def.statements);

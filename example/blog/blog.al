@@ -33,10 +33,13 @@ entity Category {
 // many-many
 relationship PostCategory between (Post, Category)
 
+event CreateUser extends Profile {
+    name String
+}
+
 workflow CreateUser {
-    {User {name CreateUser.name}} as u1;
-    {User {name "vijay"}} as u2;
-    [u2, u1]
+    {User {name CreateUser.name},
+     UserProfile {Profile {email CreateUser.email}}}
 }
 
 workflow FindUsersByName {

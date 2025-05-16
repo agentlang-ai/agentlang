@@ -67,7 +67,7 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
       isPrimary: genStrat == 'increment',
       default: d,
       isUnique: isUniqueAttribute(attrSpec),
-      isNullable: !isOptionalAttribute(attrSpec),
+      isNullable: isOptionalAttribute(attrSpec),
       isGenerated: autoUuid || autoIncr,
       isArray: false,
     };

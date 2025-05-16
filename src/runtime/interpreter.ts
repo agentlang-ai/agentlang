@@ -16,23 +16,29 @@ import {
   LogicalExpression,
   OrAnd,
   Pattern,
+  RelationshipPattern,
   SetAttribute,
   Statement,
 } from '../language/generated/ast.js';
 import {
+  getRelationship,
   getWorkflow,
   Instance,
   InstanceAttributes,
+  isBetweenRelationship,
+  isContainsRelationship,
   isEmptyWorkflow,
   isEntityInstance,
   isEventInstance,
   makeInstance,
   newInstanceAttributes,
   PlaceholderRecordEntry,
+  RelationshipEntry,
   WorkflowEntry,
 } from './module.js';
 import { Resolver } from './resolvers/interface.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
+import { PathAttributeName } from './resolvers/sqldb/schema.js';
 import { invokeModuleFn, isFqName, Path, splitFqName, splitRefs } from './util.js';
 
 export type Result = any;
@@ -50,6 +56,7 @@ class Environment extends Instance {
   private static ActiveEventKey: string = '--active-event--';
   private static ActiveEventInstanceKey: string = '--active-event-instance--';
   private static LastResultKey: string = '--last-result--';
+  private static ParentPathKey: string = '--parent-path--';
 
   constructor(name: string, parent?: Environment) {
     super(PlaceholderRecordEntry, 'agentlang', name, newInstanceAttributes());
@@ -104,6 +111,14 @@ class Environment extends Instance {
 
   getActiveEvent(): Instance {
     return this.attributes.get(this.attributes.get(Environment.ActiveEventKey));
+  }
+
+  bindParentPath(path: string): void {
+    this.attributes.set(Environment.ParentPathKey, path);
+  }
+
+  getParentPath(): string | undefined {
+    return this.attributes.get(Environment.ParentPathKey);
   }
 }
 
@@ -214,7 +229,25 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   const inst: Instance = makeInstance(moduleName, entryName, attrs, qattrs, qattrVals);
   if (isEntityInstance(inst)) {
     if (qattrs == undefined) {
+      const parentPath: string | undefined = env.getParentPath();
+      if (parentPath != undefined) inst.attributes.set(PathAttributeName, parentPath);
       await defaultResolver.createInstance(inst).then((inst: Instance) => env.bindLastResult(inst));
+      if (crud.relationships != undefined) {
+        for (let i = 0; i < crud.relationships.length; ++i) {
+          const rel: RelationshipPattern = crud.relationships[i];
+          if (isContainsRelationship(rel.name, moduleName)) {
+            const newEnv: Environment = new Environment('relenv', env);
+            newEnv.bindParentPath(inst.attributes.get(PathAttributeName));
+            await evaluatePattern(rel.pattern, newEnv);
+          } else if (isBetweenRelationship(rel.name, moduleName)) {
+            const inst1: any = env.getLastResult();
+            await evaluatePattern(rel.pattern, env);
+            const relResult: any = env.getLastResult();
+            const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
+            await defaultResolver.connectInstances(inst1, relResult, relEntry);
+          }
+        }
+      }
     } else if (attrs.size == 0) {
       await defaultResolver
         .queryInstances(inst)

@@ -12,11 +12,13 @@ Property: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 KvPair: value=Literal | key=ID ':' value=Literal;
 KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 
-fragment RecDef: name=ID '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}';
+fragment RecDef: name=ID extends=ExtendsClause? '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}'?;
 
 Entity: 'entity' RecDef;
 Event: 'event' RecDef;
 Record: 'record' RecDef;
+
+ExtendsClause: 'extends' parentName=ID;
 
 Relationship: 'relationship' name=ID type=('contains' | 'between') nodes=RelNodes properties+=Property*
 ('{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}')?;
