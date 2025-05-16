@@ -22,8 +22,7 @@ entity Post {
     title String
 }
 
-// one-many
-relationship PostAuthor contains (User, Post)
+relationship UserPost contains (User, Post)
 
 entity Category {
     id UUID @id @default(uuid()),
@@ -33,10 +32,14 @@ entity Category {
 // many-many
 relationship PostCategory between (Post, Category)
 
+event CreateUser extends Profile {
+    name String
+}
+
 workflow CreateUser {
-    {User {name CreateUser.name}} as u1;
-    {User {name "vijay"}} as u2;
-    [u2, u1]
+    {User {name CreateUser.name},
+     UserProfile {Profile {email CreateUser.email}},
+     UserPost {Post {title "hello, world"}}}
 }
 
 workflow FindUsersByName {
@@ -45,7 +48,7 @@ workflow FindUsersByName {
 
 workflow CreateUserWithPosts {
     {User {name "Sam"},
-     PostAuthor [{Post {title "Getting started in NodeJS"}},
+     UserPost [{Post {title "Getting started in NodeJS"}},
                  {Post {title "Clojure Tutorial"}}],
      UserProfile {Profile {email "sam@blog.com"}}}
 }

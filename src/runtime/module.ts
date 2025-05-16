@@ -6,14 +6,19 @@ import {
   KvPair,
   Literal,
   FnCall,
+  RelNodes,
+  Node,
 } from '../language/generated/ast.js';
-import { Path, splitFqName, isString, isNumber, isBoolean } from './util.js';
+import { Path, splitFqName, isString, isNumber, isBoolean, isFqName } from './util.js';
+import { DeletedFlagAttributeName } from './resolvers/sqldb/schema.js';
 
 export class ModuleEntry {
   name: string;
+  moduleName: string;
 
-  constructor(name: string) {
+  constructor(name: string, moduleName: string) {
     this.name = name;
+    this.moduleName = moduleName;
   }
 }
 
@@ -38,18 +43,35 @@ export enum RecordType {
   RECORD,
   ENTITY,
   EVENT,
+  RELATIONSHIP,
 }
 
 export class RecordEntry extends ModuleEntry {
   schema: RecordSchema;
   meta: Meta;
   type: RecordType = RecordType.RECORD;
+  parentEntryName: string | undefined;
 
-  constructor(name: string, attributes: Attribute[]) {
-    super(name);
-    this.schema = newRecordSchema();
+  constructor(name: string, attributes: Attribute[], moduleName: string, parentEntryName?: string) {
+    super(name, moduleName);
+    this.parentEntryName = parentEntryName;
+    this.schema = parentEntryName
+      ? cloneParentSchema(parentEntryName, moduleName)
+      : newRecordSchema();
     attributes.forEach((a: Attribute) => {
-      this.schema.set(a.name, { type: a.type, properties: asPropertiesMap(a.properties) });
+      const isArrayType: boolean = a.arrayType ? true : false;
+      const t: string | undefined = isArrayType ? a.arrayType : a.type;
+      if (t == undefined) throw new Error(`Attribute ${a.name} requires a type`);
+      let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
+      const isObjectType: boolean = !isBuiltInType(t);
+      if (isArrayType || isObjectType) {
+        if (props == undefined) {
+          props = new Map<string, any>();
+        }
+        if (isArrayType) props.set('array', true);
+        if (isObjectType) props.set('object', true);
+      }
+      this.schema.set(a.name, { type: t, properties: props });
     });
     this.meta = newMeta();
   }
@@ -57,6 +79,41 @@ export class RecordEntry extends ModuleEntry {
   addMeta(k: string, v: string): void {
     this.meta.set(k, v);
   }
+}
+
+type FetchModuleByEntryNameResult = {
+  module: RuntimeModule;
+  entryName: string;
+  moduleName: string;
+};
+
+function fetchModuleByEntryName(
+  entryName: string,
+  suspectModuleName: string
+): FetchModuleByEntryNameResult {
+  if (isFqName(entryName)) {
+    const path: Path = splitFqName(entryName);
+    entryName = path.getEntryName();
+    suspectModuleName = path.getModuleName();
+  }
+  return {
+    module: fetchModule(suspectModuleName),
+    entryName: entryName,
+    moduleName: suspectModuleName,
+  };
+}
+
+function cloneParentSchema(parentName: string, currentModuleName: string): RecordSchema {
+  const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(parentName, currentModuleName);
+  parentName = fr.entryName;
+  currentModuleName = fr.moduleName;
+  const mod: RuntimeModule = fr.module;
+  const entry: RecordEntry = mod.getEntry(parentName) as RecordEntry;
+  const result: RecordSchema = newRecordSchema();
+  entry.schema.forEach((attrSpec: AttributeSpec, attrName: string) => {
+    result.set(attrName, attrSpec);
+  });
+  return result;
 }
 
 function asPropertiesMap(props: Property[]): Map<string, any> | undefined {
@@ -117,7 +174,7 @@ function normalizeKvPairValue(kvp: KvPair): any | null {
   return null;
 }
 
-export const PlaceholderRecordEntry = new RecordEntry('--', new Array<Attribute>());
+export const PlaceholderRecordEntry = new RecordEntry('--', new Array<Attribute>(), 'agentlang');
 
 export class EntityEntry extends RecordEntry {
   override type: RecordType = RecordType.ENTITY;
@@ -127,16 +184,105 @@ export class EventEntry extends RecordEntry {
   override type: RecordType = RecordType.EVENT;
 }
 
+enum RelType {
+  CONTAINS,
+  BETWEEN,
+}
+
+export type RelNodeEntry = {
+  moduleName: string;
+  entryName: string;
+  alias: string;
+};
+
+function asRelNodeEntry(n: Node): RelNodeEntry {
+  const path: Path = splitFqName(n.name);
+  let modName = activeModule;
+  const entryName = path.getEntryName();
+  if (path.hasModule()) {
+    modName = path.getModuleName();
+  }
+  let alias = entryName;
+  if (n.alias != undefined) {
+    alias = n.alias;
+  }
+  return {
+    moduleName: modName,
+    entryName: entryName,
+    alias: alias,
+  };
+}
+
+export class RelationshipEntry extends RecordEntry {
+  override type: RecordType = RecordType.RELATIONSHIP;
+  relType: RelType = RelType.CONTAINS;
+  node1: RelNodeEntry;
+  node2: RelNodeEntry;
+  properties: Map<string, any> | undefined;
+
+  constructor(
+    name: string,
+    typ: string,
+    node1: RelNodeEntry,
+    node2: RelNodeEntry,
+    attributes: Attribute[],
+    moduleName: string,
+    props?: Map<string, any>
+  ) {
+    super(name, attributes, moduleName);
+    if (typ == 'between') this.relType = RelType.BETWEEN;
+    this.node1 = node1;
+    this.node2 = node2;
+    this.properties = props;
+    this.updateSchemaWithNodeAttributes();
+  }
+
+  private makeUniqueProp(flag: boolean): Map<string, any> | undefined {
+    if (flag) {
+      const props: Map<string, any> = new Map<string, any>();
+      props.set('unique', true);
+      return props;
+    }
+    return undefined;
+  }
+
+  private updateSchemaWithNodeAttributes() {
+    const attrSpec1: AttributeSpec = {
+      type: 'string',
+      properties: this.makeUniqueProp(
+        this.properties != undefined &&
+          (this.properties.get('one_one') == true || this.properties.get('one_many') == true)
+      ),
+    };
+    this.schema.set(this.node1.alias, attrSpec1);
+    const attrSpec2: AttributeSpec = {
+      type: 'string',
+      properties: this.makeUniqueProp(
+        this.properties != undefined && this.properties.get('one_one') == true
+      ),
+    };
+    this.schema.set(this.node2.alias, attrSpec2);
+  }
+
+  isContains(): boolean {
+    return this.relType == RelType.CONTAINS;
+  }
+
+  isBetween(): boolean {
+    return this.relType == RelType.BETWEEN;
+  }
+}
+
 export class WorkflowEntry extends ModuleEntry {
   statements: Statement[];
 
-  constructor(name: string, patterns: Statement[]) {
-    super(name);
+  constructor(name: string, patterns: Statement[], moduleName: string) {
+    super(name, moduleName);
     this.statements = patterns;
   }
 }
 
-const EmptyWorkflow: WorkflowEntry = new WorkflowEntry('', []);
+const EmptyWorkflow: WorkflowEntry = new WorkflowEntry('', [], 'agentlang');
 
 export function isEmptyWorkflow(wf: WorkflowEntry): boolean {
   return wf == EmptyWorkflow;
@@ -207,22 +353,33 @@ export class RuntimeModule {
     }
   }
 
-  getEntityEntries(): ModuleEntry[] {
-    return this.getEntriesOfType(RecordType.ENTITY);
+  getEntityEntries(): EntityEntry[] {
+    return this.getEntriesOfType(RecordType.ENTITY) as EntityEntry[];
   }
 
-  getEventEntries(): ModuleEntry[] {
-    return this.getEntriesOfType(RecordType.EVENT);
+  getEventEntries(): EventEntry[] {
+    return this.getEntriesOfType(RecordType.EVENT) as EventEntry[];
   }
 
-  getRecordEntries(): ModuleEntry[] {
-    return this.getEntriesOfType(RecordType.RECORD);
+  getRecordEntries(): RecordEntry[] {
+    return this.getEntriesOfType(RecordType.RECORD) as RecordEntry[];
+  }
+
+  getRelationshipEntries(): RelationshipEntry[] {
+    return this.getEntriesOfType(RecordType.RELATIONSHIP) as RelationshipEntry[];
+  }
+
+  getBetweenRelationshipEntries(): RelationshipEntry[] {
+    const rels: RelationshipEntry[] = this.getRelationshipEntries();
+    return rels.filter((e: RelationshipEntry) => {
+      return e.isBetween();
+    });
   }
 
   isEntryOfType(t: RecordType, name: string): boolean {
-    const entry: ModuleEntry | undefined = this.getEntityEntries().find((v: ModuleEntry) => {
+    const entry: ModuleEntry | undefined = this.getEntriesOfType(t).find((v: ModuleEntry) => {
       const r: RecordEntry = v as RecordEntry;
-      return r.name == name && r.type == t;
+      return r.name == name;
     });
     return entry != undefined;
   }
@@ -237,6 +394,10 @@ export class RuntimeModule {
 
   isRecord(name: string): boolean {
     return this.isEntryOfType(RecordType.RECORD, name);
+  }
+
+  isRelationship(name: string): boolean {
+    return this.isEntryOfType(RecordType.RELATIONSHIP, name);
   }
 
   getEntityNames(): string[] {
@@ -262,6 +423,30 @@ export class RuntimeModule {
     });
     return names;
   }
+
+  getRelationshipNames(): string[] {
+    const names: string[] = [];
+    this.getRelationshipEntries().forEach((me: ModuleEntry) => {
+      names.push(me.name);
+    });
+    return names;
+  }
+
+  isContainsRelationship(entryName: string): boolean {
+    if (this.hasEntry(entryName)) {
+      const entry: RelationshipEntry = this.getEntry(entryName) as RelationshipEntry;
+      return entry.isContains();
+    }
+    return false;
+  }
+
+  isBetweenRelationship(entryName: string): boolean {
+    if (this.hasEntry(entryName)) {
+      const entry: RelationshipEntry = this.getEntry(entryName) as RelationshipEntry;
+      return entry.isBetween();
+    }
+    return false;
+  }
 }
 
 const moduleDb = new Map<string, RuntimeModule>();
@@ -272,6 +457,14 @@ export function addModule(name: string): string {
   moduleDb.set(name, new RuntimeModule(name));
   activeModule = name;
   return name;
+}
+
+export function removeModule(name: string): boolean {
+  if (moduleDb.has(name)) {
+    moduleDb.delete(name);
+    return true;
+  }
+  return false;
 }
 
 addModule('agentlang');
@@ -306,11 +499,25 @@ const builtInChecks = new Map([
   ['UUID', isString],
   ['URL', isString],
 ]);
+
 const builtInTypes = new Set(Array.from(builtInChecks.keys()));
-const propertyNames = new Set(['@id', '@indexed', '@default', '@optional', '@unique', '@auto']);
+const propertyNames = new Set([
+  '@id',
+  '@indexed',
+  '@default',
+  '@optional',
+  '@unique',
+  '@autoincrement',
+  '@array',
+  '@object',
+]);
+
+export function isBuiltInType(type: string): boolean {
+  return builtInTypes.has(type);
+}
 
 export function isValidType(type: string): boolean {
-  if (builtInTypes.has(type)) return true;
+  if (isBuiltInType(type)) return true;
   const path: Path = splitFqName(type);
   let modName: string = '';
   if (path.hasModule()) modName = path.getModuleName();
@@ -318,7 +525,8 @@ export function isValidType(type: string): boolean {
   return isModule(modName) && fetchModule(modName).hasEntry(path.getEntryName());
 }
 
-function checkType(type: string): void {
+function checkType(type: string | undefined): void {
+  if (type == undefined) throw new Error('Attribute type is required');
   if (!isValidType(type)) {
     console.log(chalk.red(`WARN: type not found - ${type}`));
   }
@@ -333,7 +541,7 @@ function validateProperties(props: Property[] | undefined): void {
 }
 
 function verifyAttribute(attr: Attribute): void {
-  checkType(attr.type);
+  checkType(attr.type || attr.arrayType);
   validateProperties(attr.properties);
 }
 
@@ -346,6 +554,17 @@ export function defaultAttributes(schema: RecordSchema): Map<string, any> {
       if (d != undefined) {
         result.set(k, d);
       }
+    }
+  });
+  return result;
+}
+
+export function objectAttributes(schema: RecordSchema): Array<string> | undefined {
+  let result: Array<string> | undefined;
+  schema.forEach((v: AttributeSpec, k: string) => {
+    if (isObjectAttribute(v)) {
+      if (result == undefined) result = new Array<string>();
+      result.push(k);
     }
   });
   return result;
@@ -381,6 +600,14 @@ export function isOptionalAttribute(attrSpec: AttributeSpec): boolean {
   return getBooleanProperty('optional', attrSpec);
 }
 
+export function isArrayAttribute(attrSpec: AttributeSpec): boolean {
+  return getBooleanProperty('array', attrSpec);
+}
+
+export function isObjectAttribute(attrSpec: AttributeSpec): boolean {
+  return getBooleanProperty('object', attrSpec);
+}
+
 export function getAttributeDefaultValue(attrSpec: AttributeSpec): any | undefined {
   return getAnyProperty('default', attrSpec);
 }
@@ -389,24 +616,60 @@ export function getAttributeLength(attrSpec: AttributeSpec): number | undefined 
   return getAnyProperty('length', attrSpec);
 }
 
-export function addEntity(name: string, attrs: Attribute[], moduleName = activeModule): string {
+export function addEntity(
+  name: string,
+  attrs: Attribute[],
+  ext?: string,
+  moduleName = activeModule
+): string {
   const module: RuntimeModule = fetchModule(moduleName);
   attrs.forEach(a => verifyAttribute(a));
-  module.addEntry(new EntityEntry(name, attrs));
+  module.addEntry(new EntityEntry(name, attrs, moduleName, ext));
   return name;
 }
 
-export function addEvent(name: string, attrs: Attribute[], moduleName = activeModule) {
+export function addEvent(
+  name: string,
+  attrs: Attribute[],
+  ext?: string,
+  moduleName = activeModule
+) {
   const module: RuntimeModule = fetchModule(moduleName);
   attrs.forEach(a => verifyAttribute(a));
-  module.addEntry(new EventEntry(name, attrs));
+  module.addEntry(new EventEntry(name, attrs, moduleName, ext));
   return name;
 }
 
-export function addRecord(name: string, attrs: Attribute[], moduleName = activeModule) {
+export function addRecord(
+  name: string,
+  attrs: Attribute[],
+  ext?: string,
+  moduleName = activeModule
+) {
   const module: RuntimeModule = fetchModule(moduleName);
   attrs.forEach(a => verifyAttribute(a));
-  module.addEntry(new RecordEntry(name, attrs));
+  module.addEntry(new RecordEntry(name, attrs, moduleName, ext));
+  return name;
+}
+
+const DefaultRelAttrbutes: Array<Attribute> = new Array<Attribute>();
+
+export function addRelationship(
+  name: string,
+  type: 'contains' | 'between',
+  nodes: RelNodes,
+  attrs: Attribute[] | undefined,
+  props: Property[] | undefined,
+  moduleName = activeModule
+) {
+  const module: RuntimeModule = fetchModule(moduleName);
+  if (attrs != undefined) attrs.forEach(a => verifyAttribute(a));
+  else attrs = DefaultRelAttrbutes;
+  const n1: RelNodeEntry = asRelNodeEntry(nodes.node1);
+  const n2: RelNodeEntry = asRelNodeEntry(nodes.node2);
+  let propsMap: Map<string, any> | undefined;
+  if (props != undefined) propsMap = asPropertiesMap(props);
+  module.addEntry(new RelationshipEntry(name, type, n1, n2, attrs, moduleName, propsMap));
   return name;
 }
 
@@ -421,9 +684,9 @@ export function addWorkflow(name: string, statements: Statement[], moduleName = 
     if (!(entry instanceof EventEntry))
       throw new Error(`Not an event, cannot attach workflow to ${entry.name}`);
   } else {
-    addEvent(name, new Array<Attribute>(), moduleName);
+    addEvent(name, new Array<Attribute>(), undefined, moduleName);
   }
-  module.addEntry(new WorkflowEntry(asWorkflowName(name), statements));
+  module.addEntry(new WorkflowEntry(asWorkflowName(name), statements, moduleName));
   return name;
 }
 
@@ -441,6 +704,38 @@ export function getWorkflow(eventInstance: Instance): WorkflowEntry {
   return EmptyWorkflow;
 }
 
+export function getEntity(name: string, moduleName: string): EntityEntry {
+  const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(name, moduleName);
+  if (fr.module.isEntity(fr.entryName)) {
+    return fr.module.getEntry(fr.entryName) as EntityEntry;
+  }
+  throw new Error(`Entity ${fr.entryName} not found in module ${fr.moduleName}`);
+}
+
+export function getEvent(name: string, moduleName: string): EventEntry {
+  const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(name, moduleName);
+  if (fr.module.isEvent(fr.entryName)) {
+    return fr.module.getEntry(fr.entryName) as EventEntry;
+  }
+  throw new Error(`Event ${fr.entryName} not found in module ${fr.moduleName}`);
+}
+
+export function getRecord(name: string, moduleName: string): RecordEntry {
+  const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(name, moduleName);
+  if (fr.module.isRecord(fr.entryName)) {
+    return fr.module.getEntry(fr.entryName) as RecordEntry;
+  }
+  throw new Error(`Record ${fr.entryName} not found in module ${fr.moduleName}`);
+}
+
+export function getRelationship(name: string, moduleName: string): RelationshipEntry {
+  const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(name, moduleName);
+  if (fr.module.isRelationship(fr.entryName)) {
+    return fr.module.getEntry(fr.entryName) as RelationshipEntry;
+  }
+  throw new Error(`Relationship ${fr.entryName} not found in module ${fr.moduleName}`);
+}
+
 export function removeEntity(name: string, moduleName = activeModule): boolean {
   const module: RuntimeModule = fetchModule(moduleName);
   if (module.isEntity(name)) {
@@ -452,6 +747,14 @@ export function removeEntity(name: string, moduleName = activeModule): boolean {
 export function removeRecord(name: string, moduleName = activeModule): boolean {
   const module: RuntimeModule = fetchModule(moduleName);
   if (module.isRecord(name)) {
+    return module.removeEntry(name);
+  }
+  return false;
+}
+
+export function removeRelationship(name: string, moduleName = activeModule): boolean {
+  const module: RuntimeModule = fetchModule(moduleName);
+  if (module.isRelationship(name)) {
     return module.removeEntry(name);
   }
   return false;
@@ -497,11 +800,16 @@ export function newInstanceAttributes(): InstanceAttributes {
   return new Map<string, any>();
 }
 
+export const MarkDeletedAttributes: InstanceAttributes = newInstanceAttributes().set(
+  DeletedFlagAttributeName,
+  true
+);
+
 export class Instance {
   record: RecordEntry;
   name: string;
   moduleName: string;
-  protected attributes: InstanceAttributes;
+  attributes: InstanceAttributes;
   queryAttributes: InstanceAttributes | undefined;
   queryAttributeValues: InstanceAttributes | undefined;
 
@@ -521,6 +829,10 @@ export class Instance {
     this.queryAttributeValues = queryAttributeValues;
   }
 
+  static newWithAttributes(inst: Instance, newAttrs: InstanceAttributes) {
+    return new Instance(inst.record, inst.moduleName, inst.name, newAttrs);
+  }
+
   lookup(k: string): any | undefined {
     return this.attributes.get(k);
   }
@@ -531,7 +843,10 @@ export class Instance {
     return Object.fromEntries(result);
   }
 
-  attributesAsObject(): Object {
+  attributesAsObject(stringifyObjects: boolean = true): Object {
+    if (stringifyObjects) {
+      return attributesAsColumns(this.attributes, this.record.schema);
+    }
     return Object.fromEntries(this.attributes);
   }
 
@@ -549,14 +864,25 @@ export class Instance {
     return {};
   }
 
-  addQuery(n: string, op: string) {
+  addQuery(n: string, op: string = '=') {
     if (this.queryAttributes == undefined) this.queryAttributes = newInstanceAttributes();
     this.queryAttributes.set(n, op);
   }
+}
 
-  getAttributes(): InstanceAttributes {
-    return this.attributes;
+export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSchema): Object {
+  if (schema != undefined) {
+    const objAttrNames: Array<string> | undefined = objectAttributes(schema);
+    if (objAttrNames != undefined) {
+      objAttrNames.forEach((n: string) => {
+        const v: any | undefined = attrs.get(n);
+        if (v != undefined) {
+          attrs.set(n, JSON.stringify(v));
+        }
+      });
+    }
   }
+  return Object.fromEntries(attrs);
 }
 
 export function objectAsInstanceAttributes(obj: Object): InstanceAttributes {
@@ -638,4 +964,16 @@ export function getAllEventNames() {
     );
   });
   return result;
+}
+
+export function isBetweenRelationship(relName: string, moduleName: string): boolean {
+  const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(relName, moduleName);
+  const mod: RuntimeModule = fr.module;
+  return mod.isBetweenRelationship(fr.entryName);
+}
+
+export function isContainsRelationship(relName: string, moduleName: string): boolean {
+  const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(relName, moduleName);
+  const mod: RuntimeModule = fr.module;
+  return mod.isContainsRelationship(fr.entryName);
 }

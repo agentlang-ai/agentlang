@@ -42,10 +42,12 @@ export type AgentlangKeywordNames =
     | "as"
     | "between"
     | "contains"
+    | "delete"
     | "else"
     | "entity"
     | "error"
     | "event"
+    | "extends"
     | "false"
     | "for"
     | "if"
@@ -158,9 +160,10 @@ export function isArrayLiteral(item: unknown): item is ArrayLiteral {
 export interface Attribute extends langium.AstNode {
     readonly $container: Entity | Event | Record | Relationship;
     readonly $type: 'Attribute';
+    arrayType?: string;
     name: string;
     properties: Array<Property>;
-    type: string;
+    type?: string;
 }
 
 export const Attribute = 'Attribute';
@@ -212,6 +215,18 @@ export function isCrudMap(item: unknown): item is CrudMap {
     return reflection.isInstance(item, CrudMap);
 }
 
+export interface Delete extends langium.AstNode {
+    readonly $container: Pattern;
+    readonly $type: 'Delete';
+    pattern: Pattern;
+}
+
+export const Delete = 'Delete';
+
+export function isDelete(item: unknown): item is Delete {
+    return reflection.isInstance(item, Delete);
+}
+
 export interface Else extends langium.AstNode {
     readonly $container: If;
     readonly $type: 'Else';
@@ -228,6 +243,7 @@ export interface Entity extends langium.AstNode {
     readonly $container: Module;
     readonly $type: 'Entity';
     attributes: Array<Attribute>;
+    extends?: ExtendsClause;
     name: string;
 }
 
@@ -241,6 +257,7 @@ export interface Event extends langium.AstNode {
     readonly $container: Module;
     readonly $type: 'Event';
     attributes: Array<Attribute>;
+    extends?: ExtendsClause;
     name: string;
 }
 
@@ -248,6 +265,18 @@ export const Event = 'Event';
 
 export function isEvent(item: unknown): item is Event {
     return reflection.isInstance(item, Event);
+}
+
+export interface ExtendsClause extends langium.AstNode {
+    readonly $container: Entity | Event | Record;
+    readonly $type: 'ExtendsClause';
+    parentName: string;
+}
+
+export const ExtendsClause = 'ExtendsClause';
+
+export function isExtendsClause(item: unknown): item is ExtendsClause {
+    return reflection.isInstance(item, ExtendsClause);
 }
 
 export interface FnCall extends langium.AstNode {
@@ -398,7 +427,7 @@ export function isNegExpr(item: unknown): item is NegExpr {
 }
 
 export interface Node extends langium.AstNode {
-    readonly $container: Relationship;
+    readonly $container: RelNodes;
     readonly $type: 'Node';
     alias?: string;
     name: string;
@@ -424,9 +453,10 @@ export function isOrAnd(item: unknown): item is OrAnd {
 }
 
 export interface Pattern extends langium.AstNode {
-    readonly $container: ForEach | RelationshipPattern | Statement;
+    readonly $container: Delete | ForEach | RelationshipPattern | Statement;
     readonly $type: 'Pattern';
     crudMap?: CrudMap;
+    delete?: Delete;
     forEach?: ForEach;
     if?: If;
     literal?: Literal;
@@ -455,6 +485,7 @@ export interface Record extends langium.AstNode {
     readonly $container: Module;
     readonly $type: 'Record';
     attributes: Array<Attribute>;
+    extends?: ExtendsClause;
     name: string;
 }
 
@@ -469,9 +500,9 @@ export interface Relationship extends langium.AstNode {
     readonly $type: 'Relationship';
     attributes: Array<Attribute>;
     name: string;
-    node1: Node;
-    node2: Node;
+    nodes: RelNodes;
     properties: Array<Property>;
+    type: 'between' | 'contains';
 }
 
 export const Relationship = 'Relationship';
@@ -491,6 +522,33 @@ export const RelationshipPattern = 'RelationshipPattern';
 
 export function isRelationshipPattern(item: unknown): item is RelationshipPattern {
     return reflection.isInstance(item, RelationshipPattern);
+}
+
+export interface RelNodeAlias extends langium.AstNode {
+    readonly $container: RelNodes;
+    readonly $type: 'RelNodeAlias';
+    name: string;
+}
+
+export const RelNodeAlias = 'RelNodeAlias';
+
+export function isRelNodeAlias(item: unknown): item is RelNodeAlias {
+    return reflection.isInstance(item, RelNodeAlias);
+}
+
+export interface RelNodes extends langium.AstNode {
+    readonly $container: Relationship;
+    readonly $type: 'RelNodes';
+    node1: Node;
+    node1Alias?: RelNodeAlias;
+    node2: Node;
+    node2Alias?: RelNodeAlias;
+}
+
+export const RelNodes = 'RelNodes';
+
+export function isRelNodes(item: unknown): item is RelNodes {
+    return reflection.isInstance(item, RelNodes);
 }
 
 export interface SetAttribute extends langium.AstNode {
@@ -555,10 +613,12 @@ export type AgentlangAstType = {
     ComparisonExpression: ComparisonExpression
     CrudMap: CrudMap
     Def: Def
+    Delete: Delete
     Else: Else
     Entity: Entity
     Event: Event
     Expr: Expr
+    ExtendsClause: ExtendsClause
     FnCall: FnCall
     ForEach: ForEach
     Group: Group
@@ -577,6 +637,8 @@ export type AgentlangAstType = {
     PrimExpr: PrimExpr
     Property: Property
     Record: Record
+    RelNodeAlias: RelNodeAlias
+    RelNodes: RelNodes
     Relationship: Relationship
     RelationshipPattern: RelationshipPattern
     SchemaDef: SchemaDef
@@ -589,7 +651,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Else, Entity, Event, Expr, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, Record, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Workflow];
+        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Delete, Else, Entity, Event, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, Record, RelNodeAlias, RelNodes, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Workflow];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -648,6 +710,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: Attribute,
                     properties: [
+                        { name: 'arrayType' },
                         { name: 'name' },
                         { name: 'properties', defaultValue: [] },
                         { name: 'type' }
@@ -685,6 +748,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case Delete: {
+                return {
+                    name: Delete,
+                    properties: [
+                        { name: 'pattern' }
+                    ]
+                };
+            }
             case Else: {
                 return {
                     name: Else,
@@ -698,6 +769,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Entity,
                     properties: [
                         { name: 'attributes', defaultValue: [] },
+                        { name: 'extends' },
                         { name: 'name' }
                     ]
                 };
@@ -707,7 +779,16 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Event,
                     properties: [
                         { name: 'attributes', defaultValue: [] },
+                        { name: 'extends' },
                         { name: 'name' }
+                    ]
+                };
+            }
+            case ExtendsClause: {
+                return {
+                    name: ExtendsClause,
+                    properties: [
+                        { name: 'parentName' }
                     ]
                 };
             }
@@ -838,6 +919,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Pattern,
                     properties: [
                         { name: 'crudMap' },
+                        { name: 'delete' },
                         { name: 'forEach' },
                         { name: 'if' },
                         { name: 'literal' }
@@ -858,6 +940,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Record,
                     properties: [
                         { name: 'attributes', defaultValue: [] },
+                        { name: 'extends' },
                         { name: 'name' }
                     ]
                 };
@@ -868,9 +951,9 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'attributes', defaultValue: [] },
                         { name: 'name' },
-                        { name: 'node1' },
-                        { name: 'node2' },
-                        { name: 'properties', defaultValue: [] }
+                        { name: 'nodes' },
+                        { name: 'properties', defaultValue: [] },
+                        { name: 'type' }
                     ]
                 };
             }
@@ -880,6 +963,25 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'name' },
                         { name: 'pattern' }
+                    ]
+                };
+            }
+            case RelNodeAlias: {
+                return {
+                    name: RelNodeAlias,
+                    properties: [
+                        { name: 'name' }
+                    ]
+                };
+            }
+            case RelNodes: {
+                return {
+                    name: RelNodes,
+                    properties: [
+                        { name: 'node1' },
+                        { name: 'node1Alias' },
+                        { name: 'node2' },
+                        { name: 'node2Alias' }
                     ]
                 };
             }

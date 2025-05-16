@@ -12,18 +12,24 @@ Property: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 KvPair: value=Literal | key=ID ':' value=Literal;
 KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 
-fragment RecDef: name=ID '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}';
+fragment RecDef: name=ID extends=ExtendsClause? '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}'?;
 
 Entity: 'entity' RecDef;
 Event: 'event' RecDef;
 Record: 'record' RecDef;
 
-Relationship: 'relationship' name=ID ('contains' | 'between') '(' node1=Node ',' node2=Node ')' properties+=Property*
+ExtendsClause: 'extends' parentName=ID;
+
+Relationship: 'relationship' name=ID type=('contains' | 'between') nodes=RelNodes properties+=Property*
 ('{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}')?;
 
 Node: name=ID | name=ID 'as' alias=ID;
 
-Attribute: name=ID type=ID properties+=Property*;
+RelNodes: '(' node1=Node node1Alias=RelNodeAlias? ',' node2=Node node2Alias=RelNodeAlias? ')';
+
+RelNodeAlias: 'as' name=ID;
+
+Attribute: name=ID (type=ID | arrayType=ID '['']') properties+=Property*;
 
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 
@@ -35,7 +41,7 @@ fragment Body: '{' (statements+=Statement (';' statements+=Statement)*)+ '}' | '
 
 Workflow: 'workflow' name=ID Body;
 
-Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach;
+Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete;
 
 Statement: pattern=Pattern ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*)+ ']'))? throws=Throws?;
 
@@ -53,6 +59,8 @@ ElseIf infers If: 'else' 'if' '(' cond=LogicalExpression ')' Body;
 Else: 'else' Body;
 
 ForEach: 'for' var=ID 'in' src=Pattern Body;
+
+Delete: 'delete' pattern=Pattern;
 
 SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between'|'+')? value=AttributeValueExpression;
 

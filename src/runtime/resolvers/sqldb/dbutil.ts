@@ -6,12 +6,15 @@ import {
   getAttributeDefaultValue,
   getAttributeLength,
   getModuleNames,
+  isArrayAttribute,
+  isBuiltInType,
   isIdAttribute,
   isIndexedAttribute,
   isOptionalAttribute,
   isUniqueAttribute,
-  ModuleEntry,
+  RecordEntry,
   RecordSchema,
+  RelationshipEntry,
   RuntimeModule,
 } from '../../module.js';
 
@@ -28,9 +31,10 @@ export function modulesAsDbSchema(): TableSchema[] {
   const result: TableSchema[] = new Array<TableSchema>();
   getModuleNames().forEach((n: string) => {
     const mod: RuntimeModule = fetchModule(n);
-    const modEntries: ModuleEntry[] = mod.getEntityEntries();
-    const entities: EntityEntry[] = modEntries as EntityEntry[];
-    entities.forEach((ent: EntityEntry) => {
+    const entities: EntityEntry[] = mod.getEntityEntries();
+    const betRels: RelationshipEntry[] = mod.getBetweenRelationshipEntries();
+    const allEntries: RecordEntry[] = entities.concat(betRels) as RecordEntry[];
+    allEntries.forEach((ent: RecordEntry) => {
       const tspec: TableSchema = {
         name: asTableName(n, ent.name),
         columns: entitySchemaToTable(ent.schema),
@@ -65,9 +69,9 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
       isPrimary: genStrat == 'increment',
       default: d,
       isUnique: isUniqueAttribute(attrSpec),
-      isNullable: !isOptionalAttribute(attrSpec),
+      isNullable: isOptionalAttribute(attrSpec),
       isGenerated: autoUuid || autoIncr,
-      isArray: false,
+      isArray: isArrayAttribute(attrSpec),
     };
     if (colOpt.isGenerated) {
       colOpt.generationStrategy = genStrat;
@@ -91,5 +95,6 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
 export function asSqlType(type: string): string {
   if (type == 'String' || type == 'Email') return 'varchar';
   else if (type == 'Int') return 'integer';
+  else if (!isBuiltInType(type)) return 'varchar';
   else return type.toLowerCase();
 }

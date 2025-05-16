@@ -142,3 +142,7 @@ export function runShellCommand(cmd: string, continuation: Function) {
     if (stderr.length > 0) console.log(stderr);
   });
 }
+
+export function escapeFqName(n: string): string {
+  return n.replace('/', '$');
+}
