@@ -8,19 +8,19 @@ export const setupConfigClassic = () => {
       codeResources: {
         modified: {
           uri: '/workspace/example.al',
-          text: `// Agentlang is running in the web!`
-        }
+          text: `// Agentlang is running in the web!`,
+        },
       },
       useDiffEditor: false,
       languageDef: {
         languageExtensionConfig: { id: 'agentlang' },
-        monarchLanguage: monarchSyntax
+        monarchLanguage: monarchSyntax,
       },
       editorOptions: {
         'semanticHighlighting.enabled': true,
         theme: 'vs-dark',
       },
-    }
+    },
   };
 };
 
@@ -28,13 +28,13 @@ export const executeClassic = async (htmlElement: HTMLElement) => {
   try {
     const config = setupConfigClassic();
     const wrapper = new MonacoEditorLanguageClientWrapper();
-    
+
     // Add the HTML container to the config
     const wrapperConfig = {
       ...config,
-      htmlContainer: htmlElement
+      htmlContainer: htmlElement,
     } as WrapperConfig;
-    
+
     // Initialize and start the wrapper
     await wrapper.initAndStart(wrapperConfig);
   } catch (error) {

@@ -107,14 +107,14 @@ async function createTables(): Promise<void> {
   }
 }
 
-export async function insertRows(tableName: string, rows: Object[]): Promise<void> {
+export async function insertRows(tableName: string, rows: object[]): Promise<void> {
   if (defaultDataSource != undefined) {
     await defaultDataSource.createQueryBuilder().insert().into(tableName).values(rows).execute();
   }
 }
 
-export async function insertRow(tableName: string, row: Object): Promise<void> {
-  const rows: Array<Object> = new Array<Object>();
+export async function insertRow(tableName: string, row: object): Promise<void> {
+  const rows: Array<object> = new Array<object>();
   rows.push(row);
   await insertRows(tableName, rows);
 }
@@ -137,7 +137,7 @@ export async function updateRow(
   return false;
 }
 
-function objectToWhereClause(queryObj: Object, tableName?: string): string {
+function objectToWhereClause(queryObj: object, tableName?: string): string {
   const clauses: Array<string> = new Array<string>();
   Object.entries(queryObj).forEach((value: [string, any]) => {
     const op: string = value[1] as string;
@@ -150,8 +150,8 @@ function objectToWhereClause(queryObj: Object, tableName?: string): string {
 
 export async function getMany(
   tableName: string,
-  queryObj: Object,
-  queryVals: Object,
+  queryObj: object,
+  queryVals: object,
   callback: Function
 ) {
   if (defaultDataSource != undefined) {

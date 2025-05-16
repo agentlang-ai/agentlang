@@ -42,7 +42,7 @@ export class SqlDbResolver extends Resolver {
       attrs.set(PathAttributeName, p);
     }
     const n: string = asTableName(inst.moduleName, inst.name);
-    const rowObj: Object = inst.attributesAsObject();
+    const rowObj: object = inst.attributesAsObject();
     await insertRow(n, rowObj);
     return inst;
   }
