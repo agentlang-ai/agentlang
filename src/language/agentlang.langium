@@ -29,7 +29,7 @@ RelNodes: '(' node1=Node node1Alias=RelNodeAlias? ',' node2=Node node2Alias=RelN
 
 RelNodeAlias: 'as' name=ID;
 
-Attribute: name=ID type=ID properties+=Property*;
+Attribute: name=ID (type=ID | arrayType=ID '['']') properties+=Property*;
 
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 

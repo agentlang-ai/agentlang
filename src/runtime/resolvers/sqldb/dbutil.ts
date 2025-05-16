@@ -6,6 +6,8 @@ import {
   getAttributeDefaultValue,
   getAttributeLength,
   getModuleNames,
+  isArrayAttribute,
+  isBuiltInType,
   isIdAttribute,
   isIndexedAttribute,
   isOptionalAttribute,
@@ -69,7 +71,7 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
       isUnique: isUniqueAttribute(attrSpec),
       isNullable: isOptionalAttribute(attrSpec),
       isGenerated: autoUuid || autoIncr,
-      isArray: false,
+      isArray: isArrayAttribute(attrSpec),
     };
     if (colOpt.isGenerated) {
       colOpt.generationStrategy = genStrat;
@@ -93,5 +95,6 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
 export function asSqlType(type: string): string {
   if (type == 'String' || type == 'Email') return 'varchar';
   else if (type == 'Int') return 'integer';
+  else if (!isBuiltInType(type)) return 'varchar';
   else return type.toLowerCase();
 }

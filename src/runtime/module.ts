@@ -58,7 +58,19 @@ export class RecordEntry extends ModuleEntry {
       ? cloneParentSchema(parentEntryName, moduleName)
       : newRecordSchema();
     attributes.forEach((a: Attribute) => {
-      this.schema.set(a.name, { type: a.type, properties: asPropertiesMap(a.properties) });
+      const isArrayType: boolean = a.arrayType ? true : false;
+      const t: string | undefined = isArrayType ? a.arrayType : a.type;
+      if (t == undefined) throw new Error(`Attribute ${a.name} requires a type`);
+      let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
+      const isObjectType: boolean = !isBuiltInType(t);
+      if (isArrayType || isObjectType) {
+        if (props == undefined) {
+          props = new Map<string, any>();
+        }
+        if (isArrayType) props.set('array', true);
+        if (isObjectType) props.set('object', true);
+      }
+      this.schema.set(a.name, { type: t, properties: props });
     });
     this.meta = newMeta();
   }
@@ -486,11 +498,25 @@ const builtInChecks = new Map([
   ['UUID', isString],
   ['URL', isString],
 ]);
+
 const builtInTypes = new Set(Array.from(builtInChecks.keys()));
-const propertyNames = new Set(['@id', '@indexed', '@default', '@optional', '@unique', '@auto']);
+const propertyNames = new Set([
+  '@id',
+  '@indexed',
+  '@default',
+  '@optional',
+  '@unique',
+  '@autoincrement',
+  '@array',
+  '@object',
+]);
+
+export function isBuiltInType(type: string): boolean {
+  return builtInTypes.has(type);
+}
 
 export function isValidType(type: string): boolean {
-  if (builtInTypes.has(type)) return true;
+  if (isBuiltInType(type)) return true;
   const path: Path = splitFqName(type);
   let modName: string = '';
   if (path.hasModule()) modName = path.getModuleName();
@@ -498,7 +524,8 @@ export function isValidType(type: string): boolean {
   return isModule(modName) && fetchModule(modName).hasEntry(path.getEntryName());
 }
 
-function checkType(type: string): void {
+function checkType(type: string | undefined): void {
+  if (type == undefined) throw new Error('Attribute type is required');
   if (!isValidType(type)) {
     console.log(chalk.red(`WARN: type not found - ${type}`));
   }
@@ -513,7 +540,7 @@ function validateProperties(props: Property[] | undefined): void {
 }
 
 function verifyAttribute(attr: Attribute): void {
-  checkType(attr.type);
+  checkType(attr.type || attr.arrayType);
   validateProperties(attr.properties);
 }
 
@@ -526,6 +553,17 @@ export function defaultAttributes(schema: RecordSchema): Map<string, any> {
       if (d != undefined) {
         result.set(k, d);
       }
+    }
+  });
+  return result;
+}
+
+export function objectAttributes(schema: RecordSchema): Array<string> | undefined {
+  let result: Array<string> | undefined;
+  schema.forEach((v: AttributeSpec, k: string) => {
+    if (isObjectAttribute(v)) {
+      if (result == undefined) result = new Array<string>();
+      result.push(k);
     }
   });
   return result;
@@ -559,6 +597,14 @@ export function isIndexedAttribute(attrSpec: AttributeSpec): boolean {
 
 export function isOptionalAttribute(attrSpec: AttributeSpec): boolean {
   return getBooleanProperty('optional', attrSpec);
+}
+
+export function isArrayAttribute(attrSpec: AttributeSpec): boolean {
+  return getBooleanProperty('array', attrSpec);
+}
+
+export function isObjectAttribute(attrSpec: AttributeSpec): boolean {
+  return getBooleanProperty('object', attrSpec);
 }
 
 export function getAttributeDefaultValue(attrSpec: AttributeSpec): any | undefined {
@@ -787,7 +833,10 @@ export class Instance {
     return Object.fromEntries(result);
   }
 
-  attributesAsObject(): Object {
+  attributesAsObject(stringifyObjects: boolean = true): Object {
+    if (stringifyObjects) {
+      return attributesAsColumns(this.attributes, this.record.schema);
+    }
     return Object.fromEntries(this.attributes);
   }
 
@@ -809,6 +858,21 @@ export class Instance {
     if (this.queryAttributes == undefined) this.queryAttributes = newInstanceAttributes();
     this.queryAttributes.set(n, op);
   }
+}
+
+export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSchema): Object {
+  if (schema != undefined) {
+    const objAttrNames: Array<string> | undefined = objectAttributes(schema);
+    if (objAttrNames != undefined) {
+      objAttrNames.forEach((n: string) => {
+        const v: any | undefined = attrs.get(n);
+        if (v != undefined) {
+          attrs.set(n, JSON.stringify(v));
+        }
+      });
+    }
+  }
+  return Object.fromEntries(attrs);
 }
 
 export function objectAsInstanceAttributes(obj: Object): InstanceAttributes {

@@ -1,11 +1,13 @@
 import {
   AttributeEntry,
+  attributesAsColumns,
   findIdAttribute,
   Instance,
   InstanceAttributes,
   newInstanceAttributes,
   RelationshipEntry,
 } from '../../module.js';
+import { escapeFqName } from '../../util.js';
 import { Resolver } from '../interface.js';
 import { asTableName } from './dbutil.js';
 import { getMany, insertRow, PathAttributeName } from './schema.js';
@@ -32,8 +34,10 @@ export class SqlDbResolver extends Resolver {
     if (idAttrName != undefined) {
       const idAttrVal: any = attrs.get(idAttrName);
       const pp: string | undefined = attrs.get(PathAttributeName);
-      let p = `${inst.moduleName}/${inst.name}/${idAttrVal}`;
-      if (pp != undefined) p = `${pp}/${p}`;
+      const n: string = `${inst.moduleName}/${inst.name}`;
+      let p: string = '';
+      if (pp != undefined) p = `${pp}/${escapeFqName(n)}/${idAttrVal}`;
+      else p = `${n}/${idAttrVal}`;
       attrs.set(PathAttributeName, p);
     }
     const n: string = asTableName(inst.moduleName, inst.name);
@@ -92,6 +96,6 @@ async function insertBetweenRow(
   attrs.set(a1, node1.attributes.get(PathAttributeName));
   attrs.set(a2, node2.attributes.get(PathAttributeName));
   attrs.set(PathAttributeName, crypto.randomUUID());
-  const row = Object.fromEntries(attrs);
+  const row = attributesAsColumns(attrs);
   await insertRow(n, row);
 }

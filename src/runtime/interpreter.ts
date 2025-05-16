@@ -39,7 +39,7 @@ import {
 import { Resolver } from './resolvers/interface.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
 import { PathAttributeName } from './resolvers/sqldb/schema.js';
-import { invokeModuleFn, isFqName, Path, splitFqName, splitRefs } from './util.js';
+import { escapeFqName, invokeModuleFn, isFqName, Path, splitFqName, splitRefs } from './util.js';
 
 export type Result = any;
 
@@ -237,7 +237,9 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           const rel: RelationshipPattern = crud.relationships[i];
           if (isContainsRelationship(rel.name, moduleName)) {
             const newEnv: Environment = new Environment('relenv', env);
-            newEnv.bindParentPath(inst.attributes.get(PathAttributeName));
+            newEnv.bindParentPath(
+              `${inst.attributes.get(PathAttributeName)}/${escapeFqName(rel.name)}`
+            );
             await evaluatePattern(rel.pattern, newEnv);
           } else if (isBetweenRelationship(rel.name, moduleName)) {
             const inst1: any = env.getLastResult();

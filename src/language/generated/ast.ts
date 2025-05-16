@@ -159,9 +159,10 @@ export function isArrayLiteral(item: unknown): item is ArrayLiteral {
 export interface Attribute extends langium.AstNode {
     readonly $container: Entity | Event | Record | Relationship;
     readonly $type: 'Attribute';
+    arrayType?: string;
     name: string;
     properties: Array<Property>;
-    type: string;
+    type?: string;
 }
 
 export const Attribute = 'Attribute';
@@ -694,6 +695,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: Attribute,
                     properties: [
+                        { name: 'arrayType' },
                         { name: 'name' },
                         { name: 'properties', defaultValue: [] },
                         { name: 'type' }
