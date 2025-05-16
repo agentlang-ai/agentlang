@@ -2,6 +2,7 @@ import {
   ArrayLiteral,
   ComparisonExpression,
   CrudMap,
+  Delete,
   Expr,
   FnCall,
   ForEach,
@@ -185,6 +186,8 @@ async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
     await evaluateForEach(pat.forEach, env);
   } else if (pat.if != undefined) {
     await evaluateIf(pat.if, env);
+  } else if (pat.delete != undefined) {
+    await evaluateDelete(pat.delete, env);
   }
 }
 
@@ -289,6 +292,13 @@ async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
   } else if (ifStmt.else != undefined) {
     await evaluateStatements(ifStmt.else.statements, env);
   }
+}
+
+async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> {
+  await evaluatePattern(delStmt.pattern, env);
+  await defaultResolver.deleteInstance(env.getLastResult()).then((inst: Instance | null) => {
+    env.bindLastResult(inst);
+  });
 }
 
 async function evaluateLogicalExpression(

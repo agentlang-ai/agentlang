@@ -41,7 +41,7 @@ fragment Body: '{' (statements+=Statement (';' statements+=Statement)*)+ '}' | '
 
 Workflow: 'workflow' name=ID Body;
 
-Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach;
+Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete;
 
 Statement: pattern=Pattern ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*)+ ']'))? throws=Throws?;
 
@@ -59,6 +59,8 @@ ElseIf infers If: 'else' 'if' '(' cond=LogicalExpression ')' Body;
 Else: 'else' Body;
 
 ForEach: 'for' var=ID 'in' src=Pattern Body;
+
+Delete: 'delete' pattern=Pattern;
 
 SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between'|'+')? value=AttributeValueExpression;
 

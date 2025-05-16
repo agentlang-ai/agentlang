@@ -4,13 +4,14 @@ import {
   findIdAttribute,
   Instance,
   InstanceAttributes,
+  MarkDeletedAttributes,
   newInstanceAttributes,
   RelationshipEntry,
 } from '../../module.js';
 import { escapeFqName } from '../../util.js';
 import { Resolver } from '../interface.js';
 import { asTableName } from './dbutil.js';
-import { getMany, insertRow, PathAttributeName } from './schema.js';
+import { getMany, insertRow, PathAttributeName, updateRow } from './schema.js';
 
 function addDefaultIdAttribute(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
@@ -54,16 +55,54 @@ export class SqlDbResolver extends Resolver {
     return inst;
   }
 
+  static EmptyResultSet: Array<Instance> = new Array<Instance>();
+
   public override async queryInstances(inst: Instance): Promise<Instance[]> {
-    return getMany(
+    let result = SqlDbResolver.EmptyResultSet;
+    await getMany(
       asTableName(inst.moduleName, inst.name),
       inst.queryAttributesAsObject(),
-      inst.queryAttributeValuesAsObject()
+      inst.queryAttributeValuesAsObject(),
+      (rslt: any) => {
+        if (rslt instanceof Array) {
+          result = new Array<Instance>();
+          rslt.forEach((r: Object) => {
+            result.push(Instance.newWithAttributes(inst, new Map(Object.entries(r))));
+          });
+        }
+      }
     );
+    return result;
   }
 
-  public override async deleteInstance(inst: Instance): Promise<Instance> {
-    return inst;
+  static MarkDeletedObject: Object = Object.fromEntries(MarkDeletedAttributes);
+
+  public override async deleteInstance(
+    target: Instance | Instance[] | null
+  ): Promise<Instance | Instance[] | null> {
+    if (target != null) {
+      if (target instanceof Array) {
+        for (let i = 0; i < target.length; ++i) {
+          await this.deleteInstanceHelper(target[i]);
+        }
+      } else {
+        await this.deleteInstanceHelper(target);
+      }
+    }
+    return target;
+  }
+
+  private async deleteInstanceHelper(target: Instance) {
+    target.addQuery(PathAttributeName);
+    const queryVals: Object = Object.fromEntries(
+      newInstanceAttributes().set(PathAttributeName, target.attributes.get(PathAttributeName))
+    );
+    await updateRow(
+      asTableName(target.moduleName, target.name),
+      target.queryAttributesAsObject(),
+      queryVals,
+      SqlDbResolver.MarkDeletedObject
+    );
   }
 
   public override async connectInstances(

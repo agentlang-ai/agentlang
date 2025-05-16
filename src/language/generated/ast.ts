@@ -42,6 +42,7 @@ export type AgentlangKeywordNames =
     | "as"
     | "between"
     | "contains"
+    | "delete"
     | "else"
     | "entity"
     | "error"
@@ -212,6 +213,18 @@ export const CrudMap = 'CrudMap';
 
 export function isCrudMap(item: unknown): item is CrudMap {
     return reflection.isInstance(item, CrudMap);
+}
+
+export interface Delete extends langium.AstNode {
+    readonly $container: Pattern;
+    readonly $type: 'Delete';
+    pattern: Pattern;
+}
+
+export const Delete = 'Delete';
+
+export function isDelete(item: unknown): item is Delete {
+    return reflection.isInstance(item, Delete);
 }
 
 export interface Else extends langium.AstNode {
@@ -440,9 +453,10 @@ export function isOrAnd(item: unknown): item is OrAnd {
 }
 
 export interface Pattern extends langium.AstNode {
-    readonly $container: ForEach | RelationshipPattern | Statement;
+    readonly $container: Delete | ForEach | RelationshipPattern | Statement;
     readonly $type: 'Pattern';
     crudMap?: CrudMap;
+    delete?: Delete;
     forEach?: ForEach;
     if?: If;
     literal?: Literal;
@@ -599,6 +613,7 @@ export type AgentlangAstType = {
     ComparisonExpression: ComparisonExpression
     CrudMap: CrudMap
     Def: Def
+    Delete: Delete
     Else: Else
     Entity: Entity
     Event: Event
@@ -636,7 +651,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Else, Entity, Event, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, Record, RelNodeAlias, RelNodes, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Workflow];
+        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Delete, Else, Entity, Event, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, Record, RelNodeAlias, RelNodes, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Workflow];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -730,6 +745,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'name' },
                         { name: 'properties', defaultValue: [] },
                         { name: 'relationships', defaultValue: [] }
+                    ]
+                };
+            }
+            case Delete: {
+                return {
+                    name: Delete,
+                    properties: [
+                        { name: 'pattern' }
                     ]
                 };
             }
@@ -896,6 +919,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Pattern,
                     properties: [
                         { name: 'crudMap' },
+                        { name: 'delete' },
                         { name: 'forEach' },
                         { name: 'if' },
                         { name: 'literal' }

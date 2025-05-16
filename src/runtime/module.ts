@@ -10,6 +10,7 @@ import {
   Node,
 } from '../language/generated/ast.js';
 import { Path, splitFqName, isString, isNumber, isBoolean, isFqName } from './util.js';
+import { DeletedFlagAttributeName } from './resolvers/sqldb/schema.js';
 
 export class ModuleEntry {
   name: string;
@@ -799,6 +800,11 @@ export function newInstanceAttributes(): InstanceAttributes {
   return new Map<string, any>();
 }
 
+export const MarkDeletedAttributes: InstanceAttributes = newInstanceAttributes().set(
+  DeletedFlagAttributeName,
+  true
+);
+
 export class Instance {
   record: RecordEntry;
   name: string;
@@ -821,6 +827,10 @@ export class Instance {
     this.attributes = attributes;
     this.queryAttributes = queryAttributes;
     this.queryAttributeValues = queryAttributeValues;
+  }
+
+  static newWithAttributes(inst: Instance, newAttrs: InstanceAttributes) {
+    return new Instance(inst.record, inst.moduleName, inst.name, newAttrs);
   }
 
   lookup(k: string): any | undefined {
@@ -854,7 +864,7 @@ export class Instance {
     return {};
   }
 
-  addQuery(n: string, op: string) {
+  addQuery(n: string, op: string = '=') {
     if (this.queryAttributes == undefined) this.queryAttributes = newInstanceAttributes();
     this.queryAttributes.set(n, op);
   }

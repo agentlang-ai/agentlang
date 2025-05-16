@@ -6,6 +6,7 @@ import chalk from 'chalk';
 let defaultDataSource: DataSource | undefined;
 
 export const PathAttributeName: string = '__path__';
+export const DeletedFlagAttributeName: string = '__is_deleted__';
 
 export async function initDefaultDatabase() {
   if (defaultDataSource == undefined) {
@@ -45,6 +46,12 @@ async function createTables(): Promise<void> {
         isPrimary: !hasPk,
         isUnique: hasPk,
         isNullable: false,
+      });
+      ts.columns.columns.push({
+        name: DeletedFlagAttributeName,
+        type: 'boolean',
+        isNullable: false,
+        default: false,
       });
       if (hasPk) {
         ts.columns.indices.push({ columnNames: [PathAttributeName] });
@@ -112,32 +119,49 @@ export async function insertRow(tableName: string, row: Object): Promise<void> {
   await insertRows(tableName, rows);
 }
 
-function objectToWhereClause(tableName: string, queryObj: Object): string {
+export async function updateRow(
+  tableName: string,
+  queryObj: Object,
+  queryVals: Object,
+  updateObj: Object
+): Promise<boolean> {
+  if (defaultDataSource != undefined) {
+    await defaultDataSource
+      .createQueryBuilder()
+      .update(tableName)
+      .set(updateObj)
+      .where(objectToWhereClause(queryObj), queryVals)
+      .execute();
+    return true;
+  }
+  return false;
+}
+
+function objectToWhereClause(queryObj: Object, tableName?: string): string {
   const clauses: Array<string> = new Array<string>();
   Object.entries(queryObj).forEach((value: [string, any]) => {
     const op: string = value[1] as string;
-    clauses.push(`${tableName}.${value[0]} ${op} :${value[0]}`);
+    clauses.push(
+      tableName ? `${tableName}.${value[0]} ${op} :${value[0]}` : `${value[0]} ${op} :${value[0]}`
+    );
   });
   return clauses.join(' AND ');
 }
 
-const EmptyResultPromise: Promise<any[]> = new Promise(function (resolve) {
-  resolve(new Array<any[]>());
-});
-
 export async function getMany(
   tableName: string,
   queryObj: Object,
-  queryVals: Object
-): Promise<any[]> {
+  queryVals: Object,
+  callback: Function
+) {
   if (defaultDataSource != undefined) {
-    return defaultDataSource
+    const alias: string = tableName.toLowerCase();
+    await defaultDataSource
       .createQueryBuilder()
       .select()
-      .from(tableName, 'user')
-      .where(objectToWhereClause('user', queryObj), queryVals)
-      .getRawMany();
-  } else {
-    return EmptyResultPromise;
+      .from(tableName, alias)
+      .where(objectToWhereClause(queryObj, alias), queryVals)
+      .getRawMany()
+      .then((result: any) => callback(result));
   }
 }
