@@ -800,6 +800,8 @@ export function newInstanceAttributes(): InstanceAttributes {
   return new Map<string, any>();
 }
 
+const EmptyInstanceAttributes: InstanceAttributes = newInstanceAttributes()
+
 export const MarkDeletedAttributes: InstanceAttributes = newInstanceAttributes().set(
   DeletedFlagAttributeName,
   true
@@ -829,7 +831,13 @@ export class Instance {
     this.queryAttributeValues = queryAttributeValues;
   }
 
-  static newWithAttributes(inst: Instance, newAttrs: InstanceAttributes) {
+  static EmptyInstance(name: string, moduleName: string): Instance {
+    const module: RuntimeModule = fetchModule(moduleName)
+    return new Instance(module.getEntry(name) as RecordEntry, moduleName, name, EmptyInstanceAttributes)
+
+  }
+
+  static newWithAttributes(inst: Instance, newAttrs: InstanceAttributes): Instance {
     return new Instance(inst.record, inst.moduleName, inst.name, newAttrs);
   }
 

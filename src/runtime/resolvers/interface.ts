@@ -12,13 +12,14 @@ export abstract class Resolver {
 
   /**
    * @param {Instance} inst - an Instance with query attributes
+   * @param {boolean} queryAll - if this flag is set, fetch all instances
    */
-  public abstract queryInstances(inst: Instance): any;
+  public abstract queryInstances(inst: Instance, queryAll: boolean): any;
 
   /**
    * Return all instances under the given parent-path.
-   * @param parentPath - path of the parent with the relevant relationship name as the last component
-   * @param inst - child Instance with query attributes
+   * @param {string} parentPath - path of the parent with the relevant relationship name as the last component
+   * @param {Instance} inst - child Instance with query attributes
    */
   public abstract queryChildInstances(parentPath: string, inst: Instance): any;
 

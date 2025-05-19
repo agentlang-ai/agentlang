@@ -150,19 +150,30 @@ function objectToWhereClause(queryObj: object, tableName?: string): string {
 
 export async function getMany(
   tableName: string,
-  queryObj: object,
-  queryVals: object,
+  queryObj: object | undefined,
+  queryVals: object | undefined,
   callback: Function
 ) {
   if (defaultDataSource != undefined) {
     const alias: string = tableName.toLowerCase();
+    const queryStr: string = withNotDeletedClause(queryObj != undefined ? objectToWhereClause(queryObj, alias) : "")
     await defaultDataSource
       .createQueryBuilder()
       .select()
       .from(tableName, alias)
-      .where(objectToWhereClause(queryObj, alias), queryVals)
+      .where(queryStr, queryVals)
       .getRawMany()
       .then((result: any) => callback(result));
+  }
+}
+
+const NotDeletedClause: string = `${DeletedFlagAttributeName} = false`
+
+function withNotDeletedClause(sql: string): string {
+  if (sql == "") {
+    return NotDeletedClause
+  } else {
+    return `${sql} AND ${NotDeletedClause}`
   }
 }
 

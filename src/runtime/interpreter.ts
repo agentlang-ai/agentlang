@@ -221,12 +221,21 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   const attrs: InstanceAttributes = newInstanceAttributes();
   let qattrs: InstanceAttributes | undefined;
   let qattrVals: InstanceAttributes | undefined;
+  let moduleName: string = env.getActiveModuleName();
+  let entryName: string = crud.name;
+  const isQueryAll: boolean = entryName.endsWith('?')
+  if (isQueryAll) {
+    entryName = entryName.slice(0, entryName.length - 1)
+  }
   for (let i = 0; i < crud.attributes.length; ++i) {
     const a: SetAttribute = crud.attributes[i];
     await evaluateExpression(a.value, env);
     const v: Result = env.getLastResult();
     let aname: string = a.name;
     if (aname.endsWith('?')) {
+      if (isQueryAll) {
+        throw new Error(`Cannot specifiy query attribute ${aname} here`)
+      }
       if (qattrs == undefined) qattrs = newInstanceAttributes();
       if (qattrVals == undefined) qattrVals = newInstanceAttributes();
       aname = aname.slice(0, aname.length - 1);
@@ -236,8 +245,6 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       attrs.set(aname, v);
     }
   }
-  let moduleName: string = env.getActiveModuleName();
-  let entryName: string = crud.name;
   if (isFqName(entryName)) {
     const p: Path = splitFqName(entryName);
     if (p.hasModule()) moduleName = p.getModuleName();
@@ -245,7 +252,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   }
   const inst: Instance = makeInstance(moduleName, entryName, attrs, qattrs, qattrVals);
   if (isEntityInstance(inst)) {
-    if (qattrs == undefined) {
+    if (qattrs == undefined && !isQueryAll) {
       const parentPath: string | undefined = env.getParentPath();
       if (parentPath != undefined) inst.attributes.set(PathAttributeName, parentPath);
       await defaultResolver.createInstance(inst).then((inst: Instance) => env.bindLastResult(inst));
@@ -280,7 +287,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           .then((insts: Instance[]) => env.bindLastResult(insts));
       } else {
         await defaultResolver
-          .queryInstances(inst)
+          .queryInstances(inst, isQueryAll)
           .then((insts: Instance[]) => env.bindLastResult(insts));
       }
       if (crud.relationships != undefined) {
@@ -298,7 +305,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             } else if (isBetweenRelationship(rel.name, moduleName)) {
               const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
               newEnv.bindBetweenRelInfo({ relationship: relEntry, connectedInstance: lastRes[j] });
-              await evaluatePattern(rel.pattern, env);
+              await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attributes.set(rel.name, newEnv.getLastResult());
             }
           }

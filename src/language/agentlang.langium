@@ -45,8 +45,10 @@ Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=De
 
 Statement: pattern=Pattern ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*)+ ']'))? throws=Throws?;
 
-CrudMap: '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=Property* '}'
+CrudMap: QueryAllPattern | '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=Property* '}'
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';
+
+QueryAllPattern: '{' name=QueryId '{''}''}';
 
 RelationshipPattern: name=ID pattern=Pattern;
 
