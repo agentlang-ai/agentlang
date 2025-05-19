@@ -18,7 +18,7 @@ import {
   updateRow,
   getAllConnected,
   DeletedFlagAttributeName,
-} from './schema.js';
+} from './database.js';
 
 function addDefaultIdAttribute(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
@@ -36,6 +36,7 @@ function addDefaultIdAttribute(inst: Instance): string | undefined {
 }
 
 export class SqlDbResolver extends Resolver {
+
   public override async createInstance(inst: Instance): Promise<Instance> {
     const idAttrName: string | undefined = addDefaultIdAttribute(inst);
     const attrs: InstanceAttributes = inst.attributes;
@@ -58,10 +59,12 @@ export class SqlDbResolver extends Resolver {
     return inst;
   }
 
-  public override async updateInstance(inst: Instance): Promise<Instance[]> {
-    const result: Array<Instance> = new Array<Instance>();
-    result.push(inst);
-    return result;
+  public override async updateInstance(inst: Instance, newAttrs: InstanceAttributes): Promise<Instance> {
+    const queryObj: object = Object.fromEntries(new Map<string, any>().set(PathAttributeName, '='))
+    const queryVals: object = Object.fromEntries(new Map<string, any>().set(PathAttributeName, inst.attributes.get(PathAttributeName)))
+    const updateObj: object = Object.fromEntries(newAttrs)
+    await updateRow(asTableName(inst.moduleName, inst.name), queryObj, queryVals, updateObj);
+    return inst.mergeAttributes(newAttrs)
   }
 
   static EmptyResultSet: Array<Instance> = new Array<Instance>();

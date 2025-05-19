@@ -57,6 +57,7 @@ function normalizedResult(r: Result): Result {
       return normalizedResult(x);
     });
   } else if (r instanceof Instance) {
+    r.mergeRelatedInstances()
     r.attributes.keys().forEach((k: string) => {
       const v: any = r.attributes.get(k);
       if (r instanceof Array || r instanceof Instance) {

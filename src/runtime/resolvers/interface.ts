@@ -1,4 +1,4 @@
-import { Instance, RelationshipEntry } from '../module.js';
+import { Instance, InstanceAttributes, RelationshipEntry } from '../module.js';
 
 export abstract class Resolver {
   public abstract createInstance(inst: Instance): any;
@@ -8,7 +8,7 @@ export abstract class Resolver {
   /**
    * @param {Instance} inst - an Instance with query and update attributes
    */
-  public abstract updateInstance(inst: Instance): any;
+  public abstract updateInstance(inst: Instance, newAttrs: InstanceAttributes): any;
 
   /**
    * @param {Instance} inst - an Instance with query attributes

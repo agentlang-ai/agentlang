@@ -10,7 +10,7 @@ import {
   Node,
 } from '../language/generated/ast.js';
 import { Path, splitFqName, isString, isNumber, isBoolean, isFqName } from './util.js';
-import { DeletedFlagAttributeName } from './resolvers/sqldb/schema.js';
+import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 
 export class ModuleEntry {
   name: string;
@@ -251,7 +251,7 @@ export class RelationshipEntry extends RecordEntry {
       type: 'string',
       properties: this.makeUniqueProp(
         this.properties != undefined &&
-          (this.properties.get('one_one') == true || this.properties.get('one_many') == true)
+        (this.properties.get('one_one') == true || this.properties.get('one_many') == true)
       ),
     };
     this.schema.set(this.node1.alias, attrSpec1);
@@ -814,6 +814,7 @@ export class Instance {
   attributes: InstanceAttributes;
   queryAttributes: InstanceAttributes | undefined;
   queryAttributeValues: InstanceAttributes | undefined;
+  relatedInstances: Map<string, Instance[]> | undefined;
 
   constructor(
     record: RecordEntry,
@@ -886,10 +887,20 @@ export class Instance {
     }
   }
 
-  appendRelatedInstances(relName: string, insts: Instance | Instance[]) {
-    let relInsts: Instance[] | undefined = this.attributes.get(relName);
+  mergeAttributes(newAttrs: InstanceAttributes): Instance {
+    newAttrs.forEach((v: any, k: string) => {
+      this.attributes.set(k, v)
+    })
+    return this
+  }
+
+  attachRelatedInstances(relName: string, insts: Instance | Instance[]) {
+    if (this.relatedInstances == undefined) {
+      this.relatedInstances = new Map<string, Array<Instance>>();
+    }
+    let relInsts: Array<Instance> | undefined = this.relatedInstances.get(relName)
     if (relInsts == undefined) {
-      relInsts = new Array<Instance>();
+      relInsts = new Array<Instance>()
     }
     if (insts instanceof Instance) {
       relInsts.push(insts);
@@ -898,7 +909,22 @@ export class Instance {
         relInsts.push(inst);
       });
     }
-    this.attributes.set(relName, insts);
+    this.relatedInstances.set(relName, relInsts)
+    this.attributes.set('->', this.relatedInstances);
+  }
+
+  detachAllRelatedInstance() {
+    if (this.relatedInstances != undefined)
+      this.relatedInstances?.clear()
+  }
+
+  mergeRelatedInstances() {
+    if (this.relatedInstances != undefined) {
+      this.relatedInstances.forEach((v: Instance[], k: string) => {
+        this.attributes.set(k, v)
+      })
+      this.detachAllRelatedInstance()
+    }
   }
 }
 
