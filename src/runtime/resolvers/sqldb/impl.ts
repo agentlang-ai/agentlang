@@ -42,7 +42,7 @@ export class SqlDbResolver extends Resolver {
       attrs.set(PathAttributeName, p);
     }
     const n: string = asTableName(inst.moduleName, inst.name);
-    const rowObj: Object = inst.attributesAsObject();
+    const rowObj: object = inst.attributesAsObject();
     await insertRow(n, rowObj);
     return inst;
   }
@@ -68,7 +68,7 @@ export class SqlDbResolver extends Resolver {
       (rslt: any) => {
         if (rslt instanceof Array) {
           result = new Array<Instance>();
-          rslt.forEach((r: Object) => {
+          rslt.forEach((r: object) => {
             result.push(Instance.newWithAttributes(inst, new Map(Object.entries(r))));
           });
         }
@@ -77,7 +77,7 @@ export class SqlDbResolver extends Resolver {
     return result;
   }
 
-  static MarkDeletedObject: Object = Object.fromEntries(MarkDeletedAttributes);
+  static MarkDeletedObject: object = Object.fromEntries(MarkDeletedAttributes);
 
   public override async deleteInstance(
     target: Instance | Instance[]
@@ -137,7 +137,7 @@ export class SqlDbResolver extends Resolver {
 
   private async deleteInstanceHelper(target: Instance) {
     target.addQuery(PathAttributeName);
-    const queryVals: Object = Object.fromEntries(
+    const queryVals: object = Object.fromEntries(
       newInstanceAttributes().set(PathAttributeName, target.attributes.get(PathAttributeName))
     );
     await updateRow(

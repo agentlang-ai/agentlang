@@ -837,27 +837,27 @@ export class Instance {
     return this.attributes.get(k);
   }
 
-  asObject(): Object {
-    const result: Map<string, Object> = new Map<string, Object>();
+  asObject(): object {
+    const result: Map<string, object> = new Map<string, object>();
     result.set(this.name, Object.fromEntries(this.attributes));
     return Object.fromEntries(result);
   }
 
-  attributesAsObject(stringifyObjects: boolean = true): Object {
+  attributesAsObject(stringifyObjects: boolean = true): object {
     if (stringifyObjects) {
       return attributesAsColumns(this.attributes, this.record.schema);
     }
     return Object.fromEntries(this.attributes);
   }
 
-  queryAttributesAsObject(): Object {
+  queryAttributesAsObject(): object {
     if (this.queryAttributes != undefined) {
       return Object.fromEntries(this.queryAttributes);
     }
     return {};
   }
 
-  queryAttributeValuesAsObject(): Object {
+  queryAttributeValuesAsObject(): object {
     if (this.queryAttributeValues != undefined) {
       return Object.fromEntries(this.queryAttributeValues);
     }
@@ -875,7 +875,7 @@ export class Instance {
   }
 }
 
-export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSchema): Object {
+export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSchema): object {
   if (schema != undefined) {
     const objAttrNames: Array<string> | undefined = objectAttributes(schema);
     if (objAttrNames != undefined) {
@@ -890,7 +890,7 @@ export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSc
   return Object.fromEntries(attrs);
 }
 
-export function objectAsInstanceAttributes(obj: Object): InstanceAttributes {
+export function objectAsInstanceAttributes(obj: object): InstanceAttributes {
   const attrs: InstanceAttributes = newInstanceAttributes();
   Object.entries(obj).forEach((v: [string, any]) => {
     attrs.set(v[0], v[1]);
