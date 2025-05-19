@@ -316,19 +316,19 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         }
       }
       if (attrs.size > 0) {
-        const lastRes: Instance[] = env.getLastResult()
+        const lastRes: Instance[] = env.getLastResult();
         if (lastRes instanceof Array) {
-          const res: Array<Instance> = new Array<Instance>()
+          const res: Array<Instance> = new Array<Instance>();
           for (let i = 0; i < lastRes.length; ++i) {
             await defaultResolver.updateInstance(lastRes[i], attrs).then((finalInst: Instance) => {
-              res.push(finalInst)
-            })
+              res.push(finalInst);
+            });
           }
-          env.bindLastResult(res)
+          env.bindLastResult(res);
         } else {
           await defaultResolver.updateInstance(lastRes, attrs).then((finalInst: Instance) => {
-            env.bindLastResult(finalInst)
-          })
+            env.bindLastResult(finalInst);
+          });
         }
       }
     }
