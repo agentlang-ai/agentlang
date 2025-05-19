@@ -104,7 +104,8 @@ export class LightningFileSystem implements ExtendedFileSystem {
     try {
       await this.fs.stat(filePath);
       return true;
-    } catch (err) {
+    } catch {
+      // Just catch any error without binding it to a variable
       return false;
     }
   }
