@@ -150,17 +150,71 @@ function objectToWhereClause(queryObj: object, tableName?: string): string {
 
 export async function getMany(
   tableName: string,
-  queryObj: object,
-  queryVals: object,
+  queryObj: object | undefined,
+  queryVals: object | undefined,
   callback: Function
 ) {
   if (defaultDataSource != undefined) {
     const alias: string = tableName.toLowerCase();
+    const queryStr: string = withNotDeletedClause(
+      queryObj != undefined ? objectToWhereClause(queryObj, alias) : ''
+    );
+    await defaultDataSource
+      .createQueryBuilder()
+      .select()
+      .from(tableName, alias)
+      .where(queryStr, queryVals)
+      .getRawMany()
+      .then((result: any) => callback(result));
+  }
+}
+
+const NotDeletedClause: string = `${DeletedFlagAttributeName} = false`;
+
+function withNotDeletedClause(sql: string): string {
+  if (sql == '') {
+    return NotDeletedClause;
+  } else {
+    return `${sql} AND ${NotDeletedClause}`;
+  }
+}
+
+export type BetweenConnectionInfo = {
+  connectionTable: string;
+  fromColumn: string;
+  fromValue: string;
+  toColumn: string;
+  toRef: string;
+};
+
+function buildQueryFromConnnectionInfo(
+  connAlias: string,
+  mainAlias: string,
+  connInfo: BetweenConnectionInfo
+): string {
+  return `${connAlias}.${connInfo.fromColumn} = ${connInfo.fromValue} AND ${connAlias}.${connInfo.toColumn} = ${mainAlias}.${connInfo.toRef}`;
+}
+
+export async function getAllConnected(
+  tableName: string,
+  queryObj: object,
+  queryVals: object,
+  connInfo: BetweenConnectionInfo,
+  callback: Function
+) {
+  if (defaultDataSource != undefined) {
+    const alias: string = tableName.toLowerCase();
+    const connAlias: string = connInfo.connectionTable.toLowerCase();
     await defaultDataSource
       .createQueryBuilder()
       .select()
       .from(tableName, alias)
       .where(objectToWhereClause(queryObj, alias), queryVals)
+      .innerJoin(
+        connInfo.connectionTable,
+        connAlias,
+        buildQueryFromConnnectionInfo(connAlias, alias, connInfo)
+      )
       .getRawMany()
       .then((result: any) => callback(result));
   }

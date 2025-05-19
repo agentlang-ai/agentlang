@@ -11,7 +11,14 @@ import {
 import { escapeFqName } from '../../util.js';
 import { Resolver } from '../interface.js';
 import { asTableName } from './dbutil.js';
-import { getMany, insertRow, PathAttributeName, updateRow } from './schema.js';
+import {
+  getMany,
+  insertRow,
+  PathAttributeName,
+  updateRow,
+  getAllConnected,
+  DeletedFlagAttributeName,
+} from './database.js';
 
 function addDefaultIdAttribute(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
@@ -51,23 +58,37 @@ export class SqlDbResolver extends Resolver {
     return inst;
   }
 
-  public override async updateInstance(inst: Instance): Promise<Instance> {
-    return inst;
+  public override async updateInstance(
+    inst: Instance,
+    newAttrs: InstanceAttributes
+  ): Promise<Instance> {
+    const queryObj: object = Object.fromEntries(new Map<string, any>().set(PathAttributeName, '='));
+    const queryVals: object = Object.fromEntries(
+      new Map<string, any>().set(PathAttributeName, inst.attributes.get(PathAttributeName))
+    );
+    const updateObj: object = Object.fromEntries(newAttrs);
+    await updateRow(asTableName(inst.moduleName, inst.name), queryObj, queryVals, updateObj);
+    return inst.mergeAttributes(newAttrs);
   }
 
   static EmptyResultSet: Array<Instance> = new Array<Instance>();
 
-  public override async queryInstances(inst: Instance): Promise<Instance[]> {
+  public override async queryInstances(
+    inst: Instance,
+    queryAll: boolean = false
+  ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
     await getMany(
       asTableName(inst.moduleName, inst.name),
-      inst.queryAttributesAsObject(),
-      inst.queryAttributeValuesAsObject(),
+      queryAll ? undefined : inst.queryAttributesAsObject(),
+      queryAll ? undefined : inst.queryAttributeValuesAsObject(),
       (rslt: any) => {
         if (rslt instanceof Array) {
           result = new Array<Instance>();
           rslt.forEach((r: object) => {
-            result.push(Instance.newWithAttributes(inst, new Map(Object.entries(r))));
+            const attrs: InstanceAttributes = new Map(Object.entries(r));
+            attrs.delete(DeletedFlagAttributeName);
+            result.push(Instance.newWithAttributes(inst, attrs));
           });
         }
       }
@@ -78,8 +99,8 @@ export class SqlDbResolver extends Resolver {
   static MarkDeletedObject: object = Object.fromEntries(MarkDeletedAttributes);
 
   public override async deleteInstance(
-    target: Instance | Instance[] | null
-  ): Promise<Instance | Instance[] | null> {
+    target: Instance | Instance[]
+  ): Promise<Instance[] | Instance> {
     if (target != null) {
       if (target instanceof Array) {
         for (let i = 0; i < target.length; ++i) {
@@ -90,6 +111,53 @@ export class SqlDbResolver extends Resolver {
       }
     }
     return target;
+  }
+
+  public override async queryChildInstances(
+    parentPath: string,
+    inst: Instance
+  ): Promise<Instance[]> {
+    inst.addQuery(PathAttributeName, 'like', parentPath + '%');
+    let result = SqlDbResolver.EmptyResultSet;
+    await this.queryInstances(inst).then((rs: Instance[]) => {
+      result = rs;
+    });
+    return result;
+  }
+
+  public override async queryConnectedInstances(
+    relationship: RelationshipEntry,
+    connectedInstance: Instance,
+    inst: Instance
+  ): Promise<Instance[]> {
+    let result = SqlDbResolver.EmptyResultSet;
+    await getAllConnected(
+      asTableName(inst.moduleName, inst.name),
+      inst.queryAttributesAsObject(),
+      inst.queryAttributeValuesAsObject(),
+      {
+        connectionTable: asTableName(inst.moduleName, relationship.name),
+        fromColumn: relationship.node1.alias,
+        fromValue: `'${connectedInstance.attributes.get(PathAttributeName)}'`,
+        toColumn: relationship.node2.alias,
+        toRef: PathAttributeName,
+      },
+      (rslt: any) => {
+        if (rslt instanceof Array) {
+          result = new Array<Instance>();
+          const connInst: Instance = Instance.EmptyInstance(
+            relationship.node2.entryName,
+            relationship.node2.moduleName
+          );
+          rslt.forEach((r: object) => {
+            const attrs: InstanceAttributes = new Map(Object.entries(r));
+            attrs.delete(DeletedFlagAttributeName);
+            result.push(Instance.newWithAttributes(connInst, attrs));
+          });
+        }
+      }
+    );
+    return result;
   }
 
   private async deleteInstanceHelper(target: Instance) {

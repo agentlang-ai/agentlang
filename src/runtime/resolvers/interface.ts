@@ -1,4 +1,4 @@
-import { Instance, RelationshipEntry } from '../module.js';
+import { Instance, InstanceAttributes, RelationshipEntry } from '../module.js';
 
 export abstract class Resolver {
   public abstract createInstance(inst: Instance): any;
@@ -8,17 +8,37 @@ export abstract class Resolver {
   /**
    * @param {Instance} inst - an Instance with query and update attributes
    */
-  public abstract updateInstance(inst: Instance): any;
+  public abstract updateInstance(inst: Instance, newAttrs: InstanceAttributes): any;
+
+  /**
+   * @param {Instance} inst - an Instance with query attributes
+   * @param {boolean} queryAll - if this flag is set, fetch all instances
+   */
+  public abstract queryInstances(inst: Instance, queryAll: boolean): any;
+
+  /**
+   * Return all instances under the given parent-path.
+   * @param {string} parentPath - path of the parent with the relevant relationship name as the last component
+   * @param {Instance} inst - child Instance with query attributes
+   */
+  public abstract queryChildInstances(parentPath: string, inst: Instance): any;
+
+  /**
+   * Return all instances connected to connectedInstance via the given between-relationship
+   * @param relationship Between relationship
+   * @param connectedInstance The instance to traveres the relationship from
+   * @param inst Target instance with query attributes
+   */
+  public abstract queryConnectedInstances(
+    relationship: RelationshipEntry,
+    connectedInstance: Instance,
+    inst: Instance
+  ): any;
 
   /**
    * @param {Instance} inst - an Instance with query attributes
    */
-  public abstract queryInstances(inst: Instance): any;
-
-  /**
-   * @param {Instance} inst - an Instance with query attributes
-   */
-  public abstract deleteInstance(inst: Instance): any;
+  public abstract deleteInstance(inst: Instance | Instance[]): any;
 
   /**
    * Connect instances via a between relationship

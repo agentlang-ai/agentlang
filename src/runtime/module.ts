@@ -10,7 +10,7 @@ import {
   Node,
 } from '../language/generated/ast.js';
 import { Path, splitFqName, isString, isNumber, isBoolean, isFqName } from './util.js';
-import { DeletedFlagAttributeName } from './resolvers/sqldb/schema.js';
+import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 
 export class ModuleEntry {
   name: string;
@@ -800,6 +800,8 @@ export function newInstanceAttributes(): InstanceAttributes {
   return new Map<string, any>();
 }
 
+const EmptyInstanceAttributes: InstanceAttributes = newInstanceAttributes();
+
 export const MarkDeletedAttributes: InstanceAttributes = newInstanceAttributes().set(
   DeletedFlagAttributeName,
   true
@@ -812,6 +814,7 @@ export class Instance {
   attributes: InstanceAttributes;
   queryAttributes: InstanceAttributes | undefined;
   queryAttributeValues: InstanceAttributes | undefined;
+  relatedInstances: Map<string, Instance[]> | undefined;
 
   constructor(
     record: RecordEntry,
@@ -829,7 +832,17 @@ export class Instance {
     this.queryAttributeValues = queryAttributeValues;
   }
 
-  static newWithAttributes(inst: Instance, newAttrs: InstanceAttributes) {
+  static EmptyInstance(name: string, moduleName: string): Instance {
+    const module: RuntimeModule = fetchModule(moduleName);
+    return new Instance(
+      module.getEntry(name) as RecordEntry,
+      moduleName,
+      name,
+      EmptyInstanceAttributes
+    );
+  }
+
+  static newWithAttributes(inst: Instance, newAttrs: InstanceAttributes): Instance {
     return new Instance(inst.record, inst.moduleName, inst.name, newAttrs);
   }
 
@@ -864,9 +877,53 @@ export class Instance {
     return {};
   }
 
-  addQuery(n: string, op: string = '=') {
+  addQuery(attrName: string, op: string = '=', attrVal: any = undefined) {
     if (this.queryAttributes == undefined) this.queryAttributes = newInstanceAttributes();
-    this.queryAttributes.set(n, op);
+    this.queryAttributes.set(attrName, op);
+    if (attrVal != undefined) {
+      if (this.queryAttributeValues == undefined)
+        this.queryAttributeValues = newInstanceAttributes();
+      this.queryAttributeValues.set(attrName, attrVal);
+    }
+  }
+
+  mergeAttributes(newAttrs: InstanceAttributes): Instance {
+    newAttrs.forEach((v: any, k: string) => {
+      this.attributes.set(k, v);
+    });
+    return this;
+  }
+
+  attachRelatedInstances(relName: string, insts: Instance | Instance[]) {
+    if (this.relatedInstances == undefined) {
+      this.relatedInstances = new Map<string, Array<Instance>>();
+    }
+    let relInsts: Array<Instance> | undefined = this.relatedInstances.get(relName);
+    if (relInsts == undefined) {
+      relInsts = new Array<Instance>();
+    }
+    if (insts instanceof Instance) {
+      relInsts.push(insts);
+    } else {
+      insts.forEach((inst: Instance) => {
+        relInsts.push(inst);
+      });
+    }
+    this.relatedInstances.set(relName, relInsts);
+    this.attributes.set('->', this.relatedInstances);
+  }
+
+  detachAllRelatedInstance() {
+    if (this.relatedInstances != undefined) this.relatedInstances?.clear();
+  }
+
+  mergeRelatedInstances() {
+    if (this.relatedInstances != undefined) {
+      this.relatedInstances.forEach((v: Instance[], k: string) => {
+        this.attributes.set(k, v);
+      });
+      this.detachAllRelatedInstance();
+    }
   }
 }
 

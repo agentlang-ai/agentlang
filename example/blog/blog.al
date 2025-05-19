@@ -47,8 +47,27 @@ workflow FindUsersByName {
 }
 
 workflow CreateUserWithPosts {
-    {User {name "Sam"},
-     UserPost [{Post {title "Getting started in NodeJS"}},
-                 {Post {title "Clojure Tutorial"}}],
-     UserProfile {Profile {email "sam@blog.com"}}}
+    {User {name CreateUserWithPosts.name},
+     UserPost [{Post {title CreateUserWithPosts.post1}},
+                 {Post {title CreateUserWithPosts.post2}}],
+     UserProfile {Profile {email CreateUserWithPosts.email}}}
+}
+
+workflow AddPost {
+    {User {id? AddPost.userId},
+     UserPost {Post {title AddPost.title}}}
+}
+
+workflow GetUserPosts {
+    {User {id? GetUserPosts.userId},
+     UserPost {Post? {}}}
+}
+
+workflow FindUserProfile {
+    {User {id? FindUserProfile.userId},
+     UserProfile {Profile? {}}}
+}
+
+workflow UpdateUserName {
+    {User {id? UpdateUserName.userId, name UpdateUserName.newName}}
 }
