@@ -16,9 +16,24 @@ export abstract class Resolver {
   public abstract queryInstances(inst: Instance): any;
 
   /**
+   * Return all instances under the given parent-path.
+   * @param parentPath - path of the parent with the relevant relationship name as the last component
+   * @param inst - child Instance with query attributes
+   */
+  public abstract queryChildInstances(parentPath: string, inst: Instance): any
+
+  /**
+   * Return all instances connected to connectedInstance via the given between-relationship
+   * @param relationship Between relationship
+   * @param connectedInstance The instance to traveres the relationship from
+   * @param inst Target instance with query attributes
+   */
+  public abstract queryConnectedInstances(relationship: RelationshipEntry, connectedInstance: Instance, inst: Instance): any
+
+  /**
    * @param {Instance} inst - an Instance with query attributes
    */
-  public abstract deleteInstance(inst: Instance): any;
+  public abstract deleteInstance(inst: Instance | Instance[]): any;
 
   /**
    * Connect instances via a between relationship

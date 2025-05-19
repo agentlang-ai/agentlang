@@ -52,3 +52,8 @@ workflow CreateUserWithPosts {
                  {Post {title "Clojure Tutorial"}}],
      UserProfile {Profile {email "sam@blog.com"}}}
 }
+
+workflow FindUserProfile {
+    {User {id? FindUserProfile.userId},
+     UserProfile {Profile? {}}}
+}
