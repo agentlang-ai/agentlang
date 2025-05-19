@@ -881,6 +881,21 @@ export class Instance {
       this.queryAttributeValues.set(attrName, attrVal);
     }
   }
+
+  appendRelatedInstances(relName: string, insts: Instance | Instance[]) {
+    let relInsts: Instance[] | undefined = this.attributes.get(relName)
+    if (relInsts == undefined) {
+      relInsts = new Array<Instance>()
+    }
+    if (insts instanceof Instance) {
+      relInsts.push(insts)
+    } else {
+      insts.forEach((inst: Instance) => {
+        relInsts.push(inst)
+      })
+    }
+    this.attributes.set(relName, insts)
+  }
 }
 
 export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSchema): object {

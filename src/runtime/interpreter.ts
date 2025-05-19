@@ -259,18 +259,22 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       if (crud.relationships != undefined) {
         for (let i = 0; i < crud.relationships.length; ++i) {
           const rel: RelationshipPattern = crud.relationships[i];
+          const newEnv: Environment = new Environment('relenv.' + rel.name, env);
           if (isContainsRelationship(rel.name, moduleName)) {
-            const newEnv: Environment = new Environment('relenv', env);
             newEnv.bindParentPath(
               `${inst.attributes.get(PathAttributeName)}/${escapeFqName(rel.name)}`
             );
             await evaluatePattern(rel.pattern, newEnv);
+            const lastInst: Instance = env.getLastResult()
+            lastInst.appendRelatedInstances(rel.name, newEnv.getLastResult())
           } else if (isBetweenRelationship(rel.name, moduleName)) {
             const lastRes: any = env.getLastResult();
             const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
-            await evaluatePattern(rel.pattern, env);
-            const relResult: any = env.getLastResult();
+            await evaluatePattern(rel.pattern, newEnv);
+            const relResult: any = newEnv.getLastResult();
             await defaultResolver.connectInstances(lastRes, relResult, relEntry);
+            const lastInst: Instance = env.getLastResult()
+            lastInst.appendRelatedInstances(rel.name, newEnv.getLastResult())
           }
         }
       }
@@ -301,12 +305,12 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
                 lastRes[j].attributes.get(PathAttributeName) + '/' + rel.name + '/'
               );
               await evaluatePattern(rel.pattern, newEnv);
-              lastRes[j].attributes.set(rel.name, newEnv.getLastResult());
+              lastRes[j].appendRelatedInstances(rel.name, newEnv.getLastResult())
             } else if (isBetweenRelationship(rel.name, moduleName)) {
               const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
               newEnv.bindBetweenRelInfo({ relationship: relEntry, connectedInstance: lastRes[j] });
               await evaluatePattern(rel.pattern, newEnv);
-              lastRes[j].attributes.set(rel.name, newEnv.getLastResult());
+              lastRes[j].appendRelatedInstances(rel.name, newEnv.getLastResult())
             }
           }
         }

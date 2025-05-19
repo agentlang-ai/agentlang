@@ -43,6 +43,7 @@ function handleEventPost(moduleName: string, eventName: string, req: Request, re
   const inst: Instance = makeInstance(moduleName, eventName, objectAsInstanceAttributes(req.body));
   evaluate(inst, (value: Result) => {
     const result: Result = normalizedResult(value);
+    res.contentType("application/json")
     res.send(JSON.stringify(result));
   }).catch((reason: any) => {
     logger.error(reason);
