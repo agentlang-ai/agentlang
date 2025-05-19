@@ -223,9 +223,9 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   let qattrVals: InstanceAttributes | undefined;
   let moduleName: string = env.getActiveModuleName();
   let entryName: string = crud.name;
-  const isQueryAll: boolean = entryName.endsWith('?')
+  const isQueryAll: boolean = entryName.endsWith('?');
   if (isQueryAll) {
-    entryName = entryName.slice(0, entryName.length - 1)
+    entryName = entryName.slice(0, entryName.length - 1);
   }
   for (let i = 0; i < crud.attributes.length; ++i) {
     const a: SetAttribute = crud.attributes[i];
@@ -234,7 +234,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     let aname: string = a.name;
     if (aname.endsWith('?')) {
       if (isQueryAll) {
-        throw new Error(`Cannot specifiy query attribute ${aname} here`)
+        throw new Error(`Cannot specifiy query attribute ${aname} here`);
       }
       if (qattrs == undefined) qattrs = newInstanceAttributes();
       if (qattrVals == undefined) qattrVals = newInstanceAttributes();
@@ -265,16 +265,16 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
               `${inst.attributes.get(PathAttributeName)}/${escapeFqName(rel.name)}`
             );
             await evaluatePattern(rel.pattern, newEnv);
-            const lastInst: Instance = env.getLastResult()
-            lastInst.appendRelatedInstances(rel.name, newEnv.getLastResult())
+            const lastInst: Instance = env.getLastResult();
+            lastInst.appendRelatedInstances(rel.name, newEnv.getLastResult());
           } else if (isBetweenRelationship(rel.name, moduleName)) {
             const lastRes: any = env.getLastResult();
             const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
             await evaluatePattern(rel.pattern, newEnv);
             const relResult: any = newEnv.getLastResult();
             await defaultResolver.connectInstances(lastRes, relResult, relEntry);
-            const lastInst: Instance = env.getLastResult()
-            lastInst.appendRelatedInstances(rel.name, newEnv.getLastResult())
+            const lastInst: Instance = env.getLastResult();
+            lastInst.appendRelatedInstances(rel.name, newEnv.getLastResult());
           }
         }
       }
@@ -305,12 +305,12 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
                 lastRes[j].attributes.get(PathAttributeName) + '/' + rel.name + '/'
               );
               await evaluatePattern(rel.pattern, newEnv);
-              lastRes[j].appendRelatedInstances(rel.name, newEnv.getLastResult())
+              lastRes[j].appendRelatedInstances(rel.name, newEnv.getLastResult());
             } else if (isBetweenRelationship(rel.name, moduleName)) {
               const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
               newEnv.bindBetweenRelInfo({ relationship: relEntry, connectedInstance: lastRes[j] });
               await evaluatePattern(rel.pattern, newEnv);
-              lastRes[j].appendRelatedInstances(rel.name, newEnv.getLastResult())
+              lastRes[j].appendRelatedInstances(rel.name, newEnv.getLastResult());
             }
           }
         }

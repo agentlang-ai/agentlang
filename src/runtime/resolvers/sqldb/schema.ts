@@ -156,7 +156,9 @@ export async function getMany(
 ) {
   if (defaultDataSource != undefined) {
     const alias: string = tableName.toLowerCase();
-    const queryStr: string = withNotDeletedClause(queryObj != undefined ? objectToWhereClause(queryObj, alias) : "")
+    const queryStr: string = withNotDeletedClause(
+      queryObj != undefined ? objectToWhereClause(queryObj, alias) : ''
+    );
     await defaultDataSource
       .createQueryBuilder()
       .select()
@@ -167,13 +169,13 @@ export async function getMany(
   }
 }
 
-const NotDeletedClause: string = `${DeletedFlagAttributeName} = false`
+const NotDeletedClause: string = `${DeletedFlagAttributeName} = false`;
 
 function withNotDeletedClause(sql: string): string {
-  if (sql == "") {
-    return NotDeletedClause
+  if (sql == '') {
+    return NotDeletedClause;
   } else {
-    return `${sql} AND ${NotDeletedClause}`
+    return `${sql} AND ${NotDeletedClause}`;
   }
 }
 
@@ -195,8 +197,8 @@ function buildQueryFromConnnectionInfo(
 
 export async function getAllConnected(
   tableName: string,
-  queryObj: Object,
-  queryVals: Object,
+  queryObj: object,
+  queryVals: object,
   connInfo: BetweenConnectionInfo,
   callback: Function
 ) {

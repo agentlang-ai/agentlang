@@ -11,7 +11,14 @@ import {
 import { escapeFqName } from '../../util.js';
 import { Resolver } from '../interface.js';
 import { asTableName } from './dbutil.js';
-import { getMany, insertRow, PathAttributeName, updateRow, getAllConnected, DeletedFlagAttributeName } from './schema.js';
+import {
+  getMany,
+  insertRow,
+  PathAttributeName,
+  updateRow,
+  getAllConnected,
+  DeletedFlagAttributeName,
+} from './schema.js';
 
 function addDefaultIdAttribute(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
@@ -59,7 +66,10 @@ export class SqlDbResolver extends Resolver {
 
   static EmptyResultSet: Array<Instance> = new Array<Instance>();
 
-  public override async queryInstances(inst: Instance, queryAll: boolean = false): Promise<Instance[]> {
+  public override async queryInstances(
+    inst: Instance,
+    queryAll: boolean = false
+  ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
     await getMany(
       asTableName(inst.moduleName, inst.name),
@@ -69,8 +79,8 @@ export class SqlDbResolver extends Resolver {
         if (rslt instanceof Array) {
           result = new Array<Instance>();
           rslt.forEach((r: object) => {
-            const attrs: InstanceAttributes = new Map(Object.entries(r))
-            attrs.delete(DeletedFlagAttributeName)
+            const attrs: InstanceAttributes = new Map(Object.entries(r));
+            attrs.delete(DeletedFlagAttributeName);
             result.push(Instance.newWithAttributes(inst, attrs));
           });
         }
@@ -128,11 +138,14 @@ export class SqlDbResolver extends Resolver {
       (rslt: any) => {
         if (rslt instanceof Array) {
           result = new Array<Instance>();
-          const connInst: Instance = Instance.EmptyInstance(relationship.node2.entryName, relationship.node2.moduleName)
-          rslt.forEach((r: Object) => {
-            const attrs: InstanceAttributes = new Map(Object.entries(r))
-            attrs.delete(DeletedFlagAttributeName)
-            result.push(Instance.newWithAttributes(connInst, attrs))
+          const connInst: Instance = Instance.EmptyInstance(
+            relationship.node2.entryName,
+            relationship.node2.moduleName
+          );
+          rslt.forEach((r: object) => {
+            const attrs: InstanceAttributes = new Map(Object.entries(r));
+            attrs.delete(DeletedFlagAttributeName);
+            result.push(Instance.newWithAttributes(connInst, attrs));
           });
         }
       }

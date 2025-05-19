@@ -800,7 +800,7 @@ export function newInstanceAttributes(): InstanceAttributes {
   return new Map<string, any>();
 }
 
-const EmptyInstanceAttributes: InstanceAttributes = newInstanceAttributes()
+const EmptyInstanceAttributes: InstanceAttributes = newInstanceAttributes();
 
 export const MarkDeletedAttributes: InstanceAttributes = newInstanceAttributes().set(
   DeletedFlagAttributeName,
@@ -832,9 +832,13 @@ export class Instance {
   }
 
   static EmptyInstance(name: string, moduleName: string): Instance {
-    const module: RuntimeModule = fetchModule(moduleName)
-    return new Instance(module.getEntry(name) as RecordEntry, moduleName, name, EmptyInstanceAttributes)
-
+    const module: RuntimeModule = fetchModule(moduleName);
+    return new Instance(
+      module.getEntry(name) as RecordEntry,
+      moduleName,
+      name,
+      EmptyInstanceAttributes
+    );
   }
 
   static newWithAttributes(inst: Instance, newAttrs: InstanceAttributes): Instance {
@@ -883,18 +887,18 @@ export class Instance {
   }
 
   appendRelatedInstances(relName: string, insts: Instance | Instance[]) {
-    let relInsts: Instance[] | undefined = this.attributes.get(relName)
+    let relInsts: Instance[] | undefined = this.attributes.get(relName);
     if (relInsts == undefined) {
-      relInsts = new Array<Instance>()
+      relInsts = new Array<Instance>();
     }
     if (insts instanceof Instance) {
-      relInsts.push(insts)
+      relInsts.push(insts);
     } else {
       insts.forEach((inst: Instance) => {
-        relInsts.push(inst)
-      })
+        relInsts.push(inst);
+      });
     }
-    this.attributes.set(relName, insts)
+    this.attributes.set(relName, insts);
   }
 }
 

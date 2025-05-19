@@ -43,7 +43,7 @@ function handleEventPost(moduleName: string, eventName: string, req: Request, re
   const inst: Instance = makeInstance(moduleName, eventName, objectAsInstanceAttributes(req.body));
   evaluate(inst, (value: Result) => {
     const result: Result = normalizedResult(value);
-    res.contentType("application/json")
+    res.contentType('application/json');
     res.send(JSON.stringify(result));
   }).catch((reason: any) => {
     logger.error(reason);
@@ -58,11 +58,11 @@ function normalizedResult(r: Result): Result {
     });
   } else if (r instanceof Instance) {
     r.attributes.keys().forEach((k: string) => {
-      const v: any = r.attributes.get(k)
+      const v: any = r.attributes.get(k);
       if (r instanceof Array || r instanceof Instance) {
-        r.attributes.set(k, normalizedResult(v))
+        r.attributes.set(k, normalizedResult(v));
       }
-    })
+    });
     return r.asObject();
   } else {
     return r;
