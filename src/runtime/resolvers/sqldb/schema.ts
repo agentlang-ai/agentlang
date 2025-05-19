@@ -121,9 +121,9 @@ export async function insertRow(tableName: string, row: object): Promise<void> {
 
 export async function updateRow(
   tableName: string,
-  queryObj: Object,
-  queryVals: Object,
-  updateObj: Object
+  queryObj: object,
+  queryVals: object,
+  updateObj: object
 ): Promise<boolean> {
   if (defaultDataSource != undefined) {
     await defaultDataSource

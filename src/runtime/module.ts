@@ -870,7 +870,7 @@ export class Instance {
   }
 }
 
-export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSchema): Object {
+export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSchema): object {
   if (schema != undefined) {
     const objAttrNames: Array<string> | undefined = objectAttributes(schema);
     if (objAttrNames != undefined) {
