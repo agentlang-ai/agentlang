@@ -167,15 +167,19 @@ export async function getMany(
 }
 
 export type BetweenConnectionInfo = {
-  connectionTable: string,
-  fromColumn: string,
-  fromValue: string,
-  toColumn: string,
-  toRef: string
-}
+  connectionTable: string;
+  fromColumn: string;
+  fromValue: string;
+  toColumn: string;
+  toRef: string;
+};
 
-function buildQueryFromConnnectionInfo(connAlias: string, mainAlias: string, connInfo: BetweenConnectionInfo): string {
-  return `${connAlias}.${connInfo.fromColumn} = ${connInfo.fromValue} AND ${connAlias}.${connInfo.toColumn} = ${mainAlias}.${connInfo.toRef}`
+function buildQueryFromConnnectionInfo(
+  connAlias: string,
+  mainAlias: string,
+  connInfo: BetweenConnectionInfo
+): string {
+  return `${connAlias}.${connInfo.fromColumn} = ${connInfo.fromValue} AND ${connAlias}.${connInfo.toColumn} = ${mainAlias}.${connInfo.toRef}`;
 }
 
 export async function getAllConnected(
@@ -187,13 +191,17 @@ export async function getAllConnected(
 ) {
   if (defaultDataSource != undefined) {
     const alias: string = tableName.toLowerCase();
-    const connAlias: string = connInfo.connectionTable.toLowerCase()
+    const connAlias: string = connInfo.connectionTable.toLowerCase();
     await defaultDataSource
       .createQueryBuilder()
       .select()
       .from(tableName, alias)
       .where(objectToWhereClause(queryObj, alias), queryVals)
-      .innerJoin(connInfo.connectionTable, connAlias, buildQueryFromConnnectionInfo(connAlias, alias, connInfo))
+      .innerJoin(
+        connInfo.connectionTable,
+        connAlias,
+        buildQueryFromConnnectionInfo(connAlias, alias, connInfo)
+      )
       .getRawMany()
       .then((result: any) => callback(result));
   }

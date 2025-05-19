@@ -52,8 +52,8 @@ export class SqlDbResolver extends Resolver {
   }
 
   public override async updateInstance(inst: Instance): Promise<Instance[]> {
-    const result: Array<Instance> = new Array<Instance>()
-    result.push(inst)
+    const result: Array<Instance> = new Array<Instance>();
+    result.push(inst);
     return result;
   }
 
@@ -94,16 +94,23 @@ export class SqlDbResolver extends Resolver {
     return target;
   }
 
-  public override async queryChildInstances(parentPath: string, inst: Instance): Promise<Instance[]> {
-    inst.addQuery(PathAttributeName, 'like', parentPath + '%')
+  public override async queryChildInstances(
+    parentPath: string,
+    inst: Instance
+  ): Promise<Instance[]> {
+    inst.addQuery(PathAttributeName, 'like', parentPath + '%');
     let result = SqlDbResolver.EmptyResultSet;
     await this.queryInstances(inst).then((rs: Instance[]) => {
-      result = rs
-    })
-    return result
+      result = rs;
+    });
+    return result;
   }
 
-  public override async queryConnectedInstances(relationship: RelationshipEntry, connectedInstance: Instance, inst: Instance): Promise<Instance[]> {
+  public override async queryConnectedInstances(
+    relationship: RelationshipEntry,
+    connectedInstance: Instance,
+    inst: Instance
+  ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
     await getAllConnected(
       asTableName(inst.moduleName, inst.name),
@@ -114,7 +121,7 @@ export class SqlDbResolver extends Resolver {
         fromColumn: relationship.node1.alias,
         fromValue: connectedInstance.attributes.get(PathAttributeName),
         toColumn: relationship.node2.alias,
-        toRef: PathAttributeName
+        toRef: PathAttributeName,
       },
       (rslt: any) => {
         if (rslt instanceof Array) {

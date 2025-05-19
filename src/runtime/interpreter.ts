@@ -51,9 +51,9 @@ export function isEmptyResult(r: Result): boolean {
 }
 
 type BetweenRelInfo = {
-  relationship: RelationshipEntry,
-  connectedInstance: Instance
-}
+  relationship: RelationshipEntry;
+  connectedInstance: Instance;
+};
 
 class Environment extends Instance {
   parent: Environment | undefined;
@@ -129,11 +129,11 @@ class Environment extends Instance {
   }
 
   bindBetweenRelInfo(info: BetweenRelInfo): void {
-    this.attributes.set(Environment.BetweenRelInfoKey, info)
+    this.attributes.set(Environment.BetweenRelInfoKey, info);
   }
 
   getBetweenRelInfo(): BetweenRelInfo | undefined {
-    return this.attributes.get(Environment.BetweenRelInfoKey)
+    return this.attributes.get(Environment.BetweenRelInfoKey);
   }
 }
 
@@ -268,34 +268,38 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         }
       }
     } else if (attrs.size == 0) {
-      const parentPath: string | undefined = env.getParentPath()
-      const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo()
+      const parentPath: string | undefined = env.getParentPath();
+      const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
       if (parentPath != undefined) {
-        await defaultResolver.queryChildInstances(parentPath, inst)
-          .then((insts: Instance[]) => env.bindLastResult(inst))
+        await defaultResolver
+          .queryChildInstances(parentPath, inst)
+          .then((insts: Instance[]) => env.bindLastResult(insts));
       } else if (betRelInfo != undefined) {
-        await defaultResolver.queryConnectedInstances(betRelInfo.relationship, betRelInfo.connectedInstance, inst)
-          .then((insts: Instance[]) => env.bindLastResult(inst))
+        await defaultResolver
+          .queryConnectedInstances(betRelInfo.relationship, betRelInfo.connectedInstance, inst)
+          .then((insts: Instance[]) => env.bindLastResult(insts));
       } else {
         await defaultResolver
           .queryInstances(inst)
-          .then((insts: Instance[]) => env.bindLastResult(insts))
+          .then((insts: Instance[]) => env.bindLastResult(insts));
       }
       if (crud.relationships != undefined) {
-        const lastRes: Instance[] = env.getLastResult()
+        const lastRes: Instance[] = env.getLastResult();
         for (let i = 0; i < crud.relationships.length; ++i) {
           const rel: RelationshipPattern = crud.relationships[i];
           for (let j = 0; j < lastRes.length; ++j) {
             const newEnv: Environment = new Environment('relenv', env);
             if (isContainsRelationship(rel.name, moduleName)) {
-              newEnv.bindParentPath(lastRes[j].attributes.get(PathAttributeName) + '/' + rel.name + '/');
+              newEnv.bindParentPath(
+                lastRes[j].attributes.get(PathAttributeName) + '/' + rel.name + '/'
+              );
               await evaluatePattern(rel.pattern, newEnv);
-              lastRes[j].attributes.set(rel.name, newEnv.getLastResult())
+              lastRes[j].attributes.set(rel.name, newEnv.getLastResult());
             } else if (isBetweenRelationship(rel.name, moduleName)) {
               const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
-              newEnv.bindBetweenRelInfo({ relationship: relEntry, connectedInstance: lastRes[j] })
+              newEnv.bindBetweenRelInfo({ relationship: relEntry, connectedInstance: lastRes[j] });
               await evaluatePattern(rel.pattern, env);
-              lastRes[j].attributes.set(rel.name, newEnv.getLastResult())
+              lastRes[j].attributes.set(rel.name, newEnv.getLastResult());
             }
           }
         }

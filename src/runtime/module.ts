@@ -251,7 +251,7 @@ export class RelationshipEntry extends RecordEntry {
       type: 'string',
       properties: this.makeUniqueProp(
         this.properties != undefined &&
-        (this.properties.get('one_one') == true || this.properties.get('one_many') == true)
+          (this.properties.get('one_one') == true || this.properties.get('one_many') == true)
       ),
     };
     this.schema.set(this.node1.alias, attrSpec1);
@@ -868,8 +868,9 @@ export class Instance {
     if (this.queryAttributes == undefined) this.queryAttributes = newInstanceAttributes();
     this.queryAttributes.set(attrName, op);
     if (attrVal != undefined) {
-      if (this.queryAttributeValues == undefined) this.queryAttributeValues = newInstanceAttributes();
-      this.queryAttributeValues.set(attrName, attrVal)
+      if (this.queryAttributeValues == undefined)
+        this.queryAttributeValues = newInstanceAttributes();
+      this.queryAttributeValues.set(attrName, attrVal);
     }
   }
 }
