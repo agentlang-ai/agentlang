@@ -1,9 +1,10 @@
 import { Resolver } from './interface.js';
 
-const resolverDb: Map<string, Resolver> = new Map<string, Resolver>();
+type MakeResolver = () => Resolver;
+const resolverDb: Map<string, MakeResolver> = new Map<string, MakeResolver>();
 const resolverPathMappings: Map<string, string> = new Map<string, string>();
 
-export function registerResolver(name: string, r: Resolver) {
+export function registerResolver(name: string, r: MakeResolver) {
   resolverDb.set(name, r);
 }
 
@@ -15,10 +16,15 @@ export function setResolver(fqEntryName: string, resolverName: string) {
   }
 }
 
-export function getResolver(fqEntryName: string): Resolver | undefined {
+export function getResolverNameForPath(fqEntryName: string): string | undefined {
+  return resolverPathMappings.get(fqEntryName);
+}
+
+export function getResolver(fqEntryName: string): Resolver {
   const resName: string | undefined = resolverPathMappings.get(fqEntryName);
   if (resName != undefined) {
-    return resolverDb.get(resName);
+    const f: MakeResolver | undefined = resolverDb.get(resName);
+    if (f) return f();
   }
-  return undefined;
+  throw new Error(`No resolver registered for ${fqEntryName}`);
 }
