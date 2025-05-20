@@ -1,4 +1,4 @@
-import { chalk } from '../utils/runtime.js';
+import { chalk, isNodeEnv } from '../utils/runtime.js';
 import {
   Attribute,
   Property,
@@ -452,13 +452,9 @@ export class RuntimeModule {
   }
 }
 
-let useReactiveModuleDbFlag: boolean = false;
+let useReactiveModuleDbFlag: boolean = !isNodeEnv;
 let moduleDb: any | undefined;
 let activeModule: string = '';
-
-export function useReactiveModuleDb() {
-  useReactiveModuleDbFlag = true;
-}
 
 function maybeInitModuleDb() {
   if (moduleDb == undefined) {
