@@ -1,7 +1,7 @@
 import { isNodeEnv } from '../utils/runtime.js';
 
 let DailyRotateFile: any;
-let winston: any
+let winston: any;
 
 if (isNodeEnv) {
   // Only import Node.js modules in Node environment
@@ -39,13 +39,13 @@ if (isNodeEnv) {
 } else {
   function mkLogger(tag: string): Function {
     return (msg: string) => {
-      console.log(`${tag}: ${msg}`)
-    }
+      console.log(`${tag}: ${msg}`);
+    };
   }
   logger = {
     debug: mkLogger('DEBUG'),
     info: mkLogger('INFO'),
     warn: mkLogger('WARN'),
-    error: mkLogger('ERROR')
-  }
+    error: mkLogger('ERROR'),
+  };
 }
