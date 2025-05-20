@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import { chalk } from '../utils/runtime.js';
 import { Command } from 'commander';
 import { AgentlangLanguageMetaData } from '../language/generated/module.js';
 import { createAgentlangServices } from '../language/agentlang-module.js';
