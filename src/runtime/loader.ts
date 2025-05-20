@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import { createAgentlangServices } from '../language/agentlang-module.js';
 import {
   Module,
@@ -23,7 +22,7 @@ import { importModule, runShellCommand } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
-import { isNodeEnv, path } from '../utils/runtime.js';
+import { isNodeEnv, path, chalk } from '../utils/runtime.js';
 
 export async function extractDocument(
   fileName: string,

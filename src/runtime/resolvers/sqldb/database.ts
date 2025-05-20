@@ -1,7 +1,7 @@
 import { DataSource, Table, TableColumnOptions } from 'typeorm';
 import { logger } from '../../logger.js';
 import { modulesAsDbSchema, TableSchema } from './dbutil.js';
-import chalk from 'chalk';
+import { chalk } from '../../../utils/runtime.js';
 
 let defaultDataSource: DataSource | undefined;
 

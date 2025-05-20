@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import express, { Request, Response } from 'express';
 import {
   getAllEventNames,
@@ -9,6 +8,7 @@ import {
 import { evaluate, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
+import { chalk } from '../utils/runtime.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number) {
   const app = express();

@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import { chalk } from '../utils/runtime.js';
 import {
   Attribute,
   Property,
