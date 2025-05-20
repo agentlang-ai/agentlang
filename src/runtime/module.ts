@@ -11,6 +11,7 @@ import {
 } from '../language/generated/ast.js';
 import { Path, splitFqName, isString, isNumber, isBoolean, isFqName } from './util.js';
 import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
+import z = require('zustand')
 
 export class ModuleEntry {
   name: string;
@@ -251,7 +252,7 @@ export class RelationshipEntry extends RecordEntry {
       type: 'string',
       properties: this.makeUniqueProp(
         this.properties != undefined &&
-          (this.properties.get('one_one') == true || this.properties.get('one_many') == true)
+        (this.properties.get('one_one') == true || this.properties.get('one_many') == true)
       ),
     };
     this.schema.set(this.node1.alias, attrSpec1);
@@ -305,6 +306,7 @@ export class RuntimeModule {
     this.entries.push(entry);
     this.index.set(entry.name, this.entries.length - 1);
     if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
+    touchModuleDb(this.name, this)
   }
 
   hasEntry(entryName: string): boolean {
@@ -331,6 +333,7 @@ export class RuntimeModule {
       this.index.delete(entryName);
       this.entries.splice(idx, 1);
       if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
+      touchModuleDb(this.name, this)
       return true;
     }
     return false;
@@ -449,38 +452,93 @@ export class RuntimeModule {
   }
 }
 
-const moduleDb = new Map<string, RuntimeModule>();
-
+let useReactiveModuleDbFlag: boolean = false;
+let moduleDb: any | undefined;
 let activeModule: string = '';
 
+export function useReactiveModuleDb() {
+  useReactiveModuleDbFlag = true
+}
+
+function maybeInitModuleDb() {
+  if (moduleDb == undefined) {
+    if (useReactiveModuleDbFlag) {
+      moduleDb = z.create((set) => ({
+        db: new Map<string, RuntimeModule>(),
+        adModule: (name: string) => set((state: any) => ({ db: state.db.set(name, new RuntimeModule(name)) })),
+        removeModule: (name: string) => set((state: any) => ({ db: state.db.delete(name) })),
+        set: (name: string, mod: RuntimeModule) => set((state: any) => ({ db: state.db.set(name, mod) })),
+      }))
+    } else {
+      moduleDb = new Map<string, RuntimeModule>();
+    }
+  }
+}
+
 export function addModule(name: string): string {
-  moduleDb.set(name, new RuntimeModule(name));
+  maybeInitModuleDb()
+  if (useReactiveModuleDbFlag) {
+    moduleDb((state: any) => {
+      state.addModule(name);
+    })
+  } else {
+    moduleDb.set(name, new RuntimeModule(name));
+  }
   activeModule = name;
   return name;
 }
 
 export function removeModule(name: string): boolean {
-  if (moduleDb.has(name)) {
-    moduleDb.delete(name);
-    return true;
+  if (useReactiveModuleDbFlag) {
+    moduleDb((state: any) => {
+      state.removeModule(name)
+    })
+    return true
+  } else {
+    if (moduleDb.has(name)) {
+      moduleDb.delete(name);
+      return true;
+    }
+
   }
-  return false;
+  return false
+}
+
+function touchModuleDb(name: string, mod: RuntimeModule) {
+  if (useReactiveModuleDbFlag) {
+    moduleDb((state: any) => {
+      state.set(name, mod)
+    })
+  }
 }
 
 addModule('agentlang');
 addRecord('env', new Array<Attribute>());
 
 export function getModuleNames(): string[] {
-  const ks: Iterable<string> = moduleDb.keys();
+  const ks: Iterable<string> = useReactiveModuleDbFlag ? moduleDb((state: any) => state.db.keys()) : moduleDb.keys();
   return Array.from(ks);
 }
 
 export function isModule(name: string): boolean {
-  return moduleDb.has(name);
+  if (useReactiveModuleDbFlag) {
+    return moduleDb((state: any) => {
+      return state.db.has(name)
+    })
+  } else {
+    return moduleDb.has(name)
+  }
 }
 
 export function fetchModule(moduleName: string): RuntimeModule {
-  const module: RuntimeModule | undefined = moduleDb.get(moduleName);
+  let module: RuntimeModule | undefined
+  if (useReactiveModuleDbFlag) {
+    module = moduleDb((state: any) => {
+      return state.db.get(moduleName)
+    })
+  } else {
+    module = moduleDb.get(moduleName);
+  }
   if (module == undefined) {
     throw new Error(`Module not found - ${moduleName}`);
   }
@@ -1012,7 +1070,10 @@ export function isRecordInstance(inst: Instance): boolean {
 
 export function getAllEventNames() {
   const result: Map<string, string[]> = new Map<string, string[]>();
-  moduleDb.forEach((v: RuntimeModule, k: string) => {
+  const modDb: Map<string, RuntimeModule> = useReactiveModuleDbFlag ? moduleDb((state: any) => {
+    return state.db
+  }) : moduleDb
+  modDb.forEach((v: RuntimeModule, k: string) => {
     result.set(
       k,
       v.getEventEntries().map((me: ModuleEntry) => {
