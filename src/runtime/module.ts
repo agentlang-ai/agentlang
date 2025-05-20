@@ -452,7 +452,7 @@ export class RuntimeModule {
   }
 }
 
-let useReactiveModuleDbFlag: boolean = !isNodeEnv;
+const useReactiveModuleDbFlag: boolean = !isNodeEnv;
 let moduleDb: any | undefined;
 let activeModule: string = '';
 
