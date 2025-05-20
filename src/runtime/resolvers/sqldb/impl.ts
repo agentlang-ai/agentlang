@@ -36,6 +36,10 @@ function addDefaultIdAttribute(inst: Instance): string | undefined {
 }
 
 export class SqlDbResolver extends Resolver {
+  public override onSetPath(moduleName: string, entryName: string): string {
+    return entryName;
+  }
+
   public override async createInstance(inst: Instance): Promise<Instance> {
     const idAttrName: string | undefined = addDefaultIdAttribute(inst);
     const attrs: InstanceAttributes = inst.attributes;

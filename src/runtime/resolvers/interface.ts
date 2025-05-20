@@ -1,6 +1,8 @@
 import { Instance, InstanceAttributes, RelationshipEntry } from '../module.js';
 
 export abstract class Resolver {
+  public abstract onSetPath(moduleName: string, entryName: string): any;
+
   public abstract createInstance(inst: Instance): any;
 
   public abstract upsertInstance(inst: Instance): any;
