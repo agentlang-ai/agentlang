@@ -194,7 +194,7 @@ class Environment extends Instance {
   }
 
   commitAllTransactions(): void {
-    this.getActiveTransactions().forEach((n: string, txnId: string) => {
+    this.getActiveTransactions().forEach((txnId: string, n: string) => {
       const res: Resolver | undefined = this.getResolver(n);
       if (res) {
         res.commitTransaction(txnId);
