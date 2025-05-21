@@ -1,12 +1,16 @@
 import { Instance, InstanceAttributes, RelationshipEntry } from '../module.js';
 
 export abstract class Resolver {
+  public abstract getName(): string;
+  public abstract onSetPath(moduleName: string, entryName: string): any;
+
   public abstract createInstance(inst: Instance): any;
 
   public abstract upsertInstance(inst: Instance): any;
 
   /**
    * @param {Instance} inst - an Instance with query and update attributes
+   * @param {InstanceAttributes} newAttrs - updated attributes to set in instance
    */
   public abstract updateInstance(inst: Instance, newAttrs: InstanceAttributes): any;
 
@@ -51,4 +55,8 @@ export abstract class Resolver {
     otherNodeOrNodes: Instance | Instance[],
     relEntry: RelationshipEntry
   ): any;
+
+  public abstract startTransaction(): string; // Return a transactionId
+  public abstract commitTransaction(txnId: string): any;
+  public abstract rollbackTransaction(txtIn: string): any;
 }
