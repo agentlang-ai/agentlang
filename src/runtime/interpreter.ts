@@ -193,22 +193,22 @@ class Environment extends Instance {
     this.getTransactionForResolver(resolver);
   }
 
-  commitAllTransactions(): void {
+  private endAllTransactions(commit: boolean): void {
     this.getActiveTransactions().forEach((txnId: string, n: string) => {
       const res: Resolver | undefined = this.getResolver(n);
       if (res) {
-        res.commitTransaction(txnId);
+        if (commit) res.commitTransaction(txnId);
+        else res.rollbackTransaction(txnId);
       }
     });
   }
 
+  commitAllTransactions(): void {
+    this.endAllTransactions(true);
+  }
+
   rollbackAllTransactions(): void {
-    this.getActiveTransactions().forEach((n: string, txnId: string) => {
-      const res: Resolver | undefined = this.getResolver(n);
-      if (res) {
-        res.rollbackTransaction(txnId);
-      }
-    });
+    this.endAllTransactions(false);
   }
 }
 
