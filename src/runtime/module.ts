@@ -510,6 +510,7 @@ const propertyNames = new Set([
   '@autoincrement',
   '@array',
   '@object',
+  '@ref',
 ]);
 
 export function isBuiltInType(type: string): boolean {
@@ -614,6 +615,10 @@ export function getAttributeDefaultValue(attrSpec: AttributeSpec): any | undefin
 
 export function getAttributeLength(attrSpec: AttributeSpec): number | undefined {
   return getAnyProperty('length', attrSpec);
+}
+
+export function getFkSpec(attrSpec: AttributeSpec): string | undefined {
+  return getAnyProperty('ref', attrSpec);
 }
 
 export function addEntity(
