@@ -919,7 +919,11 @@ export class Instance {
   }
 
   detachAllRelatedInstance() {
-    if (this.relatedInstances != undefined) this.relatedInstances?.clear();
+    if (this.relatedInstances != undefined) {
+      this.relatedInstances?.clear();
+      this.relatedInstances = undefined;
+      this.attributes.delete('->');
+    }
   }
 
   mergeRelatedInstances() {
