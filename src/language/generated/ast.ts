@@ -511,7 +511,7 @@ export function isRelationship(item: unknown): item is Relationship {
 }
 
 export interface RelationshipPattern extends langium.AstNode {
-    readonly $container: CrudMap;
+    readonly $container: CrudMap | QueryAllPattern;
     readonly $type: 'RelationshipPattern';
     name: string;
     pattern: Pattern;
@@ -607,6 +607,7 @@ export function isWorkflow(item: unknown): item is Workflow {
 export interface QueryAllPattern extends CrudMap {
     readonly $type: 'QueryAllPattern';
     name: QueryId;
+    relationships: Array<RelationshipPattern>;
 }
 
 export const QueryAllPattern = 'QueryAllPattern';

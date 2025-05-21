@@ -297,7 +297,7 @@ export class RelationshipEntry extends RecordEntry {
     this.node2 = node2;
     this.properties = props;
     this.updateSchemaWithNodeAttributes();
-    if (this.relType == RelType.BETWEEN) {
+    if (this.relType == RelType.BETWEEN && !this.isManyToMany()) {
       this.updateBetweenTargetRefs();
     }
   }
@@ -314,11 +314,13 @@ export class RelationshipEntry extends RecordEntry {
   }
 
   private updateBetweenTargetRefs() {
-    if (
-      getResolverNameForPath(makeFqName(this.node1.moduleName, this.node1.entryName)) ==
-        undefined &&
-      getResolverNameForPath(makeFqName(this.node2.moduleName, this.node2.entryName)) == undefined
-    ) {
+    const res1: string | undefined = getResolverNameForPath(
+      makeFqName(this.node1.moduleName, this.node1.entryName)
+    );
+    const res2: string | undefined = getResolverNameForPath(
+      makeFqName(this.node2.moduleName, this.node2.entryName)
+    );
+    if (res1 == undefined && res2 == undefined) {
       const mod: RuntimeModule = fetchModule(this.node2.moduleName);
       const entry: RecordEntry = mod.getEntry(this.node2.entryName) as RecordEntry;
       if (entry.hasRefTo(this.node1.moduleName, this.node1.entryName)) {
