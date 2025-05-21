@@ -1,4 +1,4 @@
-import { DataSource, Table, TableColumnOptions } from 'typeorm';
+import { DataSource, EntityManager, QueryRunner, Table, TableColumnOptions } from 'typeorm';
 import { logger } from '../../logger.js';
 import { modulesAsDbSchema, TableSchema } from './dbutil.js';
 import chalk from 'chalk';
@@ -33,124 +33,129 @@ async function createTables(): Promise<void> {
   if (defaultDataSource != undefined) {
     const queryRunner = defaultDataSource.createQueryRunner();
     const tableSpecs: TableSchema[] = modulesAsDbSchema();
-    for (let i = 0; i < tableSpecs.length; ++i) {
-      const ts: TableSchema = tableSpecs[i];
-      const hasPk: boolean =
-        ts.columns.columns.find((tco: TableColumnOptions) => {
-          return tco.isPrimary == true;
-        }) == undefined
-          ? false
-          : true;
-      ts.columns.columns.push({
-        name: PathAttributeName,
-        type: 'varchar',
-        isPrimary: !hasPk,
-        isUnique: hasPk,
-        isNullable: false,
-      });
-      ts.columns.columns.push({
-        name: DeletedFlagAttributeName,
-        type: 'boolean',
-        isNullable: false,
-        default: false,
-      });
-      if (hasPk) {
-        ts.columns.indices.push({ columnNames: [PathAttributeName] });
-      }
-      await queryRunner
-        .createTable(
-          new Table({
-            name: ts.name,
-            columns: ts.columns.columns,
-            indices: ts.columns.indices,
-          }),
-          true
-        )
-        .catch((reason: any) => {
-          logger.error(`failed to create table ${ts.name} - ${reason}`);
+    try {
+      for (let i = 0; i < tableSpecs.length; ++i) {
+        const ts: TableSchema = tableSpecs[i];
+        const hasPk: boolean =
+          ts.columns.columns.find((tco: TableColumnOptions) => {
+            return tco.isPrimary == true;
+          }) == undefined
+            ? false
+            : true;
+        ts.columns.columns.push({
+          name: PathAttributeName,
+          type: 'varchar',
+          isPrimary: !hasPk,
+          isUnique: hasPk,
+          isNullable: false,
         });
-      await queryRunner
-        .createTable(
-          new Table({
-            name: ts.name + '_owners',
-            columns: [
-              {
-                name: 'path',
-                type: 'varchar',
-                isPrimary: true,
-              },
-              {
-                name: 'user_id',
-                type: 'varchar',
-              },
-              {
-                name: 'type',
-                type: 'char(1)',
-                default: "'u'",
-              },
-              {
-                name: 'can_read',
-                type: 'boolean',
-                default: true,
-              },
-              {
-                name: 'can_write',
-                type: 'boolean',
-                default: true,
-              },
-              {
-                name: 'can_delete',
-                type: 'boolean',
-                default: true,
-              },
-            ],
-          }),
-          true
-        )
-        .catch((reason: any) => {
-          logger.error(`failed to create owners table for ${ts.name} - ${reason}`);
+        ts.columns.columns.push({
+          name: DeletedFlagAttributeName,
+          type: 'boolean',
+          isNullable: false,
+          default: false,
         });
-      if (ts.columns.fks != undefined) {
-        for (let j = 0; j < ts.columns.fks.length; ++j) {
-          await queryRunner.createForeignKey(ts.name, ts.columns.fks[j]).catch((reason: any) => {
-            logger.error(`failed to create fk constraint for ${ts.name} - ${reason}`);
+        if (hasPk) {
+          ts.columns.indices.push({ columnNames: [PathAttributeName] });
+        }
+        await queryRunner
+          .createTable(
+            new Table({
+              name: ts.name,
+              columns: ts.columns.columns,
+              indices: ts.columns.indices,
+            }),
+            true
+          )
+          .catch((reason: any) => {
+            logger.error(`failed to create table ${ts.name} - ${reason}`);
           });
+        await queryRunner
+          .createTable(
+            new Table({
+              name: ts.name + '_owners',
+              columns: [
+                {
+                  name: 'path',
+                  type: 'varchar',
+                  isPrimary: true,
+                },
+                {
+                  name: 'user_id',
+                  type: 'varchar',
+                },
+                {
+                  name: 'type',
+                  type: 'char(1)',
+                  default: "'u'",
+                },
+                {
+                  name: 'can_read',
+                  type: 'boolean',
+                  default: true,
+                },
+                {
+                  name: 'can_write',
+                  type: 'boolean',
+                  default: true,
+                },
+                {
+                  name: 'can_delete',
+                  type: 'boolean',
+                  default: true,
+                },
+              ],
+            }),
+            true
+          )
+          .catch((reason: any) => {
+            logger.error(`failed to create owners table for ${ts.name} - ${reason}`);
+          });
+        if (ts.columns.fks != undefined) {
+          for (let j = 0; j < ts.columns.fks.length; ++j) {
+            await queryRunner.createForeignKey(ts.name, ts.columns.fks[j]).catch((reason: any) => {
+              logger.error(`failed to create fk constraint for ${ts.name} - ${reason}`);
+            });
+          }
         }
       }
+    } finally {
+      queryRunner.release();
     }
   } else {
     throw new Error('Datasource not initialized, cannot create tables.');
   }
 }
 
-export async function insertRows(tableName: string, rows: object[]): Promise<void> {
-  if (defaultDataSource != undefined) {
-    await defaultDataSource.createQueryBuilder().insert().into(tableName).values(rows).execute();
-  }
+export async function insertRows(tableName: string, rows: object[], txnId?: string): Promise<void> {
+  await getDatasourceForTransaction(txnId)
+    .createQueryBuilder()
+    .insert()
+    .into(tableName)
+    .values(rows)
+    .execute();
 }
 
-export async function insertRow(tableName: string, row: object): Promise<void> {
+export async function insertRow(tableName: string, row: object, txnId?: string): Promise<void> {
   const rows: Array<object> = new Array<object>();
   rows.push(row);
-  await insertRows(tableName, rows);
+  await insertRows(tableName, rows, txnId);
 }
 
 export async function updateRow(
   tableName: string,
   queryObj: object,
   queryVals: object,
-  updateObj: object
+  updateObj: object,
+  txtId?: string
 ): Promise<boolean> {
-  if (defaultDataSource != undefined) {
-    await defaultDataSource
-      .createQueryBuilder()
-      .update(tableName)
-      .set(updateObj)
-      .where(objectToWhereClause(queryObj), queryVals)
-      .execute();
-    return true;
-  }
-  return false;
+  await getDatasourceForTransaction(txtId)
+    .createQueryBuilder()
+    .update(tableName)
+    .set(updateObj)
+    .where(objectToWhereClause(queryObj), queryVals)
+    .execute();
+  return true;
 }
 
 function objectToWhereClause(queryObj: object, tableName?: string): string {
@@ -168,21 +173,20 @@ export async function getMany(
   tableName: string,
   queryObj: object | undefined,
   queryVals: object | undefined,
-  callback: Function
+  callback: Function,
+  txtId?: string
 ) {
-  if (defaultDataSource != undefined) {
-    const alias: string = tableName.toLowerCase();
-    const queryStr: string = withNotDeletedClause(
-      queryObj != undefined ? objectToWhereClause(queryObj, alias) : ''
-    );
-    await defaultDataSource
-      .createQueryBuilder()
-      .select()
-      .from(tableName, alias)
-      .where(queryStr, queryVals)
-      .getRawMany()
-      .then((result: any) => callback(result));
-  }
+  const alias: string = tableName.toLowerCase();
+  const queryStr: string = withNotDeletedClause(
+    queryObj != undefined ? objectToWhereClause(queryObj, alias) : ''
+  );
+  await getDatasourceForTransaction(txtId)
+    .createQueryBuilder()
+    .select()
+    .from(tableName, alias)
+    .where(queryStr, queryVals)
+    .getRawMany()
+    .then((result: any) => callback(result));
 }
 
 const NotDeletedClause: string = `${DeletedFlagAttributeName} = false`;
@@ -216,22 +220,70 @@ export async function getAllConnected(
   queryObj: object,
   queryVals: object,
   connInfo: BetweenConnectionInfo,
-  callback: Function
+  callback: Function,
+  txtId?: string
 ) {
+  const alias: string = tableName.toLowerCase();
+  const connAlias: string = connInfo.connectionTable.toLowerCase();
+  await getDatasourceForTransaction(txtId)
+    .createQueryBuilder()
+    .select()
+    .from(tableName, alias)
+    .where(objectToWhereClause(queryObj, alias), queryVals)
+    .innerJoin(
+      connInfo.connectionTable,
+      connAlias,
+      buildQueryFromConnnectionInfo(connAlias, alias, connInfo)
+    )
+    .getRawMany()
+    .then((result: any) => callback(result));
+}
+
+const transactionsDb: Map<string, QueryRunner> = new Map<string, QueryRunner>();
+
+export function startDbTransaction(): string {
   if (defaultDataSource != undefined) {
-    const alias: string = tableName.toLowerCase();
-    const connAlias: string = connInfo.connectionTable.toLowerCase();
-    await defaultDataSource
-      .createQueryBuilder()
-      .select()
-      .from(tableName, alias)
-      .where(objectToWhereClause(queryObj, alias), queryVals)
-      .innerJoin(
-        connInfo.connectionTable,
-        connAlias,
-        buildQueryFromConnnectionInfo(connAlias, alias, connInfo)
-      )
-      .getRawMany()
-      .then((result: any) => callback(result));
+    const queryRunner = defaultDataSource.createQueryRunner();
+    queryRunner.startTransaction();
+    const txnId: string = crypto.randomUUID();
+    transactionsDb.set(txnId, queryRunner);
+    return txnId;
+  } else {
+    throw new Error('Database not initialized');
+  }
+}
+
+export function getDatasourceForTransaction(txnId: string | undefined): DataSource | EntityManager {
+  if (txnId) {
+    const qr: QueryRunner | undefined = transactionsDb.get(txnId);
+    if (qr == undefined) {
+      throw new Error(`Transaction not found - ${txnId}`);
+    } else {
+      return qr.manager;
+    }
+  } else {
+    if (defaultDataSource != undefined) return defaultDataSource;
+    else throw new Error('No default datasource is initialized');
+  }
+}
+
+export async function commitDbTransaction(txnId: string): Promise<void> {
+  await endTransaction(txnId, true);
+}
+
+export async function rollbackDbTransaction(txnId: string): Promise<void> {
+  await endTransaction(txnId, false);
+}
+
+async function endTransaction(txnId: string, commit: boolean): Promise<void> {
+  const qr: QueryRunner | undefined = transactionsDb.get(txnId);
+  if (qr) {
+    try {
+      if (commit) await qr.commitTransaction();
+      else await qr.rollbackTransaction();
+    } finally {
+      qr.release();
+      transactionsDb.delete(txnId);
+    }
   }
 }

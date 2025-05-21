@@ -18,6 +18,9 @@ import {
   updateRow,
   getAllConnected,
   DeletedFlagAttributeName,
+  startDbTransaction,
+  commitDbTransaction,
+  rollbackDbTransaction,
 } from './database.js';
 
 function addDefaultIdAttribute(inst: Instance): string | undefined {
@@ -36,6 +39,19 @@ function addDefaultIdAttribute(inst: Instance): string | undefined {
 }
 
 export class SqlDbResolver extends Resolver {
+  private name: string = '';
+  private txnId: string | undefined;
+  constructor(name: string) {
+    super();
+    this.name = name;
+  }
+  public override getName(): string {
+    return this.name;
+  }
+  public override onSetPath(moduleName: string, entryName: string): string {
+    return entryName;
+  }
+
   public override async createInstance(inst: Instance): Promise<Instance> {
     const idAttrName: string | undefined = addDefaultIdAttribute(inst);
     const attrs: InstanceAttributes = inst.attributes;
@@ -50,12 +66,12 @@ export class SqlDbResolver extends Resolver {
     }
     const n: string = asTableName(inst.moduleName, inst.name);
     const rowObj: object = inst.attributesAsObject();
-    await insertRow(n, rowObj);
+    await insertRow(n, rowObj, this.txnId);
     return inst;
   }
 
   public override async upsertInstance(inst: Instance): Promise<Instance> {
-    return inst;
+    throw new Error(`upsertInstace not implemented - cannot upsert ${inst.name}`);
   }
 
   public override async updateInstance(
@@ -67,7 +83,13 @@ export class SqlDbResolver extends Resolver {
       new Map<string, any>().set(PathAttributeName, inst.attributes.get(PathAttributeName))
     );
     const updateObj: object = Object.fromEntries(newAttrs);
-    await updateRow(asTableName(inst.moduleName, inst.name), queryObj, queryVals, updateObj);
+    await updateRow(
+      asTableName(inst.moduleName, inst.name),
+      queryObj,
+      queryVals,
+      updateObj,
+      this.txnId
+    );
     return inst.mergeAttributes(newAttrs);
   }
 
@@ -91,7 +113,8 @@ export class SqlDbResolver extends Resolver {
             result.push(Instance.newWithAttributes(inst, attrs));
           });
         }
-      }
+      },
+      this.txnId
     );
     return result;
   }
@@ -119,7 +142,7 @@ export class SqlDbResolver extends Resolver {
   ): Promise<Instance[]> {
     inst.addQuery(PathAttributeName, 'like', parentPath + '%');
     let result = SqlDbResolver.EmptyResultSet;
-    await this.queryInstances(inst).then((rs: Instance[]) => {
+    await this.queryInstances(inst, false).then((rs: Instance[]) => {
       result = rs;
     });
     return result;
@@ -155,7 +178,8 @@ export class SqlDbResolver extends Resolver {
             result.push(Instance.newWithAttributes(connInst, attrs));
           });
         }
-      }
+      },
+      this.txnId
     );
     return result;
   }
@@ -169,7 +193,8 @@ export class SqlDbResolver extends Resolver {
       asTableName(target.moduleName, target.name),
       target.queryAttributesAsObject(),
       queryVals,
-      SqlDbResolver.MarkDeletedObject
+      SqlDbResolver.MarkDeletedObject,
+      this.txnId
     );
   }
 
@@ -183,12 +208,33 @@ export class SqlDbResolver extends Resolver {
     const a2: string = relEntry.node2.alias;
     if (otherNodeOrNodes instanceof Array) {
       for (let i = 0; i < otherNodeOrNodes.length; ++i) {
-        await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes[i]);
+        await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes[i], this.txnId);
       }
     } else {
-      await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes);
+      await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes, this.txnId);
     }
     return node1;
+  }
+
+  public override startTransaction(): string {
+    this.txnId = startDbTransaction();
+    return this.txnId;
+  }
+
+  public override async commitTransaction(txnId: string): Promise<string> {
+    if (txnId == this.txnId) {
+      await commitDbTransaction(txnId);
+      this.txnId = undefined;
+    }
+    return txnId;
+  }
+
+  public override async rollbackTransaction(txnId: string): Promise<string> {
+    if (txnId == this.txnId) {
+      await rollbackDbTransaction(txnId);
+      this.txnId = undefined;
+    }
+    return txnId;
   }
 }
 
@@ -197,12 +243,13 @@ async function insertBetweenRow(
   a1: string,
   a2: string,
   node1: Instance,
-  node2: Instance
+  node2: Instance,
+  txnId?: string
 ): Promise<void> {
   const attrs: InstanceAttributes = newInstanceAttributes();
   attrs.set(a1, node1.attributes.get(PathAttributeName));
   attrs.set(a2, node2.attributes.get(PathAttributeName));
   attrs.set(PathAttributeName, crypto.randomUUID());
   const row = attributesAsColumns(attrs);
-  await insertRow(n, row);
+  await insertRow(n, row, txnId);
 }
