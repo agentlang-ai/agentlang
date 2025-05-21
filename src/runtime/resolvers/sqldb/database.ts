@@ -277,10 +277,16 @@ export async function rollbackDbTransaction(txnId: string): Promise<void> {
 
 async function endTransaction(txnId: string, commit: boolean): Promise<void> {
   const qr: QueryRunner | undefined = transactionsDb.get(txnId);
-  if (qr) {
+  if (qr && qr.isTransactionActive) {
     try {
-      if (commit) await qr.commitTransaction();
-      else await qr.rollbackTransaction();
+      if (commit)
+        await qr.commitTransaction().catch((reason: any) => {
+          logger.error(`failed to commit transaction ${txnId} - ${reason}`);
+        });
+      else
+        await qr.rollbackTransaction().catch((reason: any) => {
+          logger.error(`failed to rollback transaction ${txnId} - ${reason}`);
+        });
     } finally {
       qr.release();
       transactionsDb.delete(txnId);

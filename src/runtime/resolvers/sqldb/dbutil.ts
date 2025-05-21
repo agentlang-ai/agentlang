@@ -33,7 +33,9 @@ export function modulesAsDbSchema(): TableSchema[] {
   getModuleNames().forEach((n: string) => {
     const mod: RuntimeModule = fetchModule(n);
     const entities: EntityEntry[] = mod.getEntityEntries();
-    const betRels: RelationshipEntry[] = mod.getBetweenRelationshipEntries();
+    const betRels: RelationshipEntry[] = mod
+      .getBetweenRelationshipEntries()
+      .filter((v: RelationshipEntry) => v.isManyToMany());
     const allEntries: RecordEntry[] = entities.concat(betRels) as RecordEntry[];
     allEntries.forEach((ent: RecordEntry) => {
       const tspec: TableSchema = {

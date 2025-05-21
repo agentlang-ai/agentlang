@@ -27,8 +27,8 @@ function addDefaultIdAttribute(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
   const attributes: InstanceAttributes = inst.attributes;
   if (attrEntry != undefined) {
-    if (attrEntry.props != undefined && !attributes.has(attrEntry.name)) {
-      const d: any | undefined = attrEntry.props.get('default');
+    if (attrEntry.spec.properties != undefined && !attributes.has(attrEntry.name)) {
+      const d: any | undefined = attrEntry.spec.properties.get('default');
       if (d != undefined && d == 'uuid()') {
         attributes.set(attrEntry.name, crypto.randomUUID());
       }
@@ -154,34 +154,42 @@ export class SqlDbResolver extends Resolver {
     inst: Instance
   ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
-    await getAllConnected(
-      asTableName(inst.moduleName, inst.name),
-      inst.queryAttributesAsObject(),
-      inst.queryAttributeValuesAsObject(),
-      {
-        connectionTable: asTableName(inst.moduleName, relationship.name),
-        fromColumn: relationship.node1.alias,
-        fromValue: `'${connectedInstance.attributes.get(PathAttributeName)}'`,
-        toColumn: relationship.node2.alias,
-        toRef: PathAttributeName,
-      },
-      (rslt: any) => {
-        if (rslt instanceof Array) {
-          result = new Array<Instance>();
-          const connInst: Instance = Instance.EmptyInstance(
-            relationship.node2.entryName,
-            relationship.node2.moduleName
-          );
-          rslt.forEach((r: object) => {
-            const attrs: InstanceAttributes = new Map(Object.entries(r));
-            attrs.delete(DeletedFlagAttributeName);
-            result.push(Instance.newWithAttributes(connInst, attrs));
-          });
-        }
-      },
-      this.txnId
-    );
-    return result;
+    if (relationship.isManyToMany()) {
+      await getAllConnected(
+        asTableName(inst.moduleName, inst.name),
+        inst.queryAttributesAsObject(),
+        inst.queryAttributeValuesAsObject(),
+        {
+          connectionTable: asTableName(inst.moduleName, relationship.name),
+          fromColumn: relationship.node1.alias,
+          fromValue: `'${connectedInstance.attributes.get(PathAttributeName)}'`,
+          toColumn: relationship.node2.alias,
+          toRef: PathAttributeName,
+        },
+        (rslt: any) => {
+          if (rslt instanceof Array) {
+            result = new Array<Instance>();
+            const connInst: Instance = Instance.EmptyInstance(
+              relationship.node2.entryName,
+              relationship.node2.moduleName
+            );
+            rslt.forEach((r: object) => {
+              const attrs: InstanceAttributes = new Map(Object.entries(r));
+              attrs.delete(DeletedFlagAttributeName);
+              result.push(Instance.newWithAttributes(connInst, attrs));
+            });
+          }
+        },
+        this.txnId
+      );
+      return result;
+    } else {
+      relationship.setBetweenRef(inst, connectedInstance.attributes.get(PathAttributeName), true);
+      await this.queryInstances(inst, false).then((rs: Instance[]) => {
+        result = rs;
+      });
+      return result;
+    }
   }
 
   private async deleteInstanceHelper(target: Instance) {
