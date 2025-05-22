@@ -567,24 +567,31 @@ export class RuntimeModule {
 const moduleDb = new Map<string, RuntimeModule>();
 let activeModule: string = '';
 
-export function useModuleDb() {
-  const [changeCount, setModuleDbChangeCount] = React.useState(0);
+let db_changeCount: any
+let db_setModuleDbChangeCount: any
 
+if (!isNodeEnv) {
+  const r: Array<Function> = React.useState(0)
+  db_changeCount = r[0]
+  db_setModuleDbChangeCount = r[1]
+}
+
+export function useModuleDb() {
   function triggerModuleDbChange() {
-    let c: number = changeCount
+    let c: number = db_changeCount
     if (c > 1000) {
       c = 0
     } else {
       ++c
     }
-    setModuleDbChangeCount(c);
+    db_setModuleDbChangeCount(c);
   }
 
   function db_addModule(name: string) {
     addModule(name);
-    console.log(`before db_addModule: ${changeCount}`)
+    console.log(`before db_addModule: ${db_changeCount}`)
     triggerModuleDbChange();
-    console.log(`after db_addModule: ${changeCount}`)
+    console.log(`after db_addModule: ${db_changeCount}`)
   }
 
   function db_removeModule(name: string) {
@@ -598,10 +605,10 @@ export function useModuleDb() {
     ext?: string,
     moduleName = activeModule
   ): string {
-    console.log(`after db_addEntity: ${changeCount}`)
+    console.log(`after db_addEntity: ${db_changeCount}`)
     addEntity(name, attrs, ext, moduleName);
     triggerModuleDbChange();
-    console.log(`after db_addEntity: ${changeCount}`)
+    console.log(`after db_addEntity: ${db_changeCount}`)
     return name;
   }
 
