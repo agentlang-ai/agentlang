@@ -582,7 +582,9 @@ export function useModuleDb() {
 
   function db_addModule(name: string) {
     addModule(name);
+    console.log(`before db_addModule: ${changeCount}`)
     triggerModuleDbChange();
+    console.log(`after db_addModule: ${changeCount}`)
   }
 
   function db_removeModule(name: string) {
@@ -596,8 +598,10 @@ export function useModuleDb() {
     ext?: string,
     moduleName = activeModule
   ): string {
+    console.log(`after db_addEntity: ${changeCount}`)
     addEntity(name, attrs, ext, moduleName);
     triggerModuleDbChange();
+    console.log(`after db_addEntity: ${changeCount}`)
     return name;
   }
 
