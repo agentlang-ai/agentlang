@@ -13,6 +13,13 @@ import { Path, splitFqName, isString, isNumber, isBoolean, isFqName } from './ut
 import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 import { isNodeEnv } from '../utils/runtime.js';
 
+let React: any;
+if (!isNodeEnv) {
+  import('react').then(module => {
+    React = module.default;
+  });
+}
+
 export class ModuleEntry {
   name: string;
   moduleName: string;
@@ -454,120 +461,108 @@ const moduleDb = new Map<string, RuntimeModule>();
 let activeModule: string = '';
 
 export function useModuleDb() {
-  let React: any;
-  if (!isNodeEnv) {
-    import('react').then(module => {
-      React = module.default;
-    });
-    const [_, setModuleDb] = React.useState(moduleDb);
+  const [_, setModuleDb] = React.useState(moduleDb);
 
-    function db_addModule(name: string) {
-      addModule(name);
-      setModuleDb(moduleDb);
-    }
-
-    function db_removeModule(name: string) {
-      removeModule(name);
-      setModuleDb(moduleDb);
-    }
-
-    function db_addEntity(
-      name: string,
-      attrs: Attribute[],
-      ext?: string,
-      moduleName = activeModule
-    ): string {
-      addEntity(name, attrs, ext, moduleName);
-      setModuleDb(moduleDb);
-      return name;
-    }
-
-    function db_addEvent(
-      name: string,
-      attrs: Attribute[],
-      ext?: string,
-      moduleName = activeModule
-    ): string {
-      addEvent(name, attrs, ext, moduleName);
-      setModuleDb(moduleDb);
-      return name;
-    }
-
-    function db_addRecord(
-      name: string,
-      attrs: Attribute[],
-      ext?: string,
-      moduleName = activeModule
-    ) {
-      addRecord(name, attrs, ext, moduleName);
-      setModuleDb(moduleDb);
-      return name;
-    }
-
-    function db_addRelationship(
-      name: string,
-      type: 'contains' | 'between',
-      nodes: RelNodes,
-      attrs: Attribute[] | undefined,
-      props: Property[] | undefined,
-      moduleName = activeModule
-    ) {
-      addRelationship(name, type, nodes, attrs, props, moduleName);
-      setModuleDb(moduleDb);
-      return name;
-    }
-
-    function db_addWorkflow(name: string, statements: Statement[], moduleName = activeModule) {
-      addWorkflow(name, statements, moduleName);
-      setModuleDb(moduleDb);
-      return name;
-    }
-
-    function db_removeEntity(name: string, moduleName = activeModule): boolean {
-      const r: boolean = removeEntity(name, moduleName);
-      if (r) setModuleDb(moduleDb);
-      return r;
-    }
-
-    function db_removeRecord(name: string, moduleName = activeModule): boolean {
-      const r: boolean = removeRecord(name, moduleName);
-      if (r) setModuleDb(moduleDb);
-      return r;
-    }
-
-    function db_removeRelationship(name: string, moduleName = activeModule): boolean {
-      const r: boolean = removeRelationship(name, moduleName);
-      if (r) setModuleDb(moduleDb);
-      return r;
-    }
-
-    function db_removeWorkflow(name: string, moduleName = activeModule): boolean {
-      const r: boolean = removeWorkflow(name, moduleName);
-      if (r) setModuleDb(moduleDb);
-      return r;
-    }
-
-    function db_removeEvent(name: string, moduleName = activeModule): boolean {
-      const r: boolean = removeEvent(name, moduleName);
-      if (r) setModuleDb(moduleDb);
-      return r;
-    }
-    return [
-      db_addModule,
-      db_removeModule,
-      db_addEntity,
-      db_addEvent,
-      db_addRecord,
-      db_addRelationship,
-      db_addWorkflow,
-      db_removeEntity,
-      db_removeEvent,
-      db_removeRecord,
-      db_removeRelationship,
-      db_removeWorkflow,
-    ];
+  function db_addModule(name: string) {
+    addModule(name);
+    setModuleDb(moduleDb);
   }
-  return [];
+
+  function db_removeModule(name: string) {
+    removeModule(name);
+    setModuleDb(moduleDb);
+  }
+
+  function db_addEntity(
+    name: string,
+    attrs: Attribute[],
+    ext?: string,
+    moduleName = activeModule
+  ): string {
+    addEntity(name, attrs, ext, moduleName);
+    setModuleDb(moduleDb);
+    return name;
+  }
+
+  function db_addEvent(
+    name: string,
+    attrs: Attribute[],
+    ext?: string,
+    moduleName = activeModule
+  ): string {
+    addEvent(name, attrs, ext, moduleName);
+    setModuleDb(moduleDb);
+    return name;
+  }
+
+  function db_addRecord(name: string, attrs: Attribute[], ext?: string, moduleName = activeModule) {
+    addRecord(name, attrs, ext, moduleName);
+    setModuleDb(moduleDb);
+    return name;
+  }
+
+  function db_addRelationship(
+    name: string,
+    type: 'contains' | 'between',
+    nodes: RelNodes,
+    attrs: Attribute[] | undefined,
+    props: Property[] | undefined,
+    moduleName = activeModule
+  ) {
+    addRelationship(name, type, nodes, attrs, props, moduleName);
+    setModuleDb(moduleDb);
+    return name;
+  }
+
+  function db_addWorkflow(name: string, statements: Statement[], moduleName = activeModule) {
+    addWorkflow(name, statements, moduleName);
+    setModuleDb(moduleDb);
+    return name;
+  }
+
+  function db_removeEntity(name: string, moduleName = activeModule): boolean {
+    const r: boolean = removeEntity(name, moduleName);
+    if (r) setModuleDb(moduleDb);
+    return r;
+  }
+
+  function db_removeRecord(name: string, moduleName = activeModule): boolean {
+    const r: boolean = removeRecord(name, moduleName);
+    if (r) setModuleDb(moduleDb);
+    return r;
+  }
+
+  function db_removeRelationship(name: string, moduleName = activeModule): boolean {
+    const r: boolean = removeRelationship(name, moduleName);
+    if (r) setModuleDb(moduleDb);
+    return r;
+  }
+
+  function db_removeWorkflow(name: string, moduleName = activeModule): boolean {
+    const r: boolean = removeWorkflow(name, moduleName);
+    if (r) setModuleDb(moduleDb);
+    return r;
+  }
+
+  function db_removeEvent(name: string, moduleName = activeModule): boolean {
+    const r: boolean = removeEvent(name, moduleName);
+    if (r) setModuleDb(moduleDb);
+    return r;
+  }
+  return {
+    db_addModule,
+    db_removeModule,
+    db_addEntity,
+    db_addEvent,
+    db_addRecord,
+    db_addRelationship,
+    db_addWorkflow,
+    db_removeEntity,
+    db_removeEvent,
+    db_removeRecord,
+    db_removeRelationship,
+    db_removeWorkflow,
+  };
 }
 
 export function addModule(name: string): string {
