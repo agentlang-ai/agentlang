@@ -567,30 +567,28 @@ export class RuntimeModule {
 const moduleDb = new Map<string, RuntimeModule>();
 let activeModule: string = '';
 
-let db_changeCount: any;
-let db_setModuleDbChangeCount: any;
+let db_ModuleDbChangeCounterInited: boolean = false;
 
 export function useModuleDb() {
-  if (db_changeCount == undefined) {
-    const r: Array<Function> = React.useState(0);
-    db_changeCount = r[0];
-    db_setModuleDbChangeCount = r[1];
+  let db_ModuleDbChangeCount: any;
+  let db_setModuleDbChangeCount: any;
+  if (!db_ModuleDbChangeCounterInited) {
+    [db_ModuleDbChangeCount, db_setModuleDbChangeCount] = React.useState(0);
+    db_ModuleDbChangeCounterInited = true;
   }
 
   function triggerModuleDbChange() {
-    if (db_changeCount > 1000) {
-      db_changeCount = 0;
+    if (db_ModuleDbChangeCount > 1000) {
+      db_setModuleDbChangeCount(0);
     } else {
-      ++db_changeCount;
+      db_setModuleDbChangeCount(db_ModuleDbChangeCount + 1);
     }
-    db_setModuleDbChangeCount(db_changeCount);
   }
 
   function db_addModule(name: string) {
     addModule(name);
-    console.log(`before db_addModule: ${db_changeCount}`);
     triggerModuleDbChange();
-    console.log(`after db_addModule: ${db_changeCount}`);
+    console.log('after db_addModule ' + db_ModuleDbChangeCount);
   }
 
   function db_removeModule(name: string) {
@@ -603,12 +601,10 @@ export function useModuleDb() {
     attrs: Attribute[],
     ext?: string,
     moduleName = activeModule
-  ): string {
-    console.log(`after db_addEntity: ${db_changeCount}`);
+  ): void {
     addEntity(name, attrs, ext, moduleName);
     triggerModuleDbChange();
-    console.log(`after db_addEntity: ${db_changeCount}`);
-    return name;
+    console.log('after db_addEntity ' + db_ModuleDbChangeCount);
   }
 
   function db_addEvent(
@@ -616,16 +612,14 @@ export function useModuleDb() {
     attrs: Attribute[],
     ext?: string,
     moduleName = activeModule
-  ): string {
+  ): void {
     addEvent(name, attrs, ext, moduleName);
     triggerModuleDbChange();
-    return name;
   }
 
   function db_addRecord(name: string, attrs: Attribute[], ext?: string, moduleName = activeModule) {
     addRecord(name, attrs, ext, moduleName);
     triggerModuleDbChange();
-    return name;
   }
 
   function db_addRelationship(
@@ -638,43 +632,36 @@ export function useModuleDb() {
   ) {
     addRelationship(name, type, nodes, attrs, props, moduleName);
     triggerModuleDbChange();
-    return name;
   }
 
   function db_addWorkflow(name: string, statements: Statement[], moduleName = activeModule) {
     addWorkflow(name, statements, moduleName);
     triggerModuleDbChange();
-    return name;
   }
 
-  function db_removeEntity(name: string, moduleName = activeModule): boolean {
+  function db_removeEntity(name: string, moduleName = activeModule): void {
     const r: boolean = removeEntity(name, moduleName);
     if (r) triggerModuleDbChange();
-    return r;
   }
 
-  function db_removeRecord(name: string, moduleName = activeModule): boolean {
+  function db_removeRecord(name: string, moduleName = activeModule): void {
     const r: boolean = removeRecord(name, moduleName);
     if (r) triggerModuleDbChange();
-    return r;
   }
 
-  function db_removeRelationship(name: string, moduleName = activeModule): boolean {
+  function db_removeRelationship(name: string, moduleName = activeModule): void {
     const r: boolean = removeRelationship(name, moduleName);
     if (r) triggerModuleDbChange();
-    return r;
   }
 
-  function db_removeWorkflow(name: string, moduleName = activeModule): boolean {
+  function db_removeWorkflow(name: string, moduleName = activeModule): void {
     const r: boolean = removeWorkflow(name, moduleName);
     if (r) triggerModuleDbChange();
-    return r;
   }
 
-  function db_removeEvent(name: string, moduleName = activeModule): boolean {
+  function db_removeEvent(name: string, moduleName = activeModule): void {
     const r: boolean = removeEvent(name, moduleName);
     if (r) triggerModuleDbChange();
-    return r;
   }
   return {
     db_addModule,
