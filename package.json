@@ -43,6 +43,7 @@
     "monaco-editor": "npm:@codingame/monaco-vscode-editor-api@^17.1.0",
     "monaco-editor-wrapper": "^6.7.0",
     "monaco-languageclient": "~8.1.1",
+    "npm": "^11.4.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "sqlite3": "^5.1.7",

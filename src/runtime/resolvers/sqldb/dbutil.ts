@@ -1,10 +1,11 @@
-import { TableColumnOptions, TableIndexOptions } from 'typeorm';
+import { TableColumnOptions, TableForeignKey, TableIndexOptions } from 'typeorm';
 import {
   AttributeSpec,
   EntityEntry,
   fetchModule,
   getAttributeDefaultValue,
   getAttributeLength,
+  getFkSpec,
   getModuleNames,
   isArrayAttribute,
   isBuiltInType,
@@ -32,7 +33,9 @@ export function modulesAsDbSchema(): TableSchema[] {
   getModuleNames().forEach((n: string) => {
     const mod: RuntimeModule = fetchModule(n);
     const entities: EntityEntry[] = mod.getEntityEntries();
-    const betRels: RelationshipEntry[] = mod.getBetweenRelationshipEntries();
+    const betRels: RelationshipEntry[] = mod
+      .getBetweenRelationshipEntries()
+      .filter((v: RelationshipEntry) => v.isManyToMany());
     const allEntries: RecordEntry[] = entities.concat(betRels) as RecordEntry[];
     allEntries.forEach((ent: RecordEntry) => {
       const tspec: TableSchema = {
@@ -49,12 +52,14 @@ export type TableSpec = {
   columns: TableColumnOptions[];
   indices: Array<TableIndexOptions>;
   idColumns: Map<string, AttributeSpec>;
+  fks?: Array<TableForeignKey>;
 };
 
 function entitySchemaToTable(scm: RecordSchema): TableSpec {
   const cols: Array<TableColumnOptions> = new Array<TableColumnOptions>();
   const indices: Array<TableIndexOptions> = new Array<TableIndexOptions>();
   const idCols: Map<string, AttributeSpec> = new Map<string, AttributeSpec>();
+  let fkSpecs: Array<TableForeignKey> | undefined;
   scm.forEach((attrSpec: AttributeSpec, attrName: string) => {
     let d: any = getAttributeDefaultValue(attrSpec);
     const autoUuid: boolean = d && d == 'uuid()' ? true : false;
@@ -63,6 +68,23 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
     let genStrat: 'uuid' | 'increment' | 'rowid' | 'identity' = 'identity';
     if (autoIncr) genStrat = 'increment';
     else if (autoUuid) genStrat = 'uuid';
+    const fkSpec: string | undefined = getFkSpec(attrSpec);
+    if (fkSpec != undefined) {
+      const parts: string[] = fkSpec.split('.');
+      if (parts.length != 2) {
+        throw new Error(`Invalid reference - ${fkSpec}`);
+      }
+      if (fkSpecs == undefined) {
+        fkSpecs = new Array<TableForeignKey>();
+      }
+      const fk: TableForeignKey = new TableForeignKey({
+        columnNames: [attrName],
+        referencedColumnNames: [parts[1]],
+        referencedTableName: parts[0],
+        onDelete: 'CASCADE',
+      });
+      fkSpecs.push(fk);
+    }
     const colOpt: TableColumnOptions = {
       name: attrName,
       type: asSqlType(attrSpec.type),
@@ -89,7 +111,7 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
       indices.push({ columnNames: [attrName] });
     }
   });
-  return { columns: cols, indices: indices, idColumns: idCols };
+  return { columns: cols, indices: indices, idColumns: idCols, fks: fkSpecs };
 }
 
 export function asSqlType(type: string): string {

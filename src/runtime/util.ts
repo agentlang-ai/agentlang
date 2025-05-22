@@ -84,6 +84,10 @@ export class Path {
     return isString(this.entryName);
   }
 
+  setModuleName(n: string) {
+    this.moduleName = n;
+  }
+
   getModuleName(): string {
     return asString(this.moduleName);
   }

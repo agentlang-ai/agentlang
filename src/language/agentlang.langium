@@ -48,7 +48,7 @@ Statement: pattern=Pattern ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*
 CrudMap: QueryAllPattern | '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=Property* '}'
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';
 
-QueryAllPattern: '{' name=QueryId '{''}''}';
+QueryAllPattern: '{' name=QueryId '{''}' (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';
 
 RelationshipPattern: name=ID pattern=Pattern;
 

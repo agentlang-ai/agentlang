@@ -14,7 +14,7 @@ export async function initDefaultDatabase() {
       type: 'sqlite',
       database: 'db',
     });
-    defaultDataSource
+    await defaultDataSource
       .initialize()
       .then(() => {
         createTables().then((_: void) => {
@@ -32,9 +32,10 @@ export async function initDefaultDatabase() {
 async function createTables(): Promise<void> {
   if (defaultDataSource != undefined) {
     const queryRunner = defaultDataSource.createQueryRunner();
+    const tableSpecs: TableSchema[] = modulesAsDbSchema();
     try {
-      const tableSpecs: TableSchema[] = modulesAsDbSchema();
-      tableSpecs.forEach((ts: TableSchema) => {
+      for (let i = 0; i < tableSpecs.length; ++i) {
+        const ts: TableSchema = tableSpecs[i];
         const hasPk: boolean =
           ts.columns.columns.find((tco: TableColumnOptions) => {
             return tco.isPrimary == true;
@@ -57,52 +58,67 @@ async function createTables(): Promise<void> {
         if (hasPk) {
           ts.columns.indices.push({ columnNames: [PathAttributeName] });
         }
-        queryRunner.createTable(
-          new Table({
-            name: ts.name,
-            columns: ts.columns.columns,
-            indices: ts.columns.indices,
-          }),
-          true
-        );
-        queryRunner.createTable(
-          new Table({
-            name: ts.name + '_owners',
-            columns: [
-              {
-                name: 'path',
-                type: 'varchar',
-                isPrimary: true,
-              },
-              {
-                name: 'user_id',
-                type: 'varchar',
-              },
-              {
-                name: 'type',
-                type: 'char(1)',
-                default: "'u'",
-              },
-              {
-                name: 'can_read',
-                type: 'boolean',
-                default: true,
-              },
-              {
-                name: 'can_write',
-                type: 'boolean',
-                default: true,
-              },
-              {
-                name: 'can_delete',
-                type: 'boolean',
-                default: true,
-              },
-            ],
-          }),
-          true
-        );
-      });
+        await queryRunner
+          .createTable(
+            new Table({
+              name: ts.name,
+              columns: ts.columns.columns,
+              indices: ts.columns.indices,
+            }),
+            true
+          )
+          .catch((reason: any) => {
+            logger.error(`failed to create table ${ts.name} - ${reason}`);
+          });
+        await queryRunner
+          .createTable(
+            new Table({
+              name: ts.name + '_owners',
+              columns: [
+                {
+                  name: 'path',
+                  type: 'varchar',
+                  isPrimary: true,
+                },
+                {
+                  name: 'user_id',
+                  type: 'varchar',
+                },
+                {
+                  name: 'type',
+                  type: 'char(1)',
+                  default: "'u'",
+                },
+                {
+                  name: 'can_read',
+                  type: 'boolean',
+                  default: true,
+                },
+                {
+                  name: 'can_write',
+                  type: 'boolean',
+                  default: true,
+                },
+                {
+                  name: 'can_delete',
+                  type: 'boolean',
+                  default: true,
+                },
+              ],
+            }),
+            true
+          )
+          .catch((reason: any) => {
+            logger.error(`failed to create owners table for ${ts.name} - ${reason}`);
+          });
+        if (ts.columns.fks != undefined) {
+          for (let j = 0; j < ts.columns.fks.length; ++j) {
+            await queryRunner.createForeignKey(ts.name, ts.columns.fks[j]).catch((reason: any) => {
+              logger.error(`failed to create fk constraint for ${ts.name} - ${reason}`);
+            });
+          }
+        }
+      }
     } finally {
       queryRunner.release();
     }
@@ -261,10 +277,16 @@ export async function rollbackDbTransaction(txnId: string): Promise<void> {
 
 async function endTransaction(txnId: string, commit: boolean): Promise<void> {
   const qr: QueryRunner | undefined = transactionsDb.get(txnId);
-  if (qr) {
+  if (qr && qr.isTransactionActive) {
     try {
-      if (commit) await qr.commitTransaction();
-      else await qr.rollbackTransaction();
+      if (commit)
+        await qr.commitTransaction().catch((reason: any) => {
+          logger.error(`failed to commit transaction ${txnId} - ${reason}`);
+        });
+      else
+        await qr.rollbackTransaction().catch((reason: any) => {
+          logger.error(`failed to rollback transaction ${txnId} - ${reason}`);
+        });
     } finally {
       qr.release();
       transactionsDb.delete(txnId);
