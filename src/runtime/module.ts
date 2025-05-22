@@ -570,13 +570,12 @@ let activeModule: string = '';
 let db_changeCount: any;
 let db_setModuleDbChangeCount: any;
 
-if (!isNodeEnv) {
-  const r: Array<Function> = React.useState(0);
-  db_changeCount = r[0];
-  db_setModuleDbChangeCount = r[1];
-}
-
 export function useModuleDb() {
+  if (db_changeCount == undefined) {
+    const r: Array<Function> = React.useState(0);
+    db_changeCount = r[0];
+    db_setModuleDbChangeCount = r[1];
+  }
   function triggerModuleDbChange() {
     let c: number = db_changeCount;
     if (c > 1000) {
