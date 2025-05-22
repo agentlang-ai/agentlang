@@ -568,16 +568,20 @@ const moduleDb = new Map<string, RuntimeModule>();
 let activeModule: string = '';
 
 export function useModuleDb() {
-  const [_, setModuleDb] = React.useState(moduleDb);
+  const [_, setModuleDb] = React.useState({ db: moduleDb });
+
+  function triggerModuleDbChange() {
+    setModuleDb({ db: moduleDb });
+  }
 
   function db_addModule(name: string) {
     addModule(name);
-    setModuleDb(moduleDb);
+    triggerModuleDbChange();
   }
 
   function db_removeModule(name: string) {
     removeModule(name);
-    setModuleDb(moduleDb);
+    triggerModuleDbChange();
   }
 
   function db_addEntity(
@@ -587,7 +591,7 @@ export function useModuleDb() {
     moduleName = activeModule
   ): string {
     addEntity(name, attrs, ext, moduleName);
-    setModuleDb(moduleDb);
+    triggerModuleDbChange();
     return name;
   }
 
@@ -598,13 +602,13 @@ export function useModuleDb() {
     moduleName = activeModule
   ): string {
     addEvent(name, attrs, ext, moduleName);
-    setModuleDb(moduleDb);
+    triggerModuleDbChange();
     return name;
   }
 
   function db_addRecord(name: string, attrs: Attribute[], ext?: string, moduleName = activeModule) {
     addRecord(name, attrs, ext, moduleName);
-    setModuleDb(moduleDb);
+    triggerModuleDbChange();
     return name;
   }
 
@@ -617,43 +621,43 @@ export function useModuleDb() {
     moduleName = activeModule
   ) {
     addRelationship(name, type, nodes, attrs, props, moduleName);
-    setModuleDb(moduleDb);
+    triggerModuleDbChange();
     return name;
   }
 
   function db_addWorkflow(name: string, statements: Statement[], moduleName = activeModule) {
     addWorkflow(name, statements, moduleName);
-    setModuleDb(moduleDb);
+    triggerModuleDbChange();
     return name;
   }
 
   function db_removeEntity(name: string, moduleName = activeModule): boolean {
     const r: boolean = removeEntity(name, moduleName);
-    if (r) setModuleDb(moduleDb);
+    if (r) triggerModuleDbChange();
     return r;
   }
 
   function db_removeRecord(name: string, moduleName = activeModule): boolean {
     const r: boolean = removeRecord(name, moduleName);
-    if (r) setModuleDb(moduleDb);
+    if (r) triggerModuleDbChange();
     return r;
   }
 
   function db_removeRelationship(name: string, moduleName = activeModule): boolean {
     const r: boolean = removeRelationship(name, moduleName);
-    if (r) setModuleDb(moduleDb);
+    if (r) triggerModuleDbChange();
     return r;
   }
 
   function db_removeWorkflow(name: string, moduleName = activeModule): boolean {
     const r: boolean = removeWorkflow(name, moduleName);
-    if (r) setModuleDb(moduleDb);
+    if (r) triggerModuleDbChange();
     return r;
   }
 
   function db_removeEvent(name: string, moduleName = activeModule): boolean {
     const r: boolean = removeEvent(name, moduleName);
-    if (r) setModuleDb(moduleDb);
+    if (r) triggerModuleDbChange();
     return r;
   }
   return {
