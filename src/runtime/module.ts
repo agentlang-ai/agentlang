@@ -568,10 +568,10 @@ const moduleDb = new Map<string, RuntimeModule>();
 let activeModule: string = '';
 
 export function useModuleDb() {
-  const [_, setModuleDb] = React.useState({ db: moduleDb });
+  const [_, setModuleDb] = React.useState(moduleDb);
 
   function triggerModuleDbChange() {
-    setModuleDb({ db: moduleDb });
+    setModuleDb(new Map<string, RuntimeModule>(moduleDb));
   }
 
   function db_addModule(name: string) {
