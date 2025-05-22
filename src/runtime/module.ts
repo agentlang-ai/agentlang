@@ -9,8 +9,9 @@ import {
   RelNodes,
   Node,
 } from '../language/generated/ast.js';
-import { Path, splitFqName, isString, isNumber, isBoolean, isFqName } from './util.js';
+import { Path, splitFqName, isString, isNumber, isBoolean, isFqName, makeFqName } from './util.js';
 import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
+import { getResolverNameForPath } from './resolvers/registry.js';
 
 export class ModuleEntry {
   name: string;
@@ -79,6 +80,55 @@ export class RecordEntry extends ModuleEntry {
   addMeta(k: string, v: string): void {
     this.meta.set(k, v);
   }
+
+  addAttribute(n: string, attrSpec: AttributeSpec) {
+    if (this.schema.has(n)) {
+      throw new Error(`Attribute named ${n} already exists in ${this.moduleName}.${this.name}`);
+    }
+    this.schema.set(n, attrSpec);
+  }
+
+  findAttribute(predic: Function): AttributeEntry | undefined {
+    for (const k of this.schema.keys()) {
+      const attrSpec: AttributeSpec | undefined = this.schema.get(k);
+      if (attrSpec != undefined) {
+        if (predic(attrSpec))
+          return {
+            name: k,
+            spec: attrSpec,
+          };
+      }
+    }
+    return undefined;
+  }
+
+  hasRefTo(modName: string, entryName: string): boolean {
+    if (
+      this.findAttribute((attrSpec: AttributeSpec) => {
+        if (attrSpec.properties != undefined) {
+          const ref: Path | undefined = attrSpec.properties.get('ref');
+          if (ref != undefined) {
+            if (ref.getModuleName() == modName && ref.getEntryName() == entryName) {
+              return true;
+            }
+          }
+        }
+        return false;
+      })
+    )
+      return true;
+    else return false;
+  }
+
+  getIdAttributeName(): string | undefined {
+    const e: AttributeEntry | undefined = this.findAttribute((attrSpec: AttributeSpec) => {
+      return isIdAttribute(attrSpec);
+    });
+    if (e != undefined) {
+      return e.name;
+    }
+    return undefined;
+  }
 }
 
 type FetchModuleByEntryNameResult = {
@@ -144,9 +194,21 @@ function asPropertiesMap(props: Property[]): Map<string, any> | undefined {
         result.set(n, true);
       }
     });
-    return result;
+    return maybeProcessRefProperty(result);
   }
   return undefined;
+}
+
+function maybeProcessRefProperty(props: Map<string, any>): Map<string, any> {
+  const v: string | undefined = props.get('ref');
+  if (v != undefined) {
+    const parts: Path = splitFqName(v);
+    if (!parts.hasModule()) {
+      parts.setModuleName(activeModule);
+    }
+    props.set('ref', parts);
+  }
+  return props;
 }
 
 function normalizeKvPairValue(kvp: KvPair): any | null {
@@ -235,33 +297,59 @@ export class RelationshipEntry extends RecordEntry {
     this.node2 = node2;
     this.properties = props;
     this.updateSchemaWithNodeAttributes();
-  }
-
-  private makeUniqueProp(flag: boolean): Map<string, any> | undefined {
-    if (flag) {
-      const props: Map<string, any> = new Map<string, any>();
-      props.set('unique', true);
-      return props;
+    if (this.relType == RelType.BETWEEN && !this.isManyToMany()) {
+      this.updateBetweenTargetRefs();
     }
-    return undefined;
   }
 
   private updateSchemaWithNodeAttributes() {
     const attrSpec1: AttributeSpec = {
       type: 'string',
-      properties: this.makeUniqueProp(
-        this.properties != undefined &&
-          (this.properties.get('one_one') == true || this.properties.get('one_many') == true)
-      ),
     };
     this.schema.set(this.node1.alias, attrSpec1);
     const attrSpec2: AttributeSpec = {
       type: 'string',
-      properties: this.makeUniqueProp(
-        this.properties != undefined && this.properties.get('one_one') == true
-      ),
     };
     this.schema.set(this.node2.alias, attrSpec2);
+  }
+
+  private updateBetweenTargetRefs() {
+    const res1: string | undefined = getResolverNameForPath(
+      makeFqName(this.node1.moduleName, this.node1.entryName)
+    );
+    const res2: string | undefined = getResolverNameForPath(
+      makeFqName(this.node2.moduleName, this.node2.entryName)
+    );
+    if (res1 == undefined && res2 == undefined) {
+      const mod: RuntimeModule = fetchModule(this.node2.moduleName);
+      const entry: RecordEntry = mod.getEntry(this.node2.entryName) as RecordEntry;
+      if (entry.hasRefTo(this.node1.moduleName, this.node1.entryName)) {
+        throw new Error(
+          `Cannot create between relationship, ${this.node2.entryName} already has a ref to ${this.node1.entryName}`
+        );
+      }
+      const refn: string = `__${this.node1.alias.toLowerCase()}`;
+      const props: Map<string, any> | undefined = this.isOneToOne()
+        ? new Map<string, any>()
+        : undefined;
+      if (props != undefined) {
+        props.set('unique', true);
+      }
+      const attrspec: AttributeSpec = {
+        type: 'String',
+        properties: props,
+      };
+      entry.addAttribute(refn, attrspec);
+    }
+  }
+
+  setBetweenRef(inst: Instance, refPath: string, isQuery: boolean = false) {
+    const refAttrName: string = `__${this.node1.alias.toLowerCase()}`;
+    if (isQuery) {
+      inst.addQuery(refAttrName, '=', refPath);
+    } else {
+      inst.attributes.set(refAttrName, refPath);
+    }
   }
 
   isContains(): boolean {
@@ -270,6 +358,25 @@ export class RelationshipEntry extends RecordEntry {
 
   isBetween(): boolean {
     return this.relType == RelType.BETWEEN;
+  }
+
+  hasBooleanFlagSet(flag: string): boolean {
+    if (this.properties != undefined) {
+      return this.properties.get(flag) == true;
+    }
+    return false;
+  }
+
+  isOneToOne(): boolean {
+    return this.isBetween() && this.hasBooleanFlagSet('one_one');
+  }
+
+  isOneToMany(): boolean {
+    return this.isBetween() && this.hasBooleanFlagSet('one_many');
+  }
+
+  isManyToMany(): boolean {
+    return !(this.isOneToOne() || this.isOneToMany());
   }
 }
 
@@ -510,6 +617,7 @@ const propertyNames = new Set([
   '@autoincrement',
   '@array',
   '@object',
+  '@ref',
 ]);
 
 export function isBuiltInType(type: string): boolean {
@@ -614,6 +722,10 @@ export function getAttributeDefaultValue(attrSpec: AttributeSpec): any | undefin
 
 export function getAttributeLength(attrSpec: AttributeSpec): number | undefined {
   return getAnyProperty('length', attrSpec);
+}
+
+export function getFkSpec(attrSpec: AttributeSpec): string | undefined {
+  return getAnyProperty('ref', attrSpec);
 }
 
 export function addEntity(
@@ -914,7 +1026,11 @@ export class Instance {
   }
 
   detachAllRelatedInstance() {
-    if (this.relatedInstances != undefined) this.relatedInstances?.clear();
+    if (this.relatedInstances != undefined) {
+      this.relatedInstances?.clear();
+      this.relatedInstances = undefined;
+      this.attributes.delete('->');
+    }
   }
 
   mergeRelatedInstances() {
@@ -952,7 +1068,7 @@ export function objectAsInstanceAttributes(obj: object): InstanceAttributes {
 
 export type AttributeEntry = {
   name: string;
-  props: Map<string, any> | undefined;
+  spec: AttributeSpec;
 };
 
 export function findIdAttribute(inst: Instance): AttributeEntry | undefined {
@@ -962,7 +1078,7 @@ export function findIdAttribute(inst: Instance): AttributeEntry | undefined {
     if (isIdAttribute(attrSpec)) {
       return {
         name: key as string,
-        props: attrSpec.properties,
+        spec: attrSpec,
       };
     }
   }

@@ -193,22 +193,26 @@ class Environment extends Instance {
     this.getTransactionForResolver(resolver);
   }
 
-  commitAllTransactions(): void {
-    this.getActiveTransactions().forEach((n: string, txnId: string) => {
-      const res: Resolver | undefined = this.getResolver(n);
-      if (res) {
-        res.commitTransaction(txnId);
+  private async endAllTransactions(commit: boolean): Promise<void> {
+    const txns: Map<string, string> = this.getActiveTransactions();
+    for (const n of txns.keys()) {
+      const txnId: string | undefined = txns.get(n);
+      if (txnId) {
+        const res: Resolver | undefined = this.getResolver(n);
+        if (res) {
+          if (commit) await res.commitTransaction(txnId);
+          else await res.rollbackTransaction(txnId);
+        }
       }
-    });
+    }
   }
 
-  rollbackAllTransactions(): void {
-    this.getActiveTransactions().forEach((n: string, txnId: string) => {
-      const res: Resolver | undefined = this.getResolver(n);
-      if (res) {
-        res.rollbackTransaction(txnId);
-      }
-    });
+  async commitAllTransactions(): Promise<void> {
+    await this.endAllTransactions(true);
+  }
+
+  async rollbackAllTransactions(): Promise<void> {
+    await this.endAllTransactions(false);
   }
 }
 
@@ -218,6 +222,7 @@ export async function evaluate(
   activeEnv?: Environment
 ): Promise<void> {
   let env: Environment | undefined;
+  let txnRolledBack: boolean = false;
   try {
     if (isEventInstance(eventInstance)) {
       const wf: WorkflowEntry = getWorkflow(eventInstance);
@@ -231,12 +236,14 @@ export async function evaluate(
     }
   } catch (err) {
     if (env != undefined && activeEnv == undefined) {
-      env.rollbackAllTransactions();
+      await env.rollbackAllTransactions().then(() => {
+        txnRolledBack = true;
+      });
     }
     throw err;
   } finally {
-    if (env != undefined && activeEnv == undefined) {
-      env.commitAllTransactions();
+    if (!txnRolledBack && env != undefined && activeEnv == undefined) {
+      await env.commitAllTransactions();
     }
   }
 }
@@ -362,9 +369,15 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (qattrs == undefined && !isQueryAll) {
       const parentPath: string | undefined = env.getParentPath();
       if (parentPath != undefined) inst.attributes.set(PathAttributeName, parentPath);
-      await getResolverForPath(entryName, moduleName, env)
-        .createInstance(inst)
-        .then((inst: Instance) => env.bindLastResult(inst));
+      const res: Resolver = getResolverForPath(entryName, moduleName, env);
+      const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
+      if (betRelInfo != undefined && res.getName() == DefaultResolverName) {
+        betRelInfo.relationship.setBetweenRef(
+          inst,
+          betRelInfo.connectedInstance.attributes.get(PathAttributeName)
+        );
+      }
+      await res.createInstance(inst).then((inst: Instance) => env.bindLastResult(inst));
       if (crud.relationships != undefined) {
         for (let i = 0; i < crud.relationships.length; ++i) {
           const rel: RelationshipPattern = crud.relationships[i];
@@ -377,16 +390,20 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             const lastInst: Instance = env.getLastResult();
             lastInst.attachRelatedInstances(rel.name, newEnv.getLastResult());
           } else if (isBetweenRelationship(rel.name, moduleName)) {
-            const lastRes: any = env.getLastResult();
+            const lastInst: Instance = env.getLastResult() as Instance;
             const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
+            if (relEntry.isOneToOne() || relEntry.isOneToMany()) {
+              newEnv.bindBetweenRelInfo({ relationship: relEntry, connectedInstance: lastInst });
+            }
             await evaluatePattern(rel.pattern, newEnv);
-            const relResult: any = newEnv.getLastResult();
-            await getResolverForPath(rel.name, moduleName, env).connectInstances(
-              lastRes,
-              relResult,
-              relEntry
-            );
-            const lastInst: Instance = env.getLastResult();
+            if (relEntry.isManyToMany()) {
+              const relResult: any = newEnv.getLastResult();
+              await getResolverForPath(rel.name, moduleName, env).connectInstances(
+                lastInst,
+                relResult,
+                relEntry
+              );
+            }
             lastInst.attachRelatedInstances(rel.name, newEnv.getLastResult());
           }
         }

@@ -55,12 +55,13 @@ workflow CreateUserWithPosts {
 
 workflow AddPost {
     {User {id? AddPost.userId},
-     UserPost {Post {title AddPost.title}}}
+     UserPost {Post {title AddPost.title},
+               PostCategory {Category {description AddPost.category}}}}
 }
 
 workflow GetUserPosts {
     {User {id? GetUserPosts.userId},
-     UserPost {Post? {}}}
+     UserPost {Post? {}, PostCategory {Category? {}}}}
 }
 
 workflow FindUserProfile {
