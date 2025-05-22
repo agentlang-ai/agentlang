@@ -576,14 +576,14 @@ export function useModuleDb() {
     db_changeCount = r[0];
     db_setModuleDbChangeCount = r[1];
   }
+
   function triggerModuleDbChange() {
-    let c: number = db_changeCount;
-    if (c > 1000) {
-      c = 0;
+    if (db_changeCount > 1000) {
+      db_changeCount = 0;
     } else {
-      ++c;
+      ++db_changeCount;
     }
-    db_setModuleDbChangeCount(c);
+    db_setModuleDbChangeCount(db_changeCount);
   }
 
   function db_addModule(name: string) {
