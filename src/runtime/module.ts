@@ -568,10 +568,16 @@ const moduleDb = new Map<string, RuntimeModule>();
 let activeModule: string = '';
 
 export function useModuleDb() {
-  const [_, setModuleDb] = React.useState(moduleDb);
+  const [changeCount, setModuleDbChangeCount] = React.useState(0);
 
   function triggerModuleDbChange() {
-    setModuleDb(new Map<string, RuntimeModule>(moduleDb));
+    let c: number = changeCount
+    if (c > 1000) {
+      c = 0
+    } else {
+      ++c
+    }
+    setModuleDbChangeCount(c);
   }
 
   function db_addModule(name: string) {
