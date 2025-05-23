@@ -209,8 +209,8 @@ const loadModule = async (
   }).Agentlang;
 
   // Extract the AST node
-  const model = await extractAstNode<Module>(fileName, services);
-  const moduleName = internModule(model);
+  const module = await extractAstNode<Module>(fileName, services);
+  const moduleName = internModule(module);
   console.log(chalk.green(`Module ${chalk.bold(moduleName)} loaded`));
   if (continuation != undefined) continuation(moduleName);
 };

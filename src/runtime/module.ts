@@ -8,10 +8,14 @@ import {
   FnCall,
   RelNodes,
   Node,
+  isRelNodes,
+  Def,
+  isWorkflow,
 } from '../language/generated/ast.js';
 import { Path, splitFqName, isString, isNumber, isBoolean, isFqName, makeFqName } from './util.js';
 import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 import { getResolverNameForPath } from './resolvers/registry.js';
+import { parse } from '../language/parser.js';
 
 export class ModuleEntry {
   name: string;
@@ -53,27 +57,34 @@ export class RecordEntry extends ModuleEntry {
   type: RecordType = RecordType.RECORD;
   parentEntryName: string | undefined;
 
-  constructor(name: string, attributes: Attribute[], moduleName: string, parentEntryName?: string) {
+  constructor(
+    name: string,
+    moduleName: string,
+    attributes?: Attribute[],
+    parentEntryName?: string
+  ) {
     super(name, moduleName);
     this.parentEntryName = parentEntryName;
     this.schema = parentEntryName
       ? cloneParentSchema(parentEntryName, moduleName)
       : newRecordSchema();
-    attributes.forEach((a: Attribute) => {
-      const isArrayType: boolean = a.arrayType ? true : false;
-      const t: string | undefined = isArrayType ? a.arrayType : a.type;
-      if (t == undefined) throw new Error(`Attribute ${a.name} requires a type`);
-      let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
-      const isObjectType: boolean = !isBuiltInType(t);
-      if (isArrayType || isObjectType) {
-        if (props == undefined) {
-          props = new Map<string, any>();
+    if (attributes != undefined) {
+      attributes.forEach((a: Attribute) => {
+        const isArrayType: boolean = a.arrayType ? true : false;
+        const t: string | undefined = isArrayType ? a.arrayType : a.type;
+        if (t == undefined) throw new Error(`Attribute ${a.name} requires a type`);
+        let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
+        const isObjectType: boolean = !isBuiltInType(t);
+        if (isArrayType || isObjectType) {
+          if (props == undefined) {
+            props = new Map<string, any>();
+          }
+          if (isArrayType) props.set('array', true);
+          if (isObjectType) props.set('object', true);
         }
-        if (isArrayType) props.set('array', true);
-        if (isObjectType) props.set('object', true);
-      }
-      this.schema.set(a.name, { type: t, properties: props });
-    });
+        this.schema.set(a.name, { type: t, properties: props });
+      });
+    }
     this.meta = newMeta();
   }
 
@@ -236,7 +247,7 @@ function normalizeKvPairValue(kvp: KvPair): any | null {
   return null;
 }
 
-export const PlaceholderRecordEntry = new RecordEntry('--', new Array<Attribute>(), 'agentlang');
+export const PlaceholderRecordEntry = new RecordEntry('--', 'agentlang');
 
 export class EntityEntry extends RecordEntry {
   override type: RecordType = RecordType.ENTITY;
@@ -287,11 +298,11 @@ export class RelationshipEntry extends RecordEntry {
     typ: string,
     node1: RelNodeEntry,
     node2: RelNodeEntry,
-    attributes: Attribute[],
     moduleName: string,
+    attributes?: Attribute[],
     props?: Map<string, any>
   ) {
-    super(name, attributes, moduleName);
+    super(name, moduleName, attributes);
     if (typ == 'between') this.relType = RelType.BETWEEN;
     this.node1 = node1;
     this.node2 = node2;
@@ -743,37 +754,37 @@ export function getFkSpec(attrSpec: AttributeSpec): string | undefined {
 
 export function addEntity(
   name: string,
-  attrs: Attribute[],
+  attrs?: Attribute[],
   ext?: string,
   moduleName = activeModule
 ): string {
   const module: RuntimeModule = fetchModule(moduleName);
-  attrs.forEach(a => verifyAttribute(a));
-  module.addEntry(new EntityEntry(name, attrs, moduleName, ext));
+  if (attrs) attrs.forEach(a => verifyAttribute(a));
+  module.addEntry(new EntityEntry(name, moduleName, attrs, ext));
   return name;
 }
 
 export function addEvent(
   name: string,
-  attrs: Attribute[],
+  attrs?: Attribute[],
   ext?: string,
   moduleName = activeModule
 ) {
   const module: RuntimeModule = fetchModule(moduleName);
-  attrs.forEach(a => verifyAttribute(a));
-  module.addEntry(new EventEntry(name, attrs, moduleName, ext));
+  if (attrs) attrs.forEach(a => verifyAttribute(a));
+  module.addEntry(new EventEntry(name, moduleName, attrs, ext));
   return name;
 }
 
 export function addRecord(
   name: string,
-  attrs: Attribute[],
+  attrs?: Attribute[],
   ext?: string,
   moduleName = activeModule
 ) {
   const module: RuntimeModule = fetchModule(moduleName);
-  attrs.forEach(a => verifyAttribute(a));
-  module.addEntry(new RecordEntry(name, attrs, moduleName, ext));
+  if (attrs) attrs.forEach(a => verifyAttribute(a));
+  module.addEntry(new RecordEntry(name, moduleName, attrs, ext));
   return name;
 }
 
@@ -782,7 +793,7 @@ const DefaultRelAttrbutes: Array<Attribute> = new Array<Attribute>();
 export function addRelationship(
   name: string,
   type: 'contains' | 'between',
-  nodes: RelNodes,
+  nodes: RelNodes | RelNodeEntry[],
   attrs: Attribute[] | undefined,
   props: Property[] | undefined,
   moduleName = activeModule
@@ -790,11 +801,18 @@ export function addRelationship(
   const module: RuntimeModule = fetchModule(moduleName);
   if (attrs != undefined) attrs.forEach(a => verifyAttribute(a));
   else attrs = DefaultRelAttrbutes;
-  const n1: RelNodeEntry = asRelNodeEntry(nodes.node1);
-  const n2: RelNodeEntry = asRelNodeEntry(nodes.node2);
+  let n1: RelNodeEntry | undefined;
+  let n2: RelNodeEntry | undefined;
+  if (isRelNodes(nodes)) {
+    n1 = asRelNodeEntry(nodes.node1);
+    n2 = asRelNodeEntry(nodes.node2);
+  } else {
+    n1 = nodes[0];
+    n2 = nodes[1];
+  }
   let propsMap: Map<string, any> | undefined;
   if (props != undefined) propsMap = asPropertiesMap(props);
-  module.addEntry(new RelationshipEntry(name, type, n1, n2, attrs, moduleName, propsMap));
+  module.addEntry(new RelationshipEntry(name, type, n1, n2, moduleName, attrs, propsMap));
   return name;
 }
 
@@ -813,6 +831,15 @@ export function addWorkflow(name: string, statements: Statement[], moduleName = 
   }
   module.addEntry(new WorkflowEntry(asWorkflowName(name), statements, moduleName));
   return name;
+}
+
+export async function parseAndAddWorkflow(code: string, moduleName: string) {
+  const r = await parse(`module ${moduleName} ${code}`);
+  r.parseResult.value.defs.forEach((v: Def) => {
+    if (isWorkflow(v)) {
+      addWorkflow(v.name, v.statements, moduleName);
+    }
+  });
 }
 
 export function getWorkflow(eventInstance: Instance): WorkflowEntry {
