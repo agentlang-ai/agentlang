@@ -829,7 +829,7 @@ export function addWorkflow(name: string, moduleName = activeModule, statements?
   } else {
     addEvent(name, moduleName);
   }
-  if (!statements) statements = new Array<Statement>()
+  if (!statements) statements = new Array<Statement>();
   module.addEntry(new WorkflowEntry(asWorkflowName(name), statements, moduleName));
   return name;
 }
