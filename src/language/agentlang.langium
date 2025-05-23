@@ -25,9 +25,7 @@ Relationship: 'relationship' name=ID type=('contains' | 'between') nodes=RelNode
 
 Node: name=ID | name=ID 'as' alias=ID;
 
-RelNodes: '(' node1=Node node1Alias=RelNodeAlias? ',' node2=Node node2Alias=RelNodeAlias? ')';
-
-RelNodeAlias: 'as' name=ID;
+RelNodes: '(' node1=Node ',' node2=Node ')';
 
 Attribute: name=ID (type=ID | arrayType=ID '['']') properties+=Property*;
 

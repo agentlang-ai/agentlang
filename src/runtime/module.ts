@@ -585,6 +585,16 @@ export function getModuleNames(): string[] {
   return Array.from(ks);
 }
 
+export function getUserModuleNames(): string[] {
+  const result: Array<string> = new Array<string>();
+  moduleDb.keys().forEach((n: string) => {
+    if (n != 'agentlang') {
+      result.push(n);
+    }
+  });
+  return result;
+}
+
 export function isModule(name: string): boolean {
   return moduleDb.has(name);
 }

@@ -523,25 +523,11 @@ export function isRelationshipPattern(item: unknown): item is RelationshipPatter
     return reflection.isInstance(item, RelationshipPattern);
 }
 
-export interface RelNodeAlias extends langium.AstNode {
-    readonly $container: RelNodes;
-    readonly $type: 'RelNodeAlias';
-    name: string;
-}
-
-export const RelNodeAlias = 'RelNodeAlias';
-
-export function isRelNodeAlias(item: unknown): item is RelNodeAlias {
-    return reflection.isInstance(item, RelNodeAlias);
-}
-
 export interface RelNodes extends langium.AstNode {
     readonly $container: Relationship;
     readonly $type: 'RelNodes';
     node1: Node;
-    node1Alias?: RelNodeAlias;
     node2: Node;
-    node2Alias?: RelNodeAlias;
 }
 
 export const RelNodes = 'RelNodes';
@@ -649,7 +635,6 @@ export type AgentlangAstType = {
     Property: Property
     QueryAllPattern: QueryAllPattern
     Record: Record
-    RelNodeAlias: RelNodeAlias
     RelNodes: RelNodes
     Relationship: Relationship
     RelationshipPattern: RelationshipPattern
@@ -663,7 +648,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Delete, Else, Entity, Event, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, QueryAllPattern, Record, RelNodeAlias, RelNodes, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Workflow];
+        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Delete, Else, Entity, Event, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, QueryAllPattern, Record, RelNodes, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Workflow];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -981,22 +966,12 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
-            case RelNodeAlias: {
-                return {
-                    name: RelNodeAlias,
-                    properties: [
-                        { name: 'name' }
-                    ]
-                };
-            }
             case RelNodes: {
                 return {
                     name: RelNodes,
                     properties: [
                         { name: 'node1' },
-                        { name: 'node1Alias' },
-                        { name: 'node2' },
-                        { name: 'node2Alias' }
+                        { name: 'node2' }
                     ]
                 };
             }
