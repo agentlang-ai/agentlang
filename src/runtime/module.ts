@@ -12,7 +12,7 @@ import {
   Def,
   isWorkflow,
 } from '../language/generated/ast.js';
-import { Path, splitFqName, isString, isNumber, isBoolean, isFqName, makeFqName } from './util.js';
+import { Path, splitFqName, isString, isNumber, isBoolean, isFqName } from './util.js';
 import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 import { getResolverNameForPath } from './resolvers/registry.js';
 import { parse } from '../language/parser.js';
@@ -247,7 +247,8 @@ function normalizeKvPairValue(kvp: KvPair): any | null {
   return null;
 }
 
-export const PlaceholderRecordEntry = new RecordEntry('--', 'agentlang');
+export const DefaultModuleName = 'agentlang';
+export const PlaceholderRecordEntry = new RecordEntry('--', DefaultModuleName);
 
 export class EntityEntry extends RecordEntry {
   override type: RecordType = RecordType.ENTITY;
@@ -263,8 +264,7 @@ enum RelType {
 }
 
 export type RelNodeEntry = {
-  moduleName: string;
-  entryName: string;
+  path: Path;
   alias: string;
 };
 
@@ -280,8 +280,7 @@ function asRelNodeEntry(n: Node): RelNodeEntry {
     alias = n.alias;
   }
   return {
-    moduleName: modName,
-    entryName: entryName,
+    path: new Path(modName, entryName),
     alias: alias,
   };
 }
@@ -325,18 +324,14 @@ export class RelationshipEntry extends RecordEntry {
   }
 
   private updateBetweenTargetRefs() {
-    const res1: string | undefined = getResolverNameForPath(
-      makeFqName(this.node1.moduleName, this.node1.entryName)
-    );
-    const res2: string | undefined = getResolverNameForPath(
-      makeFqName(this.node2.moduleName, this.node2.entryName)
-    );
+    const res1: string | undefined = getResolverNameForPath(this.node1.path.asFqName());
+    const res2: string | undefined = getResolverNameForPath(this.node2.path.asFqName());
     if (res1 == undefined && res2 == undefined) {
-      const mod: RuntimeModule = fetchModule(this.node2.moduleName);
-      const entry: RecordEntry = mod.getEntry(this.node2.entryName) as RecordEntry;
-      if (entry.hasRefTo(this.node1.moduleName, this.node1.entryName)) {
+      const mod: RuntimeModule = fetchModule(this.node2.path.getModuleName());
+      const entry: RecordEntry = mod.getEntry(this.node2.path.getEntryName()) as RecordEntry;
+      if (entry.hasRefTo(this.node1.path.getModuleName(), this.node1.path.getEntryName())) {
         throw new Error(
-          `Cannot create between relationship, ${this.node2.entryName} already has a ref to ${this.node1.entryName}`
+          `Cannot create between relationship, ${this.node2.path.getEntryName()} already has a ref to ${this.node1.path.getEntryName()}`
         );
       }
       const refn: string = `__${this.node1.alias.toLowerCase()}`;
@@ -371,6 +366,14 @@ export class RelationshipEntry extends RecordEntry {
     return this.relType == RelType.BETWEEN;
   }
 
+  parentNode(): RelNodeEntry {
+    return this.node1;
+  }
+
+  childNode(): RelNodeEntry {
+    return this.node2;
+  }
+
   hasBooleanFlagSet(flag: string): boolean {
     if (this.properties != undefined) {
       return this.properties.get(flag) == true;
@@ -400,7 +403,7 @@ export class WorkflowEntry extends ModuleEntry {
   }
 }
 
-const EmptyWorkflow: WorkflowEntry = new WorkflowEntry('', [], 'agentlang');
+const EmptyWorkflow: WorkflowEntry = new WorkflowEntry('', [], DefaultModuleName);
 
 export function isEmptyWorkflow(wf: WorkflowEntry): boolean {
   return wf == EmptyWorkflow;
@@ -487,11 +490,19 @@ export class RuntimeModule {
     return this.getEntriesOfType(RecordType.RELATIONSHIP) as RelationshipEntry[];
   }
 
-  getBetweenRelationshipEntries(): RelationshipEntry[] {
+  private getRelationshipEntriesOfType(t: RelType) {
     const rels: RelationshipEntry[] = this.getRelationshipEntries();
     return rels.filter((e: RelationshipEntry) => {
-      return e.isBetween();
+      return e.relType == t;
     });
+  }
+
+  getBetweenRelationshipEntries(): RelationshipEntry[] {
+    return this.getRelationshipEntriesOfType(RelType.BETWEEN);
+  }
+
+  getContainsRelationshipEntries(): RelationshipEntry[] {
+    return this.getRelationshipEntriesOfType(RelType.CONTAINS);
   }
 
   isEntryOfType(t: RecordType, name: string): boolean {
@@ -588,8 +599,8 @@ export function removeModule(name: string): boolean {
   return false;
 }
 
-addModule('agentlang');
-addRecord('env', 'agentlang', new Array<Attribute>());
+addModule(DefaultModuleName);
+addRecord('env', DefaultModuleName, new Array<Attribute>());
 
 export function getModuleNames(): string[] {
   const ks: Iterable<string> = moduleDb.keys();
@@ -599,7 +610,7 @@ export function getModuleNames(): string[] {
 export function getUserModuleNames(): string[] {
   const result: Array<string> = new Array<string>();
   moduleDb.keys().forEach((n: string) => {
-    if (n != 'agentlang') {
+    if (n != DefaultModuleName) {
       result.push(n);
     }
   });
@@ -631,8 +642,8 @@ const builtInChecks = new Map([
   ['URL', isString],
 ]);
 
-const builtInTypes = new Set(Array.from(builtInChecks.keys()));
-const propertyNames = new Set([
+export const builtInTypes = new Set(Array.from(builtInChecks.keys()));
+export const propertyNames = new Set([
   '@id',
   '@indexed',
   '@default',
@@ -895,6 +906,12 @@ export function getRelationship(name: string, moduleName: string): RelationshipE
     return fr.module.getEntry(fr.entryName) as RelationshipEntry;
   }
   throw new Error(`Relationship ${fr.entryName} not found in module ${fr.moduleName}`);
+}
+
+export function getEntrySchema(name: string, moduleName: string): RecordSchema {
+  const m: RuntimeModule = fetchModule(moduleName);
+  const r: RecordEntry = m.getEntry(name) as RecordEntry;
+  return r.schema;
 }
 
 export function removeEntity(name: string, moduleName = activeModule): boolean {

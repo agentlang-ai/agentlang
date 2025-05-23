@@ -84,17 +84,31 @@ export class Path {
     return isString(this.entryName);
   }
 
-  setModuleName(n: string) {
+  setModuleName(n: string): Path {
     this.moduleName = n;
+    return this;
   }
 
   getModuleName(): string {
     return asString(this.moduleName);
   }
 
+  setEntryname(n: string): Path {
+    this.entryName = n;
+    return this;
+  }
+
   getEntryName(): string {
     return asString(this.entryName);
   }
+
+  asFqName(): string {
+    return makeFqName(this.moduleName || '?', this.entryName || '?');
+  }
+}
+
+export function newPath(): Path {
+  return new Path(undefined, undefined);
 }
 
 export function makeFqName(moduleName: string, entryName: string): string {
