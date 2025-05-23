@@ -795,8 +795,8 @@ export function addRelationship(
   type: 'contains' | 'between',
   nodes: RelNodes | RelNodeEntry[],
   moduleName = activeModule,
-  attrs: Attribute[] | undefined,
-  props: Property[] | undefined
+  attrs?: Attribute[] | undefined,
+  props?: Property[] | undefined
 ) {
   const module: RuntimeModule = fetchModule(moduleName);
   if (attrs != undefined) attrs.forEach(a => verifyAttribute(a));
@@ -814,6 +814,14 @@ export function addRelationship(
   if (props != undefined) propsMap = asPropertiesMap(props);
   module.addEntry(new RelationshipEntry(name, type, n1, n2, moduleName, attrs, propsMap));
   return name;
+}
+
+export function addBetweenRelationship(name: string, moduleName: string, nodes: RelNodeEntry[]) {
+  addRelationship(name, 'between', nodes, moduleName);
+}
+
+export function addContainsRelationship(name: string, moduleName: string, nodes: RelNodeEntry[]) {
+  addRelationship(name, 'contains', nodes, moduleName);
 }
 
 function asWorkflowName(n: string): string {
