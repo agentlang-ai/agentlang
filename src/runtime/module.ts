@@ -557,8 +557,11 @@ export class RuntimeModule {
 }
 
 const moduleDb = new Map<string, RuntimeModule>();
-
 let activeModule: string = '';
+
+export function getActiveModuleName() {
+  return activeModule;
+}
 
 export function addModule(name: string): string {
   moduleDb.set(name, new RuntimeModule(name));
@@ -580,6 +583,16 @@ addRecord('env', new Array<Attribute>());
 export function getModuleNames(): string[] {
   const ks: Iterable<string> = moduleDb.keys();
   return Array.from(ks);
+}
+
+export function getUserModuleNames(): string[] {
+  const result: Array<string> = new Array<string>();
+  moduleDb.keys().forEach((n: string) => {
+    if (n != 'agentlang') {
+      result.push(n);
+    }
+  });
+  return result;
 }
 
 export function isModule(name: string): boolean {
