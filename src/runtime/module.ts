@@ -589,7 +589,7 @@ export function removeModule(name: string): boolean {
 }
 
 addModule('agentlang');
-addRecord('env', new Array<Attribute>());
+addRecord('env', 'agentlang', new Array<Attribute>());
 
 export function getModuleNames(): string[] {
   const ks: Iterable<string> = moduleDb.keys();
@@ -754,9 +754,9 @@ export function getFkSpec(attrSpec: AttributeSpec): string | undefined {
 
 export function addEntity(
   name: string,
+  moduleName = activeModule,
   attrs?: Attribute[],
-  ext?: string,
-  moduleName = activeModule
+  ext?: string
 ): string {
   const module: RuntimeModule = fetchModule(moduleName);
   if (attrs) attrs.forEach(a => verifyAttribute(a));
@@ -766,9 +766,9 @@ export function addEntity(
 
 export function addEvent(
   name: string,
+  moduleName = activeModule,
   attrs?: Attribute[],
-  ext?: string,
-  moduleName = activeModule
+  ext?: string
 ) {
   const module: RuntimeModule = fetchModule(moduleName);
   if (attrs) attrs.forEach(a => verifyAttribute(a));
@@ -778,9 +778,9 @@ export function addEvent(
 
 export function addRecord(
   name: string,
+  moduleName = activeModule,
   attrs?: Attribute[],
-  ext?: string,
-  moduleName = activeModule
+  ext?: string
 ) {
   const module: RuntimeModule = fetchModule(moduleName);
   if (attrs) attrs.forEach(a => verifyAttribute(a));
@@ -794,9 +794,9 @@ export function addRelationship(
   name: string,
   type: 'contains' | 'between',
   nodes: RelNodes | RelNodeEntry[],
+  moduleName = activeModule,
   attrs: Attribute[] | undefined,
-  props: Property[] | undefined,
-  moduleName = activeModule
+  props: Property[] | undefined
 ) {
   const module: RuntimeModule = fetchModule(moduleName);
   if (attrs != undefined) attrs.forEach(a => verifyAttribute(a));
@@ -820,15 +820,16 @@ function asWorkflowName(n: string): string {
   return n + '--workflow';
 }
 
-export function addWorkflow(name: string, statements: Statement[], moduleName = activeModule) {
+export function addWorkflow(name: string, moduleName = activeModule, statements?: Statement[]) {
   const module: RuntimeModule = fetchModule(moduleName);
   if (module.hasEntry(name)) {
     const entry: ModuleEntry = module.getEntry(name);
     if (!(entry instanceof EventEntry))
       throw new Error(`Not an event, cannot attach workflow to ${entry.name}`);
   } else {
-    addEvent(name, new Array<Attribute>(), undefined, moduleName);
+    addEvent(name, moduleName);
   }
+  if (!statements) statements = new Array<Statement>()
   module.addEntry(new WorkflowEntry(asWorkflowName(name), statements, moduleName));
   return name;
 }
@@ -837,7 +838,7 @@ export async function parseAndAddWorkflow(code: string, moduleName: string) {
   const r = await parse(`module ${moduleName} ${code}`);
   r.parseResult.value.defs.forEach((v: Def) => {
     if (isWorkflow(v)) {
-      addWorkflow(v.name, v.statements, moduleName);
+      addWorkflow(v.name, moduleName, v.statements);
     }
   });
 }
