@@ -32,6 +32,17 @@ export type AttributeSpec = {
   properties?: Map<string, any> | undefined;
 };
 
+function normalizePropertyNames(props: Map<string, any>) {
+  const normKs = props.keys().filter((k: string) => {
+    k.charAt(0) == '@'
+  })
+  normKs.forEach((k: string) => {
+    const v: any = props.get(k)
+    props.delete(k)
+    props.set(k.substring(1), v)
+  })
+}
+
 export type RecordSchema = Map<string, AttributeSpec>;
 
 export function newRecordSchema(): RecordSchema {
@@ -95,6 +106,9 @@ export class RecordEntry extends ModuleEntry {
   addAttribute(n: string, attrSpec: AttributeSpec) {
     if (this.schema.has(n)) {
       throw new Error(`Attribute named ${n} already exists in ${this.moduleName}.${this.name}`);
+    }
+    if (attrSpec.properties != undefined) {
+      normalizePropertyNames(attrSpec.properties)
     }
     this.schema.set(n, attrSpec);
   }
