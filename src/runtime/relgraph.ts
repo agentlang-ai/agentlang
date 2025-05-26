@@ -26,8 +26,7 @@ type GraphEdgeEntry = {
 
 function asEdgeEntry(rge: RelationshipGraphEdge): GraphEdgeEntry {
   const nm: Map<string, any> = new Map();
-  nm.set('name', rge.node.entity.asFqName());
-  nm.set('edges', rge.node.edges.map(asEdgeEntry));
+  nm.set(rge.node.entity.asFqName(), rge.node.edges.map(asEdgeEntry));
   const e: GraphEdgeEntry = {
     relationship: rge.relationship.getFqName(),
     type: rge.relationship.isContains() ? 'contains' : 'between',
@@ -50,8 +49,7 @@ export class RelationshipGraph {
   asObject(): object {
     const result: Map<string, any> = new Map();
     this.nodes.forEach((node: RelationshipGraphNode) => {
-      result.set('name', node.entity.asFqName());
-      result.set('edges', node.edges.map(asEdgeEntry));
+      result.set(node.entity.asFqName(), node.edges.map(asEdgeEntry));
     });
     return Object.fromEntries(result);
   }
