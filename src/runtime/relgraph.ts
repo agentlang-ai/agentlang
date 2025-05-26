@@ -18,14 +18,20 @@ export type RelationshipGraphEdge = {
   node: RelationshipGraphNode;
 };
 
-export type RelationshipGraph = {
+export class RelationshipGraph {
   nodes: RelationshipGraphNode[];
-};
+
+  constructor(nodes: Array<RelationshipGraphNode>) {
+    this.nodes = nodes;
+  }
+
+  getRoots(): RelationshipGraphNode[] {
+    return this.nodes;
+  }
+}
 
 const NullEdge: Array<RelationshipGraphEdge> = [];
-const EmptyGraph: RelationshipGraph = {
-  nodes: new Array<RelationshipGraphNode>(),
-};
+const EmptyGraph: RelationshipGraph = new RelationshipGraph(new Array<RelationshipGraphNode>());
 
 export function buildGraph(moduleName: string): RelationshipGraph {
   if (moduleName == DefaultModuleName) return EmptyGraph;
@@ -36,18 +42,19 @@ export function buildGraph(moduleName: string): RelationshipGraph {
   getUserModuleNames().forEach((n: string) => {
     const m: RuntimeModule = fetchModule(n);
     if (n == moduleName) localMod = m;
-    const rels: RelationshipEntry[] = m.getContainsRelationshipEntries();
+    const rels: RelationshipEntry[] = m.getRelationshipEntries();
     rels.forEach((re: RelationshipEntry) => {
       const n1: RelNodeEntry = re.parentNode();
       const n2: RelNodeEntry = re.childNode();
       if (n1.path.getModuleName() == moduleName) {
-        rootEnts.add(n1.path.getEntryName());
+        const nn: string = n1.path.getEntryName();
+        if (!inRels.has(nn)) rootEnts.add(nn);
         if (n2.path.getModuleName() == moduleName) {
           const en: string = n2.path.getEntryName();
           if (rootEnts.has(en)) {
             rootEnts.delete(en);
-            inRels.add(en);
           }
+          inRels.add(en);
         }
         const node: RelationshipGraphNode = forceFindNode(nodes, n1.path);
         connectEdge(node, re);
@@ -59,19 +66,21 @@ export function buildGraph(moduleName: string): RelationshipGraph {
   }
   const remEnts: Set<string> = new Set(localMod.getEntityNames()).difference(inRels);
   remEnts.forEach((n: string) => {
-    const rn: RelationshipGraphNode = {
-      entity: new Path(moduleName, n),
-      edges: NullEdge,
-    };
-    nodes.push(rn);
+    if (!rootEnts.has(n)) {
+      const rn: RelationshipGraphNode = {
+        entity: new Path(moduleName, n),
+        edges: NullEdge,
+      };
+      nodes.push(rn);
+    }
   });
-  return { nodes: nodes };
+  return new RelationshipGraph(nodes);
 }
 
 function forceFindNode(nodes: Array<RelationshipGraphNode>, path: Path) {
   for (let i = 0; i < nodes.length; ++i) {
     const n: RelationshipGraphNode = nodes[i];
-    if (n.entity == path) {
+    if (n.entity.equals(path)) {
       return n;
     } else {
       const n0: RelationshipGraphNode | undefined = findNodeInEdges(n.edges, path);
@@ -92,7 +101,7 @@ function findNodeInEdges(
 ): RelationshipGraphNode | undefined {
   for (let i = 0; i < edges.length; ++i) {
     const e: RelationshipGraphEdge = edges[i];
-    if (e.node.entity == path) {
+    if (e.node.entity.equals(path)) {
       return e.node;
     }
     const r: RelationshipGraphNode | undefined = findNodeInEdges(e.node.edges, path);
@@ -115,4 +124,14 @@ function connectEdge(node: RelationshipGraphNode, re: RelationshipEntry) {
     node.edges = new Array<RelationshipGraphEdge>();
   }
   node.edges.push(e);
+}
+
+export function findEdgeForRelationship(
+  relName: string,
+  moduleName: string,
+  edges: RelationshipGraphEdge[]
+): RelationshipGraphEdge | undefined {
+  return edges.find((v: RelationshipGraphEdge) => {
+    return v.relationship.moduleName == moduleName && v.relationship.name == relName;
+  });
 }

@@ -1,7 +1,8 @@
-import { describe, test } from "vitest";
+import { load } from "../../src/runtime/loader.js";
 import { addModule, AttributeSpec, EntityEntry, fetchModule, RecordEntry, RuntimeModule } from "../../src/runtime/module.js";
-import { assert } from "console";
+import { buildGraph, findEdgeForRelationship, RelationshipGraph, RelationshipGraphEdge, RelationshipGraphNode } from "../../src/runtime/relgraph.js";
 import { arrayEquals } from "../../src/runtime/util.js";
+import { assert, describe, test } from "vitest";
 
 function createTestModule(): RuntimeModule | undefined {
     addModule('Acme')
@@ -52,3 +53,35 @@ describe('Basic module operations', () => {
         }
     });
 });
+
+describe('Basic loader test', () => {
+    test('Check loader with graph', async () => {
+        load("example/blog/blog.al", () => {
+            const m: RuntimeModule = fetchModule('Blog')
+            assert(m.name == 'Blog', 'Failed to load Blog module')
+            const g: RelationshipGraph = buildGraph('Blog')
+            const roots: RelationshipGraphNode[] = g.getRoots()
+            assert(roots.length == 1, "Invalid roots count")
+            const node: RelationshipGraphNode = roots[0]
+            assert(node.entity.getEntryName() == 'User', "User not found at root")
+            assert(node.edges.length == 2, "User must have two relationships")
+            const relNames: Set<string> = new Set(["UserProfile", "UserPost"])
+            node.edges.forEach((v: RelationshipGraphEdge) => {
+                assert(relNames.has(v.relationship.name), `${v.relationship.name} relationship not found`)
+            })
+            let edge: RelationshipGraphEdge | undefined = findEdgeForRelationship('UserProfile', 'Blog', node.edges)
+            assert(edge != undefined, "Edge for UserProfile not found")
+            if (edge != undefined) {
+                assert(edge.node.entity.getEntryName() == 'Profile', "Profile not found in relationship")
+                assert(edge.node.edges.length == 0, "Profile does not have relationships")
+            }
+            edge = findEdgeForRelationship('UserPost', 'Blog', node.edges)
+            assert(edge != undefined, "Edge for UserPost not found")
+            if (edge != undefined) {
+                assert(edge.node.entity.getEntryName() == 'Post', "Post not found in relationship")
+                assert(edge.node.edges.length == 1, "POst has exactly one relationships")
+                assert(edge.node.edges[0].node.entity.getEntryName() == 'Category', 'Post must be related to Category')
+            }
+        })
+    })
+})

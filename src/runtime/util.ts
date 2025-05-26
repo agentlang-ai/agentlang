@@ -105,6 +105,10 @@ export class Path {
   asFqName(): string {
     return makeFqName(this.moduleName || '?', this.entryName || '?');
   }
+
+  equals(p: Path): boolean {
+    return this.moduleName == p.moduleName && this.entryName == p.entryName;
+  }
 }
 
 export function newPath(): Path {
