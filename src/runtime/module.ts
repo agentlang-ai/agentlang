@@ -43,6 +43,21 @@ function normalizePropertyNames(props: Map<string, any>) {
   });
 }
 
+const SystemAttributeProperty: string = 'system-attribute';
+
+function setAsSystemAttribute(attrSpec: AttributeSpec) {
+  const props: Map<string, any> = attrSpec.properties ? attrSpec.properties : new Map();
+  props.set(SystemAttributeProperty, true);
+  attrSpec.properties = props;
+}
+
+function isSystemAttribute(attrSpec: AttributeSpec): boolean {
+  if (attrSpec.properties) {
+    return attrSpec.properties.get(SystemAttributeProperty) == true;
+  }
+  return false;
+}
+
 export type RecordSchema = Map<string, AttributeSpec>;
 
 export function newRecordSchema(): RecordSchema {
@@ -113,6 +128,11 @@ export class RecordEntry extends ModuleEntry {
     this.schema.set(n, attrSpec);
   }
 
+  addSystemAttribute(n: string, attrSpec: AttributeSpec) {
+    setAsSystemAttribute(attrSpec);
+    this.addAttribute(n, attrSpec);
+  }
+
   findAttribute(predic: Function): AttributeEntry | undefined {
     for (const k of this.schema.keys()) {
       const attrSpec: AttributeSpec | undefined = this.schema.get(k);
@@ -153,6 +173,16 @@ export class RecordEntry extends ModuleEntry {
       return e.name;
     }
     return undefined;
+  }
+
+  getUserAttributes(): RecordSchema {
+    const recSchema: RecordSchema = newRecordSchema();
+    this.schema.forEach((attrSpec: AttributeSpec, n: string) => {
+      if (!isSystemAttribute(attrSpec)) {
+        recSchema.set(n, attrSpec);
+      }
+    });
+    return recSchema;
   }
 }
 
@@ -330,11 +360,11 @@ export class RelationshipEntry extends RecordEntry {
     const attrSpec1: AttributeSpec = {
       type: 'string',
     };
-    this.schema.set(this.node1.alias, attrSpec1);
+    this.addSystemAttribute(this.node1.alias, attrSpec1);
     const attrSpec2: AttributeSpec = {
       type: 'string',
     };
-    this.schema.set(this.node2.alias, attrSpec2);
+    this.addSystemAttribute(this.node2.alias, attrSpec2);
   }
 
   private updateBetweenTargetRefs() {
@@ -359,7 +389,7 @@ export class RelationshipEntry extends RecordEntry {
         type: 'String',
         properties: props,
       };
-      entry.addAttribute(refn, attrspec);
+      entry.addSystemAttribute(refn, attrspec);
     }
   }
 

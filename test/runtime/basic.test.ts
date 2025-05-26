@@ -59,6 +59,15 @@ describe('Basic loader test', () => {
         load("example/blog/blog.al", () => {
             const m: RuntimeModule = fetchModule('Blog')
             assert(m.name == 'Blog', 'Failed to load Blog module')
+            let re: RecordEntry = m.getEntry('UserPost') as RecordEntry
+            assert(re != undefined, "UserPost entry not found")
+            const attrs: Set<string> = new Set(["User", "Post"])
+            re.schema.keys().forEach((k: string) => {
+                assert(attrs.has(k), `Attribute ${k} not found in UserProfile`)
+            })
+            assert(re.getUserAttributes().size == 0, "UserProfile has no user-attributes")
+            re = m.getEntry('Post') as RecordEntry
+            assert(re.getUserAttributes().size == 2, 'Post has only 2 attributes')
             const g: RelationshipGraph = buildGraph('Blog')
             const roots: RelationshipGraphNode[] = g.getRoots()
             assert(roots.length == 1, "Invalid roots count")
