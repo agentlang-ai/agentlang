@@ -12,7 +12,7 @@ import {
   Def,
   isWorkflow,
 } from '../language/generated/ast.js';
-import { Path, splitFqName, isString, isNumber, isBoolean, isFqName } from './util.js';
+import { Path, splitFqName, isString, isNumber, isBoolean, isFqName, makeFqName } from './util.js';
 import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 import { getResolverNameForPath } from './resolvers/registry.js';
 import { parse } from '../language/parser.js';
@@ -24,6 +24,10 @@ export class ModuleEntry {
   constructor(name: string, moduleName: string) {
     this.name = name;
     this.moduleName = moduleName;
+  }
+
+  getFqName(): string {
+    return makeFqName(this.moduleName, this.name);
   }
 }
 

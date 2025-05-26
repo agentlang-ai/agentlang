@@ -69,6 +69,9 @@ describe('Basic loader test', () => {
             re = m.getEntry('Post') as RecordEntry
             assert(re.getUserAttributes().size == 2, 'Post has only 2 attributes')
             const g: RelationshipGraph = buildGraph('Blog')
+            const obj: any = g.asObject()
+            assert(obj.name == 'Blog/User', 'Root must be Blog/User')
+            assert(obj.edges.length == 2, 'Blog/User must have two edges')
             const roots: RelationshipGraphNode[] = g.getRoots()
             assert(roots.length == 1, "Invalid roots count")
             const node: RelationshipGraphNode = roots[0]

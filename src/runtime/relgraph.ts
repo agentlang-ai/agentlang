@@ -18,6 +18,24 @@ export type RelationshipGraphEdge = {
   node: RelationshipGraphNode;
 };
 
+type GraphEdgeEntry = {
+  relationship: string;
+  type: 'contains' | 'between';
+  to: object;
+};
+
+function asEdgeEntry(rge: RelationshipGraphEdge): GraphEdgeEntry {
+  const nm: Map<string, any> = new Map();
+  nm.set('name', rge.node.entity.asFqName());
+  nm.set('edges', rge.node.edges.map(asEdgeEntry));
+  const e: GraphEdgeEntry = {
+    relationship: rge.relationship.getFqName(),
+    type: rge.relationship.isContains() ? 'contains' : 'between',
+    to: Object.fromEntries(nm),
+  };
+  return e;
+}
+
 export class RelationshipGraph {
   nodes: RelationshipGraphNode[];
 
@@ -27,6 +45,15 @@ export class RelationshipGraph {
 
   getRoots(): RelationshipGraphNode[] {
     return this.nodes;
+  }
+
+  asObject(): object {
+    const result: Map<string, any> = new Map();
+    this.nodes.forEach((node: RelationshipGraphNode) => {
+      result.set('name', node.entity.asFqName());
+      result.set('edges', node.edges.map(asEdgeEntry));
+    });
+    return Object.fromEntries(result);
   }
 }
 
