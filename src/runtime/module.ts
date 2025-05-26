@@ -34,13 +34,13 @@ export type AttributeSpec = {
 
 function normalizePropertyNames(props: Map<string, any>) {
   const normKs = props.keys().filter((k: string) => {
-    k.charAt(0) == '@'
-  })
+    k.charAt(0) == '@';
+  });
   normKs.forEach((k: string) => {
-    const v: any = props.get(k)
-    props.delete(k)
-    props.set(k.substring(1), v)
-  })
+    const v: any = props.get(k);
+    props.delete(k);
+    props.set(k.substring(1), v);
+  });
 }
 
 export type RecordSchema = Map<string, AttributeSpec>;
@@ -108,7 +108,7 @@ export class RecordEntry extends ModuleEntry {
       throw new Error(`Attribute named ${n} already exists in ${this.moduleName}.${this.name}`);
     }
     if (attrSpec.properties != undefined) {
-      normalizePropertyNames(attrSpec.properties)
+      normalizePropertyNames(attrSpec.properties);
     }
     this.schema.set(n, attrSpec);
   }
@@ -426,29 +426,32 @@ export function isEmptyWorkflow(wf: WorkflowEntry): boolean {
 export class RuntimeModule {
   name: string;
   entries: ModuleEntry[];
-  index: Map<string, number>;
   entriesByTypeCache: Map<RecordType, ModuleEntry[]> | null;
 
   constructor(name: string) {
     this.name = name;
     this.entries = new Array<ModuleEntry>();
-    this.index = new Map<string, number>();
     this.entriesByTypeCache = null;
   }
 
   addEntry(entry: ModuleEntry): void {
     this.entries.push(entry);
-    this.index.set(entry.name, this.entries.length - 1);
     if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
   }
 
+  private getEntryIndex(entryName: string): number {
+    return this.entries.findIndex((v: ModuleEntry) => {
+      return v.name == entryName;
+    });
+  }
+
   hasEntry(entryName: string): boolean {
-    return this.index.has(entryName);
+    return this.getEntryIndex(entryName) >= 0;
   }
 
   getEntry(entryName: string): ModuleEntry {
-    const idx: number | undefined = this.index.get(entryName);
-    if (idx == undefined) throw new Error(`Entry ${entryName} not found in module ${this.name}`);
+    const idx: number = this.getEntryIndex(entryName);
+    if (idx < 0) throw new Error(`Entry ${entryName} not found in module ${this.name}`);
     return this.entries[idx];
   }
 
@@ -461,9 +464,8 @@ export class RuntimeModule {
   }
 
   removeEntry(entryName: string): boolean {
-    const idx: number | undefined = this.index.get(entryName);
-    if (idx != undefined) {
-      this.index.delete(entryName);
+    const idx: number = this.getEntryIndex(entryName);
+    if (idx >= 0) {
       this.entries.splice(idx, 1);
       if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
       return true;

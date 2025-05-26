@@ -164,3 +164,16 @@ export function runShellCommand(cmd: string, continuation: Function) {
 export function escapeFqName(n: string): string {
   return n.replace('/', '$');
 }
+
+export function arrayEquals(a: Array<any>, b: Array<any>) {
+  if (a.length !== b.length) return false;
+  else {
+    // Comparing each element of your array
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
