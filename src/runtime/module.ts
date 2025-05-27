@@ -8,10 +8,14 @@ import {
   FnCall,
   RelNodes,
   Node,
+  isRelNodes,
+  Def,
+  isWorkflow,
 } from '../language/generated/ast.js';
 import { Path, splitFqName, isString, isNumber, isBoolean, isFqName, makeFqName } from './util.js';
 import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 import { getResolverNameForPath } from './resolvers/registry.js';
+import { parse } from '../language/parser.js';
 
 export class ModuleEntry {
   name: string;
@@ -21,12 +25,42 @@ export class ModuleEntry {
     this.name = name;
     this.moduleName = moduleName;
   }
+
+  getFqName(): string {
+    return makeFqName(this.moduleName, this.name);
+  }
 }
 
 export type AttributeSpec = {
   type: string;
   properties?: Map<string, any> | undefined;
 };
+
+function normalizePropertyNames(props: Map<string, any>) {
+  const normKs = props.keys().filter((k: string) => {
+    k.charAt(0) == '@';
+  });
+  normKs.forEach((k: string) => {
+    const v: any = props.get(k);
+    props.delete(k);
+    props.set(k.substring(1), v);
+  });
+}
+
+const SystemAttributeProperty: string = 'system-attribute';
+
+function setAsSystemAttribute(attrSpec: AttributeSpec) {
+  const props: Map<string, any> = attrSpec.properties ? attrSpec.properties : new Map();
+  props.set(SystemAttributeProperty, true);
+  attrSpec.properties = props;
+}
+
+function isSystemAttribute(attrSpec: AttributeSpec): boolean {
+  if (attrSpec.properties) {
+    return attrSpec.properties.get(SystemAttributeProperty) == true;
+  }
+  return false;
+}
 
 export type RecordSchema = Map<string, AttributeSpec>;
 
@@ -53,27 +87,34 @@ export class RecordEntry extends ModuleEntry {
   type: RecordType = RecordType.RECORD;
   parentEntryName: string | undefined;
 
-  constructor(name: string, attributes: Attribute[], moduleName: string, parentEntryName?: string) {
+  constructor(
+    name: string,
+    moduleName: string,
+    attributes?: Attribute[],
+    parentEntryName?: string
+  ) {
     super(name, moduleName);
     this.parentEntryName = parentEntryName;
     this.schema = parentEntryName
       ? cloneParentSchema(parentEntryName, moduleName)
       : newRecordSchema();
-    attributes.forEach((a: Attribute) => {
-      const isArrayType: boolean = a.arrayType ? true : false;
-      const t: string | undefined = isArrayType ? a.arrayType : a.type;
-      if (t == undefined) throw new Error(`Attribute ${a.name} requires a type`);
-      let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
-      const isObjectType: boolean = !isBuiltInType(t);
-      if (isArrayType || isObjectType) {
-        if (props == undefined) {
-          props = new Map<string, any>();
+    if (attributes != undefined) {
+      attributes.forEach((a: Attribute) => {
+        const isArrayType: boolean = a.arrayType ? true : false;
+        const t: string | undefined = isArrayType ? a.arrayType : a.type;
+        if (t == undefined) throw new Error(`Attribute ${a.name} requires a type`);
+        let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
+        const isObjectType: boolean = !isBuiltInType(t);
+        if (isArrayType || isObjectType) {
+          if (props == undefined) {
+            props = new Map<string, any>();
+          }
+          if (isArrayType) props.set('array', true);
+          if (isObjectType) props.set('object', true);
         }
-        if (isArrayType) props.set('array', true);
-        if (isObjectType) props.set('object', true);
-      }
-      this.schema.set(a.name, { type: t, properties: props });
-    });
+        this.schema.set(a.name, { type: t, properties: props });
+      });
+    }
     this.meta = newMeta();
   }
 
@@ -85,7 +126,15 @@ export class RecordEntry extends ModuleEntry {
     if (this.schema.has(n)) {
       throw new Error(`Attribute named ${n} already exists in ${this.moduleName}.${this.name}`);
     }
+    if (attrSpec.properties != undefined) {
+      normalizePropertyNames(attrSpec.properties);
+    }
     this.schema.set(n, attrSpec);
+  }
+
+  addSystemAttribute(n: string, attrSpec: AttributeSpec) {
+    setAsSystemAttribute(attrSpec);
+    this.addAttribute(n, attrSpec);
   }
 
   findAttribute(predic: Function): AttributeEntry | undefined {
@@ -128,6 +177,16 @@ export class RecordEntry extends ModuleEntry {
       return e.name;
     }
     return undefined;
+  }
+
+  getUserAttributes(): RecordSchema {
+    const recSchema: RecordSchema = newRecordSchema();
+    this.schema.forEach((attrSpec: AttributeSpec, n: string) => {
+      if (!isSystemAttribute(attrSpec)) {
+        recSchema.set(n, attrSpec);
+      }
+    });
+    return recSchema;
   }
 }
 
@@ -236,7 +295,8 @@ function normalizeKvPairValue(kvp: KvPair): any | null {
   return null;
 }
 
-export const PlaceholderRecordEntry = new RecordEntry('--', new Array<Attribute>(), 'agentlang');
+export const DefaultModuleName = 'agentlang';
+export const PlaceholderRecordEntry = new RecordEntry('--', DefaultModuleName);
 
 export class EntityEntry extends RecordEntry {
   override type: RecordType = RecordType.ENTITY;
@@ -252,8 +312,7 @@ enum RelType {
 }
 
 export type RelNodeEntry = {
-  moduleName: string;
-  entryName: string;
+  path: Path;
   alias: string;
 };
 
@@ -269,8 +328,7 @@ function asRelNodeEntry(n: Node): RelNodeEntry {
     alias = n.alias;
   }
   return {
-    moduleName: modName,
-    entryName: entryName,
+    path: new Path(modName, entryName),
     alias: alias,
   };
 }
@@ -287,11 +345,11 @@ export class RelationshipEntry extends RecordEntry {
     typ: string,
     node1: RelNodeEntry,
     node2: RelNodeEntry,
-    attributes: Attribute[],
     moduleName: string,
+    attributes?: Attribute[],
     props?: Map<string, any>
   ) {
-    super(name, attributes, moduleName);
+    super(name, moduleName, attributes);
     if (typ == 'between') this.relType = RelType.BETWEEN;
     this.node1 = node1;
     this.node2 = node2;
@@ -306,26 +364,22 @@ export class RelationshipEntry extends RecordEntry {
     const attrSpec1: AttributeSpec = {
       type: 'string',
     };
-    this.schema.set(this.node1.alias, attrSpec1);
+    this.addSystemAttribute(this.node1.alias, attrSpec1);
     const attrSpec2: AttributeSpec = {
       type: 'string',
     };
-    this.schema.set(this.node2.alias, attrSpec2);
+    this.addSystemAttribute(this.node2.alias, attrSpec2);
   }
 
   private updateBetweenTargetRefs() {
-    const res1: string | undefined = getResolverNameForPath(
-      makeFqName(this.node1.moduleName, this.node1.entryName)
-    );
-    const res2: string | undefined = getResolverNameForPath(
-      makeFqName(this.node2.moduleName, this.node2.entryName)
-    );
+    const res1: string | undefined = getResolverNameForPath(this.node1.path.asFqName());
+    const res2: string | undefined = getResolverNameForPath(this.node2.path.asFqName());
     if (res1 == undefined && res2 == undefined) {
-      const mod: RuntimeModule = fetchModule(this.node2.moduleName);
-      const entry: RecordEntry = mod.getEntry(this.node2.entryName) as RecordEntry;
-      if (entry.hasRefTo(this.node1.moduleName, this.node1.entryName)) {
+      const mod: RuntimeModule = fetchModule(this.node2.path.getModuleName());
+      const entry: RecordEntry = mod.getEntry(this.node2.path.getEntryName()) as RecordEntry;
+      if (entry.hasRefTo(this.node1.path.getModuleName(), this.node1.path.getEntryName())) {
         throw new Error(
-          `Cannot create between relationship, ${this.node2.entryName} already has a ref to ${this.node1.entryName}`
+          `Cannot create between relationship, ${this.node2.path.getEntryName()} already has a ref to ${this.node1.path.getEntryName()}`
         );
       }
       const refn: string = `__${this.node1.alias.toLowerCase()}`;
@@ -339,7 +393,7 @@ export class RelationshipEntry extends RecordEntry {
         type: 'String',
         properties: props,
       };
-      entry.addAttribute(refn, attrspec);
+      entry.addSystemAttribute(refn, attrspec);
     }
   }
 
@@ -358,6 +412,14 @@ export class RelationshipEntry extends RecordEntry {
 
   isBetween(): boolean {
     return this.relType == RelType.BETWEEN;
+  }
+
+  parentNode(): RelNodeEntry {
+    return this.node1;
+  }
+
+  childNode(): RelNodeEntry {
+    return this.node2;
   }
 
   hasBooleanFlagSet(flag: string): boolean {
@@ -389,7 +451,7 @@ export class WorkflowEntry extends ModuleEntry {
   }
 }
 
-const EmptyWorkflow: WorkflowEntry = new WorkflowEntry('', [], 'agentlang');
+const EmptyWorkflow: WorkflowEntry = new WorkflowEntry('', [], DefaultModuleName);
 
 export function isEmptyWorkflow(wf: WorkflowEntry): boolean {
   return wf == EmptyWorkflow;
@@ -398,29 +460,32 @@ export function isEmptyWorkflow(wf: WorkflowEntry): boolean {
 export class RuntimeModule {
   name: string;
   entries: ModuleEntry[];
-  index: Map<string, number>;
   entriesByTypeCache: Map<RecordType, ModuleEntry[]> | null;
 
   constructor(name: string) {
     this.name = name;
     this.entries = new Array<ModuleEntry>();
-    this.index = new Map<string, number>();
     this.entriesByTypeCache = null;
   }
 
   addEntry(entry: ModuleEntry): void {
     this.entries.push(entry);
-    this.index.set(entry.name, this.entries.length - 1);
     if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
   }
 
+  private getEntryIndex(entryName: string): number {
+    return this.entries.findIndex((v: ModuleEntry) => {
+      return v.name == entryName;
+    });
+  }
+
   hasEntry(entryName: string): boolean {
-    return this.index.has(entryName);
+    return this.getEntryIndex(entryName) >= 0;
   }
 
   getEntry(entryName: string): ModuleEntry {
-    const idx: number | undefined = this.index.get(entryName);
-    if (idx == undefined) throw new Error(`Entry ${entryName} not found in module ${this.name}`);
+    const idx: number = this.getEntryIndex(entryName);
+    if (idx < 0) throw new Error(`Entry ${entryName} not found in module ${this.name}`);
     return this.entries[idx];
   }
 
@@ -433,9 +498,8 @@ export class RuntimeModule {
   }
 
   removeEntry(entryName: string): boolean {
-    const idx: number | undefined = this.index.get(entryName);
-    if (idx != undefined) {
-      this.index.delete(entryName);
+    const idx: number = this.getEntryIndex(entryName);
+    if (idx >= 0) {
       this.entries.splice(idx, 1);
       if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
       return true;
@@ -476,11 +540,19 @@ export class RuntimeModule {
     return this.getEntriesOfType(RecordType.RELATIONSHIP) as RelationshipEntry[];
   }
 
-  getBetweenRelationshipEntries(): RelationshipEntry[] {
+  private getRelationshipEntriesOfType(t: RelType) {
     const rels: RelationshipEntry[] = this.getRelationshipEntries();
     return rels.filter((e: RelationshipEntry) => {
-      return e.isBetween();
+      return e.relType == t;
     });
+  }
+
+  getBetweenRelationshipEntries(): RelationshipEntry[] {
+    return this.getRelationshipEntriesOfType(RelType.BETWEEN);
+  }
+
+  getContainsRelationshipEntries(): RelationshipEntry[] {
+    return this.getRelationshipEntriesOfType(RelType.CONTAINS);
   }
 
   isEntryOfType(t: RecordType, name: string): boolean {
@@ -577,8 +649,8 @@ export function removeModule(name: string): boolean {
   return false;
 }
 
-addModule('agentlang');
-addRecord('env', new Array<Attribute>());
+addModule(DefaultModuleName);
+addRecord('env', DefaultModuleName, new Array<Attribute>());
 
 export function getModuleNames(): string[] {
   const ks: Iterable<string> = moduleDb.keys();
@@ -588,7 +660,7 @@ export function getModuleNames(): string[] {
 export function getUserModuleNames(): string[] {
   const result: Array<string> = new Array<string>();
   moduleDb.keys().forEach((n: string) => {
-    if (n != 'agentlang') {
+    if (n != DefaultModuleName) {
       result.push(n);
     }
   });
@@ -620,8 +692,8 @@ const builtInChecks = new Map([
   ['URL', isString],
 ]);
 
-const builtInTypes = new Set(Array.from(builtInChecks.keys()));
-const propertyNames = new Set([
+export const builtInTypes = new Set(Array.from(builtInChecks.keys()));
+export const propertyNames = new Set([
   '@id',
   '@indexed',
   '@default',
@@ -743,37 +815,37 @@ export function getFkSpec(attrSpec: AttributeSpec): string | undefined {
 
 export function addEntity(
   name: string,
-  attrs: Attribute[],
-  ext?: string,
-  moduleName = activeModule
+  moduleName = activeModule,
+  attrs?: Attribute[],
+  ext?: string
 ): string {
   const module: RuntimeModule = fetchModule(moduleName);
-  attrs.forEach(a => verifyAttribute(a));
-  module.addEntry(new EntityEntry(name, attrs, moduleName, ext));
+  if (attrs) attrs.forEach(a => verifyAttribute(a));
+  module.addEntry(new EntityEntry(name, moduleName, attrs, ext));
   return name;
 }
 
 export function addEvent(
   name: string,
-  attrs: Attribute[],
-  ext?: string,
-  moduleName = activeModule
+  moduleName = activeModule,
+  attrs?: Attribute[],
+  ext?: string
 ) {
   const module: RuntimeModule = fetchModule(moduleName);
-  attrs.forEach(a => verifyAttribute(a));
-  module.addEntry(new EventEntry(name, attrs, moduleName, ext));
+  if (attrs) attrs.forEach(a => verifyAttribute(a));
+  module.addEntry(new EventEntry(name, moduleName, attrs, ext));
   return name;
 }
 
 export function addRecord(
   name: string,
-  attrs: Attribute[],
-  ext?: string,
-  moduleName = activeModule
+  moduleName = activeModule,
+  attrs?: Attribute[],
+  ext?: string
 ) {
   const module: RuntimeModule = fetchModule(moduleName);
-  attrs.forEach(a => verifyAttribute(a));
-  module.addEntry(new RecordEntry(name, attrs, moduleName, ext));
+  if (attrs) attrs.forEach(a => verifyAttribute(a));
+  module.addEntry(new RecordEntry(name, moduleName, attrs, ext));
   return name;
 }
 
@@ -782,37 +854,62 @@ const DefaultRelAttrbutes: Array<Attribute> = new Array<Attribute>();
 export function addRelationship(
   name: string,
   type: 'contains' | 'between',
-  nodes: RelNodes,
-  attrs: Attribute[] | undefined,
-  props: Property[] | undefined,
-  moduleName = activeModule
+  nodes: RelNodes | RelNodeEntry[],
+  moduleName = activeModule,
+  attrs?: Attribute[] | undefined,
+  props?: Property[] | undefined
 ) {
   const module: RuntimeModule = fetchModule(moduleName);
   if (attrs != undefined) attrs.forEach(a => verifyAttribute(a));
   else attrs = DefaultRelAttrbutes;
-  const n1: RelNodeEntry = asRelNodeEntry(nodes.node1);
-  const n2: RelNodeEntry = asRelNodeEntry(nodes.node2);
+  let n1: RelNodeEntry | undefined;
+  let n2: RelNodeEntry | undefined;
+  if (isRelNodes(nodes)) {
+    n1 = asRelNodeEntry(nodes.node1);
+    n2 = asRelNodeEntry(nodes.node2);
+  } else {
+    n1 = nodes[0];
+    n2 = nodes[1];
+  }
   let propsMap: Map<string, any> | undefined;
   if (props != undefined) propsMap = asPropertiesMap(props);
-  module.addEntry(new RelationshipEntry(name, type, n1, n2, attrs, moduleName, propsMap));
+  module.addEntry(new RelationshipEntry(name, type, n1, n2, moduleName, attrs, propsMap));
   return name;
+}
+
+export function addBetweenRelationship(name: string, moduleName: string, nodes: RelNodeEntry[]) {
+  addRelationship(name, 'between', nodes, moduleName);
+}
+
+export function addContainsRelationship(name: string, moduleName: string, nodes: RelNodeEntry[]) {
+  addRelationship(name, 'contains', nodes, moduleName);
 }
 
 function asWorkflowName(n: string): string {
   return n + '--workflow';
 }
 
-export function addWorkflow(name: string, statements: Statement[], moduleName = activeModule) {
+export function addWorkflow(name: string, moduleName = activeModule, statements?: Statement[]) {
   const module: RuntimeModule = fetchModule(moduleName);
   if (module.hasEntry(name)) {
     const entry: ModuleEntry = module.getEntry(name);
     if (!(entry instanceof EventEntry))
       throw new Error(`Not an event, cannot attach workflow to ${entry.name}`);
   } else {
-    addEvent(name, new Array<Attribute>(), undefined, moduleName);
+    addEvent(name, moduleName);
   }
+  if (!statements) statements = new Array<Statement>();
   module.addEntry(new WorkflowEntry(asWorkflowName(name), statements, moduleName));
   return name;
+}
+
+export async function parseAndAddWorkflow(code: string, moduleName: string) {
+  const r = await parse(`module ${moduleName} ${code}`);
+  r.parseResult.value.defs.forEach((v: Def) => {
+    if (isWorkflow(v)) {
+      addWorkflow(v.name, moduleName, v.statements);
+    }
+  });
 }
 
 export function getWorkflow(eventInstance: Instance): WorkflowEntry {
@@ -859,6 +956,12 @@ export function getRelationship(name: string, moduleName: string): RelationshipE
     return fr.module.getEntry(fr.entryName) as RelationshipEntry;
   }
   throw new Error(`Relationship ${fr.entryName} not found in module ${fr.moduleName}`);
+}
+
+export function getEntrySchema(name: string, moduleName: string): RecordSchema {
+  const m: RuntimeModule = fetchModule(moduleName);
+  const r: RecordEntry = m.getEntry(name) as RecordEntry;
+  return r.schema;
 }
 
 export function removeEntity(name: string, moduleName = activeModule): boolean {

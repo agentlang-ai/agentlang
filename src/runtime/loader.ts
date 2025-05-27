@@ -209,8 +209,8 @@ const loadModule = async (
   }).Agentlang;
 
   // Extract the AST node
-  const model = await extractAstNode<Module>(fileName, services);
-  const moduleName = internModule(model);
+  const module = await extractAstNode<Module>(fileName, services);
+  const moduleName = internModule(module);
   console.log(chalk.green(`Module ${chalk.bold(moduleName)} loaded`));
   if (continuation != undefined) continuation(moduleName);
 };
@@ -262,12 +262,14 @@ function internModule(module: Module): string {
     importModule(imp.path, imp.name);
   });
   module.defs.forEach((def: Def) => {
-    if (isEntity(def)) addEntity(def.name, def.attributes, maybeExtends(def.extends));
-    else if (isEvent(def)) addEvent(def.name, def.attributes, maybeExtends(def.extends));
-    else if (isRecord(def)) addRecord(def.name, def.attributes, maybeExtends(def.extends));
+    if (isEntity(def)) addEntity(def.name, module.name, def.attributes, maybeExtends(def.extends));
+    else if (isEvent(def))
+      addEvent(def.name, module.name, def.attributes, maybeExtends(def.extends));
+    else if (isRecord(def))
+      addRecord(def.name, module.name, def.attributes, maybeExtends(def.extends));
     else if (isRelationship(def))
-      addRelationship(def.name, def.type, def.nodes, def.attributes, def.properties);
-    else if (isWorkflow(def)) addWorkflow(def.name, def.statements);
+      addRelationship(def.name, def.type, def.nodes, module.name, def.attributes, def.properties);
+    else if (isWorkflow(def)) addWorkflow(def.name, module.name, def.statements);
   });
   return module.name;
 }

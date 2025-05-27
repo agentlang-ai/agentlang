@@ -22,6 +22,7 @@ import {
   Statement,
 } from '../language/generated/ast.js';
 import {
+  DefaultModuleName,
   getRelationship,
   getWorkflow,
   Instance,
@@ -77,7 +78,7 @@ class Environment extends Instance {
   private static ActiveTransactionsKey: string = `--active-txns--`;
 
   constructor(name: string, parent?: Environment) {
-    super(PlaceholderRecordEntry, 'agentlang', name, newInstanceAttributes());
+    super(PlaceholderRecordEntry, DefaultModuleName, name, newInstanceAttributes());
     if (parent != undefined) {
       this.parent = parent;
       this.bindActiveEvent(parent.getActiveEventInstance());
