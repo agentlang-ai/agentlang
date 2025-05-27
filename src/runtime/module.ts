@@ -11,11 +11,24 @@ import {
   isRelNodes,
   Def,
   isWorkflow,
+  Module,
 } from '../language/generated/ast.js';
-import { Path, splitFqName, isString, isNumber, isBoolean, isFqName, makeFqName } from './util.js';
+import {
+  Path,
+  splitFqName,
+  isString,
+  isNumber,
+  isBoolean,
+  isFqName,
+  makeFqName,
+  maybeRaiseParserErrors,
+} from './util.js';
 import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 import { getResolverNameForPath } from './resolvers/registry.js';
 import { parse } from '../language/parser.js';
+import { createAgentlangServices } from '../language/agentlang-module.js';
+import { EmptyFileSystem } from 'langium';
+import { parseHelper } from 'langium/test';
 
 export class ModuleEntry {
   name: string;
@@ -48,6 +61,7 @@ function normalizePropertyNames(props: Map<string, any>) {
 }
 
 const SystemAttributeProperty: string = 'system-attribute';
+const SystemDefinedEvent = 'system-event';
 
 function setAsSystemAttribute(attrSpec: AttributeSpec) {
   const props: Map<string, any> = attrSpec.properties ? attrSpec.properties : new Map();
@@ -63,6 +77,29 @@ function isSystemAttribute(attrSpec: AttributeSpec): boolean {
 }
 
 export type RecordSchema = Map<string, AttributeSpec>;
+
+function recordSchemaToString(scm: RecordSchema): string {
+  const ss: Array<string> = [];
+  scm.forEach((attrSpec: AttributeSpec, n: string) => {
+    if (!isSystemAttribute(attrSpec)) {
+      ss.push(`    ${n} ${attributeSpecToString(attrSpec)}`);
+    }
+  });
+  return `{ \n${ss.join(',\n')} \n}`;
+}
+
+function attributeSpecToString(attrSpec: AttributeSpec): string {
+  let s: string = `${attrSpec.type}`;
+  if (attrSpec.properties) {
+    const ps: Array<string> = [];
+    attrSpec.properties.forEach((v: any, k: string) => {
+      if (v == true) ps.push(`@${k}`);
+      else ps.push(`@${k}${v}`);
+    });
+    s = s.concat(ps.join(' '));
+  }
+  return s;
+}
 
 export function newRecordSchema(): RecordSchema {
   return new Map<string, AttributeSpec>();
@@ -177,6 +214,18 @@ export class RecordEntry extends ModuleEntry {
       return e.name;
     }
     return undefined;
+  }
+
+  override toString(): string {
+    if (this.type == RecordType.EVENT && this.meta.get(SystemDefinedEvent)) {
+      return '';
+    }
+    let s: string = `${RecordType[this.type].toLowerCase()} ${this.name}`;
+    if (this.parentEntryName) {
+      s = s.concat(` extends ${this.parentEntryName}`);
+    }
+    const scms = recordSchemaToString(this.schema);
+    return s.concat('\n', scms, '\n');
   }
 
   getUserAttributes(): RecordSchema {
@@ -314,7 +363,17 @@ enum RelType {
 export type RelNodeEntry = {
   path: Path;
   alias: string;
+  origName: string;
+  origAlias: string | undefined;
 };
+
+function relNodeEntryToString(node: RelNodeEntry): string {
+  let n = `${node.origName}`;
+  if (node.origAlias) {
+    n = n.concat(` as ${node.origAlias}`);
+  }
+  return n;
+}
 
 function asRelNodeEntry(n: Node): RelNodeEntry {
   const path: Path = splitFqName(n.name);
@@ -330,6 +389,8 @@ function asRelNodeEntry(n: Node): RelNodeEntry {
   return {
     path: new Path(modName, entryName),
     alias: alias,
+    origName: n.name,
+    origAlias: n.alias,
   };
 }
 
@@ -440,6 +501,20 @@ export class RelationshipEntry extends RecordEntry {
   isManyToMany(): boolean {
     return !(this.isOneToOne() || this.isOneToMany());
   }
+
+  override toString(): string {
+    const n1 = relNodeEntryToString(this.node1);
+    const n2 = relNodeEntryToString(this.node2);
+    let s = `relationship ${this.name} ${RelType[this.relType].toLowerCase()} (${n1}, ${n2})`;
+    if (this.getUserAttributes().size > 0) {
+      const attrs: Array<string> = [];
+      this.getUserAttributes().forEach((attrSpec: AttributeSpec, n: string) => {
+        attrs.push(`${n} ${attributeSpecToString(attrSpec)}`);
+      });
+      s = s.concat(`{\n ${attrs.join(',\n')} }`);
+    }
+    return s.concat('\n');
+  }
 }
 
 export class WorkflowEntry extends ModuleEntry {
@@ -448,6 +523,32 @@ export class WorkflowEntry extends ModuleEntry {
   constructor(name: string, patterns: Statement[], moduleName: string) {
     super(name, moduleName);
     this.statements = patterns;
+  }
+
+  override toString() {
+    let s: string = `workflow ${normalizeWorkflowName(this.name)} {\n`;
+    const ss: Array<string> = [];
+    this.statements.forEach((stmt: Statement) => {
+      if (stmt.$cstNode) {
+        ss.push(`    ${stmt.$cstNode.text.trimStart()}`);
+      }
+    });
+    s = s.concat(ss.join(';\n'));
+    return s.concat('\n}');
+  }
+
+  async addStatement(stmt: string) {
+    const services = createAgentlangServices(EmptyFileSystem);
+    const parse = parseHelper<Module>(services.Agentlang);
+    const prog = `module Temp\nworkflow TempEvent { ${stmt} }`;
+    const document = await parse(prog, { validation: true });
+    maybeRaiseParserErrors(document);
+    const mod: Module = document.parseResult.value;
+    if (isWorkflow(mod.defs[0])) {
+      this.statements.push(mod.defs[0].statements[0]);
+    } else {
+      throw new Error('Failed to extract workflow-staement');
+    }
   }
 }
 
@@ -555,6 +656,10 @@ export class RuntimeModule {
     return this.getRelationshipEntriesOfType(RelType.CONTAINS);
   }
 
+  getWorkflowForEvent(eventName: string): WorkflowEntry {
+    return this.getEntry(asWorkflowName(eventName)) as WorkflowEntry;
+  }
+
   isEntryOfType(t: RecordType, name: string): boolean {
     const entry: ModuleEntry | undefined = this.getEntriesOfType(t).find((v: ModuleEntry) => {
       const r: RecordEntry = v as RecordEntry;
@@ -625,6 +730,14 @@ export class RuntimeModule {
       return entry.isBetween();
     }
     return false;
+  }
+
+  toString(): string {
+    const ss: Array<string> = [];
+    this.entries.forEach((me: ModuleEntry) => {
+      ss.push(me.toString());
+    });
+    return `module ${this.name}\n\n${ss.join('\n')}`;
   }
 }
 
@@ -889,6 +1002,14 @@ function asWorkflowName(n: string): string {
   return n + '--workflow';
 }
 
+function normalizeWorkflowName(n: string): string {
+  const i = n.indexOf('--workflow');
+  if (i > 0) {
+    return n.substring(0, i);
+  }
+  return n;
+}
+
 export function addWorkflow(name: string, moduleName = activeModule, statements?: Statement[]) {
   const module: RuntimeModule = fetchModule(moduleName);
   if (module.hasEntry(name)) {
@@ -897,6 +1018,8 @@ export function addWorkflow(name: string, moduleName = activeModule, statements?
       throw new Error(`Not an event, cannot attach workflow to ${entry.name}`);
   } else {
     addEvent(name, moduleName);
+    const event: RecordEntry = module.getEntry(name) as RecordEntry;
+    event.addMeta(SystemDefinedEvent, 'true');
   }
   if (!statements) statements = new Array<Statement>();
   module.addEntry(new WorkflowEntry(asWorkflowName(name), statements, moduleName));
