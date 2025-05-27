@@ -84,17 +84,35 @@ export class Path {
     return isString(this.entryName);
   }
 
-  setModuleName(n: string) {
+  setModuleName(n: string): Path {
     this.moduleName = n;
+    return this;
   }
 
   getModuleName(): string {
     return asString(this.moduleName);
   }
 
+  setEntryname(n: string): Path {
+    this.entryName = n;
+    return this;
+  }
+
   getEntryName(): string {
     return asString(this.entryName);
   }
+
+  asFqName(): string {
+    return makeFqName(this.moduleName || '?', this.entryName || '?');
+  }
+
+  equals(p: Path): boolean {
+    return this.moduleName == p.moduleName && this.entryName == p.entryName;
+  }
+}
+
+export function newPath(): Path {
+  return new Path(undefined, undefined);
 }
 
 export function makeFqName(moduleName: string, entryName: string): string {
@@ -149,4 +167,17 @@ export function runShellCommand(cmd: string, continuation: Function) {
 
 export function escapeFqName(n: string): string {
   return n.replace('/', '$');
+}
+
+export function arrayEquals(a: Array<any>, b: Array<any>) {
+  if (a.length !== b.length) return false;
+  else {
+    // Comparing each element of your array
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
 }

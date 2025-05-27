@@ -18,6 +18,7 @@ import {
   RelationshipEntry,
   RuntimeModule,
 } from '../../module.js';
+import { buildGraph } from '../../relgraph.js';
 
 export type TableSchema = {
   name: string;
@@ -31,6 +32,7 @@ export function asTableName(moduleName: string, entityName: string): string {
 export function modulesAsDbSchema(): TableSchema[] {
   const result: TableSchema[] = new Array<TableSchema>();
   getModuleNames().forEach((n: string) => {
+    buildGraph(n);
     const mod: RuntimeModule = fetchModule(n);
     const entities: EntityEntry[] = mod.getEntityEntries();
     const betRels: RelationshipEntry[] = mod
