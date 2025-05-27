@@ -61,7 +61,7 @@ export class RelationshipGraph {
     onBetweenRelationship: Function
   ) {
     const n = node.entity.asFqName();
-    onNode(n);
+    onNode(n, node.edges);
     node.edges.forEach((edge: RelationshipGraphEdge) => {
       const rf: Function = edge.relationship.isContains()
         ? onContainsRelationship
