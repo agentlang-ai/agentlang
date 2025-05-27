@@ -169,6 +169,18 @@ export class RecordEntry extends ModuleEntry {
     this.schema.set(n, attrSpec);
   }
 
+  removeAttribute(n: string) {
+    this.schema.delete(n);
+  }
+
+  reorderAttributes(desiredOrder: string[]) {
+    this.schema = new Map(
+      [...this.schema].sort((a, b) => {
+        return desiredOrder.indexOf(a[0]) - desiredOrder.indexOf(b[0]);
+      })
+    );
+  }
+
   addSystemAttribute(n: string, attrSpec: AttributeSpec) {
     setAsSystemAttribute(attrSpec);
     this.addAttribute(n, attrSpec);
