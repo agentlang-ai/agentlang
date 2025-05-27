@@ -30,6 +30,27 @@ export type AttributeSpec = {
 
 export type RecordSchema = Map<string, AttributeSpec>;
 
+function recordSchemaToString(scm: RecordSchema): string {
+  const ss: Array<string> = [];
+  scm.forEach((attrSpec: AttributeSpec, n: string) => {
+    ss.push(`${n} ${attributeSpecToString(attrSpec)},\n`);
+  });
+  return `{ ${ss.join(',\n')} \n}`;
+}
+
+function attributeSpecToString(attrSpec: AttributeSpec): string {
+  const s: string = `${attrSpec.type}`;
+  if (attrSpec.properties) {
+    const ps: Array<string> = [];
+    attrSpec.properties.forEach((v: any, k: string) => {
+      if (v == true) ps.push(`@${k}`);
+      else ps.push(`@${k}($v)`);
+    });
+    s.concat(ps.join(' '));
+  }
+  return s;
+}
+
 export function newRecordSchema(): RecordSchema {
   return new Map<string, AttributeSpec>();
 }
@@ -128,6 +149,15 @@ export class RecordEntry extends ModuleEntry {
       return e.name;
     }
     return undefined;
+  }
+
+  override toString(): string {
+    const s: string = `${RecordType[this.type].toLowerCase()} ${this.name}`;
+    if (this.parentEntryName) {
+      s.concat(` extends ${this.parentEntryName}`);
+    }
+    s.concat(recordSchemaToString(this.schema));
+    return s;
   }
 }
 
@@ -386,6 +416,17 @@ export class WorkflowEntry extends ModuleEntry {
   constructor(name: string, patterns: Statement[], moduleName: string) {
     super(name, moduleName);
     this.statements = patterns;
+  }
+
+  override toString() {
+    let s: string = `workflow ${this.name} {\n`;
+    this.statements.forEach((stmt: Statement) => {
+      if (stmt.$cstNode) {
+        s += `${stmt.$cstNode.text}\n`;
+      }
+    });
+    s += '\n}\n';
+    return s;
   }
 }
 
