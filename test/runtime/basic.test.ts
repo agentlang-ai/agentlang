@@ -72,7 +72,7 @@ describe('Basic loader test', () => {
             const obj: any = g.asObject()
             assert(obj['Blog/User'].length == 2, 'Blog/User must have two edges')
             const roots: RelationshipGraphNode[] = g.getRoots()
-            assert(roots.length == 1, "Invalid roots count")
+            assert(roots.length == 3, "Invalid roots count")
             const node: RelationshipGraphNode = roots[0]
             assert(node.entity.getEntryName() == 'User', "User not found at root")
             assert(node.edges.length == 2, "User must have two relationships")

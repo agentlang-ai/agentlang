@@ -79,7 +79,7 @@ export function buildGraph(moduleName: string): RelationshipGraph {
           if (rootEnts.has(en)) {
             rootEnts.delete(en);
           }
-          inRels.add(en);
+          if (re.isContains()) inRels.add(en);
         }
         const node: RelationshipGraphNode = forceFindNode(nodes, n1.path);
         connectEdge(node, re);
