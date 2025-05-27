@@ -1,8 +1,16 @@
+import { isString } from '../runtime/util.js';
+
 export class Pattern {
   alias: string | undefined;
 
   setAlias(alias: string) {
     this.alias = alias;
+    return this;
+  }
+
+  unsetAlias() {
+    this.alias = undefined;
+    return this;
   }
 
   toString(): string {
@@ -23,7 +31,8 @@ export class LiteralPattern extends Pattern {
   }
 
   override toString(): string {
-    return this.value.toString().concat(super.toString());
+    const s = isString(this.value) ? `"${this.value}"` : this.value.toString();
+    return s.concat(super.toString());
   }
 }
 
@@ -58,7 +67,7 @@ export class ReferencePattern extends Pattern {
 export class CrudPattern extends Pattern {
   recordName: string;
   attributes: Map<string, Pattern>;
-  relationships: CrudPattern[] | undefined;
+  relationships: Map<string, CrudPattern[] | CrudPattern> | undefined;
 
   constructor(recordName: string) {
     super();
@@ -68,23 +77,27 @@ export class CrudPattern extends Pattern {
 
   addAttribute(n: string, p: Pattern) {
     this.attributes.set(n, p);
+    return this;
   }
 
   removeAttribute(n: string) {
     this.attributes.delete(n);
+    return this;
   }
 
-  addRelationship(p: CrudPattern) {
+  addRelationship(n: string, p: CrudPattern[] | CrudPattern) {
     if (this.relationships == undefined) {
-      this.relationships = [];
+      this.relationships = new Map();
     }
-    this.relationships.push(p);
+    this.relationships.set(n, p);
+    return this;
   }
 
-  removeRelationship(index: number) {
+  removeRelationship(n: string) {
     if (this.relationships) {
-      this.relationships.splice(index, 1);
+      this.relationships.delete(n);
     }
+    return this;
   }
 
   private attributesAsString(): string {
@@ -92,17 +105,18 @@ export class CrudPattern extends Pattern {
     this.attributes.forEach((p: Pattern, n: string) => {
       result.push(`${n} ${p.toString()}`);
     });
-    const s = result.join(',\n');
+    const s = result.join(',');
     return `{${s}}`;
   }
 
   private relationshipsAsString(): string {
     if (this.relationships != undefined) {
       const result: Array<string> = [];
-      this.relationships.forEach((v: CrudPattern) => {
-        result.push(v.toString());
+      this.relationships.forEach((p: CrudPattern | CrudPattern[], n: string) => {
+        const ps = p instanceof Array ? `[${patternsToString(p, ',')}]` : p.toString();
+        result.push(`${n} ${ps}`);
       });
-      return result.join(',\n');
+      return result.join(',');
     } else {
       return '';
     }
@@ -132,16 +146,18 @@ export class ForEachPattern extends Pattern {
 
   addPattern(p: Pattern) {
     this.body.push(p);
+    return this;
   }
 
   removePattern(index: number) {
     this.body.splice(index, 1);
+    return this;
   }
 
   override toString(): string {
-    let s = `for ${this.variable} in ${this.source.toString()} {\n`;
-    s = s.concat(`{\n ${patternsToString(this.body)} \n}`);
-    return s.concat(super.toString()).concat('\n');
+    let s = `for ${this.variable} in ${this.source.toString()}`;
+    s = s.concat(`{${patternsToString(this.body)}}`);
+    return s.concat(super.toString());
   }
 }
 
@@ -159,44 +175,51 @@ export class IfPattern extends Pattern {
 
   addPattern(p: Pattern) {
     this.body.push(p);
+    return this;
   }
 
   removePattern(index: number) {
     this.body.splice(index, 1);
+    return this;
   }
 
   setElseIf(p: IfPattern) {
     this.elseIf = p;
+    return this;
   }
 
   setElseBody(elseBody: Pattern[]) {
     this.elseBody = elseBody;
+    return this;
   }
 
   removeElseIf() {
     this.elseIf = undefined;
+    return this;
   }
 
   removeElseBody() {
     this.elseBody = undefined;
+    return this;
   }
 
   override toString(): string {
-    let s = `if(${this.condition.toString()}) { \n`;
-    s = s.concat(patternsToString(this.body), ' }');
+    let s = `if(${this.condition.toString()}) {`;
+    s = s.concat(patternsToString(this.body), '}');
     if (this.elseIf) {
       s = s.concat(` else ${this.elseIf.toString()}`);
-    } else if (this.elseBody) {
-      s = s.concat(` else { \n${patternsToString(this.elseBody)} }`);
     }
-    return s.concat(super.toString()).concat('\n');
+    if (this.elseBody) {
+      s = s.concat(` else {${patternsToString(this.elseBody)}}`);
+    }
+    return s.concat(super.toString());
   }
 }
 
-function patternsToString(body: Pattern[]): string {
+function patternsToString(body: Pattern[], sep = ';'): string {
   const pats: Array<string> = [];
   body.forEach((p: Pattern) => {
     pats.push(p.toString());
   });
-  return pats.join(';\n');
+  return pats.join(sep);
 }
