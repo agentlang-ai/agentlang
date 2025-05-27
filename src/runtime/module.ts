@@ -208,7 +208,7 @@ export class RecordEntry extends ModuleEntry {
     s.concat(recordSchemaToString(this.schema));
     return s;
   }
-  
+
   getUserAttributes(): RecordSchema {
     const recSchema: RecordSchema = newRecordSchema();
     this.schema.forEach((attrSpec: AttributeSpec, n: string) => {
