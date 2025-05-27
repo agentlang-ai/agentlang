@@ -85,7 +85,7 @@ function recordSchemaToString(scm: RecordSchema): string {
       ss.push(`    ${n} ${attributeSpecToString(attrSpec)}`);
     }
   });
-  return `{ ${ss.join(',\n')} \n}`;
+  return `{ \n${ss.join(',\n')} \n}`;
 }
 
 function attributeSpecToString(attrSpec: AttributeSpec): string {
@@ -225,7 +225,7 @@ export class RecordEntry extends ModuleEntry {
       s = s.concat(` extends ${this.parentEntryName}`);
     }
     const scms = recordSchemaToString(this.schema);
-    return s.concat(scms);
+    return s.concat('\n', scms, '\n');
   }
 
   getUserAttributes(): RecordSchema {
@@ -363,7 +363,17 @@ enum RelType {
 export type RelNodeEntry = {
   path: Path;
   alias: string;
+  origName: string;
+  origAlias: string | undefined;
 };
+
+function relNodeEntryToString(node: RelNodeEntry): string {
+  let n = `${node.origName}`;
+  if (node.origAlias) {
+    n = n.concat(` as ${node.origAlias}`);
+  }
+  return n;
+}
 
 function asRelNodeEntry(n: Node): RelNodeEntry {
   const path: Path = splitFqName(n.name);
@@ -379,6 +389,8 @@ function asRelNodeEntry(n: Node): RelNodeEntry {
   return {
     path: new Path(modName, entryName),
     alias: alias,
+    origName: n.name,
+    origAlias: n.alias,
   };
 }
 
@@ -489,6 +501,20 @@ export class RelationshipEntry extends RecordEntry {
   isManyToMany(): boolean {
     return !(this.isOneToOne() || this.isOneToMany());
   }
+
+  override toString(): string {
+    const n1 = relNodeEntryToString(this.node1);
+    const n2 = relNodeEntryToString(this.node2);
+    let s = `relationship ${this.name} ${RelType[this.relType].toLowerCase()} (${n1}, ${n2})`;
+    if (this.getUserAttributes().size > 0) {
+      const attrs: Array<string> = [];
+      this.getUserAttributes().forEach((attrSpec: AttributeSpec, n: string) => {
+        attrs.push(`${n} ${attributeSpecToString(attrSpec)}`);
+      });
+      s = s.concat(`{\n ${attrs.join(',\n')} }`);
+    }
+    return s.concat('\n');
+  }
 }
 
 export class WorkflowEntry extends ModuleEntry {
@@ -504,11 +530,11 @@ export class WorkflowEntry extends ModuleEntry {
     const ss: Array<string> = [];
     this.statements.forEach((stmt: Statement) => {
       if (stmt.$cstNode) {
-        ss.push(`${stmt.$cstNode.text}`);
+        ss.push(`    ${stmt.$cstNode.text.trimStart()}`);
       }
     });
     s = s.concat(ss.join(';\n'));
-    return s.concat('\n}\n');
+    return s.concat('\n}');
   }
 
   async addStatement(stmt: string) {
