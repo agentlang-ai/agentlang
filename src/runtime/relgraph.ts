@@ -53,6 +53,21 @@ export class RelationshipGraph {
     });
     return Object.fromEntries(result);
   }
+
+  private walkEdges(node: RelationshipGraphNode, onNode: Function, onRelationship: Function) {
+    const n = node.entity.asFqName();
+    onNode(n);
+    node.edges.forEach((edge: RelationshipGraphEdge) => {
+      onRelationship(n, edge.node.entity.asFqName(), edge.relationship);
+      this.walkEdges(edge.node, onNode, onRelationship);
+    });
+  }
+
+  walk(onNode: Function, onRelationship: Function) {
+    this.nodes.forEach((node: RelationshipGraphNode) => {
+      this.walkEdges(node, onNode, onRelationship);
+    });
+  }
 }
 
 const NullEdge: Array<RelationshipGraphEdge> = [];
