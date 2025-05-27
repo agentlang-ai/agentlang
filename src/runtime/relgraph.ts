@@ -54,18 +54,26 @@ export class RelationshipGraph {
     return Object.fromEntries(result);
   }
 
-  private walkEdges(node: RelationshipGraphNode, onNode: Function, onRelationship: Function) {
+  private walkEdges(
+    node: RelationshipGraphNode,
+    onNode: Function,
+    onContainsRelationship: Function,
+    onBetweenRelationship: Function
+  ) {
     const n = node.entity.asFqName();
     onNode(n);
     node.edges.forEach((edge: RelationshipGraphEdge) => {
-      onRelationship(n, edge.node.entity.asFqName(), edge.relationship);
-      this.walkEdges(edge.node, onNode, onRelationship);
+      const rf: Function = edge.relationship.isContains()
+        ? onContainsRelationship
+        : onBetweenRelationship;
+      rf(n, edge.node.entity.asFqName(), edge.relationship);
+      this.walkEdges(edge.node, onNode, onContainsRelationship, onBetweenRelationship);
     });
   }
 
-  walk(onNode: Function, onRelationship: Function) {
+  walk(onNode: Function, onContainsRelationship: Function, onBetweenRelationship: Function) {
     this.nodes.forEach((node: RelationshipGraphNode) => {
-      this.walkEdges(node, onNode, onRelationship);
+      this.walkEdges(node, onNode, onContainsRelationship, onBetweenRelationship);
     });
   }
 }
