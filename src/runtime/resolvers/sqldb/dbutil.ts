@@ -1,7 +1,6 @@
 import { TableColumnOptions, TableForeignKey, TableIndexOptions } from 'typeorm';
 import {
   AttributeSpec,
-  EntityEntry,
   fetchModule,
   getAttributeDefaultValue,
   getAttributeLength,
@@ -34,8 +33,8 @@ export function modulesAsDbSchema(): TableSchema[] {
   getModuleNames().forEach((n: string) => {
     buildGraph(n);
     const mod: RuntimeModule = fetchModule(n);
-    const entities: EntityEntry[] = mod.getEntityEntries();
-    const betRels: RelationshipEntry[] = mod
+    const entities: RecordEntry[] = mod.getEntityEntries();
+    const betRels: RecordEntry[] = mod
       .getBetweenRelationshipEntries()
       .filter((v: RelationshipEntry) => v.isManyToMany());
     const allEntries: RecordEntry[] = entities.concat(betRels) as RecordEntry[];

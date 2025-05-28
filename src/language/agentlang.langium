@@ -12,7 +12,7 @@ Property: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 KvPair: value=Literal | key=ID ':' value=Literal;
 KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 
-fragment RecDef: name=ID extends=ExtendsClause? '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}'?;
+fragment RecDef: name=ID extends=ExtendsClause? '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ rbacSpec=RbacSpec? '}'?;
 
 Entity: 'entity' RecDef;
 Event: 'event' RecDef;
@@ -28,6 +28,20 @@ Node: name=ID | name=ID 'as' alias=ID;
 RelNodes: '(' node1=Node ',' node2=Node ')';
 
 Attribute: name=ID (type=ID | arrayType=ID '['']') properties+=Property*;
+
+RbacSpec: '@rbac' '[' (specEntries+=RbacSpecEntry (',' specEntries+=RbacSpecEntry)*)+ ']';
+
+RbacSpecEntry: role=RbacRolesSpec | allow=RbacAllowSpec | expr=RbacExpressionSpec;
+
+RbacSpecEntries: '(' (entries+=RbacSpecEntry (',' entries+=RbacSpecEntry)*)+ ')';
+
+RbacRolesSpec: 'roles' ':' '[' (roles+=STRING (',' roles+=STRING)*)+ ']';
+
+RbacAllowSpec: 'allow' ':' '[' (oprs+=RbacOpr (',' oprs+=RbacOpr)*)+ ']';
+
+RbacOpr: value=('create' | 'delete' | 'update' | 'read');
+
+RbacExpressionSpec: 'where' ':' lhs=Ref '=' rhs=Ref;
 
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 
@@ -55,7 +69,9 @@ Throws: 'throws' '{' (handlers+=Handler)+ '}';
 Handler: ('not_found' | 'error') Statement;
 
 If: 'if' '(' cond=LogicalExpression ')' Body (elseif=ElseIf | else=Else)?;
+
 ElseIf infers If: 'else' 'if' '(' cond=LogicalExpression ')' Body;
+
 Else: 'else' Body;
 
 ForEach: 'for' var=ID 'in' src=Pattern Body;

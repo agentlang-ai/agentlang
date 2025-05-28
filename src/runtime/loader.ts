@@ -10,6 +10,9 @@ import {
   Import,
   isRelationship,
   ExtendsClause,
+  RbacSpec,
+  RbacSpecEntry,
+  RbacOpr,
 } from '../language/generated/ast.js';
 import {
   addModule,
@@ -18,6 +21,8 @@ import {
   addRecord,
   addWorkflow,
   addRelationship,
+  EntityEntry,
+  RbacSpecification,
 } from './module.js';
 import { importModule, runShellCommand } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
@@ -256,14 +261,50 @@ function maybeExtends(ext: ExtendsClause | undefined): string | undefined {
   return ext ? ext.parentName : undefined;
 }
 
+function setRbacForEntity(entity: EntityEntry, rbacSpec: RbacSpec) {
+  const rbac: RbacSpecification[] = new Array<RbacSpecification>();
+  rbacSpec.specEntries.forEach((spec: RbacSpecEntry) => {
+    if (spec.allow) {
+      if (spec.role && spec.expr) {
+        throw new Error(
+          `Cannot specify roles and expression in the same rbac-specification for ${entity.name}`
+        );
+      }
+      const rs: RbacSpecification = new RbacSpecification(
+        spec.allow.oprs.map((v: RbacOpr) => {
+          return v.value;
+        })
+      );
+      if (spec.role) {
+        rs.setRoles(spec.role.roles);
+      } else if (spec.expr) {
+        rs.setExpression(spec.expr.lhs, spec.expr.rhs);
+      }
+      rbac.push(rs);
+    }
+  });
+  if (rbac.length > 0) {
+    entity.setRbacSpecifications(rbac);
+  }
+}
+
 function internModule(module: Module): string {
   addModule(module.name);
   module.imports.forEach((imp: Import) => {
     importModule(imp.path, imp.name);
   });
   module.defs.forEach((def: Def) => {
-    if (isEntity(def)) addEntity(def.name, module.name, def.attributes, maybeExtends(def.extends));
-    else if (isEvent(def))
+    if (isEntity(def)) {
+      const entity: EntityEntry = addEntity(
+        def.name,
+        module.name,
+        def.attributes,
+        maybeExtends(def.extends)
+      );
+      if (def.rbacSpec) {
+        setRbacForEntity(entity, def.rbacSpec);
+      }
+    } else if (isEvent(def))
       addEvent(def.name, module.name, def.attributes, maybeExtends(def.extends));
     else if (isRecord(def))
       addRecord(def.name, module.name, def.attributes, maybeExtends(def.extends));

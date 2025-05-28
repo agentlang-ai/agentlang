@@ -36,12 +36,15 @@ export type AgentlangKeywordNames =
     | ">="
     | "?"
     | "@"
+    | "@rbac"
     | "["
     | "]"
+    | "allow"
     | "and"
     | "as"
     | "between"
     | "contains"
+    | "create"
     | "delete"
     | "else"
     | "entity"
@@ -57,10 +60,14 @@ export type AgentlangKeywordNames =
     | "module"
     | "not_found"
     | "or"
+    | "read"
     | "record"
     | "relationship"
+    | "roles"
     | "throws"
     | "true"
+    | "update"
+    | "where"
     | "workflow"
     | "{"
     | "}";
@@ -244,6 +251,7 @@ export interface Entity extends langium.AstNode {
     attributes: Array<Attribute>;
     extends?: ExtendsClause;
     name: string;
+    rbacSpec?: RbacSpec;
 }
 
 export const Entity = 'Entity';
@@ -258,6 +266,7 @@ export interface Event extends langium.AstNode {
     attributes: Array<Attribute>;
     extends?: ExtendsClause;
     name: string;
+    rbacSpec?: RbacSpec;
 }
 
 export const Event = 'Event';
@@ -480,12 +489,99 @@ export function isProperty(item: unknown): item is Property {
     return reflection.isInstance(item, Property);
 }
 
+export interface RbacAllowSpec extends langium.AstNode {
+    readonly $container: RbacSpecEntry;
+    readonly $type: 'RbacAllowSpec';
+    oprs: Array<RbacOpr>;
+}
+
+export const RbacAllowSpec = 'RbacAllowSpec';
+
+export function isRbacAllowSpec(item: unknown): item is RbacAllowSpec {
+    return reflection.isInstance(item, RbacAllowSpec);
+}
+
+export interface RbacExpressionSpec extends langium.AstNode {
+    readonly $container: RbacSpecEntry;
+    readonly $type: 'RbacExpressionSpec';
+    lhs: Ref;
+    rhs: Ref;
+}
+
+export const RbacExpressionSpec = 'RbacExpressionSpec';
+
+export function isRbacExpressionSpec(item: unknown): item is RbacExpressionSpec {
+    return reflection.isInstance(item, RbacExpressionSpec);
+}
+
+export interface RbacOpr extends langium.AstNode {
+    readonly $container: RbacAllowSpec;
+    readonly $type: 'RbacOpr';
+    value: 'create' | 'delete' | 'read' | 'update';
+}
+
+export const RbacOpr = 'RbacOpr';
+
+export function isRbacOpr(item: unknown): item is RbacOpr {
+    return reflection.isInstance(item, RbacOpr);
+}
+
+export interface RbacRolesSpec extends langium.AstNode {
+    readonly $container: RbacSpecEntry;
+    readonly $type: 'RbacRolesSpec';
+    roles: Array<string>;
+}
+
+export const RbacRolesSpec = 'RbacRolesSpec';
+
+export function isRbacRolesSpec(item: unknown): item is RbacRolesSpec {
+    return reflection.isInstance(item, RbacRolesSpec);
+}
+
+export interface RbacSpec extends langium.AstNode {
+    readonly $container: Entity | Event | Record;
+    readonly $type: 'RbacSpec';
+    specEntries: Array<RbacSpecEntry>;
+}
+
+export const RbacSpec = 'RbacSpec';
+
+export function isRbacSpec(item: unknown): item is RbacSpec {
+    return reflection.isInstance(item, RbacSpec);
+}
+
+export interface RbacSpecEntries extends langium.AstNode {
+    readonly $type: 'RbacSpecEntries';
+    entries: Array<RbacSpecEntry>;
+}
+
+export const RbacSpecEntries = 'RbacSpecEntries';
+
+export function isRbacSpecEntries(item: unknown): item is RbacSpecEntries {
+    return reflection.isInstance(item, RbacSpecEntries);
+}
+
+export interface RbacSpecEntry extends langium.AstNode {
+    readonly $container: RbacSpec | RbacSpecEntries;
+    readonly $type: 'RbacSpecEntry';
+    allow?: RbacAllowSpec;
+    expr?: RbacExpressionSpec;
+    role?: RbacRolesSpec;
+}
+
+export const RbacSpecEntry = 'RbacSpecEntry';
+
+export function isRbacSpecEntry(item: unknown): item is RbacSpecEntry {
+    return reflection.isInstance(item, RbacSpecEntry);
+}
+
 export interface Record extends langium.AstNode {
     readonly $container: Module;
     readonly $type: 'Record';
     attributes: Array<Attribute>;
     extends?: ExtendsClause;
     name: string;
+    rbacSpec?: RbacSpec;
 }
 
 export const Record = 'Record';
@@ -634,6 +730,13 @@ export type AgentlangAstType = {
     PrimExpr: PrimExpr
     Property: Property
     QueryAllPattern: QueryAllPattern
+    RbacAllowSpec: RbacAllowSpec
+    RbacExpressionSpec: RbacExpressionSpec
+    RbacOpr: RbacOpr
+    RbacRolesSpec: RbacRolesSpec
+    RbacSpec: RbacSpec
+    RbacSpecEntries: RbacSpecEntries
+    RbacSpecEntry: RbacSpecEntry
     Record: Record
     RelNodes: RelNodes
     Relationship: Relationship
@@ -648,7 +751,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Delete, Else, Entity, Event, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, QueryAllPattern, Record, RelNodes, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Workflow];
+        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Delete, Else, Entity, Event, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpec, RbacSpecEntries, RbacSpecEntry, Record, RelNodes, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Workflow];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -770,7 +873,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'attributes', defaultValue: [] },
                         { name: 'extends' },
-                        { name: 'name' }
+                        { name: 'name' },
+                        { name: 'rbacSpec' }
                     ]
                 };
             }
@@ -780,7 +884,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'attributes', defaultValue: [] },
                         { name: 'extends' },
-                        { name: 'name' }
+                        { name: 'name' },
+                        { name: 'rbacSpec' }
                     ]
                 };
             }
@@ -935,13 +1040,73 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case RbacAllowSpec: {
+                return {
+                    name: RbacAllowSpec,
+                    properties: [
+                        { name: 'oprs', defaultValue: [] }
+                    ]
+                };
+            }
+            case RbacExpressionSpec: {
+                return {
+                    name: RbacExpressionSpec,
+                    properties: [
+                        { name: 'lhs' },
+                        { name: 'rhs' }
+                    ]
+                };
+            }
+            case RbacOpr: {
+                return {
+                    name: RbacOpr,
+                    properties: [
+                        { name: 'value' }
+                    ]
+                };
+            }
+            case RbacRolesSpec: {
+                return {
+                    name: RbacRolesSpec,
+                    properties: [
+                        { name: 'roles', defaultValue: [] }
+                    ]
+                };
+            }
+            case RbacSpec: {
+                return {
+                    name: RbacSpec,
+                    properties: [
+                        { name: 'specEntries', defaultValue: [] }
+                    ]
+                };
+            }
+            case RbacSpecEntries: {
+                return {
+                    name: RbacSpecEntries,
+                    properties: [
+                        { name: 'entries', defaultValue: [] }
+                    ]
+                };
+            }
+            case RbacSpecEntry: {
+                return {
+                    name: RbacSpecEntry,
+                    properties: [
+                        { name: 'allow' },
+                        { name: 'expr' },
+                        { name: 'role' }
+                    ]
+                };
+            }
             case Record: {
                 return {
                     name: Record,
                     properties: [
                         { name: 'attributes', defaultValue: [] },
                         { name: 'extends' },
-                        { name: 'name' }
+                        { name: 'name' },
+                        { name: 'rbacSpec' }
                     ]
                 };
             }
