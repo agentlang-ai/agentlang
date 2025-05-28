@@ -59,6 +59,16 @@ workflow AddPost {
                PostCategory {Category {description AddPost.category}}}}
 }
 
+workflow AddCategory {
+    {Category {description AddCategory.description}}
+}
+
+workflow AddCategoryToPost {
+    {Post {id? AddCategoryToPost.postId}} as [post];
+    {Category {id? AddCategoryToPost.catId}} as [cat];
+    {PostCategory {Post post, Category cat}}
+}
+
 workflow GetUserPosts {
     {User {id? GetUserPosts.userId},
      UserPost {Post? {}, PostCategory {Category? {}}}}

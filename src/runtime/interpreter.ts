@@ -366,7 +366,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (p.hasEntry()) entryName = p.getEntryName();
   }
   const inst: Instance = makeInstance(moduleName, entryName, attrs, qattrs, qattrVals);
-  if (isEntityInstance(inst)) {
+  if (isEntityInstance(inst) || isBetweenRelationship(inst.name, inst.moduleName)) {
     if (qattrs == undefined && !isQueryAll) {
       const parentPath: string | undefined = env.getParentPath();
       if (parentPath != undefined) inst.attributes.set(PathAttributeName, parentPath);

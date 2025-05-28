@@ -1,9 +1,13 @@
 import {
+  assertInstance,
   AttributeEntry,
   attributesAsColumns,
+  BetweenInstanceNodeValuesResult,
   findIdAttribute,
+  getBetweenInstanceNodeValues,
   Instance,
   InstanceAttributes,
+  isBetweenRelationship,
   MarkDeletedAttributes,
   newInstanceAttributes,
   RelationshipEntry,
@@ -53,21 +57,29 @@ export class SqlDbResolver extends Resolver {
   }
 
   public override async createInstance(inst: Instance): Promise<Instance> {
-    const idAttrName: string | undefined = addDefaultIdAttribute(inst);
-    const attrs: InstanceAttributes = inst.attributes;
-    if (idAttrName != undefined) {
-      const idAttrVal: any = attrs.get(idAttrName);
-      const pp: string | undefined = attrs.get(PathAttributeName);
-      const n: string = `${inst.moduleName}/${inst.name}`;
-      let p: string = '';
-      if (pp != undefined) p = `${pp}/${escapeFqName(n)}/${idAttrVal}`;
-      else p = `${n}/${idAttrVal}`;
-      attrs.set(PathAttributeName, p);
+    if (isBetweenRelationship(inst.name, inst.moduleName)) {
+      const nodeVals: BetweenInstanceNodeValuesResult = getBetweenInstanceNodeValues(inst);
+      assertInstance(nodeVals.node1);
+      assertInstance(nodeVals.node2);
+      await this.connectInstances(nodeVals.node1, nodeVals.node2, nodeVals.entry);
+      return inst;
+    } else {
+      const idAttrName: string | undefined = addDefaultIdAttribute(inst);
+      const attrs: InstanceAttributes = inst.attributes;
+      if (idAttrName != undefined) {
+        const idAttrVal: any = attrs.get(idAttrName);
+        const pp: string | undefined = attrs.get(PathAttributeName);
+        const n: string = `${inst.moduleName}/${inst.name}`;
+        let p: string = '';
+        if (pp != undefined) p = `${pp}/${escapeFqName(n)}/${idAttrVal}`;
+        else p = `${n}/${idAttrVal}`;
+        attrs.set(PathAttributeName, p);
+      }
+      const n: string = asTableName(inst.moduleName, inst.name);
+      const rowObj: object = inst.attributesAsObject();
+      await insertRow(n, rowObj, this.txnId);
+      return inst;
     }
-    const n: string = asTableName(inst.moduleName, inst.name);
-    const rowObj: object = inst.attributesAsObject();
-    await insertRow(n, rowObj, this.txnId);
-    return inst;
   }
 
   public override async upsertInstance(inst: Instance): Promise<Instance> {

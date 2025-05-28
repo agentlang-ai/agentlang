@@ -857,6 +857,11 @@ export function fetchModule(moduleName: string): RuntimeModule {
   return module;
 }
 
+export function fetchModuleEntry(entryName: string, moduleName: string): ModuleEntry {
+  const module: RuntimeModule = fetchModule(moduleName);
+  return module.getEntry(entryName);
+}
+
 const builtInChecks = new Map([
   ['String', isString],
   ['Int', Number.isSafeInteger],
@@ -1464,4 +1469,31 @@ export function isContainsRelationship(relName: string, moduleName: string): boo
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(relName, moduleName);
   const mod: RuntimeModule = fr.module;
   return mod.isContainsRelationship(fr.entryName);
+}
+
+export type BetweenInstanceNodeValuesResult = {
+  node1: any;
+  node2: any;
+  entry: RelationshipEntry;
+};
+
+export function getBetweenInstanceNodeValues(inst: Instance): BetweenInstanceNodeValuesResult {
+  const re: RelationshipEntry = fetchModuleEntry(inst.name, inst.moduleName) as RelationshipEntry;
+  return {
+    node1: inst.attributes.get(re.node1.alias),
+    node2: inst.attributes.get(re.node2.alias),
+    entry: re,
+  };
+}
+
+export function isInstance(obj: any): boolean {
+  return obj instanceof Instance;
+}
+
+export function assertInstance(obj: any) {
+  if (obj instanceof Array) {
+    obj.forEach(assertInstance);
+  } else if (!(obj instanceof Instance)) {
+    throw new Error(`${obj} is not an Instance`);
+  }
 }
