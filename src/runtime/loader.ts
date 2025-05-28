@@ -29,6 +29,8 @@ import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-
 import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
+import { CoreModules } from './modules/core.js';
+import { parseModule } from '../language/parser.js';
 
 export async function extractDocument(
   fileName: string,
@@ -197,6 +199,12 @@ export const load = async (
     );
   }
 };
+
+export async function loadCoreModules() {
+  for (let i = 0; i < CoreModules.length; ++i) {
+    await parseModule(CoreModules[i]).then(internModule);
+  }
+}
 
 const loadModule = async (
   fileName: string,

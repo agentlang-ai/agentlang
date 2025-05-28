@@ -8,7 +8,7 @@ entity User {
 }
 
 entity Role {
-    name String @id,
+    name String @id
 }
 
 relationship UserRole between (User, Role)
@@ -50,7 +50,6 @@ workflow AddPermissionToRole {
     {Role {name? AddPermissionToRole.roleName}} as role;
     {Permission {id? AddPermissionToRole.permissionId}} as perm;
     {RolePermission {Role role, Permission perm}}
-}
-`;
+}`;
 
 export default moduleDef;
