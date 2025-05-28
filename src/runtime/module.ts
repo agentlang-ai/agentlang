@@ -13,7 +13,16 @@ import {
   isWorkflow,
   Module,
 } from '../language/generated/ast.js';
-import { Path, splitFqName, isString, isNumber, isBoolean, isFqName, makeFqName } from './util.js';
+import {
+  Path,
+  splitFqName,
+  isString,
+  isNumber,
+  isBoolean,
+  isFqName,
+  makeFqName,
+  DefaultModuleName,
+} from './util.js';
 import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 import { getResolverNameForPath } from './resolvers/registry.js';
 import { parseModule, parseStatement } from '../language/parser.js';
@@ -344,12 +353,11 @@ function normalizeKvPairValue(kvp: KvPair): any | null {
   return null;
 }
 
-export const DefaultModuleName = 'agentlang';
 export const PlaceholderRecordEntry = new RecordEntry('--', DefaultModuleName);
 
 enum RbacAllowFlag {
-  REAC,
   CREATE,
+  READ,
   UPDATE,
   DELETE,
 }
@@ -360,24 +368,32 @@ type RbacExpression = {
 };
 
 export class RbacSpecification {
-  roles: Set<string>;
-  allow: Set<RbacAllowFlag>;
+  private static EmptyRoles: Set<string> = new Set();
+  roles: Set<string> = RbacSpecification.EmptyRoles;
+  permissions: Set<RbacAllowFlag>;
   expression: RbacExpression | undefined;
 
-  constructor(perms: Array<string>) {
-    this.allow = new Set();
+  constructor() {
+    this.permissions = new Set();
+  }
+
+  setPermissions(perms: Array<string>): RbacSpecification {
     perms.forEach((v: string) => {
       const idx: any = v.toUpperCase();
       const a: any = RbacAllowFlag[idx];
       if (a == undefined) {
         throw new Error(`Not a valid RBAC permission - ${v}`);
       }
-      this.allow.add(a);
+      this.permissions.add(a);
     });
-    this.roles = new Set();
+    return this;
   }
 
   setRoles(roles: Array<string>): RbacSpecification {
+    if (this.expression) {
+      throw new Error('Cannot set roles while `where` expression is set');
+    }
+    this.roles = new Set();
     roles.forEach((r: string) => {
       this.roles.add(r);
     });
@@ -385,6 +401,9 @@ export class RbacSpecification {
   }
 
   setExpression(lhs: string, rhs: string): RbacSpecification {
+    if (this.roles != RbacSpecification.EmptyRoles) {
+      throw new Error('Cannot set `where` expression along with roles');
+    }
     this.expression = {
       lhs: lhs,
       rhs: rhs,
@@ -767,16 +786,16 @@ export class RuntimeModule {
 
   isContainsRelationship(entryName: string): boolean {
     if (this.hasEntry(entryName)) {
-      const entry: RelationshipEntry = this.getEntry(entryName) as RelationshipEntry;
-      return entry.isContains();
+      const entry: ModuleEntry = this.getEntry(entryName);
+      if (entry instanceof RelationshipEntry) return entry.isContains();
     }
     return false;
   }
 
   isBetweenRelationship(entryName: string): boolean {
     if (this.hasEntry(entryName)) {
-      const entry: RelationshipEntry = this.getEntry(entryName) as RelationshipEntry;
-      return entry.isBetween();
+      const entry: ModuleEntry = this.getEntry(entryName);
+      if (entry instanceof RelationshipEntry) return entry.isBetween();
     }
     return false;
   }
@@ -1102,11 +1121,8 @@ export async function parseAndAddWorkflow(code: string, moduleName: string) {
 }
 
 export function getWorkflow(eventInstance: Instance): WorkflowEntry {
-  const name: string = eventInstance.name;
-  const path: Path = splitFqName(name);
-  let moduleName: string = activeModule;
-  if (path.hasModule()) moduleName = path.getModuleName();
-  const eventName: string = path.getEntryName();
+  const eventName: string = eventInstance.name;
+  const moduleName: string = eventInstance.moduleName;
   const wfName: string = asWorkflowName(eventName);
   const module: RuntimeModule = fetchModule(moduleName);
   if (module.hasEntry(wfName)) {

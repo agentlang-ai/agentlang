@@ -12,7 +12,9 @@ entity Profile {
 
 entity User {
     id UUID @id @default(uuid()),
-    name String @indexed
+    name String @indexed,
+    @rbac [(roles: [manager], allow: [create]),
+           (allow: [read], where: auth.user = this.id)]
 }
 
 relationship UserProfile between (User, Profile) @one_one

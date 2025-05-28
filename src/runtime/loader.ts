@@ -13,6 +13,7 @@ import {
   RbacSpec,
   RbacSpecEntry,
   RbacOpr,
+  RbacSpecEntries,
 } from '../language/generated/ast.js';
 import {
   addModule,
@@ -24,13 +25,14 @@ import {
   EntityEntry,
   RbacSpecification,
 } from './module.js';
-import { importModule, runShellCommand } from './util.js';
+import { importModule, registerInitFunction, runShellCommand } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules } from './modules/core.js';
 import { parseModule } from '../language/parser.js';
+import { createRoleIfNotExists } from './modules/auth.js';
 
 export async function extractDocument(
   fileName: string,
@@ -271,28 +273,38 @@ function maybeExtends(ext: ExtendsClause | undefined): string | undefined {
 
 function setRbacForEntity(entity: EntityEntry, rbacSpec: RbacSpec) {
   const rbac: RbacSpecification[] = new Array<RbacSpecification>();
-  rbacSpec.specEntries.forEach((spec: RbacSpecEntry) => {
-    if (spec.allow) {
-      if (spec.role && spec.expr) {
-        throw new Error(
-          `Cannot specify roles and expression in the same rbac-specification for ${entity.name}`
+  rbacSpec.specEntries.forEach((specEntries: RbacSpecEntries) => {
+    const rs: RbacSpecification = new RbacSpecification();
+    specEntries.entries.forEach((spec: RbacSpecEntry) => {
+      if (spec.allow) {
+        rs.setPermissions(
+          spec.allow.oprs.map((v: RbacOpr) => {
+            return v.value;
+          })
         );
-      }
-      const rs: RbacSpecification = new RbacSpecification(
-        spec.allow.oprs.map((v: RbacOpr) => {
-          return v.value;
-        })
-      );
-      if (spec.role) {
+      } else if (spec.role) {
         rs.setRoles(spec.role.roles);
       } else if (spec.expr) {
         rs.setExpression(spec.expr.lhs, spec.expr.rhs);
       }
-      rbac.push(rs);
-    }
+    });
+    rbac.push(rs);
   });
   if (rbac.length > 0) {
+    const f = async () => {
+      for (let i = 0; i < rbac.length; ++i) {
+        await createRolesAndPermissions(rbac[i]);
+      }
+    };
+    registerInitFunction(f);
     entity.setRbacSpecifications(rbac);
+  }
+}
+
+async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
+  const roles: Array<string> = [...rbacSpec.roles];
+  for (let i = 0; i < roles.length; ++i) {
+    await createRoleIfNotExists(roles[i]);
   }
 }
 

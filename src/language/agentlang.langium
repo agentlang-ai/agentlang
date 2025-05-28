@@ -12,7 +12,7 @@ Property: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 KvPair: value=Literal | key=ID ':' value=Literal;
 KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 
-fragment RecDef: name=ID extends=ExtendsClause? '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ rbacSpec=RbacSpec? '}'?;
+fragment RecDef: name=ID extends=ExtendsClause? '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ (',' rbacSpec=RbacSpec?)? '}'?;
 
 Entity: 'entity' RecDef;
 Event: 'event' RecDef;
@@ -29,13 +29,13 @@ RelNodes: '(' node1=Node ',' node2=Node ')';
 
 Attribute: name=ID (type=ID | arrayType=ID '['']') properties+=Property*;
 
-RbacSpec: '@rbac' '[' (specEntries+=RbacSpecEntry (',' specEntries+=RbacSpecEntry)*)+ ']';
+RbacSpec: '@rbac' '[' (specEntries+=RbacSpecEntries (',' specEntries+=RbacSpecEntries)*)+ ']';
 
 RbacSpecEntry: role=RbacRolesSpec | allow=RbacAllowSpec | expr=RbacExpressionSpec;
 
 RbacSpecEntries: '(' (entries+=RbacSpecEntry (',' entries+=RbacSpecEntry)*)+ ')';
 
-RbacRolesSpec: 'roles' ':' '[' (roles+=STRING (',' roles+=STRING)*)+ ']';
+RbacRolesSpec: 'roles' ':' '[' (roles+=ID (',' roles+=ID)*)+ ']';
 
 RbacAllowSpec: 'allow' ':' '[' (oprs+=RbacOpr (',' oprs+=RbacOpr)*)+ ']';
 

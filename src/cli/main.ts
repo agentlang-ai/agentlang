@@ -11,6 +11,7 @@ import * as path from 'node:path';
 import { startServer } from '../api/http.js';
 import { initDefaultDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { logger } from '../runtime/logger.js';
+import { runInitFunctions } from '../runtime/util.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -72,8 +73,10 @@ export const runModule = async (fileName: string): Promise<void> => {
     logger.error(msg);
     console.log(chalk.red(msg));
   });
-  load(fileName, (appSpec: ApplicationSpec) => {
-    initDefaultDatabase();
+  const f = async (appSpec: ApplicationSpec) => {
+    await initDefaultDatabase();
+    await runInitFunctions();
     startServer(appSpec, 8080);
-  });
+  };
+  load(fileName, f);
 };

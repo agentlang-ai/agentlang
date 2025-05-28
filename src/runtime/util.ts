@@ -181,3 +181,22 @@ export function arrayEquals(a: Array<any>, b: Array<any>) {
     return true;
   }
 }
+
+export const DefaultModuleName = 'agentlang';
+
+export function makeCoreModuleName(n: string): string {
+  return DefaultModuleName + '_' + n;
+}
+
+const InitFunctions: Function[] = [];
+
+export function registerInitFunction(f: Function) {
+  InitFunctions.push(f);
+}
+
+export async function runInitFunctions() {
+  for (let i = 0; i < InitFunctions.length; ++i) {
+    await InitFunctions[i]();
+  }
+  InitFunctions.splice(0, InitFunctions.length);
+}

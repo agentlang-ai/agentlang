@@ -22,7 +22,6 @@ import {
   Statement,
 } from '../language/generated/ast.js';
 import {
-  DefaultModuleName,
   getRelationship,
   getWorkflow,
   Instance,
@@ -42,6 +41,7 @@ import { Resolver } from './resolvers/interface.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
 import { PathAttributeName } from './resolvers/sqldb/database.js';
 import {
+  DefaultModuleName,
   escapeFqName,
   invokeModuleFn,
   isFqName,
@@ -247,6 +247,17 @@ export async function evaluate(
       await env.commitAllTransactions();
     }
   }
+}
+
+export async function evaluateAsEvent(
+  moduleName: string,
+  eventName: string,
+  attrs: Array<any>
+): Promise<Result> {
+  const eventInst: Instance = makeInstance(moduleName, eventName, new Map(attrs));
+  let result: any;
+  await evaluate(eventInst, (r: any) => (result = r));
+  return result;
 }
 
 async function evaluateStatements(stmts: Statement[], env: Environment, continuation?: Function) {

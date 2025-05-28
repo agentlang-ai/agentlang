@@ -541,7 +541,7 @@ export function isRbacRolesSpec(item: unknown): item is RbacRolesSpec {
 export interface RbacSpec extends langium.AstNode {
     readonly $container: Entity | Event | Record;
     readonly $type: 'RbacSpec';
-    specEntries: Array<RbacSpecEntry>;
+    specEntries: Array<RbacSpecEntries>;
 }
 
 export const RbacSpec = 'RbacSpec';
@@ -551,6 +551,7 @@ export function isRbacSpec(item: unknown): item is RbacSpec {
 }
 
 export interface RbacSpecEntries extends langium.AstNode {
+    readonly $container: RbacSpec;
     readonly $type: 'RbacSpecEntries';
     entries: Array<RbacSpecEntry>;
 }
@@ -562,7 +563,7 @@ export function isRbacSpecEntries(item: unknown): item is RbacSpecEntries {
 }
 
 export interface RbacSpecEntry extends langium.AstNode {
-    readonly $container: RbacSpec | RbacSpecEntries;
+    readonly $container: RbacSpecEntries;
     readonly $type: 'RbacSpecEntry';
     allow?: RbacAllowSpec;
     expr?: RbacExpressionSpec;
