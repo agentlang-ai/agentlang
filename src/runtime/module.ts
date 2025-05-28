@@ -13,22 +13,10 @@ import {
   isWorkflow,
   Module,
 } from '../language/generated/ast.js';
-import {
-  Path,
-  splitFqName,
-  isString,
-  isNumber,
-  isBoolean,
-  isFqName,
-  makeFqName,
-  maybeRaiseParserErrors,
-} from './util.js';
+import { Path, splitFqName, isString, isNumber, isBoolean, isFqName, makeFqName } from './util.js';
 import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 import { getResolverNameForPath } from './resolvers/registry.js';
-import { parse } from '../language/parser.js';
-import { createAgentlangServices } from '../language/agentlang-module.js';
-import { EmptyFileSystem } from 'langium';
-import { parseHelper } from 'langium/test';
+import { parseModule, parseStatement } from '../language/parser.js';
 
 export class ModuleEntry {
   name: string;
@@ -602,17 +590,13 @@ export class WorkflowEntry extends ModuleEntry {
   }
 
   async addStatement(stmt: string) {
-    const services = createAgentlangServices(EmptyFileSystem);
-    const parse = parseHelper<Module>(services.Agentlang);
-    const prog = `module Temp\nworkflow TempEvent { ${stmt} }`;
-    const document = await parse(prog, { validation: true });
-    maybeRaiseParserErrors(document);
-    const mod: Module = document.parseResult.value;
-    if (isWorkflow(mod.defs[0])) {
-      this.statements.push(mod.defs[0].statements[0]);
-    } else {
-      throw new Error('Failed to extract workflow-staement');
-    }
+    await parseStatement(stmt).then((mod: Module) => {
+      if (isWorkflow(mod.defs[0])) {
+        this.statements.push(mod.defs[0].statements[0]);
+      } else {
+        throw new Error('Failed to extract workflow-staement');
+      }
+    });
   }
 }
 
@@ -1108,11 +1092,12 @@ export function addWorkflow(
 }
 
 export async function parseAndAddWorkflow(code: string, moduleName: string) {
-  const r = await parse(`module ${moduleName} ${code}`);
-  r.parseResult.value.defs.forEach((v: Def) => {
-    if (isWorkflow(v)) {
-      addWorkflow(v.name, moduleName, v.statements);
-    }
+  await parseModule(`module ${moduleName} ${code}`).then((mod: Module) => {
+    mod.defs.forEach((v: Def) => {
+      if (isWorkflow(v)) {
+        addWorkflow(v.name, moduleName, v.statements);
+      }
+    });
   });
 }
 

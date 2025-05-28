@@ -1,4 +1,3 @@
-import { LangiumDocument } from 'langium';
 import { isNodeEnv } from '../utils/runtime.js';
 
 // Conditionally import Node.js specific modules
@@ -180,18 +179,5 @@ export function arrayEquals(a: Array<any>, b: Array<any>) {
       }
     }
     return true;
-  }
-}
-
-export function maybeRaiseParserErrors(document: LangiumDocument) {
-  if (document.parseResult.lexerErrors.length > 0 || document.parseResult.parserErrors.length > 0) {
-    const errs: Array<string> = [];
-    document.parseResult.lexerErrors.forEach((v: any) => {
-      errs.push(v.message);
-    });
-    document.parseResult.parserErrors.forEach((v: any) => {
-      errs.push(v.message);
-    });
-    throw new Error(`There were parser errors: \n ${errs.join('\n')}`);
   }
 }
