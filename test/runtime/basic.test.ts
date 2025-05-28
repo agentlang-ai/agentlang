@@ -106,7 +106,7 @@ describe('Basic loader test', () => {
                     assert(obj['RelTest/A'].length == 1, 'RelTest/A must have one edge')
                     assert(obj['RelTest/A'][0].to['Blog/User'], 'A->User relationship missing')
                     assert(obj['RelTest/B'].length == 1, 'RelTest/B must have one edge')
-                    assert(obj['RelTest/B'][0].to['Blog/Profile'], 'B->Profile relationship missing')
+                    assert(obj['RelTest/B'][0].to['Blog/Category'], 'B->Profile relationship missing')
                 } finally {
                     removeModule(testMod.name)
                 }
