@@ -1,5 +1,5 @@
 import { load } from "../../src/runtime/loader.js";
-import { addModule, AttributeSpec, EntityEntry, fetchModule, RecordEntry, RuntimeModule } from "../../src/runtime/module.js";
+import { addBetweenRelationship, addContainsRelationship, addEntity, addModule, AttributeSpec, EntityEntry, fetchModule, newRelNodeEntry, RecordEntry, removeModule, RuntimeModule } from "../../src/runtime/module.js";
 import { buildGraph, findEdgeForRelationship, RelationshipGraph, RelationshipGraphEdge, RelationshipGraphNode } from "../../src/runtime/relgraph.js";
 import { arrayEquals } from "../../src/runtime/util.js";
 import { assert, describe, test } from "vitest";
@@ -58,40 +58,60 @@ describe('Basic loader test', () => {
     test('Check loader with graph', async () => {
         load("example/blog/blog.al", () => {
             const m: RuntimeModule = fetchModule('Blog')
-            assert(m.name == 'Blog', 'Failed to load Blog module')
-            let re: RecordEntry = m.getEntry('UserPost') as RecordEntry
-            assert(re != undefined, "UserPost entry not found")
-            const attrs: Set<string> = new Set(["User", "Post"])
-            re.schema.keys().forEach((k: string) => {
-                assert(attrs.has(k), `Attribute ${k} not found in UserProfile`)
-            })
-            assert(re.getUserAttributes().size == 0, "UserProfile has no user-attributes")
-            re = m.getEntry('Post') as RecordEntry
-            assert(re.getUserAttributes().size == 2, 'Post has only 2 attributes')
-            const g: RelationshipGraph = buildGraph('Blog')
-            const obj: any = g.asObject()
-            assert(obj['Blog/User'].length == 2, 'Blog/User must have two edges')
-            const roots: RelationshipGraphNode[] = g.getRoots()
-            assert(roots.length == 3, "Invalid roots count")
-            const node: RelationshipGraphNode = roots[0]
-            assert(node.entity.getEntryName() == 'User', "User not found at root")
-            assert(node.edges.length == 2, "User must have two relationships")
-            const relNames: Set<string> = new Set(["UserProfile", "UserPost"])
-            node.edges.forEach((v: RelationshipGraphEdge) => {
-                assert(relNames.has(v.relationship.name), `${v.relationship.name} relationship not found`)
-            })
-            let edge: RelationshipGraphEdge | undefined = findEdgeForRelationship('UserProfile', 'Blog', node.edges)
-            assert(edge != undefined, "Edge for UserProfile not found")
-            if (edge != undefined) {
-                assert(edge.node.entity.getEntryName() == 'Profile', "Profile not found in relationship")
-                assert(edge.node.edges.length == 0, "Profile does not have relationships")
-            }
-            edge = findEdgeForRelationship('UserPost', 'Blog', node.edges)
-            assert(edge != undefined, "Edge for UserPost not found")
-            if (edge != undefined) {
-                assert(edge.node.entity.getEntryName() == 'Post', "Post not found in relationship")
-                assert(edge.node.edges.length == 1, "POst has exactly one relationships")
-                assert(edge.node.edges[0].node.entity.getEntryName() == 'Category', 'Post must be related to Category')
+            try {
+                assert(m.name == 'Blog', 'Failed to load Blog module')
+                let re: RecordEntry = m.getEntry('UserPost') as RecordEntry
+                assert(re != undefined, "UserPost entry not found")
+                const attrs: Set<string> = new Set(["User", "Post"])
+                re.schema.keys().forEach((k: string) => {
+                    assert(attrs.has(k), `Attribute ${k} not found in UserProfile`)
+                })
+                assert(re.getUserAttributes().size == 0, "UserProfile has no user-attributes")
+                re = m.getEntry('Post') as RecordEntry
+                assert(re.getUserAttributes().size == 2, 'Post has only 2 attributes')
+                let g: RelationshipGraph = buildGraph('Blog')
+                let obj: any = g.asObject()
+                assert(obj['Blog/User'].length == 2, 'Blog/User must have two edges')
+                const roots: RelationshipGraphNode[] = g.getRoots()
+                assert(roots.length == 3, "Invalid roots count")
+                const node: RelationshipGraphNode = roots[0]
+                assert(node.entity.getEntryName() == 'User', "User not found at root")
+                assert(node.edges.length == 2, "User must have two relationships")
+                const relNames: Set<string> = new Set(["UserProfile", "UserPost"])
+                node.edges.forEach((v: RelationshipGraphEdge) => {
+                    assert(relNames.has(v.relationship.name), `${v.relationship.name} relationship not found`)
+                })
+                let edge: RelationshipGraphEdge | undefined = findEdgeForRelationship('UserProfile', 'Blog', node.edges)
+                assert(edge != undefined, "Edge for UserProfile not found")
+                if (edge != undefined) {
+                    assert(edge.node.entity.getEntryName() == 'Profile', "Profile not found in relationship")
+                    assert(edge.node.edges.length == 0, "Profile does not have relationships")
+                }
+                edge = findEdgeForRelationship('UserPost', 'Blog', node.edges)
+                assert(edge != undefined, "Edge for UserPost not found")
+                if (edge != undefined) {
+                    assert(edge.node.entity.getEntryName() == 'Post', "Post not found in relationship")
+                    assert(edge.node.edges.length == 1, "POst has exactly one relationships")
+                    assert(edge.node.edges[0].node.entity.getEntryName() == 'Category', 'Post must be related to Category')
+                }
+                const testMod: RuntimeModule = addModule('RelTest1')
+                try {
+                    addEntity('A', testMod.name)
+                    addEntity('B', testMod.name)
+                    addBetweenRelationship('R1', m.name, [newRelNodeEntry('RelTest/A'), newRelNodeEntry('Blog/User')])
+                    addContainsRelationship('R2', m.name, [newRelNodeEntry('RelTest/B'), newRelNodeEntry('Blog/Category')])
+                    g = buildGraph(m.name)
+                    obj = g.asObject()
+                    assert(obj['Blog/User'].length == 2, 'Blog/User must have two edges')
+                    assert(obj['RelTest/A'].length == 1, 'RelTest/A must have one edge')
+                    assert(obj['RelTest/A'][0].to['Blog/User'], 'A->User relationship missing')
+                    assert(obj['RelTest/B'].length == 1, 'RelTest/B must have one edge')
+                    assert(obj['RelTest/B'][0].to['Blog/Profile'], 'B->Profile relationship missing')
+                } finally {
+                    removeModule(testMod.name)
+                }
+            } finally {
+                removeModule(m.name)
             }
         })
     })
