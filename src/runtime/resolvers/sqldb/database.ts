@@ -142,6 +142,29 @@ export async function insertRow(tableName: string, row: object, txnId?: string):
   await insertRows(tableName, rows, txnId);
 }
 
+export async function upsertRows(tableName: string, rows: object[], txnId?: string): Promise<void> {
+  const rowsForUpsert: Array<string> = Object.keys(rows);
+  const idx = rowsForUpsert.findIndex((s: string) => {
+    return s == PathAttributeName;
+  });
+  if (idx >= 0) {
+    rowsForUpsert.splice(idx, 1);
+  }
+  await getDatasourceForTransaction(txnId)
+    .createQueryBuilder()
+    .insert()
+    .into(tableName)
+    .values(rows)
+    .orUpdate(rowsForUpsert, PathAttributeName)
+    .execute();
+}
+
+export async function upsertRow(tableName: string, row: object, txnId?: string): Promise<void> {
+  const rows: Array<object> = new Array<object>();
+  rows.push(row);
+  await upsertRows(tableName, rows, txnId);
+}
+
 export async function updateRow(
   tableName: string,
   queryObj: object,

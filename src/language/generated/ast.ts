@@ -67,6 +67,7 @@ export type AgentlangKeywordNames =
     | "throws"
     | "true"
     | "update"
+    | "upsert"
     | "where"
     | "workflow"
     | "{"
@@ -468,6 +469,7 @@ export interface Pattern extends langium.AstNode {
     forEach?: ForEach;
     if?: If;
     literal?: Literal;
+    upsert?: Upsert;
 }
 
 export const Pattern = 'Pattern';
@@ -674,6 +676,18 @@ export function isThrows(item: unknown): item is Throws {
     return reflection.isInstance(item, Throws);
 }
 
+export interface Upsert extends langium.AstNode {
+    readonly $container: Pattern;
+    readonly $type: 'Upsert';
+    pattern: CrudMap;
+}
+
+export const Upsert = 'Upsert';
+
+export function isUpsert(item: unknown): item is Upsert {
+    return reflection.isInstance(item, Upsert);
+}
+
 export interface Workflow extends langium.AstNode {
     readonly $container: Module;
     readonly $type: 'Workflow';
@@ -746,13 +760,14 @@ export type AgentlangAstType = {
     SetAttribute: SetAttribute
     Statement: Statement
     Throws: Throws
+    Upsert: Upsert
     Workflow: Workflow
 }
 
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Delete, Else, Entity, Event, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpec, RbacSpecEntries, RbacSpecEntry, Record, RelNodes, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Workflow];
+        return [ArrayLiteral, Attribute, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Def, Delete, Else, Entity, Event, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, Module, NegExpr, Node, OrAnd, Pattern, PrimExpr, Property, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpec, RbacSpecEntries, RbacSpecEntry, Record, RelNodes, Relationship, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Upsert, Workflow];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1028,7 +1043,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'delete' },
                         { name: 'forEach' },
                         { name: 'if' },
-                        { name: 'literal' }
+                        { name: 'literal' },
+                        { name: 'upsert' }
                     ]
                 };
             }
@@ -1167,6 +1183,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Throws,
                     properties: [
                         { name: 'handlers', defaultValue: [] }
+                    ]
+                };
+            }
+            case Upsert: {
+                return {
+                    name: Upsert,
+                    properties: [
+                        { name: 'pattern' }
                     ]
                 };
             }

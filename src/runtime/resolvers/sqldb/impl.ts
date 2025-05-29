@@ -25,6 +25,7 @@ import {
   startDbTransaction,
   commitDbTransaction,
   rollbackDbTransaction,
+  upsertRow,
 } from './database.js';
 
 function addDefaultIdAttribute(inst: Instance): string | undefined {
@@ -56,7 +57,7 @@ export class SqlDbResolver extends Resolver {
     return entryName;
   }
 
-  public override async createInstance(inst: Instance): Promise<Instance> {
+  private async insertInstance(inst: Instance, orUpdate = false): Promise<Instance> {
     if (isBetweenRelationship(inst.name, inst.moduleName)) {
       const nodeVals: BetweenInstanceNodeValuesResult = getBetweenInstanceNodeValues(inst);
       assertInstance(nodeVals.node1);
@@ -77,13 +78,25 @@ export class SqlDbResolver extends Resolver {
       }
       const n: string = asTableName(inst.moduleName, inst.name);
       const rowObj: object = inst.attributesAsObject();
-      await insertRow(n, rowObj, this.txnId);
+      let f = insertRow;
+      if (orUpdate) {
+        f = upsertRow;
+      }
+      await f(n, rowObj, this.txnId);
       return inst;
     }
   }
 
+  public override async createInstance(inst: Instance): Promise<Instance> {
+    let result: Instance = inst;
+    await this.insertInstance(inst).then((r: Instance) => (result = r));
+    return result;
+  }
+
   public override async upsertInstance(inst: Instance): Promise<Instance> {
-    throw new Error(`upsertInstace not implemented - cannot upsert ${inst.name}`);
+    let result: Instance = inst;
+    await this.insertInstance(inst, true).then((r: Instance) => (result = r));
+    return result;
   }
 
   public override async updateInstance(

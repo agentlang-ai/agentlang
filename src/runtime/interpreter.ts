@@ -20,6 +20,7 @@ import {
   RelationshipPattern,
   SetAttribute,
   Statement,
+  Upsert,
 } from '../language/generated/ast.js';
 import {
   getRelationship,
@@ -76,6 +77,7 @@ class Environment extends Instance {
   private static BetweenRelInfoKey: string = '--between-rel-info--';
   private static ActiveResolversKey: string = '--active-resolvers--';
   private static ActiveTransactionsKey: string = `--active-txns--`;
+  private static UpsertModeKey: string = '--upsert-mode--';
 
   constructor(name: string, parent?: Environment) {
     super(PlaceholderRecordEntry, DefaultModuleName, name, newInstanceAttributes());
@@ -215,6 +217,18 @@ class Environment extends Instance {
   async rollbackAllTransactions(): Promise<void> {
     await this.endAllTransactions(false);
   }
+
+  upsertModeOn() {
+    this.attributes.set(Environment.UpsertModeKey, true);
+  }
+
+  upsertModeOff() {
+    this.attributes.set(Environment.UpsertModeKey, false);
+  }
+
+  isInUpsertMode(): boolean {
+    return this.attributes.get(Environment.UpsertModeKey) == true;
+  }
 }
 
 export async function evaluate(
@@ -308,6 +322,8 @@ async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
     await evaluateIf(pat.if, env);
   } else if (pat.delete != undefined) {
     await evaluateDelete(pat.delete, env);
+  } else if (pat.upsert != undefined) {
+    await evaluateUpsert(pat.upsert, env);
   }
 }
 
@@ -389,7 +405,11 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           betRelInfo.connectedInstance.attributes.get(PathAttributeName)
         );
       }
-      await res.createInstance(inst).then((inst: Instance) => env.bindLastResult(inst));
+      if (env.isInUpsertMode()) {
+        await res.upsertInstance(inst).then((inst: Instance) => env.bindLastResult(inst));
+      } else {
+        await res.createInstance(inst).then((inst: Instance) => env.bindLastResult(inst));
+      }
       if (crud.relationships != undefined) {
         for (let i = 0; i < crud.relationships.length; ++i) {
           const rel: RelationshipPattern = crud.relationships[i];
@@ -493,6 +513,15 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     await evaluate(inst, (result: Result) => env.bindLastResult(result), env);
   } else {
     env.bindLastResult(inst);
+  }
+}
+
+async function evaluateUpsert(upsert: Upsert, env: Environment): Promise<void> {
+  env.upsertModeOn();
+  try {
+    await evaluateCrudMap(upsert.pattern, env);
+  } finally {
+    env.upsertModeOff();
   }
 }
 

@@ -1,7 +1,7 @@
 // Monarch syntax highlighting for the agentlang language.
 export default {
     keywords: [
-        '@rbac','allow','and','as','between','contains','create','delete','else','entity','error','event','extends','false','for','if','import','in','like','module','not_found','or','read','record','relationship','roles','throws','true','update','where','workflow'
+        '@rbac','allow','and','as','between','contains','create','delete','else','entity','error','event','extends','false','for','if','import','in','like','module','not_found','or','read','record','relationship','roles','throws','true','update','upsert','where','workflow'
     ],
     operators: [
         '*','+',',','-','.','/',':',';','<','<=','<>','=','>','>=','?','@'
