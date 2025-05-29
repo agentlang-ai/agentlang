@@ -78,5 +78,5 @@ export const runModule = async (fileName: string): Promise<void> => {
     await runInitFunctions();
     startServer(appSpec, 8080);
   };
-  load(fileName, f);
+  await load(fileName, f);
 };

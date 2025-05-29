@@ -143,7 +143,10 @@ export async function insertRow(tableName: string, row: object, txnId?: string):
 }
 
 export async function upsertRows(tableName: string, rows: object[], txnId?: string): Promise<void> {
-  const rowsForUpsert: Array<string> = Object.keys(rows);
+  // This is the right way to do an upsert in TypeORM, but `orUpdate` does not seem to work
+  // without a (TypeORM) entity definition.
+
+  /*const rowsForUpsert: Array<string> = Object.keys(rows[0]);
   const idx = rowsForUpsert.findIndex((s: string) => {
     return s == PathAttributeName;
   });
@@ -156,7 +159,15 @@ export async function upsertRows(tableName: string, rows: object[], txnId?: stri
     .into(tableName)
     .values(rows)
     .orUpdate(rowsForUpsert, PathAttributeName)
-    .execute();
+    .execute();*/
+
+  type ObjectKey = keyof (typeof rows)[0];
+  const k = PathAttributeName as ObjectKey;
+  for (let i = 0; i < rows.length; ++i) {
+    const r: object = rows[i];
+    await hardDeleteRow(tableName, PathAttributeName, r[k], txnId);
+  }
+  await insertRows(tableName, rows, txnId);
 }
 
 export async function upsertRow(tableName: string, row: object, txnId?: string): Promise<void> {
@@ -170,13 +181,29 @@ export async function updateRow(
   queryObj: object,
   queryVals: object,
   updateObj: object,
-  txtId?: string
+  txnId?: string
 ): Promise<boolean> {
-  await getDatasourceForTransaction(txtId)
+  await getDatasourceForTransaction(txnId)
     .createQueryBuilder()
     .update(tableName)
     .set(updateObj)
     .where(objectToWhereClause(queryObj), queryVals)
+    .execute();
+  return true;
+}
+
+async function hardDeleteRow(
+  tableName: string,
+  idColName: string,
+  idColValue: any,
+  txnId?: string
+) {
+  const clause = `${idColName} = :${idColName}`;
+  await getDatasourceForTransaction(txnId)
+    .createQueryBuilder()
+    .delete()
+    .from(tableName)
+    .where(clause, Object.fromEntries([[idColName, idColValue]]))
     .execute();
   return true;
 }

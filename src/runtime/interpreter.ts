@@ -87,6 +87,7 @@ class Environment extends Instance {
       this.bindLastResult(parent.getLastResult());
       this.bindActiveTransactions(parent.getActiveTransactions());
       this.bindActiveResolvers(parent.getActiveResolvers());
+      if (parent.isInUpsertMode()) this.upsertModeOn();
     } else {
       this.bindActiveTransactions(new Map<string, string>());
       this.bindActiveResolvers(new Map<string, Resolver>());
@@ -266,9 +267,11 @@ export async function evaluate(
 export async function evaluateAsEvent(
   moduleName: string,
   eventName: string,
-  attrs: Array<any>
+  attrs: Array<any> | object
 ): Promise<Result> {
-  const eventInst: Instance = makeInstance(moduleName, eventName, new Map(attrs));
+  const finalAttrs: Map<string, any> =
+    attrs instanceof Array ? new Map(attrs) : new Map(Object.entries(attrs));
+  const eventInst: Instance = makeInstance(moduleName, eventName, finalAttrs);
   let result: any;
   await evaluate(eventInst, (r: any) => (result = r));
   return result;

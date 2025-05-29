@@ -36,12 +36,12 @@ workflow CreateUser {
 }
 
 workflow CreateRole {
-    {Role {name CreateRole.name}}
+    upsert {Role {name CreateRole.name}}
 }
 
 workflow FindRole {
-    {Role {name? FindRole.name}} as [r];
-    r
+    {Role {name? FindRole.name}} as [role];
+    role
 }
 
 workflow AddUserToRole {
@@ -51,17 +51,19 @@ workflow AddUserToRole {
 }
 
 workflow CreatePermission {
-    {Permission {resourceFqName CreatePermission.resourceFqName,
-                 can_create CreatePermission.c,
-                 can_read CreatePermission.r,
-                 can_update CreatePermission.u,
-                 can_delete CreatePermission.d}}
+     upsert {Permission {id CreatePermission.id,
+                        resourceFqName CreatePermission.resourceFqName,
+                        can_create CreatePermission.c,
+                        can_read CreatePermission.r,
+                        can_update CreatePermission.u,
+                        can_delete CreatePermission.d},
+             RolePermission {Role {name? CreatePermission.roleName}}}
 }
 
 workflow AddPermissionToRole {
     {Role {name? AddPermissionToRole.roleName}} as role;
     {Permission {id? AddPermissionToRole.permissionId}} as perm;
-    {RolePermission {Role role, Permission perm}}
+    upsert {RolePermission {Role role, Permission perm}}
 }
 
 workflow FindRolePermissions {
@@ -72,7 +74,7 @@ workflow FindRolePermissions {
 
 export default moduleDef;
 
-async function evalEvent(eventName: string, attrs: Array<any>): Promise<Result> {
+async function evalEvent(eventName: string, attrs: Array<any> | object): Promise<Result> {
   let result: any;
   await evaluateAsEvent(CoreAuthModuleName, eventName, attrs)
     .then((r: any) => (result = r))
@@ -84,14 +86,33 @@ async function evalEvent(eventName: string, attrs: Array<any>): Promise<Result> 
 
 export async function findRole(name: string): Promise<Result> {
   let result: any;
-  await evalEvent('FindRole', [['name', name]]).then((r: any) => (result = r));
+  await evalEvent('FindRole', { name: name }).then((r: any) => (result = r));
   return result;
 }
 
-export async function createRoleIfNotExists(name: string) {
-  let result: any;
-  await findRole(name).then((r: any) => (result = r));
-  if (!result) {
-    await evalEvent('CreateRole', [['name', name]]);
-  }
+export async function createRole(name: string) {
+  await evalEvent('CreateRole', { name: name });
+  // TODO: Fix tables init issue in loader
+  // TODO: Propagate upsert for between
+  // TODO: Create permissions
+}
+
+export async function CreatePermission(
+  id: string,
+  roleName: string,
+  resourceFqName: string,
+  c: boolean = false,
+  r: boolean = false,
+  u: boolean = false,
+  d: boolean = false
+) {
+  await evalEvent('CreatePermission', {
+    id: id,
+    roleName: roleName,
+    resourceFqName: resourceFqName,
+    c: c,
+    r: r,
+    u: u,
+    d: d,
+  });
 }

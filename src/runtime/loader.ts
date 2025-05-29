@@ -32,7 +32,7 @@ import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules } from './modules/core.js';
 import { parseModule } from '../language/parser.js';
-import { createRoleIfNotExists } from './modules/auth.js';
+import { createRole } from './modules/auth.js';
 
 export async function extractDocument(
   fileName: string,
@@ -304,7 +304,7 @@ function setRbacForEntity(entity: EntityEntry, rbacSpec: RbacSpec) {
 async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
   const roles: Array<string> = [...rbacSpec.roles];
   for (let i = 0; i < roles.length; ++i) {
-    await createRoleIfNotExists(roles[i]);
+    await createRole(roles[i]);
   }
 }
 
