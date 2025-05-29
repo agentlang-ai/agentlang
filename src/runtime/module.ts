@@ -438,6 +438,16 @@ export type RelNodeEntry = {
   origAlias: string | undefined;
 };
 
+export function newRelNodeEntry(nodeFqName: string, alias?: string): RelNodeEntry {
+  const p: Path = splitFqName(nodeFqName);
+  return {
+    path: p,
+    alias: alias ? alias : p.getEntryName(),
+    origName: nodeFqName,
+    origAlias: alias,
+  };
+}
+
 function relNodeEntryToString(node: RelNodeEntry): string {
   let n = `${node.origName}`;
   if (node.origAlias) {
@@ -816,10 +826,11 @@ export function getActiveModuleName() {
   return activeModule;
 }
 
-export function addModule(name: string): string {
-  moduleDb.set(name, new RuntimeModule(name));
+export function addModule(name: string): RuntimeModule {
+  const mod: RuntimeModule = new RuntimeModule(name);
+  moduleDb.set(name, mod);
   activeModule = name;
-  return name;
+  return mod;
 }
 
 export function removeModule(name: string): boolean {

@@ -105,6 +105,11 @@ export function buildGraph(moduleName: string): RelationshipGraph {
         }
         const node: RelationshipGraphNode = forceFindNode(nodes, n1.path);
         connectEdge(node, re);
+      } else if (n2.path.getModuleName() == moduleName) {
+        const en: string = n2.path.getEntryName();
+        inRels.add(en);
+        const node: RelationshipGraphNode = forceFindNode(nodes, n1.path);
+        connectEdge(node, re);
       }
     });
   });
