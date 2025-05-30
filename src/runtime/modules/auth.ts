@@ -92,7 +92,6 @@ export async function findRole(name: string): Promise<Result> {
 
 export async function createRole(name: string) {
   await evalEvent('CreateRole', { name: name });
-  // TODO: Fix tables init issue in loader
   // TODO: Propagate upsert for between
   // TODO: Create permissions
 }

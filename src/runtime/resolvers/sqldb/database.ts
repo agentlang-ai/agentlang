@@ -14,14 +14,12 @@ export async function initDefaultDatabase() {
       type: 'sqlite',
       database: 'db',
     });
-    await defaultDataSource
-      .initialize()
-      .then(() => {
-        createTables().then((_: void) => {
-          const msg: string = 'Database schema initialized';
-          logger.debug(msg);
-          console.log(chalk.gray(msg));
-        });
+    await defaultDataSource.initialize();
+    await createTables()
+      .then((_: void) => {
+        const msg: string = 'Database schema initialized';
+        logger.debug(msg);
+        console.log(chalk.gray(msg));
       })
       .catch(err => {
         logger.error('Error during Data Source initialization', err);
