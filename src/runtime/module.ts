@@ -369,12 +369,22 @@ type RbacExpression = {
 
 export class RbacSpecification {
   private static EmptyRoles: Set<string> = new Set();
+  resource: string = '';
   roles: Set<string> = RbacSpecification.EmptyRoles;
   permissions: Set<RbacAllowFlag>;
   expression: RbacExpression | undefined;
 
   constructor() {
     this.permissions = new Set();
+  }
+
+  setResource(s: string): RbacSpecification {
+    this.resource = s;
+    return this;
+  }
+
+  hasResource(): boolean {
+    return this.resource.length > 0;
   }
 
   setPermissions(perms: Array<string>): RbacSpecification {
@@ -387,6 +397,26 @@ export class RbacSpecification {
       this.permissions.add(a);
     });
     return this;
+  }
+
+  hasPermissions(): boolean {
+    return this.permissions.size > 0;
+  }
+
+  hasCreatePermission(): boolean {
+    return this.permissions.has(RbacAllowFlag.CREATE);
+  }
+
+  hasReadPermission(): boolean {
+    return this.permissions.has(RbacAllowFlag.READ);
+  }
+
+  hasUpdatePermission(): boolean {
+    return this.permissions.has(RbacAllowFlag.UPDATE);
+  }
+
+  hasDeletePermission(): boolean {
+    return this.permissions.has(RbacAllowFlag.DELETE);
   }
 
   setRoles(roles: Array<string>): RbacSpecification {

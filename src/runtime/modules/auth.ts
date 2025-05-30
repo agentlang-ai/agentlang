@@ -92,11 +92,9 @@ export async function findRole(name: string): Promise<Result> {
 
 export async function createRole(name: string) {
   await evalEvent('CreateRole', { name: name });
-  // TODO: Propagate upsert for between
-  // TODO: Create permissions
 }
 
-export async function CreatePermission(
+export async function createPermission(
   id: string,
   roleName: string,
   resourceFqName: string,
