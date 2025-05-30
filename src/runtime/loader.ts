@@ -25,14 +25,14 @@ import {
   EntityEntry,
   RbacSpecification,
 } from './module.js';
-import { importModule, registerInitFunction, runShellCommand } from './util.js';
+import { importModule, makeFqName, registerInitFunction, runShellCommand } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules } from './modules/core.js';
 import { parseModule } from '../language/parser.js';
-import { createRole } from './modules/auth.js';
+import { createPermission, createRole } from './modules/auth.js';
 import { logger } from './logger.js';
 
 export async function extractDocument(
@@ -260,7 +260,9 @@ function maybeExtends(ext: ExtendsClause | undefined): string | undefined {
 function setRbacForEntity(entity: EntityEntry, rbacSpec: RbacSpec) {
   const rbac: RbacSpecification[] = new Array<RbacSpecification>();
   rbacSpec.specEntries.forEach((specEntries: RbacSpecEntries) => {
-    const rs: RbacSpecification = new RbacSpecification();
+    const rs: RbacSpecification = new RbacSpecification().setResource(
+      makeFqName(entity.moduleName, entity.name)
+    );
     specEntries.entries.forEach((spec: RbacSpecEntry) => {
       if (spec.allow) {
         rs.setPermissions(
@@ -290,7 +292,19 @@ function setRbacForEntity(entity: EntityEntry, rbacSpec: RbacSpec) {
 async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
   const roles: Array<string> = [...rbacSpec.roles];
   for (let i = 0; i < roles.length; ++i) {
-    await createRole(roles[i]);
+    const r = roles[i];
+    await createRole(r);
+    if (rbacSpec.hasPermissions() && rbacSpec.hasResource()) {
+      createPermission(
+        `${r}_permission`,
+        r,
+        rbacSpec.resource,
+        rbacSpec.hasCreatePermission(),
+        rbacSpec.hasReadPermission(),
+        rbacSpec.hasUpdatePermission(),
+        rbacSpec.hasDeletePermission()
+      );
+    }
   }
 }
 

@@ -199,7 +199,7 @@ function queryObjectAsWhereClause(qobj: QueryObject): string {
     const k = kv[0];
     ss.push(`${k} = :${k}`);
   });
-  return ss.join('AND');
+  return ss.join(' AND ');
 }
 
 export async function hardDeleteRow(tableName: string, queryObject: QueryObject, txnId?: string) {
