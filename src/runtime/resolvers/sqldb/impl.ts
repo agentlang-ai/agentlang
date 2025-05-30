@@ -26,6 +26,7 @@ import {
   commitDbTransaction,
   rollbackDbTransaction,
   upsertRow,
+  hardDeleteRow,
 } from './database.js';
 
 function addDefaultIdAttribute(inst: Instance): string | undefined {
@@ -62,7 +63,7 @@ export class SqlDbResolver extends Resolver {
       const nodeVals: BetweenInstanceNodeValuesResult = getBetweenInstanceNodeValues(inst);
       assertInstance(nodeVals.node1);
       assertInstance(nodeVals.node2);
-      await this.connectInstances(nodeVals.node1, nodeVals.node2, nodeVals.entry);
+      await this.connectInstances(nodeVals.node1, nodeVals.node2, nodeVals.entry, orUpdate);
       return inst;
     } else {
       const idAttrName: string | undefined = addDefaultIdAttribute(inst);
@@ -234,16 +235,38 @@ export class SqlDbResolver extends Resolver {
   public override async connectInstances(
     node1: Instance,
     otherNodeOrNodes: Instance | Instance[],
-    relEntry: RelationshipEntry
+    relEntry: RelationshipEntry,
+    orUpdate: boolean
   ): Promise<Instance> {
     const n: string = asTableName(relEntry.moduleName, relEntry.name);
     const a1: string = relEntry.node1.alias;
     const a2: string = relEntry.node2.alias;
+    const n1path: any = orUpdate ? node1.lookup(PathAttributeName) : undefined;
     if (otherNodeOrNodes instanceof Array) {
       for (let i = 0; i < otherNodeOrNodes.length; ++i) {
+        if (orUpdate) {
+          await hardDeleteRow(
+            n,
+            [
+              [a1, n1path],
+              [a2, otherNodeOrNodes[i].lookup(PathAttributeName)],
+            ],
+            this.txnId
+          );
+        }
         await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes[i], this.txnId);
       }
     } else {
+      if (orUpdate) {
+        await hardDeleteRow(
+          n,
+          [
+            [a1, n1path],
+            [a2, otherNodeOrNodes.lookup(PathAttributeName)],
+          ],
+          this.txnId
+        );
+      }
       await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes, this.txnId);
     }
     return node1;

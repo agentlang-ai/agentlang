@@ -436,7 +436,8 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
               await getResolverForPath(rel.name, moduleName, env).connectInstances(
                 lastInst,
                 relResult,
-                relEntry
+                relEntry,
+                env.isInUpsertMode()
               );
             }
             lastInst.attachRelatedInstances(rel.name, newEnv.getLastResult());

@@ -53,7 +53,8 @@ export abstract class Resolver {
   public abstract connectInstances(
     node1: Instance,
     otherNodeOrNodes: Instance | Instance[],
-    relEntry: RelationshipEntry
+    relEntry: RelationshipEntry,
+    orUpdate: boolean
   ): any;
 
   public abstract startTransaction(): string; // Return a transactionId

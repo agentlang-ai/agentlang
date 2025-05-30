@@ -163,7 +163,7 @@ export async function upsertRows(tableName: string, rows: object[], txnId?: stri
   const k = PathAttributeName as ObjectKey;
   for (let i = 0; i < rows.length; ++i) {
     const r: object = rows[i];
-    await hardDeleteRow(tableName, PathAttributeName, r[k], txnId);
+    await hardDeleteRow(tableName, [[PathAttributeName, r[k]]], txnId);
   }
   await insertRows(tableName, rows, txnId);
 }
@@ -190,18 +190,25 @@ export async function updateRow(
   return true;
 }
 
-async function hardDeleteRow(
-  tableName: string,
-  idColName: string,
-  idColValue: any,
-  txnId?: string
-) {
-  const clause = `${idColName} = :${idColName}`;
+type QueryObjectEntry = [string, any];
+export type QueryObject = Array<QueryObjectEntry>;
+
+function queryObjectAsWhereClause(qobj: QueryObject): string {
+  const ss: Array<string> = [];
+  qobj.forEach((kv: QueryObjectEntry) => {
+    const k = kv[0];
+    ss.push(`${k} = :${k}`);
+  });
+  return ss.join('AND');
+}
+
+export async function hardDeleteRow(tableName: string, queryObject: QueryObject, txnId?: string) {
+  const clause = queryObjectAsWhereClause(queryObject);
   await getDatasourceForTransaction(txnId)
     .createQueryBuilder()
     .delete()
     .from(tableName)
-    .where(clause, Object.fromEntries([[idColName, idColValue]]))
+    .where(clause, Object.fromEntries(queryObject))
     .execute();
   return true;
 }
