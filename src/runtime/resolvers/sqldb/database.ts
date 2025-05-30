@@ -1,12 +1,26 @@
-import { DataSource, EntityManager, QueryRunner, Table, TableColumnOptions } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  QueryRunner,
+  SelectQueryBuilder,
+  Table,
+  TableColumnOptions,
+} from 'typeorm';
 import { logger } from '../../logger.js';
 import { modulesAsDbSchema, TableSchema } from './dbutil.js';
 import chalk from 'chalk';
+import { ResolverAuthInfo } from '../interface.js';
 
 let defaultDataSource: DataSource | undefined;
 
 export const PathAttributeName: string = '__path__';
 export const DeletedFlagAttributeName: string = '__is_deleted__';
+
+export type DbContext = {
+  txnId: string | undefined;
+  authInfo: ResolverAuthInfo;
+  inKernelMode: boolean;
+};
 
 export async function initDefaultDatabase() {
   if (defaultDataSource == undefined) {
@@ -25,6 +39,10 @@ export async function initDefaultDatabase() {
         logger.error('Error during Data Source initialization', err);
       });
   }
+}
+
+function ownersTable(tableName: string): string {
+  return tableName + `_owners`;
 }
 
 async function createTables(): Promise<void> {
@@ -71,7 +89,7 @@ async function createTables(): Promise<void> {
         await queryRunner
           .createTable(
             new Table({
-              name: ts.name + '_owners',
+              name: ownersTable(ts.name),
               columns: [
                 {
                   name: 'path',
@@ -88,17 +106,22 @@ async function createTables(): Promise<void> {
                   default: "'u'",
                 },
                 {
-                  name: 'can_read',
+                  name: 'c',
                   type: 'boolean',
                   default: true,
                 },
                 {
-                  name: 'can_write',
+                  name: 'r',
                   type: 'boolean',
                   default: true,
                 },
                 {
-                  name: 'can_delete',
+                  name: 'u',
+                  type: 'boolean',
+                  default: true,
+                },
+                {
+                  name: 'd',
                   type: 'boolean',
                   default: true,
                 },
@@ -125,8 +148,8 @@ async function createTables(): Promise<void> {
   }
 }
 
-export async function insertRows(tableName: string, rows: object[], txnId?: string): Promise<void> {
-  await getDatasourceForTransaction(txnId)
+async function insertRowsHelper(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
+  await getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
     .insert()
     .into(tableName)
@@ -134,13 +157,38 @@ export async function insertRows(tableName: string, rows: object[], txnId?: stri
     .execute();
 }
 
-export async function insertRow(tableName: string, row: object, txnId?: string): Promise<void> {
-  const rows: Array<object> = new Array<object>();
-  rows.push(row);
-  await insertRows(tableName, rows, txnId);
+export async function insertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
+  await insertRowsHelper(tableName, rows, ctx);
+  if (!ctx.inKernelMode) {
+    await createOwnership(tableName, rows, ctx);
+  }
 }
 
-export async function upsertRows(tableName: string, rows: object[], txnId?: string): Promise<void> {
+async function createOwnership(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
+  const ownerRows: object[] = [];
+  rows.forEach((r: object) => {
+    const k = PathAttributeName as keyof object;
+    ownerRows.push({
+      path: r[k],
+      user_id: ctx.authInfo.userId,
+      type: 'u',
+      c: true,
+      r: true,
+      u: true,
+      d: true,
+    });
+  });
+  const tname = ownersTable(tableName);
+  await insertRowsHelper(tname, ownerRows, ctx);
+}
+
+export async function insertRow(tableName: string, row: object, ctx: DbContext): Promise<void> {
+  const rows: Array<object> = new Array<object>();
+  rows.push(row);
+  await insertRows(tableName, rows, ctx);
+}
+
+export async function upsertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
   // This is the right way to do an upsert in TypeORM, but `orUpdate` does not seem to work
   // without a (TypeORM) entity definition.
 
@@ -163,15 +211,15 @@ export async function upsertRows(tableName: string, rows: object[], txnId?: stri
   const k = PathAttributeName as ObjectKey;
   for (let i = 0; i < rows.length; ++i) {
     const r: object = rows[i];
-    await hardDeleteRow(tableName, [[PathAttributeName, r[k]]], txnId);
+    await hardDeleteRow(tableName, [[PathAttributeName, r[k]]], ctx);
   }
-  await insertRows(tableName, rows, txnId);
+  await insertRows(tableName, rows, ctx);
 }
 
-export async function upsertRow(tableName: string, row: object, txnId?: string): Promise<void> {
+export async function upsertRow(tableName: string, row: object, ctx: DbContext): Promise<void> {
   const rows: Array<object> = new Array<object>();
   rows.push(row);
-  await upsertRows(tableName, rows, txnId);
+  await upsertRows(tableName, rows, ctx);
 }
 
 export async function updateRow(
@@ -179,9 +227,9 @@ export async function updateRow(
   queryObj: object,
   queryVals: object,
   updateObj: object,
-  txnId?: string
+  ctx: DbContext
 ): Promise<boolean> {
-  await getDatasourceForTransaction(txnId)
+  await getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
     .update(tableName)
     .set(updateObj)
@@ -202,9 +250,9 @@ function queryObjectAsWhereClause(qobj: QueryObject): string {
   return ss.join(' AND ');
 }
 
-export async function hardDeleteRow(tableName: string, queryObject: QueryObject, txnId?: string) {
+export async function hardDeleteRow(tableName: string, queryObject: QueryObject, ctx: DbContext) {
   const clause = queryObjectAsWhereClause(queryObject);
-  await getDatasourceForTransaction(txnId)
+  await getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
     .delete()
     .from(tableName)
@@ -228,20 +276,38 @@ export async function getMany(
   tableName: string,
   queryObj: object | undefined,
   queryVals: object | undefined,
+  colNamesToSelect: string[],
   callback: Function,
-  txtId?: string
+  ctx: DbContext
 ) {
   const alias: string = tableName.toLowerCase();
   const queryStr: string = withNotDeletedClause(
     queryObj != undefined ? objectToWhereClause(queryObj, alias) : ''
   );
-  await getDatasourceForTransaction(txtId)
+  const ot: string = ownersTable(tableName);
+  const otAlias: string = ot.toLowerCase();
+  // TODO: Fix crud flags setting
+  const ownersJoinCond: string[] = [
+    `${otAlias}.path = ${alias}.${PathAttributeName}`,
+    `${otAlias}.user_id = '${ctx.authInfo.userId}'`,
+    `${otAlias}.r = true`,
+  ];
+
+  const selCols = new Array<string>();
+  colNamesToSelect.forEach((s: string) => {
+    selCols.push(`${alias}.${s}`);
+  });
+  selCols.push(`${alias}.${PathAttributeName}`);
+
+  const qb: SelectQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
-    .select()
-    .from(tableName, alias)
-    .where(queryStr, queryVals)
-    .getRawMany()
-    .then((result: any) => callback(result));
+    .select(selCols.join(','))
+    .from(tableName, alias);
+  if (!ctx.inKernelMode) {
+    qb.innerJoin(ot, otAlias, ownersJoinCond.join(' AND '));
+  }
+  qb.where(queryStr, queryVals);
+  await qb.getRawMany().then((result: any) => callback(result));
 }
 
 const NotDeletedClause: string = `${DeletedFlagAttributeName} = false`;
@@ -276,11 +342,11 @@ export async function getAllConnected(
   queryVals: object,
   connInfo: BetweenConnectionInfo,
   callback: Function,
-  txtId?: string
+  ctx: DbContext
 ) {
   const alias: string = tableName.toLowerCase();
   const connAlias: string = connInfo.connectionTable.toLowerCase();
-  await getDatasourceForTransaction(txtId)
+  await getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
     .select()
     .from(tableName, alias)
@@ -308,7 +374,7 @@ export function startDbTransaction(): string {
   }
 }
 
-export function getDatasourceForTransaction(txnId: string | undefined): DataSource | EntityManager {
+function getDatasourceForTransaction(txnId: string | undefined): DataSource | EntityManager {
   if (txnId) {
     const qr: QueryRunner | undefined = transactionsDb.get(txnId);
     if (qr == undefined) {

@@ -1,6 +1,29 @@
 import { Instance, InstanceAttributes, RelationshipEntry } from '../module.js';
 
+export type ResolverAuthInfo = {
+  userId: string;
+};
+
+const DefaultAuthInfo: ResolverAuthInfo = {
+  // This user-id is only for testing, per-session user-id needs to be set from
+  // the HTTP layer.
+  userId: '9459a305-5ee6-415d-986d-caaf6d6e2828',
+};
+
 export abstract class Resolver {
+  protected authInfo: ResolverAuthInfo = DefaultAuthInfo;
+  protected inKernelMode: boolean = false;
+
+  public setAuthInfo(authInfo: ResolverAuthInfo): Resolver {
+    this.authInfo = authInfo;
+    return this;
+  }
+
+  public setKernelMode(flag: boolean): Resolver {
+    this.inKernelMode = flag;
+    return this;
+  }
+
   public abstract getName(): string;
   public abstract onSetPath(moduleName: string, entryName: string): any;
 

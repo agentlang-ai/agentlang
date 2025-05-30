@@ -8,7 +8,6 @@ import {
   Instance,
   InstanceAttributes,
   isBetweenRelationship,
-  MarkDeletedAttributes,
   newInstanceAttributes,
   RelationshipEntry,
 } from '../../module.js';
@@ -27,6 +26,7 @@ import {
   rollbackDbTransaction,
   upsertRow,
   hardDeleteRow,
+  DbContext,
 } from './database.js';
 
 function addDefaultIdAttribute(inst: Instance): string | undefined {
@@ -47,13 +47,33 @@ function addDefaultIdAttribute(inst: Instance): string | undefined {
 export class SqlDbResolver extends Resolver {
   private name: string = '';
   private txnId: string | undefined;
+  private dbContext: DbContext | undefined;
+
   constructor(name: string) {
     super();
     this.name = name;
   }
+
   public override getName(): string {
     return this.name;
   }
+
+  private getDbContext(): DbContext {
+    if (this.dbContext) {
+      if (this.txnId && !this.dbContext.txnId) {
+        this.dbContext.txnId = this.txnId;
+      }
+      this.dbContext.inKernelMode = this.inKernelMode;
+    } else {
+      this.dbContext = {
+        txnId: this.txnId,
+        authInfo: this.authInfo,
+        inKernelMode: this.inKernelMode,
+      };
+    }
+    return this.dbContext;
+  }
+
   public override onSetPath(moduleName: string, entryName: string): string {
     return entryName;
   }
@@ -83,7 +103,7 @@ export class SqlDbResolver extends Resolver {
       if (orUpdate) {
         f = upsertRow;
       }
-      await f(n, rowObj, this.txnId);
+      await f(n, rowObj, this.getDbContext());
       return inst;
     }
   }
@@ -114,7 +134,7 @@ export class SqlDbResolver extends Resolver {
       queryObj,
       queryVals,
       updateObj,
-      this.txnId
+      this.getDbContext()
     );
     return inst.mergeAttributes(newAttrs);
   }
@@ -126,10 +146,12 @@ export class SqlDbResolver extends Resolver {
     queryAll: boolean = false
   ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
+
     await getMany(
       asTableName(inst.moduleName, inst.name),
       queryAll ? undefined : inst.queryAttributesAsObject(),
       queryAll ? undefined : inst.queryAttributeValuesAsObject(),
+      inst.getAllUserAttributeNames(),
       (rslt: any) => {
         if (rslt instanceof Array) {
           result = new Array<Instance>();
@@ -140,12 +162,14 @@ export class SqlDbResolver extends Resolver {
           });
         }
       },
-      this.txnId
+      this.getDbContext()
     );
     return result;
   }
 
-  static MarkDeletedObject: object = Object.fromEntries(MarkDeletedAttributes);
+  static MarkDeletedObject: object = Object.fromEntries(
+    newInstanceAttributes().set(DeletedFlagAttributeName, true)
+  );
 
   public override async deleteInstance(
     target: Instance | Instance[]
@@ -206,7 +230,7 @@ export class SqlDbResolver extends Resolver {
             });
           }
         },
-        this.txnId
+        this.getDbContext()
       );
       return result;
     } else {
@@ -228,7 +252,7 @@ export class SqlDbResolver extends Resolver {
       target.queryAttributesAsObject(),
       queryVals,
       SqlDbResolver.MarkDeletedObject,
-      this.txnId
+      this.getDbContext()
     );
   }
 
@@ -251,10 +275,10 @@ export class SqlDbResolver extends Resolver {
               [a1, n1path],
               [a2, otherNodeOrNodes[i].lookup(PathAttributeName)],
             ],
-            this.txnId
+            this.getDbContext()
           );
         }
-        await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes[i], this.txnId);
+        await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes[i], this.getDbContext());
       }
     } else {
       if (orUpdate) {
@@ -264,10 +288,10 @@ export class SqlDbResolver extends Resolver {
             [a1, n1path],
             [a2, otherNodeOrNodes.lookup(PathAttributeName)],
           ],
-          this.txnId
+          this.getDbContext()
         );
       }
-      await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes, this.txnId);
+      await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes, this.getDbContext());
     }
     return node1;
   }
@@ -300,12 +324,12 @@ async function insertBetweenRow(
   a2: string,
   node1: Instance,
   node2: Instance,
-  txnId?: string
+  ctx: DbContext
 ): Promise<void> {
   const attrs: InstanceAttributes = newInstanceAttributes();
   attrs.set(a1, node1.attributes.get(PathAttributeName));
   attrs.set(a2, node2.attributes.get(PathAttributeName));
   attrs.set(PathAttributeName, crypto.randomUUID());
   const row = attributesAsColumns(attrs);
-  await insertRow(n, row, txnId);
+  await insertRow(n, row, ctx);
 }

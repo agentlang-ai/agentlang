@@ -23,7 +23,6 @@ import {
   makeFqName,
   DefaultModuleName,
 } from './util.js';
-import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 import { getResolverNameForPath } from './resolvers/registry.js';
 import { parseModule, parseStatement } from '../language/parser.js';
 
@@ -246,6 +245,10 @@ export class RecordEntry extends ModuleEntry {
     });
     return recSchema;
   }
+
+  getUserAttributeNames(): string[] {
+    return [...this.getUserAttributes().keys()];
+  }
 }
 
 type FetchModuleByEntryNameResult = {
@@ -355,7 +358,7 @@ function normalizeKvPairValue(kvp: KvPair): any | null {
 
 export const PlaceholderRecordEntry = new RecordEntry('--', DefaultModuleName);
 
-enum RbacAllowFlag {
+export enum RbacPermissionFlag {
   CREATE,
   READ,
   UPDATE,
@@ -371,7 +374,7 @@ export class RbacSpecification {
   private static EmptyRoles: Set<string> = new Set();
   resource: string = '';
   roles: Set<string> = RbacSpecification.EmptyRoles;
-  permissions: Set<RbacAllowFlag>;
+  permissions: Set<RbacPermissionFlag>;
   expression: RbacExpression | undefined;
 
   constructor() {
@@ -390,7 +393,7 @@ export class RbacSpecification {
   setPermissions(perms: Array<string>): RbacSpecification {
     perms.forEach((v: string) => {
       const idx: any = v.toUpperCase();
-      const a: any = RbacAllowFlag[idx];
+      const a: any = RbacPermissionFlag[idx];
       if (a == undefined) {
         throw new Error(`Not a valid RBAC permission - ${v}`);
       }
@@ -404,19 +407,19 @@ export class RbacSpecification {
   }
 
   hasCreatePermission(): boolean {
-    return this.permissions.has(RbacAllowFlag.CREATE);
+    return this.permissions.has(RbacPermissionFlag.CREATE);
   }
 
   hasReadPermission(): boolean {
-    return this.permissions.has(RbacAllowFlag.READ);
+    return this.permissions.has(RbacPermissionFlag.READ);
   }
 
   hasUpdatePermission(): boolean {
-    return this.permissions.has(RbacAllowFlag.UPDATE);
+    return this.permissions.has(RbacPermissionFlag.UPDATE);
   }
 
   hasDeletePermission(): boolean {
-    return this.permissions.has(RbacAllowFlag.DELETE);
+    return this.permissions.has(RbacPermissionFlag.DELETE);
   }
 
   setRoles(roles: Array<string>): RbacSpecification {
@@ -1276,11 +1279,6 @@ export function newInstanceAttributes(): InstanceAttributes {
 
 const EmptyInstanceAttributes: InstanceAttributes = newInstanceAttributes();
 
-export const MarkDeletedAttributes: InstanceAttributes = newInstanceAttributes().set(
-  DeletedFlagAttributeName,
-  true
-);
-
 export class Instance {
   record: RecordEntry;
   name: string;
@@ -1402,6 +1400,10 @@ export class Instance {
       });
       this.detachAllRelatedInstance();
     }
+  }
+
+  getAllUserAttributeNames(): string[] {
+    return this.record.getUserAttributeNames();
   }
 }
 
