@@ -12,7 +12,8 @@ Property: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 KvPair: value=Literal | key=ID ':' value=Literal;
 KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 
-fragment RecDef: name=ID extends=ExtendsClause? '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}'?;
+RecAttrs: '{''}' | '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}'?;
+fragment RecDef: name=ID extends=ExtendsClause? schema=RecAttrs;
 
 Entity: 'entity' RecDef;
 Event: 'event' RecDef;

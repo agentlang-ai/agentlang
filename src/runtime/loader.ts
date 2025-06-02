@@ -262,11 +262,12 @@ function internModule(module: Module): string {
     importModule(imp.path, imp.name);
   });
   module.defs.forEach((def: Def) => {
-    if (isEntity(def)) addEntity(def.name, module.name, def.attributes, maybeExtends(def.extends));
+    if (isEntity(def))
+      addEntity(def.name, module.name, def.schema.attributes, maybeExtends(def.extends));
     else if (isEvent(def))
-      addEvent(def.name, module.name, def.attributes, maybeExtends(def.extends));
+      addEvent(def.name, module.name, def.schema.attributes, maybeExtends(def.extends));
     else if (isRecord(def))
-      addRecord(def.name, module.name, def.attributes, maybeExtends(def.extends));
+      addRecord(def.name, module.name, def.schema.attributes, maybeExtends(def.extends));
     else if (isRelationship(def))
       addRelationship(def.name, def.type, def.nodes, module.name, def.attributes, def.properties);
     else if (isWorkflow(def)) addWorkflow(def.name, module.name, def.statements);

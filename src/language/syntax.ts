@@ -1,7 +1,6 @@
-import { isString } from '../runtime/util.js';
-
-export class Pattern {
+export class BasePattern {
   alias: string | undefined;
+  aliases: string[] | undefined;
 
   setAlias(alias: string) {
     this.alias = alias;
@@ -13,30 +12,105 @@ export class Pattern {
     return this;
   }
 
-  toString(): string {
+  addAlias(alias: string) {
+    if (this.aliases == undefined) {
+      this.aliases = [];
+    }
+    this.aliases.push(alias);
+  }
+
+  setAliases(aliases: string[]) {
+    this.aliases = aliases;
+  }
+
+  aliasAsString(): string {
     if (this.alias) {
       return ` as ${this.alias}`;
+    } else if (this.aliases) {
+      return ` as [${this.aliases.join(',')}]`;
     } else {
       return '';
     }
   }
+
+  toString(): string {
+    return '';
+  }
 }
 
-export class LiteralPattern extends Pattern {
+export const EmptyBasePattern = new BasePattern();
+
+export enum LiteralPatternType {
+  ID,
+  NUMBER,
+  BOOLEAN,
+  STRING,
+  REFERENCE,
+}
+
+export class LiteralPattern extends BasePattern {
+  type: LiteralPatternType;
   value: any;
 
-  constructor(value: any) {
+  constructor(type: LiteralPatternType, value: any) {
     super();
+    this.type = type;
     this.value = value;
   }
 
   override toString(): string {
-    const s = isString(this.value) ? `"${this.value}"` : this.value.toString();
-    return s.concat(super.toString());
+    const s = this.type == LiteralPatternType.STRING ? `"${this.value}"` : this.value.toString();
+    return s.concat(this.aliasAsString());
   }
 }
 
-export class ExpressionPattern extends Pattern {
+export class ArrayPattern extends BasePattern {
+  values: Array<BasePattern>;
+
+  constructor(values: Array<BasePattern>) {
+    super();
+    this.values = values;
+  }
+
+  override toString(): string {
+    if (this.values.length > 0) {
+      const vs: Array<string> = [];
+      this.values.forEach((v: BasePattern) => {
+        vs.push(v.toString());
+      });
+      return `[${vs.join(', ')}]`;
+    } else {
+      return '[]';
+    }
+  }
+}
+
+export class FunctionCallPattern extends BasePattern {
+  fnName: string;
+  arguments: BasePattern[];
+
+  constructor(fnName: string, args: BasePattern[]) {
+    super();
+    this.fnName = fnName;
+    this.arguments = args;
+  }
+
+  override toString(): string {
+    let s = '';
+    if (this.arguments.length > 0) {
+      const args: Array<string> = [];
+      this.arguments.forEach((bp: BasePattern) => {
+        args.push(bp.toString());
+      });
+      s = `${this.fnName}(${args.join(', ')})`;
+    } else {
+      s = `${this.fnName}()`;
+    }
+    return s.concat(this.aliasAsString());
+  }
+}
+
+export class ExpressionPattern extends BasePattern {
   expression: string;
 
   constructor(expression: any) {
@@ -45,11 +119,11 @@ export class ExpressionPattern extends Pattern {
   }
 
   override toString(): string {
-    return this.expression.concat(super.toString());
+    return this.expression.concat(this.aliasAsString());
   }
 }
 
-export class ReferencePattern extends Pattern {
+export class ReferencePattern extends BasePattern {
   record: string;
   member: string;
 
@@ -60,28 +134,42 @@ export class ReferencePattern extends Pattern {
   }
 
   override toString(): string {
-    return `${this.record}.${this.member}`.concat(super.toString());
+    return `${this.record}.${this.member}`.concat(this.aliasAsString());
   }
 }
 
-export class CrudPattern extends Pattern {
+export type AttributePattern = {
+  name: string;
+  op: string | undefined;
+  value: BasePattern;
+};
+
+export class CrudPattern extends BasePattern {
   recordName: string;
-  attributes: Map<string, Pattern>;
+  attributes: Array<AttributePattern>;
   relationships: Map<string, CrudPattern[] | CrudPattern> | undefined;
+  isQuery: boolean = false;
+  isQueryUpdate: boolean = false;
+  isCreate: boolean = false;
 
   constructor(recordName: string) {
     super();
     this.recordName = recordName;
-    this.attributes = new Map<string, Pattern>();
+    this.attributes = [];
   }
 
-  addAttribute(n: string, p: Pattern) {
-    this.attributes.set(n, p);
+  addAttribute(n: string, p: BasePattern, op?: string) {
+    this.attributes.push({ name: n, op: op, value: p });
     return this;
   }
 
   removeAttribute(n: string) {
-    this.attributes.delete(n);
+    const idx: number = this.attributes.findIndex((ap: AttributePattern) => {
+      return n == ap.name;
+    });
+    if (idx >= 0) {
+      this.attributes.splice(idx, 1);
+    }
     return this;
   }
 
@@ -102,10 +190,10 @@ export class CrudPattern extends Pattern {
 
   private attributesAsString(): string {
     const result: Array<string> = [];
-    this.attributes.forEach((p: Pattern, n: string) => {
-      result.push(`${n} ${p.toString()}`);
+    this.attributes.forEach((ap: AttributePattern) => {
+      result.push(`${ap.name}${ap.op ? ap.op : ''} ${ap.value.toString()}`);
     });
-    const s = result.join(',');
+    const s = result.join(', ');
     return `{${s}}`;
   }
 
@@ -128,23 +216,23 @@ export class CrudPattern extends Pattern {
     if (rs.length > 0) {
       s = s.concat(`,${rs}`);
     }
-    return s.concat('}', super.toString());
+    return s.concat('}', this.aliasAsString());
   }
 }
 
-export class ForEachPattern extends Pattern {
+export class ForEachPattern extends BasePattern {
   variable: string;
-  source: Pattern;
-  body: Pattern[];
+  source: BasePattern;
+  body: BasePattern[];
 
-  constructor(variable: string, source: Pattern) {
+  constructor(variable: string, source: BasePattern) {
     super();
     this.variable = variable;
     this.source = source;
     this.body = [];
   }
 
-  addPattern(p: Pattern) {
+  addPattern(p: BasePattern) {
     this.body.push(p);
     return this;
   }
@@ -157,15 +245,15 @@ export class ForEachPattern extends Pattern {
   override toString(): string {
     let s = `for ${this.variable} in ${this.source.toString()}`;
     s = s.concat(`{${patternsToString(this.body)}}`);
-    return s.concat(super.toString());
+    return s.concat(this.aliasAsString());
   }
 }
 
-export class IfPattern extends Pattern {
+export class IfPattern extends BasePattern {
   condition: ExpressionPattern;
-  body: Pattern[];
-  elseIf: Pattern | undefined;
-  elseBody: Pattern[] | undefined;
+  body: BasePattern[];
+  elseIf: BasePattern | undefined;
+  elseBody: BasePattern[] | undefined;
 
   constructor(condition: ExpressionPattern) {
     super();
@@ -173,7 +261,7 @@ export class IfPattern extends Pattern {
     this.body = [];
   }
 
-  addPattern(p: Pattern) {
+  addPattern(p: BasePattern) {
     this.body.push(p);
     return this;
   }
@@ -188,7 +276,7 @@ export class IfPattern extends Pattern {
     return this;
   }
 
-  setElseBody(elseBody: Pattern[]) {
+  setElseBody(elseBody: BasePattern[]) {
     this.elseBody = elseBody;
     return this;
   }
@@ -212,13 +300,26 @@ export class IfPattern extends Pattern {
     if (this.elseBody) {
       s = s.concat(` else {${patternsToString(this.elseBody)}}`);
     }
-    return s.concat(super.toString());
+    return s.concat(this.aliasAsString());
   }
 }
 
-function patternsToString(body: Pattern[], sep = ';'): string {
+export class DeletePattern extends BasePattern {
+  pattern: BasePattern;
+
+  constructor(pattern: BasePattern) {
+    super();
+    this.pattern = pattern;
+  }
+
+  override toString(): string {
+    return `delete ${this.pattern.toString()}`.concat(this.aliasAsString());
+  }
+}
+
+function patternsToString(body: BasePattern[], sep = ';'): string {
   const pats: Array<string> = [];
-  body.forEach((p: Pattern) => {
+  body.forEach((p: BasePattern) => {
     pats.push(p.toString());
   });
   return pats.join(sep);
