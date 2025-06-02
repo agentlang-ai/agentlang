@@ -70,28 +70,31 @@ type BetweenRelInfo = {
 class Environment extends Instance {
   parent: Environment | undefined;
 
-  private static ActiveModuleKey: string = '--active-module--';
-  private static ActiveEventKey: string = '--active-event--';
-  private static ActiveEventInstanceKey: string = '--active-event-instance--';
-  private static LastResultKey: string = '--last-result--';
-  private static ParentPathKey: string = '--parent-path--';
-  private static BetweenRelInfoKey: string = '--between-rel-info--';
-  private static ActiveResolversKey: string = '--active-resolvers--';
-  private static ActiveTransactionsKey: string = `--active-txns--`;
-  private static UpsertModeKey: string = '--upsert-mode--';
+  private activeModule: string;
+  private activeEventInstance: Instance | undefined;
+  private lastResult: Result;
+  private parentPath: string | undefined;
+  private betweenRelInfo: BetweenRelInfo | undefined;
+  private activeResolvers: Map<string, Resolver>;
+  private activeTransactions: Map<string, string>;
+  private inUpsertMode: boolean = false;
+  private inKernelMode: boolean = false;
 
   constructor(name: string, parent?: Environment) {
     super(PlaceholderRecordEntry, DefaultModuleName, name, newInstanceAttributes());
     if (parent != undefined) {
       this.parent = parent;
-      this.bindActiveEvent(parent.getActiveEventInstance());
-      this.bindLastResult(parent.getLastResult());
-      this.bindActiveTransactions(parent.getActiveTransactions());
-      this.bindActiveResolvers(parent.getActiveResolvers());
-      if (parent.isInUpsertMode()) this.upsertModeOn();
+      this.activeModule = parent.activeModule;
+      this.setActiveEvent(parent.getActiveEventInstance());
+      this.lastResult = parent.lastResult;
+      this.activeTransactions = parent.activeTransactions;
+      this.activeResolvers = parent.activeResolvers;
+      this.inUpsertMode = parent.inUpsertMode;
+      this.inKernelMode = parent.inKernelMode;
     } else {
-      this.bindActiveTransactions(new Map<string, string>());
-      this.bindActiveResolvers(new Map<string, Resolver>());
+      this.activeModule = DefaultModuleName;
+      this.activeResolvers = new Map<string, Resolver>();
+      this.activeTransactions = new Map<string, string>();
     }
   }
 
@@ -113,73 +116,70 @@ class Environment extends Instance {
     this.attributes.set(n, inst);
   }
 
-  bindActiveEvent(eventInst: Instance): void {
-    if (!isEventInstance(eventInst)) throw new Error(`Not an event instance - ${eventInst.name}`);
-    this.bindInstance(eventInst);
-    this.attributes.set(Environment.ActiveModuleKey, eventInst.moduleName);
-    this.attributes.set(Environment.ActiveEventKey, eventInst.name);
-    this.attributes.set(Environment.ActiveEventInstanceKey, eventInst);
+  setActiveEvent(eventInst: Instance | undefined): void {
+    if (eventInst) {
+      if (!isEventInstance(eventInst)) throw new Error(`Not an event instance - ${eventInst.name}`);
+      this.bindInstance(eventInst);
+      this.activeModule = eventInst.moduleName;
+      this.activeEventInstance = eventInst;
+    }
   }
 
-  protected getActiveEventInstance(): Instance {
-    return this.attributes.get(Environment.ActiveEventInstanceKey);
+  protected getActiveEventInstance(): Instance | undefined {
+    return this.activeEventInstance;
   }
 
-  bindLastResult(result: Result): void {
-    this.attributes.set(Environment.LastResultKey, result);
+  setLastResult(result: Result): void {
+    this.lastResult = result;
   }
 
-  getLastResult(): Result | undefined {
-    return this.attributes.get(Environment.LastResultKey);
+  getLastResult(): Result {
+    return this.lastResult;
   }
 
   getActiveModuleName(): string {
-    return this.attributes.get(Environment.ActiveModuleKey);
+    return this.activeModule;
   }
 
-  getActiveEvent(): Instance {
-    return this.attributes.get(this.attributes.get(Environment.ActiveEventKey));
-  }
-
-  bindParentPath(path: string): void {
-    this.attributes.set(Environment.ParentPathKey, path);
+  setParentPath(path: string): void {
+    this.parentPath = path;
   }
 
   getParentPath(): string | undefined {
-    return this.attributes.get(Environment.ParentPathKey);
+    return this.parentPath;
   }
 
-  bindBetweenRelInfo(info: BetweenRelInfo): void {
-    this.attributes.set(Environment.BetweenRelInfoKey, info);
+  setBetweenRelInfo(info: BetweenRelInfo): void {
+    this.betweenRelInfo = info;
   }
 
   getBetweenRelInfo(): BetweenRelInfo | undefined {
-    return this.attributes.get(Environment.BetweenRelInfoKey);
+    return this.betweenRelInfo;
   }
 
-  bindActiveResolvers(resolvers: Map<string, Resolver>): void {
-    this.attributes.set(Environment.ActiveResolversKey, resolvers);
+  setActiveResolvers(resolvers: Map<string, Resolver>): void {
+    this.activeResolvers = resolvers;
   }
 
   getActiveResolvers(): Map<string, Resolver> {
-    return this.attributes.get(Environment.ActiveResolversKey);
+    return this.activeResolvers;
   }
 
   getResolver(resolverName: string): Resolver | undefined {
     return this.getActiveResolvers().get(resolverName);
   }
 
-  bindResolver(resolver: Resolver): void {
+  addResolver(resolver: Resolver): void {
     this.getActiveResolvers().set(resolver.getName(), resolver);
     this.ensureTransactionForResolver(resolver);
   }
 
-  bindActiveTransactions(txns: Map<string, string>): void {
-    this.attributes.set(Environment.ActiveTransactionsKey, txns);
+  setActiveTransactions(txns: Map<string, string>): void {
+    this.activeTransactions = txns;
   }
 
   getActiveTransactions(): Map<string, string> {
-    return this.attributes.get(Environment.ActiveTransactionsKey);
+    return this.activeTransactions;
   }
 
   getTransactionForResolver(resolver: Resolver): string {
@@ -220,23 +220,28 @@ class Environment extends Instance {
     await this.endAllTransactions(false);
   }
 
-  upsertModeOn() {
-    this.attributes.set(Environment.UpsertModeKey, true);
-  }
-
-  upsertModeOff() {
-    this.attributes.set(Environment.UpsertModeKey, false);
+  setInUpsertMode(flag: boolean) {
+    this.inUpsertMode = flag;
   }
 
   isInUpsertMode(): boolean {
-    return this.attributes.get(Environment.UpsertModeKey) == true;
+    return this.inUpsertMode;
+  }
+
+  setInKernelMode(flag: boolean) {
+    this.inKernelMode = flag;
+  }
+
+  isInKernelMode(): boolean {
+    return this.inKernelMode;
   }
 }
 
 export async function evaluate(
   eventInstance: Instance,
   continuation?: Function,
-  activeEnv?: Environment
+  activeEnv?: Environment,
+  kernelCall?: boolean
 ): Promise<void> {
   let env: Environment | undefined;
   let txnRolledBack: boolean = false;
@@ -245,7 +250,8 @@ export async function evaluate(
       const wf: WorkflowEntry = getWorkflow(eventInstance);
       if (!isEmptyWorkflow(wf)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
-        env.bindActiveEvent(eventInstance);
+        env.setActiveEvent(eventInstance);
+        if (kernelCall) env.setInKernelMode(true);
         await evaluateStatements(wf.statements, env, continuation);
       }
     } else {
@@ -268,13 +274,15 @@ export async function evaluate(
 export async function evaluateAsEvent(
   moduleName: string,
   eventName: string,
-  attrs: Array<any> | object
+  attrs: Array<any> | object,
+  env?: Environment,
+  kernelCall?: boolean
 ): Promise<Result> {
   const finalAttrs: Map<string, any> =
     attrs instanceof Array ? new Map(attrs) : new Map(Object.entries(attrs));
   const eventInst: Instance = makeInstance(moduleName, eventName, finalAttrs);
   let result: any;
-  await evaluate(eventInst, (r: any) => (result = r));
+  await evaluate(eventInst, (r: any) => (result = r), env, kernelCall);
   return result;
 }
 
@@ -332,13 +340,13 @@ async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
 }
 
 async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
-  if (lit.id != undefined) env.bindLastResult(env.lookup(lit.id));
-  else if (lit.ref != undefined) env.bindLastResult(followReference(env, lit.ref));
+  if (lit.id != undefined) env.setLastResult(env.lookup(lit.id));
+  else if (lit.ref != undefined) env.setLastResult(followReference(env, lit.ref));
   else if (lit.fnCall != undefined) await applyFn(lit.fnCall, env);
   else if (lit.array != undefined) await realizeArray(lit.array, env);
-  else if (lit.num != undefined) env.bindLastResult(lit.num);
-  else if (lit.str != undefined) env.bindLastResult(lit.str);
-  else if (lit.bool != undefined) env.bindLastResult(lit.bool);
+  else if (lit.num != undefined) env.setLastResult(lit.num);
+  else if (lit.str != undefined) env.setLastResult(lit.str);
+  else if (lit.bool != undefined) env.setLastResult(lit.bool);
 }
 
 const DefaultResolverName: string = '--default-resolver--';
@@ -351,16 +359,16 @@ function getResolverForPath(entryName: string, moduleName: string, env: Environm
     res = env.getResolver(DefaultResolverName);
     if (res == undefined) {
       res = new SqlDbResolver(DefaultResolverName);
-      env.bindResolver(res);
+      env.addResolver(res);
     }
   } else {
     res = env.getResolver(resN);
     if (res == undefined) {
       res = getResolver(fqEntryName);
-      env.bindResolver(res);
+      env.addResolver(res);
     }
   }
-  return res;
+  return res.setKernelMode(env.isInKernelMode());
 }
 
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
@@ -410,16 +418,16 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         );
       }
       if (env.isInUpsertMode()) {
-        await res.upsertInstance(inst).then((inst: Instance) => env.bindLastResult(inst));
+        await res.upsertInstance(inst).then((inst: Instance) => env.setLastResult(inst));
       } else {
-        await res.createInstance(inst).then((inst: Instance) => env.bindLastResult(inst));
+        await res.createInstance(inst).then((inst: Instance) => env.setLastResult(inst));
       }
       if (crud.relationships != undefined) {
         for (let i = 0; i < crud.relationships.length; ++i) {
           const rel: RelationshipPattern = crud.relationships[i];
           const newEnv: Environment = new Environment('relenv.' + rel.name, env);
           if (isContainsRelationship(rel.name, moduleName)) {
-            newEnv.bindParentPath(
+            newEnv.setParentPath(
               `${inst.attributes.get(PathAttributeName)}/${escapeFqName(rel.name)}`
             );
             await evaluatePattern(rel.pattern, newEnv);
@@ -429,7 +437,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             const lastInst: Instance = env.getLastResult() as Instance;
             const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
             if (relEntry.isOneToOne() || relEntry.isOneToMany()) {
-              newEnv.bindBetweenRelInfo({ relationship: relEntry, connectedInstance: lastInst });
+              newEnv.setBetweenRelInfo({ relationship: relEntry, connectedInstance: lastInst });
             }
             await evaluatePattern(rel.pattern, newEnv);
             if (relEntry.isManyToMany()) {
@@ -437,7 +445,8 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
               await getResolverForPath(rel.name, moduleName, env).connectInstances(
                 lastInst,
                 relResult,
-                relEntry
+                relEntry,
+                env.isInUpsertMode()
               );
             }
             lastInst.attachRelatedInstances(rel.name, newEnv.getLastResult());
@@ -450,7 +459,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       if (parentPath != undefined) {
         await getResolverForPath(inst.name, inst.moduleName, env)
           .queryChildInstances(parentPath, inst)
-          .then((insts: Instance[]) => env.bindLastResult(insts));
+          .then((insts: Instance[]) => env.setLastResult(insts));
       } else if (betRelInfo != undefined) {
         await getResolverForPath(
           betRelInfo.relationship.name,
@@ -458,11 +467,11 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           env
         )
           .queryConnectedInstances(betRelInfo.relationship, betRelInfo.connectedInstance, inst)
-          .then((insts: Instance[]) => env.bindLastResult(insts));
+          .then((insts: Instance[]) => env.setLastResult(insts));
       } else {
         await getResolverForPath(inst.name, inst.moduleName, env)
           .queryInstances(inst, isQueryAll)
-          .then((insts: Instance[]) => env.bindLastResult(insts));
+          .then((insts: Instance[]) => env.setLastResult(insts));
       }
       if (crud.relationships != undefined) {
         const lastRes: Instance[] = env.getLastResult();
@@ -471,14 +480,14 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           for (let j = 0; j < lastRes.length; ++j) {
             const newEnv: Environment = new Environment('relenv', env);
             if (isContainsRelationship(rel.name, moduleName)) {
-              newEnv.bindParentPath(
+              newEnv.setParentPath(
                 lastRes[j].attributes.get(PathAttributeName) + '/' + rel.name + '/'
               );
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             } else if (isBetweenRelationship(rel.name, moduleName)) {
               const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
-              newEnv.bindBetweenRelInfo({ relationship: relEntry, connectedInstance: lastRes[j] });
+              newEnv.setBetweenRelInfo({ relationship: relEntry, connectedInstance: lastRes[j] });
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             }
@@ -500,32 +509,32 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
                 res.push(finalInst);
               });
             }
-            env.bindLastResult(res);
+            env.setLastResult(res);
           } else {
-            env.bindLastResult(lastRes);
+            env.setLastResult(lastRes);
           }
         } else {
           await getResolverForPath(lastRes.name, lastRes.moduleName, env)
             .updateInstance(lastRes, attrs)
             .then((finalInst: Instance) => {
-              env.bindLastResult(finalInst);
+              env.setLastResult(finalInst);
             });
         }
       }
     }
   } else if (isEventInstance(inst)) {
-    await evaluate(inst, (result: Result) => env.bindLastResult(result), env);
+    await evaluate(inst, (result: Result) => env.setLastResult(result), env);
   } else {
-    env.bindLastResult(inst);
+    env.setLastResult(inst);
   }
 }
 
 async function evaluateUpsert(upsert: Upsert, env: Environment): Promise<void> {
-  env.upsertModeOn();
+  env.setInUpsertMode(true);
   try {
     await evaluateCrudMap(upsert.pattern, env);
   } finally {
-    env.upsertModeOff();
+    env.setInUpsertMode(false);
   }
 }
 
@@ -539,9 +548,9 @@ async function evaluateForEach(forEach: ForEach, env: Environment): Promise<void
       loopEnv.bind(loopVar, src[i]);
       await evaluateStatements(forEach.statements, loopEnv);
     }
-    env.bindLastResult(loopEnv.getLastResult());
+    env.setLastResult(loopEnv.getLastResult());
   } else {
-    env.bindLastResult(EmptyResult);
+    env.setLastResult(EmptyResult);
   }
 }
 
@@ -568,15 +577,15 @@ async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> 
           finalResult.push(r);
         });
       }
-      env.bindLastResult(finalResult);
+      env.setLastResult(finalResult);
     } else {
-      env.bindLastResult(inst);
+      env.setLastResult(inst);
     }
   } else {
     await getResolverForPath(inst.name, inst.moduleName, env)
       .deleteInstance(inst)
       .then((inst: Instance | null) => {
-        env.bindLastResult(inst);
+        env.setLastResult(inst);
       });
   }
 }
@@ -631,7 +640,7 @@ async function evaluateComparisonExpression(
     default:
       throw new Error(`Invalid comparison operator ${cmprExpr.op}`);
   }
-  env.bindLastResult(result);
+  env.setLastResult(result);
 }
 
 async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
@@ -667,7 +676,7 @@ async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
     await evaluateLiteral(expr, env);
     return;
   }
-  env.bindLastResult(result);
+  env.setLastResult(result);
 }
 
 async function evaluateOrAnd(orAnd: OrAnd, env: Environment): Promise<void> {
@@ -688,7 +697,7 @@ async function evaluateOr(exprs: LogicalExpression[], env: Environment): Promise
     await evaluateLogicalExpression(exprs[i], env);
     if (env.getLastResult()) return;
   }
-  env.bindLastResult(false);
+  env.setLastResult(false);
 }
 
 async function evaluateAnd(exprs: LogicalExpression[], env: Environment): Promise<void> {
@@ -696,7 +705,7 @@ async function evaluateAnd(exprs: LogicalExpression[], env: Environment): Promis
     await evaluateLogicalExpression(exprs[i], env);
     if (!env.getLastResult()) return;
   }
-  env.bindLastResult(true);
+  env.setLastResult(true);
 }
 
 function getRef(r: string, src: any): Result | undefined {
@@ -732,7 +741,7 @@ async function applyFn(fnCall: FnCall, env: Environment): Promise<void> {
       }
     }
     const r: Result = invokeModuleFn(fnName, args);
-    env.bindLastResult(r);
+    env.setLastResult(r);
   }
 }
 
@@ -741,5 +750,5 @@ async function realizeArray(array: ArrayLiteral, env: Environment): Promise<void
   for (let i = 0; i < array.vals.length; ++i) {
     await evaluateStatement(array.vals[i], env).then((_: void) => result.push(env.getLastResult()));
   }
-  env.bindLastResult(result);
+  env.setLastResult(result);
 }

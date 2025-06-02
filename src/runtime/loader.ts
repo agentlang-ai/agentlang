@@ -25,14 +25,15 @@ import {
   EntityEntry,
   RbacSpecification,
 } from './module.js';
-import { importModule, registerInitFunction, runShellCommand } from './util.js';
+import { importModule, makeFqName, registerInitFunction, runShellCommand } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules } from './modules/core.js';
 import { parseModule } from '../language/parser.js';
-import { createRole } from './modules/auth.js';
+import { createPermission, createRole } from './modules/auth.js';
+import { logger } from './logger.js';
 
 export async function extractDocument(
   fileName: string,
@@ -122,11 +123,12 @@ export type ApplicationSpec = {
   dependencies?: object | undefined;
 };
 
-const loadApp = async (
-  appJsonFile: string,
-  continuation: Function,
-  fsOptions?: any
-): Promise<void> => {
+export const DefaultAppSpec: ApplicationSpec = {
+  name: 'agentlang-app',
+  version: '0.0.1',
+};
+
+async function loadApp(appJsonFile: string, fsOptions?: any): Promise<string> {
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
 
@@ -135,8 +137,8 @@ const loadApp = async (
   const dir: string = path.dirname(appJsonFile);
   const alFiles: Array<string> = new Array<string>();
   const directoryContents = await fs.readdir(dir);
-
-  const cont2: Function = () => {
+  let lastModuleLoaded: string = '';
+  async function cont2() {
     if (!directoryContents) {
       console.error(chalk.red(`Directory ${dir} does not exist or is empty.`));
       return;
@@ -146,19 +148,12 @@ const loadApp = async (
         alFiles.push(dir + path.sep + file);
       }
     });
-    if (alFiles.length > 0) {
-      let loadedCount: number = 0;
-      const cont: Function = (_: string) => {
-        ++loadedCount;
-        if (loadedCount >= alFiles.length) {
-          continuation(appSpec);
-        }
-      };
-      alFiles.forEach((fileName: string) => {
-        loadModule(fileName, cont, fsOptions);
+    for (let i = 0; i < alFiles.length; ++i) {
+      await loadModule(alFiles[i], fsOptions).then((s: string) => {
+        lastModuleLoaded = s;
       });
     }
-  };
+  }
   if (appSpec.dependencies != undefined) {
     if (isNodeEnv) {
       // Only run shell commands in Node.js environment
@@ -168,12 +163,13 @@ const loadApp = async (
     } else {
       // In non-Node environments, log a warning and continue
       console.warn('Dependencies cannot be installed in non-Node.js environments');
-      cont2();
+      await cont2();
     }
   } else {
-    cont2();
+    await cont2();
   }
-};
+  return appSpec.name || lastModuleLoaded;
+}
 
 /**
  * Load a module from a file
@@ -181,26 +177,19 @@ const loadApp = async (
  * @param fsOptions Optional configuration for the filesystem
  * @returns Promise that resolves when the module is loaded
  */
-export const load = async (
-  fileName: string,
-  continuation: Function,
-  fsOptions?: any
-): Promise<void> => {
+export async function load(fileName: string, fsOptions?: any): Promise<ApplicationSpec> {
+  let result: string = '';
   if (path.basename(fileName) == 'app.json') {
-    loadApp(fileName, continuation, fsOptions);
+    await loadApp(fileName, fsOptions).then((r: string) => {
+      result = r;
+    });
   } else {
-    loadModule(
-      fileName,
-      (moduleName: string) => {
-        continuation({
-          name: moduleName,
-          version: '0.0.1',
-        });
-      },
-      fsOptions
-    );
+    await loadModule(fileName, fsOptions).then((r: string) => {
+      result = r;
+    });
   }
-};
+  return { name: result, version: '0.0.1' };
+}
 
 export async function loadCoreModules() {
   for (let i = 0; i < CoreModules.length; ++i) {
@@ -208,11 +197,7 @@ export async function loadCoreModules() {
   }
 }
 
-const loadModule = async (
-  fileName: string,
-  continuation: Function,
-  fsOptions?: any
-): Promise<void> => {
+async function loadModule(fileName: string, fsOptions?: any): Promise<string> {
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
 
@@ -227,8 +212,9 @@ const loadModule = async (
   const module = await extractAstNode<Module>(fileName, services);
   const moduleName = internModule(module);
   console.log(chalk.green(`Module ${chalk.bold(moduleName)} loaded`));
-  if (continuation != undefined) continuation(moduleName);
-};
+  logger.info(`Module ${moduleName} loaded`);
+  return moduleName;
+}
 
 let cachedFsAdapter: any = null;
 
@@ -274,7 +260,9 @@ function maybeExtends(ext: ExtendsClause | undefined): string | undefined {
 function setRbacForEntity(entity: EntityEntry, rbacSpec: RbacSpec) {
   const rbac: RbacSpecification[] = new Array<RbacSpecification>();
   rbacSpec.specEntries.forEach((specEntries: RbacSpecEntries) => {
-    const rs: RbacSpecification = new RbacSpecification();
+    const rs: RbacSpecification = new RbacSpecification().setResource(
+      makeFqName(entity.moduleName, entity.name)
+    );
     specEntries.entries.forEach((spec: RbacSpecEntry) => {
       if (spec.allow) {
         rs.setPermissions(
@@ -304,7 +292,19 @@ function setRbacForEntity(entity: EntityEntry, rbacSpec: RbacSpec) {
 async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
   const roles: Array<string> = [...rbacSpec.roles];
   for (let i = 0; i < roles.length; ++i) {
-    await createRole(roles[i]);
+    const r = roles[i];
+    await createRole(r);
+    if (rbacSpec.hasPermissions() && rbacSpec.hasResource()) {
+      createPermission(
+        `${r}_permission`,
+        r,
+        rbacSpec.resource,
+        rbacSpec.hasCreatePermission(),
+        rbacSpec.hasReadPermission(),
+        rbacSpec.hasUpdatePermission(),
+        rbacSpec.hasDeletePermission()
+      );
+    }
   }
 }
 

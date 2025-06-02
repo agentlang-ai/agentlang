@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 import { AgentlangLanguageMetaData } from '../language/generated/module.js';
 import { createAgentlangServices } from '../language/agentlang-module.js';
-import { ApplicationSpec, load, loadCoreModules } from '../runtime/loader.js';
+import { ApplicationSpec, DefaultAppSpec, load, loadCoreModules } from '../runtime/loader.js';
 import { NodeFileSystem } from 'langium/node';
 import { extractDocument } from '../runtime/loader.js';
 import * as url from 'node:url';
@@ -73,10 +73,11 @@ export const runModule = async (fileName: string): Promise<void> => {
     logger.error(msg);
     console.log(chalk.red(msg));
   });
-  const f = async (appSpec: ApplicationSpec) => {
-    await initDefaultDatabase();
-    await runInitFunctions();
-    startServer(appSpec, 8080);
-  };
-  await load(fileName, f);
+  let appSpec: ApplicationSpec = DefaultAppSpec;
+  await load(fileName).then((aspec: ApplicationSpec) => {
+    appSpec = aspec;
+  });
+  await initDefaultDatabase();
+  await runInitFunctions();
+  startServer(appSpec, 8080);
 };
