@@ -48,6 +48,7 @@ import {
   isFqName,
   makeFqName,
   Path,
+  QuerySuffix,
   splitFqName,
   splitRefs,
 } from './util.js';
@@ -368,7 +369,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   let qattrVals: InstanceAttributes | undefined;
   let moduleName: string = env.getActiveModuleName();
   let entryName: string = crud.name;
-  const isQueryAll: boolean = entryName.endsWith('?');
+  const isQueryAll: boolean = entryName.endsWith(QuerySuffix);
   if (isQueryAll) {
     entryName = entryName.slice(0, entryName.length - 1);
   }
@@ -377,7 +378,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     await evaluateExpression(a.value, env);
     const v: Result = env.getLastResult();
     let aname: string = a.name;
-    if (aname.endsWith('?')) {
+    if (aname.endsWith(QuerySuffix)) {
       if (isQueryAll) {
         throw new Error(`Cannot specifiy query attribute ${aname} here`);
       }

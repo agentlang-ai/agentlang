@@ -12,7 +12,8 @@ Property: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 KvPair: value=Literal | key=ID ':' value=Literal;
 KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 
-fragment RecDef: name=ID extends=ExtendsClause? '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ (',' rbacSpec=RbacSpec?)? '}'?;
+RecAttrs: '{''}' | '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ (',' rbacSpec=RbacSpec?)? '}'?;
+fragment RecDef: name=ID extends=ExtendsClause? schema=RecAttrs;
 
 Entity: 'entity' RecDef;
 Event: 'event' RecDef;
@@ -115,8 +116,10 @@ TaggedId returns string: '@' ID;
 
 Ref returns string: ID '.' ID;
 
+terminal ID returns string: NAME ('/' NAME)?;
+
 // recognize an identifier
-terminal ID returns string: /[_a-zA-Z][\w_]*/;
+terminal NAME returns string: /[_a-zA-Z][\w_]*/;
 
 // quoted strings
 terminal STRING returns string: /(["'])((\\{2})*|(.*?[^\\](\\{2})*))\1/;

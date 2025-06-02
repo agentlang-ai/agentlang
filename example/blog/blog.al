@@ -17,7 +17,7 @@ entity User {
            (allow: [read], where: auth.user = this.id)]
 }
 
-relationship UserProfile between (User, Profile) @one_one
+relationship UserProfile between (Blog/User, Blog/Profile) @one_one
 
 entity Post {
     id UUID @id @default(uuid()),

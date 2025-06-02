@@ -10,6 +10,7 @@ export default {
 
     tokenizer: {
         initial: [
+            { regex: /(([_a-zA-Z][\w_]*)(\/([_a-zA-Z][\w_]*))?)/, action: { cases: { '@keywords': {"token":"keyword"}, '@default': {"token":"string"} }} },
             { regex: /[_a-zA-Z][\w_]*/, action: { cases: { '@keywords': {"token":"keyword"}, '@default': {"token":"string"} }} },
             { regex: /(["'])((\\{2})*|(.*?[^\\](\\{2})*))\1/, action: {"token":"string"} },
             { regex: /-?[0-9]+/, action: {"token":"number"} },
