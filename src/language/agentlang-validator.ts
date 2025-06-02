@@ -39,7 +39,7 @@ export class AgentlangValidator {
     // create a set of visited functions
     // and report an error when we see one we've already seen
     const reported = new Set();
-    def.attributes.forEach(a => {
+    def.schema.attributes.forEach(a => {
       if (reported.has(a.name)) {
         accept('error', `'${def.name} " - attribute has non-unique name '${a.name}'.`, {
           node: a,

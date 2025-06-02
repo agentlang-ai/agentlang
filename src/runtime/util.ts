@@ -1,6 +1,8 @@
 import { LangiumDocument } from 'langium';
 import { isNodeEnv } from '../utils/runtime.js';
 
+export const QuerySuffix = '?';
+
 // Conditionally import Node.js specific modules
 let exec: any = undefined;
 if (isNodeEnv) {
