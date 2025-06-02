@@ -7,7 +7,7 @@
 import * as langium from 'langium';
 
 export const AgentlangTerminals = {
-    ID: /[_a-zA-Z][\w_]*/,
+    ID: /(([_a-zA-Z][\w_]*)(\/([_a-zA-Z][\w_]*))?)/,
     STRING: /(["'])((\\{2})*|(.*?[^\\](\\{2})*))\1/,
     INT: /-?[0-9]+/,
     WS: /\s+/,

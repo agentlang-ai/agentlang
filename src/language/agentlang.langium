@@ -97,8 +97,10 @@ TaggedId returns string: '@' ID;
 
 Ref returns string: ID '.' ID;
 
+terminal ID returns string: NAME ('/' NAME)?;
+
 // recognize an identifier
-terminal ID returns string: /[_a-zA-Z][\w_]*/;
+terminal NAME returns string: /[_a-zA-Z][\w_]*/;
 
 // quoted strings
 terminal STRING returns string: /(["'])((\\{2})*|(.*?[^\\](\\{2})*))\1/;

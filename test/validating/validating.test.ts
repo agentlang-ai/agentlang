@@ -25,7 +25,6 @@ describe('Validating', () => {
             module 1234
             entity KK {name String}
         `);
-
     expect(
       // here we first check for validity of the parsed document object by means of the reusable function
       //  'checkDocumentValid()' to sort out (critical) typos first,
