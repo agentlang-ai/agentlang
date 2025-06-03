@@ -10,17 +10,51 @@ import { logger } from '../../logger.js';
 import { modulesAsDbSchema, TableSchema } from './dbutil.js';
 import chalk from 'chalk';
 import { ResolverAuthInfo } from '../interface.js';
+import {
+  canUserCreate,
+  canUserDelete,
+  canUserRead,
+  canUserUpdate,
+  UnauthorisedError,
+} from '../../modules/auth.js';
 
 let defaultDataSource: DataSource | undefined;
 
 export const PathAttributeName: string = '__path__';
 export const DeletedFlagAttributeName: string = '__is_deleted__';
 
-export type DbContext = {
+export class DbContext {
   txnId: string | undefined;
   authInfo: ResolverAuthInfo;
-  inKernelMode: boolean;
-};
+  inKernelMode: boolean = false;
+  resourceFqName: string;
+
+  constructor(
+    resourceFqName: string,
+    authInfo: ResolverAuthInfo,
+    txnId?: string,
+    inKernelMode?: boolean
+  ) {
+    this.resourceFqName = resourceFqName;
+    this.authInfo = authInfo;
+    this.txnId = txnId;
+    if (inKernelMode != undefined) {
+      this.inKernelMode = inKernelMode;
+    }
+  }
+
+  getUserId(): string {
+    return this.authInfo.userId;
+  }
+
+  isForDelete(): boolean {
+    return this.authInfo.readForDelete;
+  }
+
+  isForUpdate(): boolean {
+    return this.authInfo.readForUpdate;
+  }
+}
 
 export async function initDefaultDatabase() {
   if (defaultDataSource == undefined) {
@@ -158,9 +192,19 @@ async function insertRowsHelper(tableName: string, rows: object[], ctx: DbContex
 }
 
 export async function insertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
-  await insertRowsHelper(tableName, rows, ctx);
-  if (!ctx.inKernelMode) {
-    await createOwnership(tableName, rows, ctx);
+  let hasPerm = ctx.inKernelMode;
+  if (!hasPerm) {
+    await canUserCreate(ctx.getUserId(), ctx.resourceFqName).then((r: boolean) => {
+      hasPerm = r;
+    });
+  }
+  if (hasPerm) {
+    await insertRowsHelper(tableName, rows, ctx);
+    if (!ctx.inKernelMode) {
+      await createOwnership(tableName, rows, ctx);
+    }
+  } else {
+    throw new UnauthorisedError();
   }
 }
 
@@ -206,14 +250,23 @@ export async function upsertRows(tableName: string, rows: object[], ctx: DbConte
     .values(rows)
     .orUpdate(rowsForUpsert, PathAttributeName)
     .execute();*/
-
-  type ObjectKey = keyof (typeof rows)[0];
-  const k = PathAttributeName as ObjectKey;
-  for (let i = 0; i < rows.length; ++i) {
-    const r: object = rows[i];
-    await hardDeleteRow(tableName, [[PathAttributeName, r[k]]], ctx);
+  let hasPerm = ctx.inKernelMode;
+  if (!hasPerm) {
+    await canUserCreate(ctx.getUserId(), ctx.resourceFqName).then((r: boolean) => {
+      hasPerm = r;
+    });
   }
-  await insertRows(tableName, rows, ctx);
+  if (hasPerm) {
+    type ObjectKey = keyof (typeof rows)[0];
+    const k = PathAttributeName as ObjectKey;
+    for (let i = 0; i < rows.length; ++i) {
+      const r: object = rows[i];
+      await hardDeleteRow(tableName, [[PathAttributeName, r[k]]], ctx);
+    }
+    await insertRows(tableName, rows, ctx);
+  } else {
+    throw new UnauthorisedError();
+  }
 }
 
 export async function upsertRow(tableName: string, row: object, ctx: DbContext): Promise<void> {
@@ -284,15 +337,43 @@ export async function getMany(
   const queryStr: string = withNotDeletedClause(
     queryObj != undefined ? objectToWhereClause(queryObj, alias) : ''
   );
-  const ot: string = ownersTable(tableName);
-  const otAlias: string = ot.toLowerCase();
-  // TODO: Fix crud flags setting
-  const ownersJoinCond: string[] = [
-    `${otAlias}.path = ${alias}.${PathAttributeName}`,
-    `${otAlias}.user_id = '${ctx.authInfo.userId}'`,
-    `${otAlias}.r = true`,
-  ];
-
+  let ownersJoinCond: string[] | undefined;
+  let ot: string = '';
+  let otAlias: string = '';
+  if (!ctx.inKernelMode) {
+    const userId = ctx.getUserId();
+    const fqName = ctx.resourceFqName;
+    let hasGlobalPerms: boolean = ctx.inKernelMode;
+    await canUserRead(userId, fqName).then((r: boolean) => {
+      hasGlobalPerms = r;
+    });
+    if (hasGlobalPerms) {
+      if (ctx.isForUpdate()) {
+        await canUserUpdate(userId, fqName).then((r: boolean) => {
+          hasGlobalPerms = r;
+        });
+      } else if (ctx.isForDelete()) {
+        await canUserDelete(userId, fqName).then((r: boolean) => {
+          hasGlobalPerms = r;
+        });
+      }
+      if (!hasGlobalPerms) {
+        ot = ownersTable(tableName);
+        otAlias = ot.toLowerCase();
+        ownersJoinCond = [
+          `${otAlias}.path = ${alias}.${PathAttributeName}`,
+          `${otAlias}.user_id = '${ctx.authInfo.userId}'`,
+          `${otAlias}.r = true`,
+        ];
+        if (ctx.isForUpdate()) {
+          ownersJoinCond.push(`${otAlias}.u = true`);
+        }
+        if (ctx.isForDelete()) {
+          ownersJoinCond.push(`${otAlias}.d = true`);
+        }
+      }
+    }
+  }
   const selCols = new Array<string>();
   colNamesToSelect.forEach((s: string) => {
     selCols.push(`${alias}.${s}`);
@@ -303,7 +384,7 @@ export async function getMany(
     .createQueryBuilder()
     .select(selCols.join(','))
     .from(tableName, alias);
-  if (!ctx.inKernelMode) {
+  if (ownersJoinCond) {
     qb.innerJoin(ot, otAlias, ownersJoinCond.join(' AND '));
   }
   qb.where(queryStr, queryVals);

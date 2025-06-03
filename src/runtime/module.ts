@@ -1405,6 +1405,10 @@ export class Instance {
   getAllUserAttributeNames(): string[] {
     return this.record.getUserAttributeNames();
   }
+
+  getFqName(): string {
+    return makeFqName(this.moduleName, this.name);
+  }
 }
 
 export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSchema): object {

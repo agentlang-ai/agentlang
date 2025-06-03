@@ -58,18 +58,15 @@ export class SqlDbResolver extends Resolver {
     return this.name;
   }
 
-  private getDbContext(): DbContext {
+  private getDbContext(resourceFqName: string): DbContext {
     if (this.dbContext) {
       if (this.txnId && !this.dbContext.txnId) {
         this.dbContext.txnId = this.txnId;
       }
       this.dbContext.inKernelMode = this.inKernelMode;
+      this.dbContext.resourceFqName = resourceFqName;
     } else {
-      this.dbContext = {
-        txnId: this.txnId,
-        authInfo: this.authInfo,
-        inKernelMode: this.inKernelMode,
-      };
+      this.dbContext = new DbContext(resourceFqName, this.authInfo, this.txnId, this.inKernelMode);
     }
     return this.dbContext;
   }
@@ -103,7 +100,7 @@ export class SqlDbResolver extends Resolver {
       if (orUpdate) {
         f = upsertRow;
       }
-      await f(n, rowObj, this.getDbContext());
+      await f(n, rowObj, this.getDbContext(n));
       return inst;
     }
   }
@@ -134,7 +131,7 @@ export class SqlDbResolver extends Resolver {
       queryObj,
       queryVals,
       updateObj,
-      this.getDbContext()
+      this.getDbContext(inst.getFqName())
     );
     return inst.mergeAttributes(newAttrs);
   }
@@ -162,7 +159,7 @@ export class SqlDbResolver extends Resolver {
           });
         }
       },
-      this.getDbContext()
+      this.getDbContext(inst.getFqName())
     );
     return result;
   }
@@ -230,7 +227,7 @@ export class SqlDbResolver extends Resolver {
             });
           }
         },
-        this.getDbContext()
+        this.getDbContext(inst.getFqName())
       );
       return result;
     } else {
@@ -252,7 +249,7 @@ export class SqlDbResolver extends Resolver {
       target.queryAttributesAsObject(),
       queryVals,
       SqlDbResolver.MarkDeletedObject,
-      this.getDbContext()
+      this.getDbContext(target.getFqName())
     );
   }
 
@@ -267,6 +264,7 @@ export class SqlDbResolver extends Resolver {
     const a2: string = relEntry.node2.alias;
     const n1path: any = orUpdate ? node1.lookup(PathAttributeName) : undefined;
     if (otherNodeOrNodes instanceof Array) {
+      const fqn1 = otherNodeOrNodes[0].getFqName();
       for (let i = 0; i < otherNodeOrNodes.length; ++i) {
         if (orUpdate) {
           await hardDeleteRow(
@@ -275,10 +273,17 @@ export class SqlDbResolver extends Resolver {
               [a1, n1path],
               [a2, otherNodeOrNodes[i].lookup(PathAttributeName)],
             ],
-            this.getDbContext()
+            this.getDbContext(fqn1)
           );
         }
-        await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes[i], this.getDbContext());
+        await insertBetweenRow(
+          n,
+          a1,
+          a2,
+          node1,
+          otherNodeOrNodes[i],
+          this.getDbContext(relEntry.getFqName())
+        );
       }
     } else {
       if (orUpdate) {
@@ -288,10 +293,17 @@ export class SqlDbResolver extends Resolver {
             [a1, n1path],
             [a2, otherNodeOrNodes.lookup(PathAttributeName)],
           ],
-          this.getDbContext()
+          this.getDbContext(relEntry.getFqName())
         );
       }
-      await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes, this.getDbContext());
+      await insertBetweenRow(
+        n,
+        a1,
+        a2,
+        node1,
+        otherNodeOrNodes,
+        this.getDbContext(relEntry.getFqName())
+      );
     }
     return node1;
   }

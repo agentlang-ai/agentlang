@@ -67,6 +67,17 @@ type BetweenRelInfo = {
   connectedInstance: Instance;
 };
 
+function mkEnvName(name: string | undefined, parent: Environment | undefined): string {
+  if (name) return name;
+  else {
+    if (parent) {
+      return `${parent.name}+`;
+    } else {
+      return 'env';
+    }
+  }
+}
+
 class Environment extends Instance {
   parent: Environment | undefined;
 
@@ -78,10 +89,16 @@ class Environment extends Instance {
   private activeResolvers: Map<string, Resolver>;
   private activeTransactions: Map<string, string>;
   private inUpsertMode: boolean = false;
+  private inDeleteMode: boolean = false;
   private inKernelMode: boolean = false;
 
-  constructor(name: string, parent?: Environment) {
-    super(PlaceholderRecordEntry, DefaultModuleName, name, newInstanceAttributes());
+  constructor(name?: string, parent?: Environment) {
+    super(
+      PlaceholderRecordEntry,
+      DefaultModuleName,
+      mkEnvName(name, parent),
+      newInstanceAttributes()
+    );
     if (parent != undefined) {
       this.parent = parent;
       this.activeModule = parent.activeModule;
@@ -98,6 +115,10 @@ class Environment extends Instance {
     }
   }
 
+  static from(parent: Environment): Environment {
+    return new Environment(undefined, parent);
+  }
+
   override lookup(k: string): Result {
     const v = this.attributes.get(k);
     if (v == undefined) {
@@ -107,30 +128,34 @@ class Environment extends Instance {
     } else return v;
   }
 
-  bind(k: string, v: any) {
+  bind(k: string, v: any): Environment {
     this.attributes.set(k, v);
+    return this;
   }
 
-  bindInstance(inst: Instance): void {
+  bindInstance(inst: Instance): Environment {
     const n: string = inst.name;
     this.attributes.set(n, inst);
+    return this;
   }
 
-  setActiveEvent(eventInst: Instance | undefined): void {
+  setActiveEvent(eventInst: Instance | undefined): Environment {
     if (eventInst) {
       if (!isEventInstance(eventInst)) throw new Error(`Not an event instance - ${eventInst.name}`);
       this.bindInstance(eventInst);
       this.activeModule = eventInst.moduleName;
       this.activeEventInstance = eventInst;
     }
+    return this;
   }
 
   protected getActiveEventInstance(): Instance | undefined {
     return this.activeEventInstance;
   }
 
-  setLastResult(result: Result): void {
+  setLastResult(result: Result): Environment {
     this.lastResult = result;
+    return this;
   }
 
   getLastResult(): Result {
@@ -141,24 +166,27 @@ class Environment extends Instance {
     return this.activeModule;
   }
 
-  setParentPath(path: string): void {
+  setParentPath(path: string): Environment {
     this.parentPath = path;
+    return this;
   }
 
   getParentPath(): string | undefined {
     return this.parentPath;
   }
 
-  setBetweenRelInfo(info: BetweenRelInfo): void {
+  setBetweenRelInfo(info: BetweenRelInfo): Environment {
     this.betweenRelInfo = info;
+    return this;
   }
 
   getBetweenRelInfo(): BetweenRelInfo | undefined {
     return this.betweenRelInfo;
   }
 
-  setActiveResolvers(resolvers: Map<string, Resolver>): void {
+  setActiveResolvers(resolvers: Map<string, Resolver>): Environment {
     this.activeResolvers = resolvers;
+    return this;
   }
 
   getActiveResolvers(): Map<string, Resolver> {
@@ -169,13 +197,15 @@ class Environment extends Instance {
     return this.getActiveResolvers().get(resolverName);
   }
 
-  addResolver(resolver: Resolver): void {
+  addResolver(resolver: Resolver): Environment {
     this.getActiveResolvers().set(resolver.getName(), resolver);
     this.ensureTransactionForResolver(resolver);
+    return this;
   }
 
-  setActiveTransactions(txns: Map<string, string>): void {
+  setActiveTransactions(txns: Map<string, string>): Environment {
     this.activeTransactions = txns;
+    return this;
   }
 
   getActiveTransactions(): Map<string, string> {
@@ -194,8 +224,9 @@ class Environment extends Instance {
     }
   }
 
-  ensureTransactionForResolver(resolver: Resolver): void {
+  ensureTransactionForResolver(resolver: Resolver): Environment {
     this.getTransactionForResolver(resolver);
+    return this;
   }
 
   private async endAllTransactions(commit: boolean): Promise<void> {
@@ -220,16 +251,27 @@ class Environment extends Instance {
     await this.endAllTransactions(false);
   }
 
-  setInUpsertMode(flag: boolean) {
+  setInUpsertMode(flag: boolean): Environment {
     this.inUpsertMode = flag;
+    return this;
   }
 
   isInUpsertMode(): boolean {
     return this.inUpsertMode;
   }
 
-  setInKernelMode(flag: boolean) {
+  setInDeleteMode(flag: boolean): Environment {
+    this.inDeleteMode = flag;
+    return this;
+  }
+
+  isInDeleteMode(): boolean {
+    return this.inDeleteMode;
+  }
+
+  setInKernelMode(flag: boolean): Environment {
     this.inKernelMode = flag;
+    return this;
   }
 
   isInKernelMode(): boolean {
@@ -437,7 +479,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       if (crud.relationships != undefined) {
         for (let i = 0; i < crud.relationships.length; ++i) {
           const rel: RelationshipPattern = crud.relationships[i];
-          const newEnv: Environment = new Environment('relenv.' + rel.name, env);
+          const newEnv: Environment = Environment.from(env);
           if (isContainsRelationship(rel.name, moduleName)) {
             newEnv.setParentPath(
               `${inst.attributes.get(PathAttributeName)}/${escapeFqName(rel.name)}`
@@ -482,7 +524,13 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           .queryConnectedInstances(betRelInfo.relationship, betRelInfo.connectedInstance, inst)
           .then((insts: Instance[]) => env.setLastResult(insts));
       } else {
-        await getResolverForPath(inst.name, inst.moduleName, env, isReadForUpdate)
+        await getResolverForPath(
+          inst.name,
+          inst.moduleName,
+          env,
+          isReadForUpdate,
+          env.isInDeleteMode()
+        )
           .queryInstances(inst, isQueryAll)
           .then((insts: Instance[]) => env.setLastResult(insts));
       }
@@ -491,7 +539,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         for (let i = 0; i < crud.relationships.length; ++i) {
           const rel: RelationshipPattern = crud.relationships[i];
           for (let j = 0; j < lastRes.length; ++j) {
-            const newEnv: Environment = new Environment('relenv', env);
+            const newEnv: Environment = Environment.from(env);
             if (isContainsRelationship(rel.name, moduleName)) {
               newEnv.setParentPath(
                 lastRes[j].attributes.get(PathAttributeName) + '/' + rel.name + '/'
@@ -556,7 +604,7 @@ async function evaluateForEach(forEach: ForEach, env: Environment): Promise<void
   await evaluatePattern(forEach.src, env);
   const src: Result = env.getLastResult();
   if (src instanceof Array && src.length > 0) {
-    const loopEnv: Environment = new Environment(env.name + '.child', env);
+    const loopEnv: Environment = Environment.from(env);
     for (let i = 0; i < src.length; ++i) {
       loopEnv.bind(loopVar, src[i]);
       await evaluateStatements(forEach.statements, loopEnv);
@@ -579,26 +627,27 @@ async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
 }
 
 async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> {
-  await evaluatePattern(delStmt.pattern, env);
-  const inst: Instance[] | Instance = env.getLastResult();
+  const newEnv = Environment.from(env).setInDeleteMode(true);
+  await evaluatePattern(delStmt.pattern, newEnv);
+  const inst: Instance[] | Instance = newEnv.getLastResult();
   if (inst instanceof Array) {
     if (inst.length > 0) {
-      const resolver: Resolver = getResolverForPath(inst[0].name, inst[0].moduleName, env);
+      const resolver: Resolver = getResolverForPath(inst[0].name, inst[0].moduleName, newEnv);
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
         await resolver.deleteInstance(inst[i]).then((r: any) => {
           finalResult.push(r);
         });
       }
-      env.setLastResult(finalResult);
+      newEnv.setLastResult(finalResult);
     } else {
-      env.setLastResult(inst);
+      newEnv.setLastResult(inst);
     }
   } else {
-    await getResolverForPath(inst.name, inst.moduleName, env)
+    await getResolverForPath(inst.name, inst.moduleName, newEnv)
       .deleteInstance(inst)
       .then((inst: Instance | null) => {
-        env.setLastResult(inst);
+        newEnv.setLastResult(inst);
       });
   }
 }
