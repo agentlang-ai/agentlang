@@ -15,6 +15,13 @@ entity User {
     lastName String
 }
 
+workflow CreateUser {
+  {User {id CreateUser.id,
+         email CreateUser.email,
+         firstName CreateUser.firstName,
+         lastName CreateUser.lastName}}
+}
+
 entity Role {
     name String @id
 }
@@ -48,8 +55,8 @@ workflow FindRole {
 }
 
 workflow AssignUserToRole {
-    {User {id? AddUserToRole.userId}} as user;
-    {Role {name? AddUserToRole.roleName}} as role;
+    {User {id? AssignUserToRole.userId}} as [user];
+    {Role {name? AssignUserToRole.roleName}} as [role];
     upsert {UserRole {User user, Role role}}
 }
 
@@ -91,6 +98,27 @@ async function evalEvent(
   await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, env, true).then(
     (r: any) => (result = r)
   );
+  return result;
+}
+
+export async function createUser(
+  id: string,
+  email: string,
+  firstName: string,
+  lastName: string,
+  env: Environment
+): Promise<Result> {
+  let result: any;
+  await evalEvent(
+    'CreateUser',
+    {
+      id: id,
+      email: email,
+      firstName: firstName,
+      lastName: lastName,
+    },
+    env
+  ).then((r: any) => (result = r));
   return result;
 }
 

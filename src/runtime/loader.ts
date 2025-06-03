@@ -299,7 +299,7 @@ async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
       const r = roles[i];
       await createRole(r, env);
       if (rbacSpec.hasPermissions() && rbacSpec.hasResource()) {
-        createPermission(
+        await createPermission(
           `${r}_permission`,
           r,
           rbacSpec.resource,

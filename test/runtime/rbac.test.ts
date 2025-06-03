@@ -1,7 +1,7 @@
 import { parseModule } from "../../src/language/parser.js"
 import { assert, describe, test } from "vitest"
 import { Module } from "../../src/language/generated/ast.js"
-import { assignUserToRole } from "../../src/runtime/modules/auth.js"
+import { assignUserToRole, createUser } from "../../src/runtime/modules/auth.js"
 import { internAndRunModule } from "../../src/cli/main.js"
 import { Environment } from "../../src/runtime/interpreter.js"
 
@@ -29,6 +29,7 @@ describe('Basic RBAC checks', () => {
             await internAndRunModule(module)
             const env: Environment = new Environment()
             async function f() {
+                await createUser('M0001', 'dave@acme.com', 'Dave', 'J', env)
                 await assignUserToRole('M0001', 'manager', env).then((r: boolean) => {
                     assert(r == true, 'Failed to assign manager role')
                 })

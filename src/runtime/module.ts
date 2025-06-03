@@ -1540,6 +1540,9 @@ export function isInstance(obj: any): boolean {
 
 export function assertInstance(obj: any) {
   if (obj instanceof Array) {
+    if (obj.length == 0) {
+      throw new Error(`Empty instances`);
+    }
     obj.forEach(assertInstance);
   } else if (!(obj instanceof Instance)) {
     throw new Error(`${obj} is not an Instance`);
