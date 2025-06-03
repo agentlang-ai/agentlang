@@ -34,7 +34,15 @@ describe('Pattern generation using the syntax API', () => {
             .setElseIf(new IfPattern(new ExpressionPattern("emp.salary < 500")).addPattern(new LiteralPattern(LiteralPatternType.STRING, "-500")))
             .setElseBody([new LiteralPattern(LiteralPatternType.STRING, "ok")])
         const stmt5 = `if(emp.salary > 1000) {"+1000"} else if(emp.salary < 500) {"-500"} else {"ok"}`
-        assert(ifp.toString() == stmt5, "Failed to generate if-pattern")
+        assert(ifp.toString() == stmt5, "Failed to generate if pattern")
+        const qp: CrudPattern = new CrudPattern('Blog/User')
+        qp.addAttribute('salary?', new LiteralPattern(LiteralPatternType.NUMBER, 1500), '>')
+        const dfp: DeletePattern = new DeletePattern(qp)
+        assert(dfp.toString() == "delete {Blog/User {salary?> 1500}}", "Failed to generate delete pattern")
+        const emptyCrud: CrudPattern = new CrudPattern('Blog/Post')
+        assert(emptyCrud.toString() == '{Blog/Post {}}', 'Failed to generate empty CRUD pattern')
+        const emptyDfp: DeletePattern = new DeletePattern(emptyCrud)
+        assert(emptyDfp.toString() == "delete {Blog/Post {}}", "Failed to generate empty delete pattern")
     });
 });
 
