@@ -249,6 +249,20 @@ export class Environment extends Instance {
     }
   }
 
+  async callInTransactions(f: Function): Promise<any> {
+    let result: any;
+    await f()
+      .then((r: any) => {
+        this.endAllTransactions(true);
+        result = r;
+      })
+      .catch((r: any) => {
+        this.endAllTransactions(false);
+        throw new Error(r);
+      });
+    return result;
+  }
+
   async commitAllTransactions(): Promise<void> {
     await this.endAllTransactions(true);
   }

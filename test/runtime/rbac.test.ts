@@ -28,9 +28,12 @@ describe('Basic RBAC checks', () => {
         if (module) {
             await internAndRunModule(module)
             const env: Environment = new Environment()
-            await assignUserToRole('M0001', 'manager', env).then((r: boolean) => {
-                assert(r == true, 'Failed to assign manager role')
-            })
+            async function f() {
+                await assignUserToRole('M0001', 'manager', env).then((r: boolean) => {
+                    assert(r == true, 'Failed to assign manager role')
+                })
+            }
+            await env.callInTransactions(f)
         }
     })
 })

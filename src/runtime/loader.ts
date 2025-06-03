@@ -294,22 +294,25 @@ function setRbacForEntity(entity: EntityEntry, rbacSpec: RbacSpec) {
 async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
   const roles: Array<string> = [...rbacSpec.roles];
   const env: Environment = new Environment();
-  for (let i = 0; i < roles.length; ++i) {
-    const r = roles[i];
-    await createRole(r, env);
-    if (rbacSpec.hasPermissions() && rbacSpec.hasResource()) {
-      createPermission(
-        `${r}_permission`,
-        r,
-        rbacSpec.resource,
-        rbacSpec.hasCreatePermission(),
-        rbacSpec.hasReadPermission(),
-        rbacSpec.hasUpdatePermission(),
-        rbacSpec.hasDeletePermission(),
-        env
-      );
+  async function f() {
+    for (let i = 0; i < roles.length; ++i) {
+      const r = roles[i];
+      await createRole(r, env);
+      if (rbacSpec.hasPermissions() && rbacSpec.hasResource()) {
+        createPermission(
+          `${r}_permission`,
+          r,
+          rbacSpec.resource,
+          rbacSpec.hasCreatePermission(),
+          rbacSpec.hasReadPermission(),
+          rbacSpec.hasUpdatePermission(),
+          rbacSpec.hasDeletePermission(),
+          env
+        );
+      }
     }
   }
+  await env.callInTransactions(f);
 }
 
 export function internModule(module: Module): RuntimeModule {
