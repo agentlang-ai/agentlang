@@ -1235,6 +1235,19 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "value": "{"
               },
               {
+                "$type": "Keyword",
+                "value": "}"
+              }
+            ]
+          },
+          {
+            "$type": "Group",
+            "elements": [
+              {
+                "$type": "Keyword",
+                "value": "{"
+              },
+              {
                 "$type": "Group",
                 "elements": [
                   {
