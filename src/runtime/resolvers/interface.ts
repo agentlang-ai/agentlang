@@ -3,17 +3,19 @@ import { Instance, InstanceAttributes, RelationshipEntry } from '../module.js';
 export class ResolverAuthInfo {
   userId: string;
   readForUpdate: boolean = false;
-  readForDelete: boolean = false
+  readForDelete: boolean = false;
 
-  constructor(userId: string) {
-    this.userId = userId
+  constructor(userId: string, readForUpdate?: boolean, readForDelete?: boolean) {
+    this.userId = userId;
+    if (readForUpdate != undefined) this.readForUpdate = readForUpdate;
+    if (readForDelete != undefined) this.readForDelete = readForDelete;
   }
-};
+}
 
 const DefaultAuthInfo = new ResolverAuthInfo(
   // This user-id is only for testing, per-session user-id needs to be set from
   // the HTTP layer.
-  '9459a305-5ee6-415d-986d-caaf6d6e2828',
+  '9459a305-5ee6-415d-986d-caaf6d6e2828'
 );
 
 export abstract class Resolver {

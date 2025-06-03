@@ -38,7 +38,7 @@ import {
   RelationshipEntry,
   WorkflowEntry,
 } from './module.js';
-import { Resolver } from './resolvers/interface.js';
+import { Resolver, ResolverAuthInfo } from './resolvers/interface.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
 import { PathAttributeName } from './resolvers/sqldb/database.js';
 import {
@@ -351,7 +351,13 @@ async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
 
 const DefaultResolverName: string = '--default-resolver--';
 
-function getResolverForPath(entryName: string, moduleName: string, env: Environment): Resolver {
+function getResolverForPath(
+  entryName: string,
+  moduleName: string,
+  env: Environment,
+  isReadForUpdate: boolean = false,
+  isReadForDelete: boolean = false
+): Resolver {
   const fqEntryName: string = isFqName(entryName) ? entryName : makeFqName(moduleName, entryName);
   const resN: string | undefined = getResolverNameForPath(fqEntryName);
   let res: Resolver | undefined;
@@ -368,7 +374,13 @@ function getResolverForPath(entryName: string, moduleName: string, env: Environm
       env.addResolver(res);
     }
   }
-  return res.setKernelMode(env.isInKernelMode());
+
+  const authInfo: ResolverAuthInfo = new ResolverAuthInfo(
+    '9459a305-5ee6-415d-986d-caaf6d6e2828',
+    isReadForUpdate,
+    isReadForDelete
+  );
+  return res.setKernelMode(env.isInKernelMode()).setAuthInfo(authInfo);
 }
 
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
@@ -456,6 +468,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     } else {
       const parentPath: string | undefined = env.getParentPath();
       const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
+      const isReadForUpdate = attrs.size > 0;
       if (parentPath != undefined) {
         await getResolverForPath(inst.name, inst.moduleName, env)
           .queryChildInstances(parentPath, inst)
@@ -469,7 +482,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           .queryConnectedInstances(betRelInfo.relationship, betRelInfo.connectedInstance, inst)
           .then((insts: Instance[]) => env.setLastResult(insts));
       } else {
-        await getResolverForPath(inst.name, inst.moduleName, env)
+        await getResolverForPath(inst.name, inst.moduleName, env, isReadForUpdate)
           .queryInstances(inst, isQueryAll)
           .then((insts: Instance[]) => env.setLastResult(insts));
       }
@@ -494,7 +507,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           }
         }
       }
-      if (attrs.size > 0) {
+      if (isReadForUpdate) {
         const lastRes: Instance[] | Instance = env.getLastResult();
         if (lastRes instanceof Array) {
           if (lastRes.length > 0) {

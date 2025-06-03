@@ -212,3 +212,24 @@ export async function userHasPermissions(
   }
   return false;
 }
+
+const CreateOperation = new Set([RbacPermissionFlag.CREATE]);
+const ReadOperation = new Set([RbacPermissionFlag.READ]);
+const UpdateOperation = new Set([RbacPermissionFlag.UPDATE]);
+const DeleteOperation = new Set([RbacPermissionFlag.DELETE]);
+
+function canUserPerfom(opr: Set<RbacPermissionFlag>): Function {
+  async function f(userId: string, resourceFqName: string): Promise<boolean> {
+    let result: boolean = false;
+    await userHasPermissions(userId, resourceFqName, opr).then((r: boolean) => {
+      result = r;
+    });
+    return result;
+  }
+  return f;
+}
+
+export const canUserCreate = canUserPerfom(CreateOperation);
+export const canUserRead = canUserPerfom(ReadOperation);
+export const canUserUpdate = canUserPerfom(UpdateOperation);
+export const canUserDelete = canUserPerfom(DeleteOperation);
