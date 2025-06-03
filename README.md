@@ -21,6 +21,79 @@ AgentLang comes with all the modern tooling, dependency management and REPL need
 
 Agents are a built-in language construct - developers can choose from one of the built-in agent-types, or easily add their own agent-types.
 
+## Deno Support
+
+AgentLang provides first-class support for [Deno](https://deno.land/), a modern JavaScript/TypeScript runtime. You can use Deno for building and running the AgentLang language server and REPL.
+
+### Prerequisites
+
+- [Deno](https://deno.land/) 1.35.0 or later
+- Node.js 20+ (for some build steps)
+
+### Available Deno Commands
+
+#### Build with Deno
+
+Build the project using Deno:
+
+```bash
+# Build the project
+deno run -A scripts/build.ts
+
+# Or using the npm script
+npm run build:deno
+
+# Watch for changes and rebuild
+deno run --watch -A scripts/build.ts
+
+# Or using the npm script
+npm run watch:deno
+```
+
+#### Linting and Formatting
+
+Lint and format your code with Deno:
+
+```bash
+# Lint the code
+deno lint scripts/
+
+# Or using the npm script
+npm run lint:deno
+
+# Format the code
+deno fmt scripts/
+
+# Or using the npm script
+npm run format:deno
+```
+
+#### Testing
+
+Run tests with Deno:
+
+```bash
+# Run tests
+deno test -A scripts/
+
+# Or using the npm script
+npm run test:deno
+```
+
+### Development Workflow
+
+For a smooth development experience, you can use the following workflow:
+
+1. Start the watcher in one terminal:
+   ```bash
+   npm run watch:deno
+   ```
+
+2. In another terminal, run tests:
+   ```bash
+   npm run test:deno -- --watch
+   ```
+
 ## Build instructions
 
 Make sure you have a working Node environment with version 22 or higher.
