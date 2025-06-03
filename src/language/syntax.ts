@@ -304,6 +304,24 @@ export class IfPattern extends BasePattern {
   }
 }
 
+export function newCreatePattern(recName: string): CrudPattern {
+  const cp: CrudPattern = new CrudPattern(recName);
+  cp.isCreate = true;
+  return cp;
+}
+
+export function newQueryPattern(recName: string): CrudPattern {
+  const cp: CrudPattern = new CrudPattern(recName);
+  cp.isQuery = true;
+  return cp;
+}
+
+export function newQueryUpdatePattern(recName: string): CrudPattern {
+  const cp: CrudPattern = new CrudPattern(recName);
+  cp.isQueryUpdate = true;
+  return cp;
+}
+
 export class DeletePattern extends BasePattern {
   pattern: BasePattern;
 
@@ -315,6 +333,11 @@ export class DeletePattern extends BasePattern {
   override toString(): string {
     return `delete ${this.pattern.toString()}`.concat(this.aliasAsString());
   }
+}
+
+export function newDeletePattern(recName: string): DeletePattern {
+  const qp: CrudPattern = newQueryPattern(recName);
+  return new DeletePattern(qp);
 }
 
 function patternsToString(body: BasePattern[], sep = ';'): string {
