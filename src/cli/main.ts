@@ -2,7 +2,13 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 import { AgentlangLanguageMetaData } from '../language/generated/module.js';
 import { createAgentlangServices } from '../language/agentlang-module.js';
-import { ApplicationSpec, DefaultAppSpec, load, loadCoreModules } from '../runtime/loader.js';
+import {
+  ApplicationSpec,
+  DefaultAppSpec,
+  internModule,
+  load,
+  loadCoreModules,
+} from '../runtime/loader.js';
 import { NodeFileSystem } from 'langium/node';
 import { extractDocument } from '../runtime/loader.js';
 import * as url from 'node:url';
@@ -12,6 +18,8 @@ import { startServer } from '../api/http.js';
 import { initDefaultDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { logger } from '../runtime/logger.js';
 import { runInitFunctions } from '../runtime/util.js';
+import { RuntimeModule } from '../runtime/module.js';
+import { Module } from '../language/generated/ast.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -67,17 +75,46 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
   }
 };
 
-export const runModule = async (fileName: string): Promise<void> => {
+async function runPreInitTasks(): Promise<boolean> {
+  let result: boolean = true;
   await loadCoreModules().catch((reason: any) => {
     const msg = `Failed to load core modules - ${reason.toString()}`;
     logger.error(msg);
     console.log(chalk.red(msg));
+    result = false;
+  });
+  return result;
+}
+
+async function runPostInitTasks(appSpec?: ApplicationSpec) {
+  await initDefaultDatabase();
+  await runInitFunctions();
+  if (appSpec) startServer(appSpec, 8080);
+}
+
+export const runModule = async (fileName: string): Promise<void> => {
+  await runPreInitTasks().then((r: boolean) => {
+    if (!r) {
+      throw new Error('Failed to initialize runtime');
+    }
   });
   let appSpec: ApplicationSpec = DefaultAppSpec;
   await load(fileName).then((aspec: ApplicationSpec) => {
     appSpec = aspec;
   });
-  await initDefaultDatabase();
-  await runInitFunctions();
-  startServer(appSpec, 8080);
+  await runPostInitTasks(appSpec);
 };
+
+export async function internAndRunModule(
+  module: Module,
+  appSpec?: ApplicationSpec
+): Promise<RuntimeModule> {
+  await runPreInitTasks().then((r: boolean) => {
+    if (!r) {
+      throw new Error('Failed to initialize runtime');
+    }
+  });
+  const r: RuntimeModule = internModule(module);
+  await runPostInitTasks(appSpec);
+  return r;
+}

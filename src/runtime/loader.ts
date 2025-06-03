@@ -24,6 +24,7 @@ import {
   addRelationship,
   EntityEntry,
   RbacSpecification,
+  RuntimeModule,
 } from './module.js';
 import { importModule, makeFqName, registerInitFunction, runShellCommand } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
@@ -34,6 +35,7 @@ import { CoreModules } from './modules/core.js';
 import { parseModule } from '../language/parser.js';
 import { createPermission, createRole } from './modules/auth.js';
 import { logger } from './logger.js';
+import { Environment } from './interpreter.js';
 
 export async function extractDocument(
   fileName: string,
@@ -149,8 +151,8 @@ async function loadApp(appJsonFile: string, fsOptions?: any): Promise<string> {
       }
     });
     for (let i = 0; i < alFiles.length; ++i) {
-      await loadModule(alFiles[i], fsOptions).then((s: string) => {
-        lastModuleLoaded = s;
+      await loadModule(alFiles[i], fsOptions).then((r: RuntimeModule) => {
+        lastModuleLoaded = r.name;
       });
     }
   }
@@ -184,8 +186,8 @@ export async function load(fileName: string, fsOptions?: any): Promise<Applicati
       result = r;
     });
   } else {
-    await loadModule(fileName, fsOptions).then((r: string) => {
-      result = r;
+    await loadModule(fileName, fsOptions).then((r: RuntimeModule) => {
+      result = r.name;
     });
   }
   return { name: result, version: '0.0.1' };
@@ -197,7 +199,7 @@ export async function loadCoreModules() {
   }
 }
 
-async function loadModule(fileName: string, fsOptions?: any): Promise<string> {
+async function loadModule(fileName: string, fsOptions?: any): Promise<RuntimeModule> {
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
 
@@ -210,10 +212,10 @@ async function loadModule(fileName: string, fsOptions?: any): Promise<string> {
 
   // Extract the AST node
   const module = await extractAstNode<Module>(fileName, services);
-  const moduleName = internModule(module);
-  console.log(chalk.green(`Module ${chalk.bold(moduleName)} loaded`));
-  logger.info(`Module ${moduleName} loaded`);
-  return moduleName;
+  const result: RuntimeModule = internModule(module);
+  console.log(chalk.green(`Module ${chalk.bold(result.name)} loaded`));
+  logger.info(`Module ${result.name} loaded`);
+  return result;
 }
 
 let cachedFsAdapter: any = null;
@@ -291,9 +293,10 @@ function setRbacForEntity(entity: EntityEntry, rbacSpec: RbacSpec) {
 
 async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
   const roles: Array<string> = [...rbacSpec.roles];
+  const env: Environment = new Environment();
   for (let i = 0; i < roles.length; ++i) {
     const r = roles[i];
-    await createRole(r);
+    await createRole(r, env);
     if (rbacSpec.hasPermissions() && rbacSpec.hasResource()) {
       createPermission(
         `${r}_permission`,
@@ -302,14 +305,15 @@ async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
         rbacSpec.hasCreatePermission(),
         rbacSpec.hasReadPermission(),
         rbacSpec.hasUpdatePermission(),
-        rbacSpec.hasDeletePermission()
+        rbacSpec.hasDeletePermission(),
+        env
       );
     }
   }
 }
 
-function internModule(module: Module): string {
-  addModule(module.name);
+export function internModule(module: Module): RuntimeModule {
+  const r = addModule(module.name);
   module.imports.forEach((imp: Import) => {
     importModule(imp.path, imp.name);
   });
@@ -332,5 +336,5 @@ function internModule(module: Module): string {
       addRelationship(def.name, def.type, def.nodes, module.name, def.attributes, def.properties);
     else if (isWorkflow(def)) addWorkflow(def.name, module.name, def.statements);
   });
-  return module.name;
+  return r;
 }

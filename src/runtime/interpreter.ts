@@ -53,6 +53,7 @@ import {
   splitRefs,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
+import { AdminUserId } from './modules/auth.js';
 
 export type Result = any;
 
@@ -78,7 +79,7 @@ function mkEnvName(name: string | undefined, parent: Environment | undefined): s
   }
 }
 
-class Environment extends Instance {
+export class Environment extends Instance {
   parent: Environment | undefined;
 
   private activeModule: string;
@@ -194,12 +195,17 @@ class Environment extends Instance {
   }
 
   getResolver(resolverName: string): Resolver | undefined {
-    return this.getActiveResolvers().get(resolverName);
+    const r: Resolver | undefined = this.getActiveResolvers().get(resolverName);
+    if (r) {
+      return r.setUserData(this);
+    }
+    return undefined;
   }
 
   addResolver(resolver: Resolver): Environment {
     this.getActiveResolvers().set(resolver.getName(), resolver);
     this.ensureTransactionForResolver(resolver);
+    resolver.setUserData(this);
     return this;
   }
 
@@ -418,7 +424,7 @@ function getResolverForPath(
   }
 
   const authInfo: ResolverAuthInfo = new ResolverAuthInfo(
-    '9459a305-5ee6-415d-986d-caaf6d6e2828',
+    AdminUserId,
     isReadForUpdate,
     isReadForDelete
   );

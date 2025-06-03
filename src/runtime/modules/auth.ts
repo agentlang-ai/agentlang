@@ -1,10 +1,10 @@
-import { evaluateAsEvent, Result } from '../interpreter.js';
+import { evaluateAsEvent, Result, Environment } from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
-let AdminUserId: string | undefined;
+export const AdminUserId = '00000000-0000-0000-0000-000000000000';
 
 const moduleDef = `module ${CoreAuthModuleName}
 
@@ -82,22 +82,26 @@ workflow FindRolePermissions {
 
 export default moduleDef;
 
-async function evalEvent(eventName: string, attrs: Array<any> | object): Promise<Result> {
+async function evalEvent(
+  eventName: string,
+  attrs: Array<any> | object,
+  env: Environment
+): Promise<Result> {
   let result: any;
-  await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, undefined, true).then(
+  await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, env, true).then(
     (r: any) => (result = r)
   );
   return result;
 }
 
-export async function findRole(name: string): Promise<Result> {
+export async function findRole(name: string, env: Environment): Promise<Result> {
   let result: any;
-  await evalEvent('FindRole', { name: name }).then((r: any) => (result = r));
+  await evalEvent('FindRole', { name: name }, env).then((r: any) => (result = r));
   return result;
 }
 
-export async function createRole(name: string) {
-  await evalEvent('CreateRole', { name: name }).catch((reason: any) => {
+export async function createRole(name: string, env: Environment) {
+  await evalEvent('CreateRole', { name: name }, env).catch((reason: any) => {
     logger.error(`Failed to create role ${name} - ${reason}`);
   });
 }
@@ -109,32 +113,44 @@ export async function createPermission(
   c: boolean = false,
   r: boolean = false,
   u: boolean = false,
-  d: boolean = false
+  d: boolean = false,
+  env: Environment
 ) {
-  await evalEvent('CreatePermission', {
-    id: id,
-    roleName: roleName,
-    resourceFqName: resourceFqName,
-    c: c,
-    r: r,
-    u: u,
-    d: d,
-  }).catch((reason: any) => {
+  await evalEvent(
+    'CreatePermission',
+    {
+      id: id,
+      roleName: roleName,
+      resourceFqName: resourceFqName,
+      c: c,
+      r: r,
+      u: u,
+      d: d,
+    },
+    env
+  ).catch((reason: any) => {
     logger.error(`Failed to create permission ${id} - ${reason}`);
   });
 }
 
-export async function assignUserToRole(userId: string, roleName: string) {
-  await evalEvent('AssignUserToRole', { userId: userId, roleName: roleName }).catch(
+export async function assignUserToRole(
+  userId: string,
+  roleName: string,
+  env: Environment
+): Promise<boolean> {
+  let r: boolean = true;
+  await evalEvent('AssignUserToRole', { userId: userId, roleName: roleName }, env).catch(
     (reason: any) => {
       logger.error(`Failed to assign user ${userId} to role ${roleName} - ${reason}`);
+      r = false;
     }
   );
+  return r;
 }
 
-export async function findUserRoles(userId: string): Promise<Result> {
+export async function findUserRoles(userId: string, env: Environment): Promise<Result> {
   let result: any;
-  await evalEvent('FindUserRoles', { userId: userId }).then((r: any) => (result = r));
+  await evalEvent('FindUserRoles', { userId: userId }, env).then((r: any) => (result = r));
   return result;
 }
 
@@ -152,22 +168,23 @@ function normalizePermissionInstance(inst: Instance): RbacPermission {
 const UserRoleCache: Map<string, string[]> = new Map();
 const RolePermissionsCache: Map<string, RbacPermission[]> = new Map();
 
-async function findRolePermissions(role: string): Promise<Result> {
+async function findRolePermissions(role: string, env: Environment): Promise<Result> {
   let result: any;
-  await evalEvent('FindRolePermissions', { role: role }).then((r: any) => (result = r));
+  await evalEvent('FindRolePermissions', { role: role }, env).then((r: any) => (result = r));
   return result;
 }
 
-async function updatePermissionCacheForRole(role: string) {
+async function updatePermissionCacheForRole(role: string, env: Environment) {
   let result: any;
-  await findRolePermissions(role).then((r: any) => (result = r));
+  await findRolePermissions(role, env).then((r: any) => (result = r));
   RolePermissionsCache.set(role, result.map(normalizePermissionInstance));
 }
 
 export async function userHasPermissions(
   userId: string,
   resourceFqName: string,
-  perms: Set<RbacPermissionFlag>
+  perms: Set<RbacPermissionFlag>,
+  env: Environment
 ): Promise<boolean> {
   if (userId == AdminUserId) {
     return true;
@@ -175,7 +192,7 @@ export async function userHasPermissions(
   let userRoles: string[] | undefined = UserRoleCache.get(userId);
   if (userRoles == undefined) {
     let roles: any;
-    await findUserRoles(userId).then((result: any) => {
+    await findUserRoles(userId, env).then((result: any) => {
       roles = result;
     });
     userRoles = [];
@@ -184,7 +201,7 @@ export async function userHasPermissions(
       const n: string = r.attributes.get('name');
       userRoles.push(n);
       if (!RolePermissionsCache.get(n)) {
-        await updatePermissionCacheForRole(n);
+        await updatePermissionCacheForRole(n, env);
       }
     }
     UserRoleCache.set(userId, userRoles);
@@ -218,14 +235,18 @@ const ReadOperation = new Set([RbacPermissionFlag.READ]);
 const UpdateOperation = new Set([RbacPermissionFlag.UPDATE]);
 const DeleteOperation = new Set([RbacPermissionFlag.DELETE]);
 
-type PermCheckForUser = (userId: string, resourceFqName: string) => Promise<boolean>;
+type PermCheckForUser = (
+  userId: string,
+  resourceFqName: string,
+  env: Environment
+) => Promise<boolean>;
 
 function canUserPerfom(opr: Set<RbacPermissionFlag>): PermCheckForUser {
   // TODO: check parent hierarchy
   // TODO: cache permissions for user
-  async function f(userId: string, resourceFqName: string): Promise<boolean> {
+  async function f(userId: string, resourceFqName: string, env: Environment): Promise<boolean> {
     let result: boolean = false;
-    await userHasPermissions(userId, resourceFqName, opr).then((r: boolean) => {
+    await userHasPermissions(userId, resourceFqName, opr, env).then((r: boolean) => {
       result = r;
     });
     return result;

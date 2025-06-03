@@ -21,6 +21,7 @@ const DefaultAuthInfo = new ResolverAuthInfo(
 export abstract class Resolver {
   protected authInfo: ResolverAuthInfo = DefaultAuthInfo;
   protected inKernelMode: boolean = false;
+  protected userData: any;
 
   public setAuthInfo(authInfo: ResolverAuthInfo): Resolver {
     this.authInfo = authInfo;
@@ -30,6 +31,15 @@ export abstract class Resolver {
   public setKernelMode(flag: boolean): Resolver {
     this.inKernelMode = flag;
     return this;
+  }
+
+  public setUserData(userData: any): Resolver {
+    this.userData = userData;
+    return this;
+  }
+
+  public getUserData(): any {
+    return this.userData;
   }
 
   public abstract getName(): string;

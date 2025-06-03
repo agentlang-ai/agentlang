@@ -28,6 +28,7 @@ import {
   hardDeleteRow,
   DbContext,
 } from './database.js';
+import { Environment } from '../../interpreter.js';
 
 function addDefaultIdAttribute(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
@@ -66,7 +67,17 @@ export class SqlDbResolver extends Resolver {
       this.dbContext.inKernelMode = this.inKernelMode;
       this.dbContext.resourceFqName = resourceFqName;
     } else {
-      this.dbContext = new DbContext(resourceFqName, this.authInfo, this.txnId, this.inKernelMode);
+      const activeEnv: Environment = this.getUserData() as Environment;
+      if (!activeEnv) {
+        throw new Error('Active environment context is required by SqlDbResolver');
+      }
+      this.dbContext = new DbContext(
+        resourceFqName,
+        this.authInfo,
+        activeEnv,
+        this.txnId,
+        this.inKernelMode
+      );
     }
     return this.dbContext;
   }

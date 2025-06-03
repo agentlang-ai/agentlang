@@ -17,6 +17,7 @@ import {
   canUserUpdate,
   UnauthorisedError,
 } from '../../modules/auth.js';
+import { Environment } from '../../interpreter.js';
 
 let defaultDataSource: DataSource | undefined;
 
@@ -28,15 +29,18 @@ export class DbContext {
   authInfo: ResolverAuthInfo;
   inKernelMode: boolean = false;
   resourceFqName: string;
+  activeEnv: Environment;
 
   constructor(
     resourceFqName: string,
     authInfo: ResolverAuthInfo,
+    activeEnv: Environment,
     txnId?: string,
     inKernelMode?: boolean
   ) {
     this.resourceFqName = resourceFqName;
     this.authInfo = authInfo;
+    this.activeEnv = activeEnv;
     this.txnId = txnId;
     if (inKernelMode != undefined) {
       this.inKernelMode = inKernelMode;
@@ -194,7 +198,7 @@ async function insertRowsHelper(tableName: string, rows: object[], ctx: DbContex
 export async function insertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
   let hasPerm = ctx.inKernelMode;
   if (!hasPerm) {
-    await canUserCreate(ctx.getUserId(), ctx.resourceFqName).then((r: boolean) => {
+    await canUserCreate(ctx.getUserId(), ctx.resourceFqName, ctx.activeEnv).then((r: boolean) => {
       hasPerm = r;
     });
   }
@@ -252,7 +256,7 @@ export async function upsertRows(tableName: string, rows: object[], ctx: DbConte
     .execute();*/
   let hasPerm = ctx.inKernelMode;
   if (!hasPerm) {
-    await canUserCreate(ctx.getUserId(), ctx.resourceFqName).then((r: boolean) => {
+    await canUserCreate(ctx.getUserId(), ctx.resourceFqName, ctx.activeEnv).then((r: boolean) => {
       hasPerm = r;
     });
   }
@@ -344,16 +348,17 @@ export async function getMany(
     const userId = ctx.getUserId();
     const fqName = ctx.resourceFqName;
     let hasGlobalPerms: boolean = ctx.inKernelMode;
-    await canUserRead(userId, fqName).then((r: boolean) => {
+    const env: Environment = ctx.activeEnv;
+    await canUserRead(userId, fqName, env).then((r: boolean) => {
       hasGlobalPerms = r;
     });
     if (hasGlobalPerms) {
       if (ctx.isForUpdate()) {
-        await canUserUpdate(userId, fqName).then((r: boolean) => {
+        await canUserUpdate(userId, fqName, env).then((r: boolean) => {
           hasGlobalPerms = r;
         });
       } else if (ctx.isForDelete()) {
-        await canUserDelete(userId, fqName).then((r: boolean) => {
+        await canUserDelete(userId, fqName, env).then((r: boolean) => {
           hasGlobalPerms = r;
         });
       }
