@@ -5,6 +5,7 @@ import { assignUserToRole, createUser } from "../../src/runtime/modules/auth.js"
 import { internAndRunModule } from "../../src/cli/main.js"
 import { Environment, parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
 import { isInstanceOfType } from "../../src/runtime/module.js"
+import { logger } from "../../src/runtime/logger.js"
 
 const mod1 = `module Acme
 entity Department {
@@ -18,6 +19,12 @@ entity Employee {
 }
 
 relationship DepartmentEmployee contains(Department, Employee)
+
+workflow CreateEmployee {
+    {Department {no? CreateEmployee.Dept},
+     DepartmentEmployee {Employee {id CreateEmployee.id,
+                                   name CreateEmployee.name}}}
+}
 `
 describe('Basic RBAC checks', () => {
     test('Basic RBAC tests', async () => {
@@ -42,6 +49,13 @@ describe('Basic RBAC checks', () => {
             await parseAndEvaluateStatement(`{Acme/Department {no 101}}`, id1).then((r: any) => {
                 assert(isInstanceOfType(r, 'Acme/Department'), 'Failed to create Department')
             })
+            let failed = false
+            await parseAndEvaluateStatement(`{Acme/Department {no 102}}`, id2)
+            .catch((r: any) => {
+                logger.info(`Expected error: ${r}`)
+                failed = true
+            })
+            assert(failed, 'Auth check on create-department failed')
         }
     })
 })

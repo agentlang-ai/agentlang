@@ -136,4 +136,4 @@ dist
 .pnp.*
 
 generated/
-db
+db*

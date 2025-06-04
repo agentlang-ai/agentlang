@@ -62,8 +62,8 @@ workflow AssignUserToRole {
 }
 
 workflow FindUserRoles {
-  {Role? {},
-   UserRole {User {id? FindUserRoles.userId}}}
+  {User {id? FindUserRoles.userId},
+   UserRole {Role? {}}}
 }
 
 workflow CreatePermission {
@@ -180,7 +180,11 @@ export async function assignUserToRole(
 export async function findUserRoles(userId: string, env: Environment): Promise<Result> {
   let result: any;
   await evalEvent('FindUserRoles', { userId: userId }, env).then((r: any) => (result = r));
-  return result;
+  const inst: Instance | undefined = result ? (result[0] as Instance) : undefined;
+  if (inst) {
+    return inst.getRelatedInstances('UserRole');
+  }
+  return undefined;
 }
 
 type RbacPermission = {
@@ -233,12 +237,14 @@ export async function userHasPermissions(
       roles = result;
     });
     userRoles = [];
-    for (let i = 0; i < roles.length; ++i) {
-      const r: Instance = roles[i] as Instance;
-      const n: string = r.attributes.get('name');
-      userRoles.push(n);
-      if (!RolePermissionsCache.get(n)) {
-        await updatePermissionCacheForRole(n, env);
+    if (roles) {
+      for (let i = 0; i < roles.length; ++i) {
+        const r: Instance = roles[i] as Instance;
+        const n: string = r.attributes.get('name');
+        userRoles.push(n);
+        if (!RolePermissionsCache.get(n)) {
+          await updatePermissionCacheForRole(n, env);
+        }
       }
     }
     UserRoleCache.set(userId, userRoles);
