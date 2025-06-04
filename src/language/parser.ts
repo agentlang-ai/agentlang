@@ -39,8 +39,20 @@ export async function parseModule(moduleDef: string): Promise<Module> {
   return document.parseResult.value;
 }
 
-export async function parseStatement(stmt: string): Promise<Module> {
-  return parseModule(`module Temp\nworkflow TempEvent { ${stmt} }`);
+export async function parseStatement(stmt: string): Promise<Statement> {
+  let result: Statement | undefined;
+  await parseModule(`module Temp\nworkflow TempEvent { ${stmt} }`).then((mod: Module) => {
+    if (isWorkflow(mod.defs[0])) {
+      result = mod.defs[0].statements[0];
+    } else {
+      throw new Error('Failed to extract workflow-statement');
+    }
+  });
+  if (result) {
+    return result;
+  } else {
+    throw new Error('There was an error parsing the statement');
+  }
 }
 
 function maybeRaiseParserErrors(document: LangiumDocument) {

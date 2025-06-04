@@ -270,53 +270,46 @@ export class SqlDbResolver extends Resolver {
     relEntry: RelationshipEntry,
     orUpdate: boolean
   ): Promise<Instance> {
+    if (otherNodeOrNodes instanceof Array) {
+      for (let i = 0; i < otherNodeOrNodes.length; ++i) {
+        await this.connectInstancesHelper(node1, otherNodeOrNodes[i], relEntry, orUpdate);
+      }
+      return node1;
+    } else {
+      await this.connectInstancesHelper(node1, otherNodeOrNodes as Instance, relEntry, orUpdate);
+      return node1;
+    }
+  }
+
+  async connectInstancesHelper(
+    node1: Instance,
+    node2: Instance,
+    relEntry: RelationshipEntry,
+    orUpdate: boolean
+  ): Promise<void> {
     const n: string = asTableName(relEntry.moduleName, relEntry.name);
+    const [firstNode, secondNode] = relEntry.isFirstNode(node1) ? [node1, node2] : [node2, node1];
     const a1: string = relEntry.node1.alias;
     const a2: string = relEntry.node2.alias;
-    const n1path: any = orUpdate ? node1.lookup(PathAttributeName) : undefined;
-    if (otherNodeOrNodes instanceof Array) {
-      const fqn1 = otherNodeOrNodes[0].getFqName();
-      for (let i = 0; i < otherNodeOrNodes.length; ++i) {
-        if (orUpdate) {
-          await hardDeleteRow(
-            n,
-            [
-              [a1, n1path],
-              [a2, otherNodeOrNodes[i].lookup(PathAttributeName)],
-            ],
-            this.getDbContext(fqn1)
-          );
-        }
-        await insertBetweenRow(
-          n,
-          a1,
-          a2,
-          node1,
-          otherNodeOrNodes[i],
-          this.getDbContext(relEntry.getFqName())
-        );
-      }
-    } else {
-      if (orUpdate) {
-        await hardDeleteRow(
-          n,
-          [
-            [a1, n1path],
-            [a2, otherNodeOrNodes.lookup(PathAttributeName)],
-          ],
-          this.getDbContext(relEntry.getFqName())
-        );
-      }
-      await insertBetweenRow(
+    const n1path: any = orUpdate ? firstNode.lookup(PathAttributeName) : undefined;
+    if (orUpdate) {
+      await hardDeleteRow(
         n,
-        a1,
-        a2,
-        node1,
-        otherNodeOrNodes,
+        [
+          [a1, n1path],
+          [a2, secondNode.lookup(PathAttributeName)],
+        ],
         this.getDbContext(relEntry.getFqName())
       );
     }
-    return node1;
+    await insertBetweenRow(
+      n,
+      a1,
+      a2,
+      firstNode,
+      secondNode,
+      this.getDbContext(relEntry.getFqName())
+    );
   }
 
   public override startTransaction(): string {

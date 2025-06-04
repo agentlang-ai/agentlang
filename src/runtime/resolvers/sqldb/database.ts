@@ -60,11 +60,15 @@ export class DbContext {
   }
 }
 
+function mkDbName(): string {
+  return `db-${Date.now()}`;
+}
+
 export async function initDefaultDatabase() {
   if (defaultDataSource == undefined) {
     defaultDataSource = new DataSource({
       type: 'sqlite',
-      database: 'db',
+      database: mkDbName(),
     });
     await defaultDataSource.initialize();
     await createTables()

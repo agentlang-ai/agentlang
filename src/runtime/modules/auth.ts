@@ -95,7 +95,7 @@ async function evalEvent(
   env: Environment
 ): Promise<Result> {
   let result: any;
-  await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, env, true).then(
+  await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, AdminUserId, env, true).then(
     (r: any) => (result = r)
   );
   return result;

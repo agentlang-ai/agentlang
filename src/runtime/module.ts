@@ -616,6 +616,10 @@ export class RelationshipEntry extends RecordEntry {
     return !(this.isOneToOne() || this.isOneToMany());
   }
 
+  isFirstNode(inst: Instance): boolean {
+    return inst.getFqName() == this.node1.path.asFqName();
+  }
+
   override toString(): string {
     const n1 = relNodeEntryToString(this.node1);
     const n2 = relNodeEntryToString(this.node2);
@@ -652,12 +656,8 @@ export class WorkflowEntry extends ModuleEntry {
   }
 
   async addStatement(stmt: string) {
-    await parseStatement(stmt).then((mod: Module) => {
-      if (isWorkflow(mod.defs[0])) {
-        this.statements.push(mod.defs[0].statements[0]);
-      } else {
-        throw new Error('Failed to extract workflow-staement');
-      }
+    await parseStatement(stmt).then((result: Statement) => {
+      this.statements.push(result);
     });
   }
 }
@@ -1287,6 +1287,7 @@ export class Instance {
   queryAttributes: InstanceAttributes | undefined;
   queryAttributeValues: InstanceAttributes | undefined;
   relatedInstances: Map<string, Instance[]> | undefined;
+  contextData: Map<string, any> | undefined;
 
   constructor(
     record: RecordEntry,
@@ -1408,6 +1409,31 @@ export class Instance {
 
   getFqName(): string {
     return makeFqName(this.moduleName, this.name);
+  }
+
+  addContextData(k: string, v: any): Instance {
+    if (this.contextData == undefined) {
+      this.contextData = new Map();
+    }
+    this.contextData.set(k, v);
+    return this;
+  }
+
+  getContextData(k: string, notFoundValue?: any): any {
+    if (this.contextData) {
+      const v: any = this.contextData.get(k);
+      if (v == undefined) return notFoundValue;
+      return v;
+    }
+    return notFoundValue;
+  }
+
+  setAuthContext(userId: string): Instance {
+    return this.addContextData('UserId', userId);
+  }
+
+  getAuthContextUserId(): string {
+    return this.getContextData('UserId') || '?';
   }
 }
 

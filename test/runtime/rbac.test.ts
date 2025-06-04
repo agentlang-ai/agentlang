@@ -3,7 +3,7 @@ import { assert, describe, test } from "vitest"
 import { Module } from "../../src/language/generated/ast.js"
 import { assignUserToRole, createUser } from "../../src/runtime/modules/auth.js"
 import { internAndRunModule } from "../../src/cli/main.js"
-import { Environment } from "../../src/runtime/interpreter.js"
+import { Environment, parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
 
 const mod1 = `module Acme
 entity Department {
@@ -27,14 +27,20 @@ describe('Basic RBAC checks', () => {
         })
         if (module) {
             await internAndRunModule(module)
+            const id1 = crypto.randomUUID()
+            const id2 = crypto.randomUUID()
             const env: Environment = new Environment()
-            async function f() {
-                await createUser('M0001', 'dave@acme.com', 'Dave', 'J', env)
-                await assignUserToRole('M0001', 'manager', env).then((r: boolean) => {
+            async function f1() {
+                await createUser(id1, 'dave@acme.com', 'Dave', 'J', env)
+                await createUser(id2, 'sam@acme.com', 'Sam', 'R', env)
+                await assignUserToRole(id1, 'manager', env).then((r: boolean) => {
                     assert(r == true, 'Failed to assign manager role')
                 })
             }
-            await env.callInTransactions(f)
+            await env.callInTransaction(f1)
+            await parseAndEvaluateStatement(`{Acme/Department {no 101}}`, id1).then((r: any) => {
+                console.log(r)
+            })
         }
     })
-})
+}, 100000)

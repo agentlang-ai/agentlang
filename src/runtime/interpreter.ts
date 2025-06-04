@@ -54,6 +54,7 @@ import {
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { AdminUserId } from './modules/auth.js';
+import { parseStatement } from '../language/parser.js';
 
 export type Result = any;
 
@@ -84,6 +85,7 @@ export class Environment extends Instance {
 
   private activeModule: string;
   private activeEventInstance: Instance | undefined;
+  private activeUser: string = AdminUserId;
   private lastResult: Result;
   private parentPath: string | undefined;
   private betweenRelInfo: BetweenRelInfo | undefined;
@@ -152,6 +154,15 @@ export class Environment extends Instance {
 
   protected getActiveEventInstance(): Instance | undefined {
     return this.activeEventInstance;
+  }
+
+  setActiveUser(userId: string): Environment {
+    this.activeUser = userId;
+    return this;
+  }
+
+  getActiveUser(): string {
+    return this.activeUser;
   }
 
   setLastResult(result: Result): Environment {
@@ -249,17 +260,21 @@ export class Environment extends Instance {
     }
   }
 
-  async callInTransactions(f: Function): Promise<any> {
+  async callInTransaction(f: Function): Promise<any> {
     let result: any;
+    let commit: boolean = true;
     await f()
       .then((r: any) => {
-        this.endAllTransactions(true);
         result = r;
       })
       .catch((r: any) => {
-        this.endAllTransactions(false);
-        throw new Error(r);
+        commit = false;
+        result = r;
       });
+    await this.endAllTransactions(commit);
+    if (!commit) {
+      throw new Error(result);
+    }
     return result;
   }
 
@@ -337,12 +352,15 @@ export async function evaluateAsEvent(
   moduleName: string,
   eventName: string,
   attrs: Array<any> | object,
+  activeUserId?: string,
   env?: Environment,
   kernelCall?: boolean
 ): Promise<Result> {
   const finalAttrs: Map<string, any> =
     attrs instanceof Array ? new Map(attrs) : new Map(Object.entries(attrs));
-  const eventInst: Instance = makeInstance(moduleName, eventName, finalAttrs);
+  const eventInst: Instance = makeInstance(moduleName, eventName, finalAttrs).setAuthContext(
+    activeUserId || AdminUserId
+  );
   let result: any;
   await evaluate(eventInst, (r: any) => (result = r), env, kernelCall);
   return result;
@@ -383,6 +401,41 @@ async function evaluateStatement(stmt: Statement, env: Environment): Promise<voi
       }
     }
   });
+}
+
+export async function parseAndEvaluateStatement(
+  stmtString: string,
+  activeUserId?: string,
+  actievEnv?: Environment
+): Promise<Result> {
+  const env = actievEnv ? actievEnv : new Environment();
+  if (activeUserId) {
+    env.setActiveUser(activeUserId);
+  }
+  let commit: boolean = true;
+  try {
+    let stmt: Statement | undefined;
+    await parseStatement(stmtString).then((s: Statement) => {
+      stmt = s;
+    });
+    if (stmt) {
+      await evaluateStatement(stmt, env);
+      return env.getLastResult();
+    } else {
+      commit = false;
+    }
+  } catch (err) {
+    commit = false;
+    throw err;
+  } finally {
+    if (!actievEnv) {
+      if (commit) {
+        env.commitAllTransactions();
+      } else {
+        env.rollbackAllTransactions();
+      }
+    }
+  }
 }
 
 async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
@@ -438,7 +491,7 @@ function getResolverForPath(
   }
 
   const authInfo: ResolverAuthInfo = new ResolverAuthInfo(
-    AdminUserId,
+    env.getActiveUser(),
     isReadForUpdate,
     isReadForDelete
   );

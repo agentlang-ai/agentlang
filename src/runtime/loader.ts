@@ -312,7 +312,7 @@ async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
       }
     }
   }
-  await env.callInTransactions(f);
+  await env.callInTransaction(f);
 }
 
 export function internModule(module: Module): RuntimeModule {
