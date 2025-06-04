@@ -48,7 +48,6 @@ function addDefaultIdAttribute(inst: Instance): string | undefined {
 export class SqlDbResolver extends Resolver {
   private name: string = '';
   private txnId: string | undefined;
-  private dbContext: DbContext | undefined;
 
   constructor(name: string) {
     super();
@@ -60,26 +59,17 @@ export class SqlDbResolver extends Resolver {
   }
 
   private getDbContext(resourceFqName: string): DbContext {
-    if (this.dbContext) {
-      if (this.txnId && !this.dbContext.txnId) {
-        this.dbContext.txnId = this.txnId;
-      }
-      this.dbContext.inKernelMode = this.inKernelMode;
-      this.dbContext.resourceFqName = resourceFqName;
-    } else {
-      const activeEnv: Environment = this.getUserData() as Environment;
-      if (!activeEnv) {
-        throw new Error('Active environment context is required by SqlDbResolver');
-      }
-      this.dbContext = new DbContext(
-        resourceFqName,
-        this.authInfo,
-        activeEnv,
-        this.txnId,
-        this.inKernelMode
-      );
+    const activeEnv: Environment = this.getUserData() as Environment;
+    if (!activeEnv) {
+      throw new Error('Active environment context is required by SqlDbResolver');
     }
-    return this.dbContext;
+    return new DbContext(
+      resourceFqName,
+      this.authInfo,
+      activeEnv,
+      this.txnId,
+      activeEnv.isInKernelMode()
+    );
   }
 
   public override onSetPath(moduleName: string, entryName: string): string {
@@ -102,7 +92,7 @@ export class SqlDbResolver extends Resolver {
         const n: string = `${inst.moduleName}/${inst.name}`;
         let p: string = '';
         if (pp != undefined) p = `${pp}/${escapeFqName(n)}/${idAttrVal}`;
-        else p = `${n}/${idAttrVal}`;
+        else p = `${n.replace('/', '$')}/${idAttrVal}`;
         attrs.set(PathAttributeName, p);
       }
       const n: string = asTableName(inst.moduleName, inst.name);

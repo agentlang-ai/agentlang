@@ -105,6 +105,7 @@ export class Environment extends Instance {
     if (parent != undefined) {
       this.parent = parent;
       this.activeModule = parent.activeModule;
+      this.activeUser = parent.activeUser;
       this.setActiveEvent(parent.getActiveEventInstance());
       this.lastResult = parent.lastResult;
       this.activeTransactions = parent.activeTransactions;
@@ -328,7 +329,9 @@ export async function evaluate(
       if (!isEmptyWorkflow(wf)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
         env.setActiveEvent(eventInstance);
-        if (kernelCall) env.setInKernelMode(true);
+        if (kernelCall) {
+          env.setInKernelMode(true);
+        }
         await evaluateStatements(wf.statements, env, continuation);
       }
     } else {
@@ -495,7 +498,7 @@ function getResolverForPath(
     isReadForUpdate,
     isReadForDelete
   );
-  return res.setKernelMode(env.isInKernelMode()).setAuthInfo(authInfo);
+  return res.setAuthInfo(authInfo);
 }
 
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
@@ -614,9 +617,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           for (let j = 0; j < lastRes.length; ++j) {
             const newEnv: Environment = Environment.from(env);
             if (isContainsRelationship(rel.name, moduleName)) {
-              newEnv.setParentPath(
-                lastRes[j].attributes.get(PathAttributeName) + '/' + rel.name + '/'
-              );
+              newEnv.setParentPath(lastRes[j].attributes.get(PathAttributeName) + '/' + rel.name);
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             } else if (isBetweenRelationship(rel.name, moduleName)) {

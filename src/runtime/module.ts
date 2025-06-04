@@ -1573,11 +1573,17 @@ export function getBetweenInstanceNodeValues(inst: Instance): BetweenInstanceNod
 }
 
 export function isInstance(obj: any): boolean {
-  return obj instanceof Instance;
+  if (obj) {
+    return obj instanceof Instance;
+  }
+  return false;
 }
 
 export function isInstanceOfType(obj: any, fqName: string): boolean {
-  return isInstance(obj) && fqName == (obj as Instance).getFqName();
+  if (obj) {
+    return isInstance(obj) && fqName == (obj as Instance).getFqName();
+  }
+  return false;
 }
 
 export function assertInstance(obj: any) {

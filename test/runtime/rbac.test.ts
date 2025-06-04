@@ -4,7 +4,7 @@ import { Module } from "../../src/language/generated/ast.js"
 import { assignUserToRole, createUser } from "../../src/runtime/modules/auth.js"
 import { internAndRunModule } from "../../src/cli/main.js"
 import { Environment, parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
-import { isInstanceOfType } from "../../src/runtime/module.js"
+import { Instance, isInstanceOfType } from "../../src/runtime/module.js"
 import { logger } from "../../src/runtime/logger.js"
 
 const mod1 = `module Acme
@@ -21,7 +21,7 @@ entity Employee {
 relationship DepartmentEmployee contains(Department, Employee)
 
 workflow CreateEmployee {
-    {Department {no? CreateEmployee.Dept},
+    {Department {no? CreateEmployee.deptNo},
      DepartmentEmployee {Employee {id CreateEmployee.id,
                                    name CreateEmployee.name}}}
 }
@@ -56,6 +56,12 @@ describe('Basic RBAC checks', () => {
                 failed = true
             })
             assert(failed, 'Auth check on create-department failed')
+            await parseAndEvaluateStatement(`{Acme/CreateEmployee {deptNo 101, id 1, name "Joe"}}`, id1).then((r: any) => {
+                const dept: Instance = r[0] as Instance
+                const emps: Instance[] | undefined = dept.getRelatedInstances('DepartmentEmployee')
+                const emp: Instance | undefined = emps ? emps[0] as Instance : undefined
+                assert(isInstanceOfType(emp, 'Acme/Employee'), 'Failed to create Employee')
+            })
         }
     })
 })

@@ -1,6 +1,7 @@
 import {
   DataSource,
   EntityManager,
+  InsertQueryBuilder,
   QueryRunner,
   SelectQueryBuilder,
   Table,
@@ -18,6 +19,7 @@ import {
   UnauthorisedError,
 } from '../../modules/auth.js';
 import { Environment } from '../../interpreter.js';
+import { RbacPermissionFlag } from '../../module.js';
 
 let defaultDataSource: DataSource | undefined;
 
@@ -145,7 +147,7 @@ async function createTables(): Promise<void> {
                 {
                   name: 'type',
                   type: 'char(1)',
-                  default: "'u'",
+                  default: "'o'",
                 },
                 {
                   name: 'c',
@@ -191,18 +193,57 @@ async function createTables(): Promise<void> {
 }
 
 async function insertRowsHelper(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
-  await getDatasourceForTransaction(ctx.txnId)
+  const qb: InsertQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
     .insert()
     .into(tableName)
-    .values(rows)
-    .execute();
+    .values(rows);
+  await qb.execute();
+}
+
+async function checkUserPerm(
+  opr: RbacPermissionFlag,
+  ctx: DbContext,
+  instRows: object
+): Promise<boolean> {
+  let hasPerm = ctx.inKernelMode;
+  const userId = ctx.getUserId();
+  if (!hasPerm) {
+    let f: Function | undefined;
+    switch (opr) {
+      case RbacPermissionFlag.CREATE:
+        f = canUserCreate;
+        break;
+      case RbacPermissionFlag.READ:
+        f = canUserRead;
+        break;
+      case RbacPermissionFlag.UPDATE:
+        f = canUserUpdate;
+        break;
+      case RbacPermissionFlag.DELETE:
+        f = canUserDelete;
+        break;
+      default:
+        f = undefined;
+    }
+    if (f != undefined) {
+      await f(userId, ctx.resourceFqName, ctx.activeEnv).then((r: boolean) => {
+        hasPerm = r;
+      });
+    }
+  }
+  if (!hasPerm) {
+    await isOwnerOfParent(instRows[PathKey], ctx).then((r: boolean) => {
+      hasPerm = r;
+    });
+  }
+  return hasPerm;
 }
 
 export async function insertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
   let hasPerm = ctx.inKernelMode;
   if (!hasPerm) {
-    await canUserCreate(ctx.getUserId(), ctx.resourceFqName, ctx.activeEnv).then((r: boolean) => {
+    await checkUserPerm(RbacPermissionFlag.CREATE, ctx, rows[0]).then((r: boolean) => {
       hasPerm = r;
     });
   }
@@ -216,14 +257,15 @@ export async function insertRows(tableName: string, rows: object[], ctx: DbConte
   }
 }
 
+const PathKey = PathAttributeName as keyof object;
+
 async function createOwnership(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
   const ownerRows: object[] = [];
   rows.forEach((r: object) => {
-    const k = PathAttributeName as keyof object;
     ownerRows.push({
-      path: r[k],
+      path: r[PathKey],
       user_id: ctx.authInfo.userId,
-      type: 'u',
+      type: 'o',
       c: true,
       r: true,
       u: true,
@@ -232,6 +274,62 @@ async function createOwnership(tableName: string, rows: object[], ctx: DbContext
   });
   const tname = ownersTable(tableName);
   await insertRowsHelper(tname, ownerRows, ctx);
+}
+
+async function isOwnerOfParent(path: string, ctx: DbContext): Promise<boolean> {
+  const parts = path.split('/');
+  if (parts.length <= 2) {
+    return false;
+  }
+  const parentPaths = new Array<[string, string]>();
+  let i = 0;
+  let lastPath: string | undefined;
+  while (i < parts.length - 2) {
+    const parentName = parts[i].replace('$', '_');
+    const parentPath = `${lastPath ? lastPath + '/' : ''}${parts[i]}/${parts[i + 1]}`;
+    lastPath = `${parentPath}/${parts[i + 2]}`;
+    parentPaths.push([parentName, parentPath]);
+    i += 3;
+  }
+  if (parentPaths.length == 0) {
+    return false;
+  }
+  for (let i = 0; i < parentPaths.length; ++i) {
+    const [parentName, parentPath] = parentPaths[i];
+    let result = false;
+    await isOwner(parentName, parentPath, ctx).then((r: boolean) => {
+      result = r;
+    });
+    if (result) return result;
+  }
+  return false;
+}
+
+async function isOwner(tableName: string, instPath: string, ctx: DbContext): Promise<boolean> {
+  const userId = ctx.getUserId();
+  const tabName = ownersTable(tableName);
+  const alias = tabName.toLowerCase();
+  const query = [
+    `${alias}.path = '${instPath}'`,
+    `${alias}.user_id = '${userId}'`,
+    `${alias}.type = 'o'`,
+  ];
+  let result: any = undefined;
+  const sq: SelectQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
+    .createQueryBuilder()
+    .select()
+    .from(tabName, alias)
+    .where(query.join(' AND '));
+  await sq
+    .getRawMany()
+    .then((r: any) => (result = r))
+    .catch((reason: any) => {
+      logger.error(`Failed to check ownership on parent ${tableName} - ${reason}`);
+    });
+  if (result == undefined || result.length == 0) {
+    return false;
+  }
+  return true;
 }
 
 export async function insertRow(tableName: string, row: object, ctx: DbContext): Promise<void> {
@@ -260,16 +358,14 @@ export async function upsertRows(tableName: string, rows: object[], ctx: DbConte
     .execute();*/
   let hasPerm = ctx.inKernelMode;
   if (!hasPerm) {
-    await canUserCreate(ctx.getUserId(), ctx.resourceFqName, ctx.activeEnv).then((r: boolean) => {
+    await checkUserPerm(RbacPermissionFlag.UPDATE, ctx, rows[0]).then((r: boolean) => {
       hasPerm = r;
     });
   }
   if (hasPerm) {
-    type ObjectKey = keyof (typeof rows)[0];
-    const k = PathAttributeName as ObjectKey;
     for (let i = 0; i < rows.length; ++i) {
       const r: object = rows[i];
-      await hardDeleteRow(tableName, [[PathAttributeName, r[k]]], ctx);
+      await hardDeleteRow(tableName, [[PathAttributeName, r[PathKey]]], ctx);
     }
     await insertRows(tableName, rows, ctx);
   } else {
