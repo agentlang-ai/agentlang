@@ -111,7 +111,7 @@ export class SqlDbResolver extends Resolver {
       if (orUpdate) {
         f = upsertRow;
       }
-      await f(n, rowObj, this.getDbContext(n));
+      await f(n, rowObj, this.getDbContext(inst.getFqName()));
       return inst;
     }
   }

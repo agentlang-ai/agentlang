@@ -4,6 +4,7 @@ import { Module } from "../../src/language/generated/ast.js"
 import { assignUserToRole, createUser } from "../../src/runtime/modules/auth.js"
 import { internAndRunModule } from "../../src/cli/main.js"
 import { Environment, parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
+import { isInstanceOfType } from "../../src/runtime/module.js"
 
 const mod1 = `module Acme
 entity Department {
@@ -39,8 +40,8 @@ describe('Basic RBAC checks', () => {
             }
             await env.callInTransaction(f1)
             await parseAndEvaluateStatement(`{Acme/Department {no 101}}`, id1).then((r: any) => {
-                console.log(r)
+                assert(isInstanceOfType(r, 'Acme/Department'), 'Failed to create Department')
             })
         }
     })
-}, 100000)
+})

@@ -121,3 +121,7 @@ export function asSqlType(type: string): string {
   else if (!isBuiltInType(type)) return 'varchar';
   else return type.toLowerCase();
 }
+
+export function isSqlTrue(v: true | false | 1 | 0): boolean {
+  return v == true || v == 1;
+}

@@ -1403,6 +1403,14 @@ export class Instance {
     }
   }
 
+  getRelatedInstances(relName: string): Instance[] | undefined {
+    if (this.relatedInstances) {
+      const insts: Instance[] | undefined = this.relatedInstances.get(relName);
+      return insts ? insts : undefined;
+    }
+    return undefined;
+  }
+
   getAllUserAttributeNames(): string[] {
     return this.record.getUserAttributeNames();
   }
@@ -1434,6 +1442,10 @@ export class Instance {
 
   getAuthContextUserId(): string {
     return this.getContextData('UserId') || '?';
+  }
+
+  cast<T>(): T {
+    return Object.fromEntries(this.attributes) as T;
   }
 }
 
@@ -1562,6 +1574,10 @@ export function getBetweenInstanceNodeValues(inst: Instance): BetweenInstanceNod
 
 export function isInstance(obj: any): boolean {
   return obj instanceof Instance;
+}
+
+export function isInstanceOfType(obj: any, fqName: string): boolean {
+  return isInstance(obj) && fqName == (obj as Instance).getFqName();
 }
 
 export function assertInstance(obj: any) {

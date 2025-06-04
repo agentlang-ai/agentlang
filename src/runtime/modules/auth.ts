@@ -2,6 +2,7 @@ import { evaluateAsEvent, Result, Environment } from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
+import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
 export const AdminUserId = '00000000-0000-0000-0000-000000000000';
@@ -190,9 +191,6 @@ type RbacPermission = {
   d: boolean;
 };
 
-function normalizePermissionInstance(inst: Instance): RbacPermission {
-  return Object.fromEntries(inst.attributes) as RbacPermission;
-}
 const UserRoleCache: Map<string, string[]> = new Map();
 const RolePermissionsCache: Map<string, RbacPermission[]> = new Map();
 
@@ -205,7 +203,18 @@ async function findRolePermissions(role: string, env: Environment): Promise<Resu
 async function updatePermissionCacheForRole(role: string, env: Environment) {
   let result: any;
   await findRolePermissions(role, env).then((r: any) => (result = r));
-  RolePermissionsCache.set(role, result.map(normalizePermissionInstance));
+  if (result instanceof Array && result.length > 0) {
+    const roleInst: Instance = result[0] as Instance;
+    const permInsts: Instance[] | undefined = roleInst.getRelatedInstances('RolePermission');
+    if (permInsts) {
+      RolePermissionsCache.set(
+        role,
+        permInsts.map((inst: Instance) => {
+          return inst.cast<RbacPermission>();
+        })
+      );
+    }
+  }
 }
 
 export async function userHasPermissions(
@@ -245,11 +254,13 @@ export async function userHasPermissions(
     if (permInsts) {
       if (
         permInsts.find((p: RbacPermission) => {
-          p.resourceFqName == resourceFqName &&
-            (c ? p.c : true) &&
-            (r ? p.r : true) &&
-            (u ? p.u : true) &&
-            (d ? p.d : true);
+          return (
+            p.resourceFqName == resourceFqName &&
+            (c ? isSqlTrue(p.c) : true) &&
+            (r ? isSqlTrue(p.r) : true) &&
+            (u ? isSqlTrue(p.u) : true) &&
+            (d ? isSqlTrue(p.d) : true)
+          );
         })
       )
         return true;
