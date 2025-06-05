@@ -55,13 +55,13 @@ async function runWithOutput(command: string, args: string[]): Promise<void> {
   console.log(`Running: ${command} ${args.join(' ')}`);
   const cmd = new Deno.Command(command, {
     args,
-    stdout: 'inherit',  // Show output directly
+    stdout: 'inherit', // Show output directly
     stderr: 'inherit',
   });
-  
+
   const process = cmd.spawn();
   const status = await process.status;
-  
+
   if (!status.success) {
     throw new Error(`Command '${command} ${args.join(' ')}' failed with code ${status.code}`);
   }
@@ -124,59 +124,59 @@ async function setupFileWatcher(appFile: string) {
 
   // Get the directory containing the app file
   const appDir = appFile.substring(0, appFile.lastIndexOf('/'));
-  
+
   // First run the CLI to start the application
   console.log('Starting application in watch mode');
   let cliProcess = startNodeCliProcess(appFile);
-  
+
   // Function to handle restart
   const restartProcess = () => {
     console.log('Restarting application...');
-    
+
     try {
       // Kill the current process if it's still running
       if (cliProcess && cliProcess.pid) {
         try {
           Deno.kill(cliProcess.pid, 'SIGTERM');
           console.log(`Terminated previous process with PID ${cliProcess.pid}`);
-        } catch (_e) {
+        } catch (e) {
+          console.error(`Error during kill process: ${e}`);
           // Process might already be gone, that's fine
         }
       }
-      
+
       // Start a new process
       cliProcess = startNodeCliProcess(appFile);
     } catch (error) {
       console.error('Error restarting application:', error);
     }
   };
-  
+
   // Log the directory we're watching
   console.log(`Watching directory: ${appDir}`);
-  
+
   // Watch only the app directory to avoid permission issues
   const watcher = Deno.watchFs(appDir);
   let debounceTimer: number | undefined;
-  
+
   // Main watch loop
   for await (const event of watcher) {
     // Filter out events
-    const relevantPaths = event.paths.filter(path => 
-      !path.includes('node_modules') && 
-      !path.includes('.git') &&
-      !path.includes('.DS_Store')
+    const relevantPaths = event.paths.filter(
+      path =>
+        !path.includes('node_modules') && !path.includes('.git') && !path.includes('.DS_Store')
     );
-    
+
     if (relevantPaths.length === 0) continue;
-    
+
     // Log the change
     console.log(`File change detected: ${event.kind} - ${relevantPaths.join(', ')}`);
-    
+
     // Debounce to prevent multiple rapid restarts
     if (debounceTimer) {
       clearTimeout(debounceTimer);
     }
-    
+
     debounceTimer = setTimeout(restartProcess, 500);
   }
 }
@@ -208,21 +208,21 @@ Options:
 
     // Check if the out directory and necessary files exist
     await ensureOutputDirExists();
-    
+
     // Run npm commands separately to ensure they're run in the right environment
     console.log('Running pre-flight checks to ensure language files are generated and built');
-    
+
     // First, check if output directory exists - if not, we need to build
     const outDir = new URL('../out', import.meta.url).pathname;
     let needsFullBuild = false;
-    
+
     try {
       const stat = await Deno.stat(outDir);
       if (!stat.isDirectory) {
         console.error(`Output directory ${outDir} exists but is not a directory`);
         needsFullBuild = true;
       }
-      
+
       // Check specifically for the module.ts file that was missing
       const modulePath = new URL('../out/language/generated/module.ts', import.meta.url).pathname;
       try {
@@ -234,14 +234,14 @@ Options:
       // If directory doesn't exist, we need to build
       needsFullBuild = true;
     }
-    
+
     // Run the generation and build steps if needed
     if (needsFullBuild) {
       // First, run npm langium:generate
       console.log('Generating Langium files...');
       await runWithOutput('npm', ['run', 'langium:generate']);
       console.log('Langium files generated successfully.');
-      
+
       // Then, run npm build
       console.log('\nBuilding project...');
       await runWithOutput('npm', ['run', 'build']);
