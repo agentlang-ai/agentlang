@@ -43,8 +43,9 @@ export type AttributeSpec = {
 };
 
 function normalizePropertyNames(props: Map<string, any>) {
-  const normKs = props.keys().filter((k: string) => {
-    k.charAt(0) == '@';
+  // Convert iterator to array for compatibility with different Node.js versions
+  const normKs = Array.from(props.keys()).filter((k: string) => {
+    return k.charAt(0) === '@';
   });
   normKs.forEach((k: string) => {
     const v: any = props.get(k);
@@ -885,7 +886,7 @@ export function getModuleNames(): string[] {
 
 export function getUserModuleNames(): string[] {
   const result: Array<string> = new Array<string>();
-  moduleDb.keys().forEach((n: string) => {
+  Array.from(moduleDb.keys()).forEach((n: string) => {
     if (n != DefaultModuleName) {
       result.push(n);
     }

@@ -32,6 +32,60 @@ AgentLang provides first-class support for [Deno](https://deno.land/), a modern 
 
 ### Available Deno Commands
 
+#### Interactive REPL
+
+AgentLang provides a unified REPL (Read-Eval-Print Loop) for interactive development with automatic watch mode. The REPL automatically detects changes in your app.json and .al source files and rebuilds/refreshes your application when changes are detected:
+
+```bash
+# Start the REPL with the default app
+deno task repl
+
+# Or using the npm script
+npm run repl
+
+# Start the REPL with a specific app
+deno task repl --app path/to/app.json
+
+# Enable Langium parsing and validation
+deno task repl --langium
+
+# Show all available options
+deno task repl --help
+```
+
+Once in the REPL, you can use these commands:
+- `:help` - Show available commands
+- `:app` - Show current app info
+- `:load <path>` - Load a different app
+- `:source` - Show the AgentLang source file
+- `:langium <on|off>` - Toggle Langium parsing
+- `:q` or `:quit` - Exit the REPL
+
+**Watch Mode**: The REPL automatically watches your app.json and AgentLang source files. When changes are detected, it automatically rebuilds the project and refreshes the loaded app, providing immediate feedback during development.
+
+#### Run TypeScript Files
+
+Execute TypeScript files directly with AgentLang's environment:
+
+```bash
+# Run a TypeScript file
+deno task run path/to/file.ts
+
+# Or using the npm script
+npm run run -- path/to/file.ts
+
+# Run with watch mode (automatically rebuilds on file changes)
+deno task run -w path/to/file.ts
+
+# Run with a specific app.json file
+deno task run --app path/to/app.json path/to/file.ts
+
+# Show available options
+deno task run --help
+```
+
+**Watch Mode**: When using the `-w` or `--watch` flag, the script will detect file changes and automatically rebuild and restart your application, providing a smooth development experience.
+
 #### Build with Deno
 
 Build the project using Deno:

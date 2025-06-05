@@ -1,15 +1,13 @@
 {
   "tasks": {
     "init": "deno run --allow-env --allow-read --allow-write --allow-run scripts/initEnv.ts",
-    "repl": "deno run --allow-read --allow-write --allow-net --allow-env scripts/repl.ts",
-    "app-repl": "deno run --allow-run --allow-read --allow-write --allow-net --allow-env scripts/app-repl.ts",
-    "deno-repl": "deno run --allow-run --allow-read --allow-write --allow-net --allow-env scripts/deno-repl.ts",
+    "run": "deno run --allow-run --allow-read --allow-write --allow-net --allow-env --allow-ffi scripts/deno-run.ts",
+    "repl": "deno run --allow-run --allow-read --allow-write --allow-net --allow-env scripts/repl.ts",
     "test": "deno test --unstable-ffi --allow-ffi=./out/parser/agentlang.wasm --allow-read --allow-write --allow-net --allow-env",
     "check": "deno check scripts/*.ts",
     "cache": "deno cache --reload scripts/*.ts"
   },
   "compilerOptions": {
-    "allowJs": true,
     "lib": ["deno.window", "esnext"],
     "strict": true,
     "noImplicitAny": true,
@@ -25,11 +23,12 @@
     "types": ["node"]
   },
   "imports": {
-    "langium": "npm:langium@2.0.1",
-    "vscode-languageserver": "npm:vscode-languageserver@8.1.0",
-    "vscode-languageserver-textdocument": "npm:vscode-languageserver-textdocument@1.0.5",
-    "vscode-uri": "npm:vscode-uri@3.0.4",
-    "vscode-languageserver-protocol": "npm:vscode-languageserver-protocol@3.17.3"
+    "@std/cli": "jsr:@std/cli@^1.0.19",
+    "@std/async": "jsr:@std/async@^1.0.13",
+    "@std/io": "jsr:@std/io@^0.225.2",
+    "@std/streams": "jsr:@std/streams@^1.0.9",
+    "langium": "npm:langium@3.5.0",
+    "vscode-languageserver": "npm:vscode-languageserver@9.0.1"
   },
   "lint": {
     "files": {
@@ -57,5 +56,5 @@
   },
   "nodeModulesDir": "auto",
   "lock": false,
-  "unstable": ["npm"]
+  "unstable": ["ffi"]
 }
