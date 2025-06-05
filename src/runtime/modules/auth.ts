@@ -290,6 +290,9 @@ function canUserPerfom(opr: Set<RbacPermissionFlag>): PermCheckForUser {
   // TODO: check parent hierarchy
   // TODO: cache permissions for user
   async function f(userId: string, resourceFqName: string, env: Environment): Promise<boolean> {
+    if (userId == AdminUserId) {
+      return true;
+    }
     let result: boolean = false;
     await userHasPermissions(userId, resourceFqName, opr, env).then((r: boolean) => {
       result = r;

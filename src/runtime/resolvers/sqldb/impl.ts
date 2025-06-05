@@ -46,7 +46,6 @@ function addDefaultIdAttribute(inst: Instance): string | undefined {
 }
 
 export class SqlDbResolver extends Resolver {
-  private name: string = '';
   private txnId: string | undefined;
 
   constructor(name: string) {
@@ -150,18 +149,17 @@ export class SqlDbResolver extends Resolver {
       queryAll ? undefined : inst.queryAttributesAsObject(),
       queryAll ? undefined : inst.queryAttributeValuesAsObject(),
       inst.getAllUserAttributeNames(),
-      (rslt: any) => {
-        if (rslt instanceof Array) {
-          result = new Array<Instance>();
-          rslt.forEach((r: object) => {
-            const attrs: InstanceAttributes = new Map(Object.entries(r));
-            attrs.delete(DeletedFlagAttributeName);
-            result.push(Instance.newWithAttributes(inst, attrs));
-          });
-        }
-      },
       this.getDbContext(inst.getFqName())
-    );
+    ).then((rslt: any) => {
+      if (rslt instanceof Array) {
+        result = new Array<Instance>();
+        rslt.forEach((r: object) => {
+          const attrs: InstanceAttributes = new Map(Object.entries(r));
+          attrs.delete(DeletedFlagAttributeName);
+          result.push(Instance.newWithAttributes(inst, attrs));
+        });
+      }
+    });
     return result;
   }
 
@@ -302,8 +300,8 @@ export class SqlDbResolver extends Resolver {
     );
   }
 
-  public override startTransaction(): string {
-    this.txnId = startDbTransaction();
+  public override async startTransaction(): Promise<string> {
+    this.txnId = await startDbTransaction();
     return this.txnId;
   }
 

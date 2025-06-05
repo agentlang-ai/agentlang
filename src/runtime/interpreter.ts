@@ -214,9 +214,9 @@ export class Environment extends Instance {
     return undefined;
   }
 
-  addResolver(resolver: Resolver): Environment {
+  async addResolver(resolver: Resolver): Promise<Environment> {
     this.getActiveResolvers().set(resolver.getName(), resolver);
-    this.ensureTransactionForResolver(resolver);
+    await this.ensureTransactionForResolver(resolver);
     resolver.setUserData(this);
     return this;
   }
@@ -230,20 +230,26 @@ export class Environment extends Instance {
     return this.activeTransactions;
   }
 
-  getTransactionForResolver(resolver: Resolver): string {
+  async getTransactionForResolver(resolver: Resolver): Promise<string> {
     const n: string = resolver.getName();
     let txnId: string | undefined = this.getActiveTransactions().get(n);
     if (txnId) {
       return txnId;
     } else {
-      txnId = resolver.startTransaction();
-      this.getActiveTransactions().set(n, txnId);
-      return txnId;
+      await resolver.startTransaction().then((r: string) => {
+        txnId = r;
+      });
+      if (txnId) {
+        this.getActiveTransactions().set(n, txnId);
+        return txnId;
+      } else {
+        throw new Error(`Failed to start transaction for ${n}`);
+      }
     }
   }
 
-  ensureTransactionForResolver(resolver: Resolver): Environment {
-    this.getTransactionForResolver(resolver);
+  async ensureTransactionForResolver(resolver: Resolver): Promise<Environment> {
+    await this.getTransactionForResolver(resolver);
     return this;
   }
 
@@ -433,9 +439,9 @@ export async function parseAndEvaluateStatement(
   } finally {
     if (!actievEnv) {
       if (commit) {
-        env.commitAllTransactions();
+        await env.commitAllTransactions();
       } else {
-        env.rollbackAllTransactions();
+        await env.rollbackAllTransactions();
       }
     }
   }
@@ -469,13 +475,13 @@ async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
 
 const DefaultResolverName: string = '--default-resolver--';
 
-function getResolverForPath(
+async function getResolverForPath(
   entryName: string,
   moduleName: string,
   env: Environment,
   isReadForUpdate: boolean = false,
   isReadForDelete: boolean = false
-): Resolver {
+): Promise<Resolver> {
   const fqEntryName: string = isFqName(entryName) ? entryName : makeFqName(moduleName, entryName);
   const resN: string | undefined = getResolverNameForPath(fqEntryName);
   let res: Resolver | undefined;
@@ -483,13 +489,13 @@ function getResolverForPath(
     res = env.getResolver(DefaultResolverName);
     if (res == undefined) {
       res = new SqlDbResolver(DefaultResolverName);
-      env.addResolver(res);
+      await env.addResolver(res);
     }
   } else {
     res = env.getResolver(resN);
     if (res == undefined) {
       res = getResolver(fqEntryName);
-      env.addResolver(res);
+      await env.addResolver(res);
     }
   }
 
@@ -539,7 +545,10 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (qattrs == undefined && !isQueryAll) {
       const parentPath: string | undefined = env.getParentPath();
       if (parentPath != undefined) inst.attributes.set(PathAttributeName, parentPath);
-      const res: Resolver = getResolverForPath(entryName, moduleName, env);
+      let res: Resolver = Resolver.Default;
+      await getResolverForPath(entryName, moduleName, env).then((r: Resolver) => {
+        res = r;
+      });
       const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
       if (betRelInfo != undefined && res.getName() == DefaultResolverName) {
         betRelInfo.relationship.setBetweenRef(
@@ -572,12 +581,11 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             await evaluatePattern(rel.pattern, newEnv);
             if (relEntry.isManyToMany()) {
               const relResult: any = newEnv.getLastResult();
-              await getResolverForPath(rel.name, moduleName, env).connectInstances(
-                lastInst,
-                relResult,
-                relEntry,
-                env.isInUpsertMode()
-              );
+              let res: Resolver = Resolver.Default;
+              await getResolverForPath(rel.name, moduleName, env).then((r: Resolver) => {
+                res = r;
+              });
+              await res.connectInstances(lastInst, relResult, relEntry, env.isInUpsertMode());
             }
             lastInst.attachRelatedInstances(rel.name, newEnv.getLastResult());
           }
@@ -587,8 +595,12 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       const parentPath: string | undefined = env.getParentPath();
       const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
       const isReadForUpdate = attrs.size > 0;
+      let res: Resolver = Resolver.Default;
       if (parentPath != undefined) {
-        await getResolverForPath(inst.name, inst.moduleName, env)
+        await getResolverForPath(inst.name, inst.moduleName, env).then((r: Resolver) => {
+          res = r;
+        });
+        await res
           .queryChildInstances(parentPath, inst)
           .then((insts: Instance[]) => env.setLastResult(insts));
       } else if (betRelInfo != undefined) {
@@ -596,7 +608,10 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           betRelInfo.relationship.name,
           betRelInfo.relationship.moduleName,
           env
-        )
+        ).then((r: Resolver) => {
+          res = r;
+        });
+        await res
           .queryConnectedInstances(betRelInfo.relationship, betRelInfo.connectedInstance, inst)
           .then((insts: Instance[]) => env.setLastResult(insts));
       } else {
@@ -606,7 +621,10 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           env,
           isReadForUpdate,
           env.isInDeleteMode()
-        )
+        ).then((r: Resolver) => {
+          res = r;
+        });
+        await res
           .queryInstances(inst, isQueryAll)
           .then((insts: Instance[]) => env.setLastResult(insts));
       }
@@ -633,10 +651,11 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         const lastRes: Instance[] | Instance = env.getLastResult();
         if (lastRes instanceof Array) {
           if (lastRes.length > 0) {
-            const resolver: Resolver = getResolverForPath(
-              lastRes[0].name,
-              lastRes[0].moduleName,
-              env
+            let resolver: Resolver = Resolver.Default;
+            await getResolverForPath(lastRes[0].name, lastRes[0].moduleName, env).then(
+              (r: Resolver) => {
+                resolver = r;
+              }
             );
             const res: Array<Instance> = new Array<Instance>();
             for (let i = 0; i < lastRes.length; ++i) {
@@ -649,11 +668,13 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             env.setLastResult(lastRes);
           }
         } else {
-          await getResolverForPath(lastRes.name, lastRes.moduleName, env)
-            .updateInstance(lastRes, attrs)
-            .then((finalInst: Instance) => {
-              env.setLastResult(finalInst);
-            });
+          let res: Resolver = Resolver.Default;
+          await getResolverForPath(lastRes.name, lastRes.moduleName, env).then((r: Resolver) => {
+            res = r;
+          });
+          await res.updateInstance(lastRes, attrs).then((finalInst: Instance) => {
+            env.setLastResult(finalInst);
+          });
         }
       }
     }
@@ -704,9 +725,12 @@ async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> 
   const newEnv = Environment.from(env).setInDeleteMode(true);
   await evaluatePattern(delStmt.pattern, newEnv);
   const inst: Instance[] | Instance = newEnv.getLastResult();
+  let resolver: Resolver = Resolver.Default;
   if (inst instanceof Array) {
     if (inst.length > 0) {
-      const resolver: Resolver = getResolverForPath(inst[0].name, inst[0].moduleName, newEnv);
+      await getResolverForPath(inst[0].name, inst[0].moduleName, newEnv).then((r: Resolver) => {
+        resolver = r;
+      });
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
         await resolver.deleteInstance(inst[i]).then((r: any) => {
@@ -718,11 +742,12 @@ async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> 
       newEnv.setLastResult(inst);
     }
   } else {
-    await getResolverForPath(inst.name, inst.moduleName, newEnv)
-      .deleteInstance(inst)
-      .then((inst: Instance | null) => {
-        newEnv.setLastResult(inst);
-      });
+    await getResolverForPath(inst.name, inst.moduleName, newEnv).then((r: Resolver) => {
+      resolver = r;
+    });
+    await resolver.deleteInstance(inst).then((inst: Instance | null) => {
+      newEnv.setLastResult(inst);
+    });
   }
 }
 

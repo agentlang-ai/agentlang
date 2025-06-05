@@ -19,11 +19,18 @@ entity Employee {
 }
 
 relationship DepartmentEmployee contains(Department, Employee)
+relationship ManagerReportee between(Employee as manager, Employee as reportee)
 
 workflow CreateEmployee {
     {Department {no? CreateEmployee.deptNo},
      DepartmentEmployee {Employee {id CreateEmployee.id,
                                    name CreateEmployee.name}}}
+}
+
+workflow AssignManager {
+    {Employee {id? AssignManager.manager}} as [m];
+    {Employee {id? AssignManager.reportee}} as [r];
+    {ManagerReportee {manager m, reportee r}}
 }
 `
 describe('Basic RBAC checks', () => {
@@ -51,16 +58,36 @@ describe('Basic RBAC checks', () => {
             })
             let failed = false
             await parseAndEvaluateStatement(`{Acme/Department {no 102}}`, id2)
-            .catch((r: any) => {
-                logger.info(`Expected error: ${r}`)
-                failed = true
-            })
+                .catch((r: any) => {
+                    logger.info(`Expected ${r}`)
+                    failed = true
+                })
             assert(failed, 'Auth check on create-department failed')
-            await parseAndEvaluateStatement(`{Acme/CreateEmployee {deptNo 101, id 1, name "Joe"}}`, id1).then((r: any) => {
-                const dept: Instance = r[0] as Instance
-                const emps: Instance[] | undefined = dept.getRelatedInstances('DepartmentEmployee')
-                const emp: Instance | undefined = emps ? emps[0] as Instance : undefined
-                assert(isInstanceOfType(emp, 'Acme/Employee'), 'Failed to create Employee')
+            async function createEmployee(userId: string, deptNo: number, id: number, name: string, expectFailure: boolean = false): Promise<void> {
+                let err: boolean = false
+                await parseAndEvaluateStatement(`{Acme/CreateEmployee {deptNo ${deptNo}, id ${id}, name "${name}"}}`, userId).then((r: any) => {
+                    const dept: Instance = r[0] as Instance
+                    const emps: Instance[] | undefined = dept.getRelatedInstances('DepartmentEmployee')
+                    const emp: Instance | undefined = emps ? emps[0] as Instance : undefined
+                    assert(isInstanceOfType(emp, 'Acme/Employee'), 'Failed to create Employee')
+                }).catch((reason: any) => {
+                    if (expectFailure) {
+                        err = true
+                        logger.info(`Expected ${reason}`)
+                    } else {
+                        throw new Error(reason)
+                    }
+                })
+                if (expectFailure) {
+                    assert(err, 'CreateEmployee was suppoed to fail')
+                }
+            }
+            await createEmployee(id2, 101, 1, 'Joe', true)
+            await createEmployee(id1, 101, 1, 'Joe')
+            await createEmployee(id1, 101, 2, 'Cole')
+            await parseAndEvaluateStatement(`{Acme/AssignManager {manager 1, reportee 2}}`)
+            .then((r: any) => {
+                console.log(r)
             })
         }
     })

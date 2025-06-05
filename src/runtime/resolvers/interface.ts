@@ -18,9 +18,12 @@ const DefaultAuthInfo = new ResolverAuthInfo(
   '9459a305-5ee6-415d-986d-caaf6d6e2828'
 );
 
-export abstract class Resolver {
+export class Resolver {
   protected authInfo: ResolverAuthInfo = DefaultAuthInfo;
   protected userData: any;
+  protected name: string = 'default';
+
+  static Default = new Resolver();
 
   public setAuthInfo(authInfo: ResolverAuthInfo): Resolver {
     this.authInfo = authInfo;
@@ -36,31 +39,50 @@ export abstract class Resolver {
     return this.userData;
   }
 
-  public abstract getName(): string;
-  public abstract onSetPath(moduleName: string, entryName: string): any;
+  public getName(): string {
+    return this.name;
+  }
 
-  public abstract createInstance(inst: Instance): any;
+  private notImpl(method: string) {
+    throw new Error(`Resolver method ${method} not implemented`);
+  }
 
-  public abstract upsertInstance(inst: Instance): any;
+  public onSetPath(moduleName: string, entryName: string): any {
+    this.notImpl(`onSetPath(${moduleName}, ${entryName})`);
+  }
+
+  public async createInstance(inst: Instance): Promise<any> {
+    this.notImpl(`createInstance(${inst})`);
+  }
+
+  public async upsertInstance(inst: Instance): Promise<any> {
+    return this.notImpl(`upsertInstance(${inst})`);
+  }
 
   /**
    * @param {Instance} inst - an Instance with query and update attributes
    * @param {InstanceAttributes} newAttrs - updated attributes to set in instance
    */
-  public abstract updateInstance(inst: Instance, newAttrs: InstanceAttributes): any;
+  public async updateInstance(inst: Instance, newAttrs: InstanceAttributes): Promise<any> {
+    return this.notImpl(`updateInstance(${inst}, ${newAttrs})`);
+  }
 
   /**
    * @param {Instance} inst - an Instance with query attributes
    * @param {boolean} queryAll - if this flag is set, fetch all instances
    */
-  public abstract queryInstances(inst: Instance, queryAll: boolean): any;
+  public async queryInstances(inst: Instance, queryAll: boolean): Promise<any> {
+    return this.notImpl(`queryInstances(${inst}, ${queryAll})`);
+  }
 
   /**
    * Return all instances under the given parent-path.
    * @param {string} parentPath - path of the parent with the relevant relationship name as the last component
    * @param {Instance} inst - child Instance with query attributes
    */
-  public abstract queryChildInstances(parentPath: string, inst: Instance): any;
+  public async queryChildInstances(parentPath: string, inst: Instance): Promise<any> {
+    return this.notImpl(`queryChildInstances(${parentPath}, ${inst})`);
+  }
 
   /**
    * Return all instances connected to connectedInstance via the given between-relationship
@@ -68,16 +90,20 @@ export abstract class Resolver {
    * @param connectedInstance The instance to traveres the relationship from
    * @param inst Target instance with query attributes
    */
-  public abstract queryConnectedInstances(
+  public async queryConnectedInstances(
     relationship: RelationshipEntry,
     connectedInstance: Instance,
     inst: Instance
-  ): any;
+  ): Promise<any> {
+    return this.notImpl(`queryConnectedInstances(${relationship}, ${connectedInstance}, ${inst})`);
+  }
 
   /**
    * @param {Instance} inst - an Instance with query attributes
    */
-  public abstract deleteInstance(inst: Instance | Instance[]): any;
+  public async deleteInstance(inst: Instance | Instance[]): Promise<any> {
+    return this.notImpl(`deleteInstance(${inst})`);
+  }
 
   /**
    * Connect instances via a between relationship
@@ -85,14 +111,27 @@ export abstract class Resolver {
    * @param otherNodeOrNodes Nodes to be connected to node1
    * @param relEntry Details of the repationship
    */
-  public abstract connectInstances(
+  public async connectInstances(
     node1: Instance,
     otherNodeOrNodes: Instance | Instance[],
     relEntry: RelationshipEntry,
     orUpdate: boolean
-  ): any;
+  ): Promise<any> {
+    return this.notImpl(
+      `connectInstances(${node1}, ${otherNodeOrNodes}, ${relEntry}, ${orUpdate})`
+    );
+  }
 
-  public abstract startTransaction(): string; // Return a transactionId
-  public abstract commitTransaction(txnId: string): any;
-  public abstract rollbackTransaction(txtIn: string): any;
+  // Return a transactionId
+  public async startTransaction(): Promise<any> {
+    return this.notImpl('startTransaction()');
+  }
+
+  public async commitTransaction(txnId: string): Promise<any> {
+    return this.notImpl(`commitTransaction(${txnId})`);
+  }
+
+  public async rollbackTransaction(txtIn: string): Promise<any> {
+    return this.notImpl(`rollbackTransaction(${txtIn})`);
+  }
 }

@@ -71,6 +71,7 @@ export async function initDefaultDatabase() {
     defaultDataSource = new DataSource({
       type: 'sqlite',
       database: mkDbName(),
+      synchronize: true,
     });
     await defaultDataSource.initialize();
     await createTables()
@@ -434,9 +435,8 @@ export async function getMany(
   queryObj: object | undefined,
   queryVals: object | undefined,
   colNamesToSelect: string[],
-  callback: Function,
   ctx: DbContext
-) {
+): Promise<any> {
   const alias: string = tableName.toLowerCase();
   const queryStr: string = withNotDeletedClause(
     queryObj != undefined ? objectToWhereClause(queryObj, alias) : ''
@@ -493,7 +493,9 @@ export async function getMany(
     qb.innerJoin(ot, otAlias, ownersJoinCond.join(' AND '));
   }
   qb.where(queryStr, queryVals);
-  await qb.getRawMany().then((result: any) => callback(result));
+  let result: any;
+  await qb.getRawMany().then((r: any) => (result = r));
+  return result;
 }
 
 const NotDeletedClause: string = `${DeletedFlagAttributeName} = false`;
@@ -548,10 +550,10 @@ export async function getAllConnected(
 
 const transactionsDb: Map<string, QueryRunner> = new Map<string, QueryRunner>();
 
-export function startDbTransaction(): string {
+export async function startDbTransaction(): Promise<string> {
   if (defaultDataSource != undefined) {
     const queryRunner = defaultDataSource.createQueryRunner();
-    queryRunner.startTransaction();
+    await queryRunner.startTransaction();
     const txnId: string = crypto.randomUUID();
     transactionsDb.set(txnId, queryRunner);
     return txnId;
@@ -588,6 +590,7 @@ async function endTransaction(txnId: string, commit: boolean): Promise<void> {
     try {
       if (commit)
         await qr.commitTransaction().catch((reason: any) => {
+          console.log(reason.type);
           logger.error(`failed to commit transaction ${txnId} - ${reason}`);
         });
       else
@@ -595,7 +598,7 @@ async function endTransaction(txnId: string, commit: boolean): Promise<void> {
           logger.error(`failed to rollback transaction ${txnId} - ${reason}`);
         });
     } finally {
-      qr.release();
+      await qr.release();
       transactionsDb.delete(txnId);
     }
   }
