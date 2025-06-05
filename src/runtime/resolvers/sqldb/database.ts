@@ -19,7 +19,13 @@ import {
   UnauthorisedError,
 } from '../../modules/auth.js';
 import { Environment } from '../../interpreter.js';
-import { RbacPermissionFlag } from '../../module.js';
+import {
+  attributesAsColumns,
+  Instance,
+  InstanceAttributes,
+  newInstanceAttributes,
+  RbacPermissionFlag,
+} from '../../module.js';
 
 let defaultDataSource: DataSource | undefined;
 
@@ -29,9 +35,10 @@ export const DeletedFlagAttributeName: string = '__is_deleted__';
 export class DbContext {
   txnId: string | undefined;
   authInfo: ResolverAuthInfo;
-  inKernelMode: boolean = false;
+  private inKernelMode: boolean = false;
   resourceFqName: string;
   activeEnv: Environment;
+  private needAuthCheckFlag: boolean = true;
 
   constructor(
     resourceFqName: string,
@@ -49,6 +56,17 @@ export class DbContext {
     }
   }
 
+  // Shallow clone
+  clone(): DbContext {
+    return new DbContext(
+      this.resourceFqName,
+      this.authInfo,
+      this.activeEnv,
+      this.txnId,
+      this.inKernelMode
+    );
+  }
+
   getUserId(): string {
     return this.authInfo.userId;
   }
@@ -59,6 +77,24 @@ export class DbContext {
 
   isForUpdate(): boolean {
     return this.authInfo.readForUpdate;
+  }
+
+  setResourceFqNameFrom(inst: Instance): DbContext {
+    this.resourceFqName = inst.getFqName();
+    return this;
+  }
+
+  setNeedAuthCheck(flag: boolean): DbContext {
+    this.needAuthCheckFlag = flag;
+    return this;
+  }
+
+  isPermitted(): boolean {
+    return this.inKernelMode || !this.needAuthCheckFlag;
+  }
+
+  isInKernelMode(): boolean {
+    return this.inKernelMode;
   }
 }
 
@@ -207,9 +243,9 @@ async function checkUserPerm(
   ctx: DbContext,
   instRows: object
 ): Promise<boolean> {
-  let hasPerm = ctx.inKernelMode;
-  const userId = ctx.getUserId();
+  let hasPerm = ctx.isPermitted();
   if (!hasPerm) {
+    const userId = ctx.getUserId();
     let f: Function | undefined;
     switch (opr) {
       case RbacPermissionFlag.CREATE:
@@ -241,8 +277,19 @@ async function checkUserPerm(
   return hasPerm;
 }
 
+async function checkCreatePermission(ctx: DbContext, inst: Instance): Promise<boolean> {
+  const tmpCtx = ctx.clone().setResourceFqNameFrom(inst);
+  let result = false;
+  await checkUserPerm(RbacPermissionFlag.CREATE, tmpCtx, attributesAsColumns(inst.attributes)).then(
+    (r: boolean) => {
+      result = r;
+    }
+  );
+  return result;
+}
+
 export async function insertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
-  let hasPerm = ctx.inKernelMode;
+  let hasPerm = ctx.isPermitted();
   if (!hasPerm) {
     await checkUserPerm(RbacPermissionFlag.CREATE, ctx, rows[0]).then((r: boolean) => {
       hasPerm = r;
@@ -250,11 +297,46 @@ export async function insertRows(tableName: string, rows: object[], ctx: DbConte
   }
   if (hasPerm) {
     await insertRowsHelper(tableName, rows, ctx);
-    if (!ctx.inKernelMode) {
+    if (!ctx.isInKernelMode()) {
       await createOwnership(tableName, rows, ctx);
     }
   } else {
-    throw new UnauthorisedError();
+    throw new UnauthorisedError({ opr: 'insert', entity: tableName });
+  }
+}
+
+export async function insertRow(tableName: string, row: object, ctx: DbContext): Promise<void> {
+  const rows: Array<object> = new Array<object>();
+  rows.push(row);
+  await insertRows(tableName, rows, ctx);
+}
+
+export async function insertBetweenRow(
+  n: string,
+  a1: string,
+  a2: string,
+  node1: Instance,
+  node2: Instance,
+  ctx: DbContext
+): Promise<void> {
+  let hasPerm = false;
+  await checkCreatePermission(ctx, node1).then((r: boolean) => {
+    hasPerm = r;
+  });
+  if (hasPerm) {
+    await checkCreatePermission(ctx, node2).then((r: boolean) => {
+      hasPerm = r;
+    });
+  }
+  if (hasPerm) {
+    const attrs: InstanceAttributes = newInstanceAttributes();
+    attrs.set(a1, node1.attributes.get(PathAttributeName));
+    attrs.set(a2, node2.attributes.get(PathAttributeName));
+    attrs.set(PathAttributeName, crypto.randomUUID());
+    const row = attributesAsColumns(attrs);
+    await insertRow(n, row, ctx.clone().setNeedAuthCheck(false));
+  } else {
+    throw new UnauthorisedError({ opr: 'insert', entity: n });
   }
 }
 
@@ -333,12 +415,6 @@ async function isOwner(tableName: string, instPath: string, ctx: DbContext): Pro
   return true;
 }
 
-export async function insertRow(tableName: string, row: object, ctx: DbContext): Promise<void> {
-  const rows: Array<object> = new Array<object>();
-  rows.push(row);
-  await insertRows(tableName, rows, ctx);
-}
-
 export async function upsertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
   // This is the right way to do an upsert in TypeORM, but `orUpdate` does not seem to work
   // without a (TypeORM) entity definition.
@@ -357,7 +433,7 @@ export async function upsertRows(tableName: string, rows: object[], ctx: DbConte
     .values(rows)
     .orUpdate(rowsForUpsert, PathAttributeName)
     .execute();*/
-  let hasPerm = ctx.inKernelMode;
+  let hasPerm = ctx.isPermitted();
   if (!hasPerm) {
     await checkUserPerm(RbacPermissionFlag.UPDATE, ctx, rows[0]).then((r: boolean) => {
       hasPerm = r;
@@ -370,7 +446,7 @@ export async function upsertRows(tableName: string, rows: object[], ctx: DbConte
     }
     await insertRows(tableName, rows, ctx);
   } else {
-    throw new UnauthorisedError();
+    throw new UnauthorisedError({ opr: 'upsert', entity: tableName });
   }
 }
 
@@ -444,10 +520,10 @@ export async function getMany(
   let ownersJoinCond: string[] | undefined;
   let ot: string = '';
   let otAlias: string = '';
-  if (!ctx.inKernelMode) {
+  if (!ctx.isPermitted()) {
     const userId = ctx.getUserId();
     const fqName = ctx.resourceFqName;
-    let hasGlobalPerms: boolean = ctx.inKernelMode;
+    let hasGlobalPerms: boolean = false;
     const env: Environment = ctx.activeEnv;
     await canUserRead(userId, fqName, env).then((r: boolean) => {
       hasGlobalPerms = r;

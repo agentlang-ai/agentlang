@@ -1,7 +1,6 @@
 import {
   assertInstance,
   AttributeEntry,
-  attributesAsColumns,
   BetweenInstanceNodeValuesResult,
   findIdAttribute,
   getBetweenInstanceNodeValues,
@@ -27,6 +26,7 @@ import {
   upsertRow,
   hardDeleteRow,
   DbContext,
+  insertBetweenRow,
 } from './database.js';
 import { Environment } from '../../interpreter.js';
 
@@ -320,20 +320,4 @@ export class SqlDbResolver extends Resolver {
     }
     return txnId;
   }
-}
-
-async function insertBetweenRow(
-  n: string,
-  a1: string,
-  a2: string,
-  node1: Instance,
-  node2: Instance,
-  ctx: DbContext
-): Promise<void> {
-  const attrs: InstanceAttributes = newInstanceAttributes();
-  attrs.set(a1, node1.attributes.get(PathAttributeName));
-  attrs.set(a2, node2.attributes.get(PathAttributeName));
-  attrs.set(PathAttributeName, crypto.randomUUID());
-  const row = attributesAsColumns(attrs);
-  await insertRow(n, row, ctx);
 }

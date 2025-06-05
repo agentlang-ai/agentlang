@@ -307,8 +307,24 @@ export const canUserRead = canUserPerfom(ReadOperation);
 export const canUserUpdate = canUserPerfom(UpdateOperation);
 export const canUserDelete = canUserPerfom(DeleteOperation);
 
+export type UnautInfo = {
+  opr: string;
+  entity: string;
+};
+
+function asUnauthMessage(obj: string | UnautInfo): string {
+  if (typeof obj == 'string') {
+    return obj;
+  } else {
+    return `User not authorised to perform '${obj.opr}' on ${obj.entity}`;
+  }
+}
+
 export class UnauthorisedError extends Error {
-  constructor(message?: string, options?: ErrorOptions) {
-    super(message ? message : 'User not authorised to perform this operation', options);
+  constructor(message?: string | UnautInfo, options?: ErrorOptions) {
+    super(
+      message ? asUnauthMessage(message) : 'User not authorised to perform this operation',
+      options
+    );
   }
 }
