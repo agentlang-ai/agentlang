@@ -150,9 +150,10 @@ function isQueryPattern(pat: Pattern): boolean {
     const crudMap: CrudMap = pat.crudMap;
     return (
       crudMap.name.endsWith(QuerySuffix) ||
-      crudMap.attributes.every((v: SetAttribute) => {
-        return v.name.endsWith(QuerySuffix);
-      })
+      (crudMap.attributes.length > 0 &&
+        crudMap.attributes.every((v: SetAttribute) => {
+          return v.name.endsWith(QuerySuffix);
+        }))
     );
   }
   return false;
