@@ -1,4 +1,5 @@
 import { isNodeEnv } from '../utils/runtime.js';
+import { ExtendsClause } from '../language/generated/ast.js';
 
 export const QuerySuffix = '?';
 
@@ -201,4 +202,8 @@ export async function runInitFunctions() {
     await InitFunctions[i]();
   }
   InitFunctions.splice(0, InitFunctions.length);
+}
+
+export function maybeExtends(ext: ExtendsClause | undefined): string | undefined {
+  return ext ? ext.parentName : undefined;
 }

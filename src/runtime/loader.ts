@@ -3,39 +3,53 @@ import { createAgentlangServices } from '../language/agentlang-module.js';
 import {
   Module,
   Def,
+  Import,
+  Entity,
+  RbacSpec,
+  RbacSpecEntries,
+  RbacSpecEntry,
+  RbacOpr,
+  Event,
+  Record,
+  Relationship,
+  Workflow,
   isEntity,
   isEvent,
   isRecord,
-  isWorkflow,
-  Import,
   isRelationship,
-  ExtendsClause,
-  RbacSpec,
-  RbacSpecEntry,
-  RbacOpr,
-  RbacSpecEntries,
+  isWorkflow,
+  isModule,
 } from '../language/generated/ast.js';
 import {
-  addModule,
   addEntity,
   addEvent,
-  addRecord,
-  addWorkflow,
+  addModule,
   addRelationship,
+  addWorkflow,
   EntityEntry,
+  EventEntry,
   RbacSpecification,
+  RecordEntry,
+  RelationshipEntry,
   RuntimeModule,
+  WorkflowEntry,
 } from './module.js';
-import { importModule, makeFqName, registerInitFunction, runShellCommand } from './util.js';
+import {
+  importModule,
+  makeFqName,
+  maybeExtends,
+  registerInitFunction,
+  runShellCommand,
+} from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules } from './modules/core.js';
-import { parseModule } from '../language/parser.js';
-import { createPermission, createRole } from './modules/auth.js';
+import { parse, parseModule } from '../language/parser.js';
 import { logger } from './logger.js';
 import { Environment } from './interpreter.js';
+import { createPermission, createRole } from './modules/auth.js';
 
 export async function extractDocument(
   fileName: string,
@@ -255,10 +269,6 @@ function getFsAdapter(fs: any) {
   return cachedFsAdapter;
 }
 
-function maybeExtends(ext: ExtendsClause | undefined): string | undefined {
-  return ext ? ext.parentName : undefined;
-}
-
 function setRbacForEntity(entity: EntityEntry, rbacSpec: RbacSpec) {
   const rbac: RbacSpecification[] = new Array<RbacSpecification>();
   rbacSpec.specEntries.forEach((specEntries: RbacSpecEntries) => {
@@ -315,29 +325,56 @@ async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
   await env.callInTransaction(f);
 }
 
+export function addEntityFromDef(def: Entity, moduleName: string): EntityEntry {
+  const entity = addEntity(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+  if (def.schema.rbacSpec) {
+    setRbacForEntity(entity, def.schema.rbacSpec);
+  }
+  return entity;
+}
+
+export function addEventFromDef(def: Event, moduleName: string): EventEntry {
+  return addEvent(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+}
+
+export function addRecordFromDef(def: Record, moduleName: string): RecordEntry {
+  return addEvent(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+}
+
+export function addRelationshipFromDef(def: Relationship, moduleName: string): RelationshipEntry {
+  return addRelationship(def.name, def.type, def.nodes, moduleName, def.attributes, def.properties);
+}
+
+export function addWorkflowFromDef(def: Workflow, moduleName: string): WorkflowEntry {
+  return addWorkflow(def.name, moduleName, def.statements);
+}
+
+export function addFromDef(def: Def, moduleName: string) {
+  if (isEntity(def)) addEntityFromDef(def, moduleName);
+  else if (isEvent(def)) addEventFromDef(def, moduleName);
+  else if (isRecord(def)) addRecordFromDef(def, moduleName);
+  else if (isRelationship(def)) addRelationshipFromDef(def, moduleName);
+  else if (isWorkflow(def)) addWorkflowFromDef(def, moduleName);
+}
+
+export async function parseAndIntern(code: string, moduleName: string) {
+  if (!isModule(moduleName)) {
+    throw new Error(`Moudle not found - ${moduleName}`);
+  }
+  const r = await parse(`module ${moduleName} ${code}`);
+  r.parseResult.value.defs.forEach((def: Def) => {
+    addFromDef(def, moduleName);
+  });
+}
+
 export function internModule(module: Module): RuntimeModule {
-  const r = addModule(module.name);
+  const mn = module.name;
+  const r = addModule(mn);
   module.imports.forEach((imp: Import) => {
     importModule(imp.path, imp.name);
   });
   module.defs.forEach((def: Def) => {
-    if (isEntity(def)) {
-      const entity: EntityEntry = addEntity(
-        def.name,
-        module.name,
-        def.schema.attributes,
-        maybeExtends(def.extends)
-      );
-      if (def.schema.rbacSpec) {
-        setRbacForEntity(entity, def.schema.rbacSpec);
-      }
-    } else if (isEvent(def))
-      addEvent(def.name, module.name, def.schema.attributes, maybeExtends(def.extends));
-    else if (isRecord(def))
-      addRecord(def.name, module.name, def.schema.attributes, maybeExtends(def.extends));
-    else if (isRelationship(def))
-      addRelationship(def.name, def.type, def.nodes, module.name, def.attributes, def.properties);
-    else if (isWorkflow(def)) addWorkflow(def.name, module.name, def.statements);
+    addFromDef(def, mn);
   });
   return r;
 }

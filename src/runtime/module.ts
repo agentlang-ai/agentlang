@@ -9,9 +9,6 @@ import {
   RelNodes,
   Node,
   isRelNodes,
-  Def,
-  isWorkflow,
-  Module,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -24,7 +21,7 @@ import {
   DefaultModuleName,
 } from './util.js';
 import { getResolverNameForPath } from './resolvers/registry.js';
-import { parseModule, parseStatement } from '../language/parser.js';
+import { parseStatement } from '../language/parser.js';
 
 export class ModuleEntry {
   name: string;
@@ -643,14 +640,19 @@ export class WorkflowEntry extends ModuleEntry {
     this.statements = patterns;
   }
 
-  override toString() {
-    let s: string = `workflow ${normalizeWorkflowName(this.name)} {\n`;
+  statementsToStrings(): string[] {
     const ss: Array<string> = [];
     this.statements.forEach((stmt: Statement) => {
       if (stmt.$cstNode) {
         ss.push(`    ${stmt.$cstNode.text.trimStart()}`);
       }
     });
+    return ss;
+  }
+
+  override toString() {
+    let s: string = `workflow ${normalizeWorkflowName(this.name)} {\n`;
+    const ss = this.statementsToStrings();
     s = s.concat(ss.join(';\n'));
     return s.concat('\n}');
   }
@@ -1152,16 +1154,6 @@ export function addWorkflow(
   return module.addEntry(
     new WorkflowEntry(asWorkflowName(name), statements, moduleName)
   ) as WorkflowEntry;
-}
-
-export async function parseAndAddWorkflow(code: string, moduleName: string) {
-  await parseModule(`module ${moduleName} ${code}`).then((mod: Module) => {
-    mod.defs.forEach((v: Def) => {
-      if (isWorkflow(v)) {
-        addWorkflow(v.name, moduleName, v.statements);
-      }
-    });
-  });
 }
 
 export function getWorkflow(eventInstance: Instance): WorkflowEntry {
