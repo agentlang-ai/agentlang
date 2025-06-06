@@ -236,9 +236,7 @@ export class Environment extends Instance {
     if (txnId) {
       return txnId;
     } else {
-      await resolver.startTransaction().then((r: string) => {
-        txnId = r;
-      });
+      txnId = await resolver.startTransaction();
       if (txnId) {
         this.getActiveTransactions().set(n, txnId);
         return txnId;
@@ -385,31 +383,30 @@ async function evaluateStatements(stmts: Statement[], env: Environment, continua
 }
 
 async function evaluateStatement(stmt: Statement, env: Environment): Promise<void> {
-  await evaluatePattern(stmt.pattern, env).then((_: void) => {
-    if (stmt.alias != undefined || stmt.aliases.length > 0) {
-      const result: Result = env.getLastResult();
-      const alias: string | undefined = stmt.alias;
-      if (alias != undefined) {
-        env.bind(alias, result);
-      } else {
-        const aliases: string[] = stmt.aliases;
-        if (result instanceof Array) {
-          const resArr: Array<any> = result as Array<any>;
-          for (let i = 0; i < aliases.length; ++i) {
-            const k: string = aliases[i];
-            if (k == '_') {
-              env.bind(aliases[i + 1], resArr.splice(i));
-              break;
-            } else {
-              env.bind(aliases[i], resArr[i]);
-            }
+  await evaluatePattern(stmt.pattern, env);
+  if (stmt.alias != undefined || stmt.aliases.length > 0) {
+    const result: Result = env.getLastResult();
+    const alias: string | undefined = stmt.alias;
+    if (alias != undefined) {
+      env.bind(alias, result);
+    } else {
+      const aliases: string[] = stmt.aliases;
+      if (result instanceof Array) {
+        const resArr: Array<any> = result as Array<any>;
+        for (let i = 0; i < aliases.length; ++i) {
+          const k: string = aliases[i];
+          if (k == '_') {
+            env.bind(aliases[i + 1], resArr.splice(i));
+            break;
+          } else {
+            env.bind(aliases[i], resArr[i]);
           }
-        } else {
-          env.bind(aliases[0], result);
         }
+      } else {
+        env.bind(aliases[0], result);
       }
     }
-  });
+  }
 }
 
 export async function parseAndEvaluateStatement(
@@ -423,10 +420,7 @@ export async function parseAndEvaluateStatement(
   }
   let commit: boolean = true;
   try {
-    let stmt: Statement | undefined;
-    await parseStatement(stmtString).then((s: Statement) => {
-      stmt = s;
-    });
+    const stmt: Statement = await parseStatement(stmtString);
     if (stmt) {
       await evaluateStatement(stmt, env);
       return env.getLastResult();
@@ -545,10 +539,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (qattrs == undefined && !isQueryAll) {
       const parentPath: string | undefined = env.getParentPath();
       if (parentPath != undefined) inst.attributes.set(PathAttributeName, parentPath);
-      let res: Resolver = Resolver.Default;
-      await getResolverForPath(entryName, moduleName, env).then((r: Resolver) => {
-        res = r;
-      });
+      const res: Resolver = await getResolverForPath(entryName, moduleName, env);
       const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
       if (betRelInfo != undefined && res.getName() == DefaultResolverName) {
         betRelInfo.relationship.setBetweenRef(
@@ -557,9 +548,11 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         );
       }
       if (env.isInUpsertMode()) {
-        await res.upsertInstance(inst).then((inst: Instance) => env.setLastResult(inst));
+        const r: Instance = await res.upsertInstance(inst);
+        env.setLastResult(r);
       } else {
-        await res.createInstance(inst).then((inst: Instance) => env.setLastResult(inst));
+        const r: Instance = await res.createInstance(inst);
+        env.setLastResult(r);
       }
       if (crud.relationships != undefined) {
         for (let i = 0; i < crud.relationships.length; ++i) {
@@ -581,10 +574,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             await evaluatePattern(rel.pattern, newEnv);
             if (relEntry.isManyToMany()) {
               const relResult: any = newEnv.getLastResult();
-              let res: Resolver = Resolver.Default;
-              await getResolverForPath(rel.name, moduleName, env).then((r: Resolver) => {
-                res = r;
-              });
+              const res: Resolver = await getResolverForPath(rel.name, moduleName, env);
               await res.connectInstances(lastInst, relResult, relEntry, env.isInUpsertMode());
             }
             lastInst.attachRelatedInstances(rel.name, newEnv.getLastResult());
@@ -597,36 +587,31 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       const isReadForUpdate = attrs.size > 0;
       let res: Resolver = Resolver.Default;
       if (parentPath != undefined) {
-        await getResolverForPath(inst.name, inst.moduleName, env).then((r: Resolver) => {
-          res = r;
-        });
-        await res
-          .queryChildInstances(parentPath, inst)
-          .then((insts: Instance[]) => env.setLastResult(insts));
+        res = await getResolverForPath(inst.name, inst.moduleName, env);
+        const insts: Instance[] = await res.queryChildInstances(parentPath, inst);
+        env.setLastResult(insts);
       } else if (betRelInfo != undefined) {
-        await getResolverForPath(
+        res = await getResolverForPath(
           betRelInfo.relationship.name,
           betRelInfo.relationship.moduleName,
           env
-        ).then((r: Resolver) => {
-          res = r;
-        });
-        await res
-          .queryConnectedInstances(betRelInfo.relationship, betRelInfo.connectedInstance, inst)
-          .then((insts: Instance[]) => env.setLastResult(insts));
+        );
+        const insts: Instance[] = await res.queryConnectedInstances(
+          betRelInfo.relationship,
+          betRelInfo.connectedInstance,
+          inst
+        );
+        env.setLastResult(insts);
       } else {
-        await getResolverForPath(
+        res = await getResolverForPath(
           inst.name,
           inst.moduleName,
           env,
           isReadForUpdate,
           env.isInDeleteMode()
-        ).then((r: Resolver) => {
-          res = r;
-        });
-        await res
-          .queryInstances(inst, isQueryAll)
-          .then((insts: Instance[]) => env.setLastResult(insts));
+        );
+        const insts: Instance[] = await res.queryInstances(inst, isQueryAll);
+        env.setLastResult(insts);
       }
       if (crud.relationships != undefined) {
         const lastRes: Instance[] = env.getLastResult();
@@ -651,30 +636,24 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         const lastRes: Instance[] | Instance = env.getLastResult();
         if (lastRes instanceof Array) {
           if (lastRes.length > 0) {
-            let resolver: Resolver = Resolver.Default;
-            await getResolverForPath(lastRes[0].name, lastRes[0].moduleName, env).then(
-              (r: Resolver) => {
-                resolver = r;
-              }
+            const resolver: Resolver = await getResolverForPath(
+              lastRes[0].name,
+              lastRes[0].moduleName,
+              env
             );
             const res: Array<Instance> = new Array<Instance>();
             for (let i = 0; i < lastRes.length; ++i) {
-              await resolver.updateInstance(lastRes[i], attrs).then((finalInst: Instance) => {
-                res.push(finalInst);
-              });
+              const finalInst: Instance = await resolver.updateInstance(lastRes[i], attrs);
+              res.push(finalInst);
             }
             env.setLastResult(res);
           } else {
             env.setLastResult(lastRes);
           }
         } else {
-          let res: Resolver = Resolver.Default;
-          await getResolverForPath(lastRes.name, lastRes.moduleName, env).then((r: Resolver) => {
-            res = r;
-          });
-          await res.updateInstance(lastRes, attrs).then((finalInst: Instance) => {
-            env.setLastResult(finalInst);
-          });
+          const res: Resolver = await getResolverForPath(lastRes.name, lastRes.moduleName, env);
+          const finalInst: Instance = await res.updateInstance(lastRes, attrs);
+          env.setLastResult(finalInst);
         }
       }
     }
@@ -728,26 +707,20 @@ async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> 
   let resolver: Resolver = Resolver.Default;
   if (inst instanceof Array) {
     if (inst.length > 0) {
-      await getResolverForPath(inst[0].name, inst[0].moduleName, newEnv).then((r: Resolver) => {
-        resolver = r;
-      });
+      resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, newEnv);
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
-        await resolver.deleteInstance(inst[i]).then((r: any) => {
-          finalResult.push(r);
-        });
+        const r: any = await resolver.deleteInstance(inst[i]);
+        finalResult.push(r);
       }
       newEnv.setLastResult(finalResult);
     } else {
       newEnv.setLastResult(inst);
     }
   } else {
-    await getResolverForPath(inst.name, inst.moduleName, newEnv).then((r: Resolver) => {
-      resolver = r;
-    });
-    await resolver.deleteInstance(inst).then((inst: Instance | null) => {
-      newEnv.setLastResult(inst);
-    });
+    resolver = await getResolverForPath(inst.name, inst.moduleName, newEnv);
+    const r: Instance | null = await resolver.deleteInstance(inst);
+    newEnv.setLastResult(r);
   }
 }
 
@@ -909,7 +882,8 @@ async function applyFn(fnCall: FnCall, env: Environment): Promise<void> {
 async function realizeArray(array: ArrayLiteral, env: Environment): Promise<void> {
   const result: Array<Result> = new Array<Result>();
   for (let i = 0; i < array.vals.length; ++i) {
-    await evaluateStatement(array.vals[i], env).then((_: void) => result.push(env.getLastResult()));
+    await evaluateStatement(array.vals[i], env);
+    result.push(env.getLastResult());
   }
   env.setLastResult(result);
 }

@@ -106,15 +106,11 @@ export class SqlDbResolver extends Resolver {
   }
 
   public override async createInstance(inst: Instance): Promise<Instance> {
-    let result: Instance = inst;
-    await this.insertInstance(inst).then((r: Instance) => (result = r));
-    return result;
+    return await this.insertInstance(inst);
   }
 
   public override async upsertInstance(inst: Instance): Promise<Instance> {
-    let result: Instance = inst;
-    await this.insertInstance(inst, true).then((r: Instance) => (result = r));
-    return result;
+    return await this.insertInstance(inst, true);
   }
 
   public override async updateInstance(
@@ -144,22 +140,21 @@ export class SqlDbResolver extends Resolver {
   ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
 
-    await getMany(
+    const rslt: any = await getMany(
       asTableName(inst.moduleName, inst.name),
       queryAll ? undefined : inst.queryAttributesAsObject(),
       queryAll ? undefined : inst.queryAttributeValuesAsObject(),
       inst.getAllUserAttributeNames(),
       this.getDbContext(inst.getFqName())
-    ).then((rslt: any) => {
-      if (rslt instanceof Array) {
-        result = new Array<Instance>();
-        rslt.forEach((r: object) => {
-          const attrs: InstanceAttributes = new Map(Object.entries(r));
-          attrs.delete(DeletedFlagAttributeName);
-          result.push(Instance.newWithAttributes(inst, attrs));
-        });
-      }
-    });
+    );
+    if (rslt instanceof Array) {
+      result = new Array<Instance>();
+      rslt.forEach((r: object) => {
+        const attrs: InstanceAttributes = new Map(Object.entries(r));
+        attrs.delete(DeletedFlagAttributeName);
+        result.push(Instance.newWithAttributes(inst, attrs));
+      });
+    }
     return result;
   }
 
@@ -187,11 +182,7 @@ export class SqlDbResolver extends Resolver {
     inst: Instance
   ): Promise<Instance[]> {
     inst.addQuery(PathAttributeName, 'like', parentPath + '%');
-    let result = SqlDbResolver.EmptyResultSet;
-    await this.queryInstances(inst, false).then((rs: Instance[]) => {
-      result = rs;
-    });
-    return result;
+    return await this.queryInstances(inst, false);
   }
 
   public override async queryConnectedInstances(
@@ -231,10 +222,7 @@ export class SqlDbResolver extends Resolver {
       return result;
     } else {
       relationship.setBetweenRef(inst, connectedInstance.attributes.get(PathAttributeName), true);
-      await this.queryInstances(inst, false).then((rs: Instance[]) => {
-        result = rs;
-      });
-      return result;
+      return await this.queryInstances(inst, false);
     }
   }
 
