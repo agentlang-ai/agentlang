@@ -19,7 +19,8 @@
         "forceConsistentCasingInFileNames": true,
         "rootDir": ".",
         "noEmit": true,
-        "experimentalDecorators": true
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true
     },
     "include": [
         "src/**/*.ts",

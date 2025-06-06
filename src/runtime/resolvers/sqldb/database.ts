@@ -27,7 +27,7 @@ import {
   RbacPermissionFlag,
 } from '../../module.js';
 
-let defaultDataSource: DataSource | undefined;
+export let defaultDataSource: DataSource | undefined;
 
 export const PathAttributeName: string = '__path__';
 export const DeletedFlagAttributeName: string = '__is_deleted__';
