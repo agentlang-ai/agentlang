@@ -1009,7 +1009,7 @@ export function addRecord(
 }
 
 export function addRecordFromDef(def: Record, moduleName: string) {
-  addEvent(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+  addRecord(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
 }
 
 const DefaultRelAttrbutes: Array<Attribute> = new Array<Attribute>();
