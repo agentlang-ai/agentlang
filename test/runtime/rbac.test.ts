@@ -89,10 +89,8 @@ describe('Basic RBAC checks', () => {
             ee = expectError()
             await parseAndEvaluateStatement(`{Acme/AssignManager {manager 1, reportee 2}}`, id2).catch(ee.f())
             assert(ee.isFailed, 'User should not be allowed to assign a manager')
-            await parseAndEvaluateStatement(`{Acme/AssignManager {manager 1, reportee 2}}`, id1)
-                .then((r: any) => {
-                    assert(isInstanceOfType(r, 'Acme/ManagerReportee'), 'Failed to assign reportee to manager')
-                })
+            let r = await parseAndEvaluateStatement(`{Acme/AssignManager {manager 1, reportee 2}}`, id1)
+            assert(isInstanceOfType(r, 'Acme/ManagerReportee'), 'Failed to assign reportee to manager')
             await parseAndEvaluateStatement(`{Acme/LookupEmployee {deptNo 101, id 1}}`, id2)
                 .then((r: any) => {
                     assert(r.length == 0, 'User not allowed to lookup employees in department 101')
