@@ -32,6 +32,11 @@ workflow AssignManager {
     {Employee {id? AssignManager.reportee}} as [r];
     {ManagerReportee {manager m, reportee r}}
 }
+
+workflow LookupEmployee {
+    {Department {no? LookupEmployee.deptNo},
+     DepartmentEmployee {Employee {id? LookupEmployee.id}}}
+}
 `
 
 describe('Basic RBAC checks', () => {
@@ -88,6 +93,19 @@ describe('Basic RBAC checks', () => {
                 .then((r: any) => {
                     assert(isInstanceOfType(r, 'Acme/ManagerReportee'), 'Failed to assign reportee to manager')
                 })
+            ee = expectError()
+            //await parseAndEvaluateStatement(`{Acme/LookupEmployee {deptNo 101, id 1}}`, id2).catch(ee.f)
+            //assert(ee.isFailed, 'User should not be allowed to lookup employees in department 101')
+            await parseAndEvaluateStatement(`{Acme/LookupEmployee {deptNo 101, id 1}}`, id1)
+            .then((r: any) => {
+                const dept = r[0] as Instance
+                assert(isInstanceOfType(dept, 'Acme/Department'), 'failed to lookup parent department')
+                if (dept.relatedInstances) {
+                    const emps: Instance[] | undefined = dept.relatedInstances.get('DepartmentEmployee')
+                    assert(emps && emps.length == 1, 'Failed to lookup department-employees')
+                    assert(emps[0].get('name') == 'Joe', 'Failed to lookup Joe in department 101')
+                }
+            })
         }
     })
 })

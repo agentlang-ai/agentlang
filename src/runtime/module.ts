@@ -1439,6 +1439,10 @@ export class Instance {
   cast<T>(): T {
     return Object.fromEntries(this.attributes) as T;
   }
+
+  get(k: string): any {
+    return this.attributes.get(k);
+  }
 }
 
 export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSchema): object {
