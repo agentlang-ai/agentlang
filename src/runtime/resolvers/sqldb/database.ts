@@ -538,20 +538,20 @@ export async function getMany(
           hasGlobalPerms = r;
         });
       }
-      if (!hasGlobalPerms) {
-        ot = ownersTable(tableName);
-        otAlias = ot.toLowerCase();
-        ownersJoinCond = [
-          `${otAlias}.path = ${alias}.${PathAttributeName}`,
-          `${otAlias}.user_id = '${ctx.authInfo.userId}'`,
-          `${otAlias}.r = true`,
-        ];
-        if (ctx.isForUpdate()) {
-          ownersJoinCond.push(`${otAlias}.u = true`);
-        }
-        if (ctx.isForDelete()) {
-          ownersJoinCond.push(`${otAlias}.d = true`);
-        }
+    }
+    if (!hasGlobalPerms) {
+      ot = ownersTable(tableName);
+      otAlias = ot.toLowerCase();
+      ownersJoinCond = [
+        `${otAlias}.path = ${alias}.${PathAttributeName}`,
+        `${otAlias}.user_id = '${ctx.authInfo.userId}'`,
+        `${otAlias}.r = true`,
+      ];
+      if (ctx.isForUpdate()) {
+        ownersJoinCond.push(`${otAlias}.u = true`);
+      }
+      if (ctx.isForDelete()) {
+        ownersJoinCond.push(`${otAlias}.d = true`);
       }
     }
   }
