@@ -557,14 +557,19 @@ export class WorkflowEntry extends ModuleEntry {
     this.statements = patterns;
   }
 
-  override toString() {
-    let s: string = `workflow ${normalizeWorkflowName(this.name)} {\n`;
+  statementsToStrings(): string[] {
     const ss: Array<string> = [];
     this.statements.forEach((stmt: Statement) => {
       if (stmt.$cstNode) {
         ss.push(`    ${stmt.$cstNode.text.trimStart()}`);
       }
     });
+    return ss;
+  }
+
+  override toString() {
+    let s: string = `workflow ${normalizeWorkflowName(this.name)} {\n`;
+    const ss = this.statementsToStrings();
     s = s.concat(ss.join(';\n'));
     return s.concat('\n}');
   }
