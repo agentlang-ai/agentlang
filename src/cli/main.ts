@@ -2,12 +2,7 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 import { AgentlangLanguageMetaData } from '../language/generated/module.js';
 import { createAgentlangServices } from '../language/agentlang-module.js';
-import {
-  ApplicationSpec,
-  internModule,
-  load,
-  loadCoreModules,
-} from '../runtime/loader.js';
+import { ApplicationSpec, internModule, load, loadCoreModules } from '../runtime/loader.js';
 import { NodeFileSystem } from 'langium/node';
 import { extractDocument } from '../runtime/loader.js';
 import * as url from 'node:url';
@@ -92,11 +87,11 @@ async function runPostInitTasks(appSpec?: ApplicationSpec) {
 }
 
 export const runModule = async (fileName: string): Promise<void> => {
-  const r: boolean = await runPreInitTasks()
+  const r: boolean = await runPreInitTasks();
   if (!r) {
     throw new Error('Failed to initialize runtime');
   }
-  const appSpec: ApplicationSpec = await load(fileName)
+  const appSpec: ApplicationSpec = await load(fileName);
   await runPostInitTasks(appSpec);
 };
 
@@ -104,7 +99,7 @@ export async function internAndRunModule(
   module: Module,
   appSpec?: ApplicationSpec
 ): Promise<RuntimeModule> {
-  const r: boolean = await runPreInitTasks()
+  const r: boolean = await runPreInitTasks();
   if (!r) {
     throw new Error('Failed to initialize runtime');
   }

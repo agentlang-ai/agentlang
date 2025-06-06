@@ -165,7 +165,7 @@ async function loadApp(appJsonFile: string, fsOptions?: any): Promise<string> {
       }
     });
     for (let i = 0; i < alFiles.length; ++i) {
-      lastModuleLoaded = (await loadModule(alFiles[i], fsOptions)).name
+      lastModuleLoaded = (await loadModule(alFiles[i], fsOptions)).name;
     }
   }
   if (appSpec.dependencies != undefined) {
@@ -194,16 +194,16 @@ async function loadApp(appJsonFile: string, fsOptions?: any): Promise<string> {
 export async function load(fileName: string, fsOptions?: any): Promise<ApplicationSpec> {
   let result: string = '';
   if (path.basename(fileName) == 'app.json') {
-    result = await loadApp(fileName, fsOptions)
+    result = await loadApp(fileName, fsOptions);
   } else {
-    result = (await loadModule(fileName, fsOptions)).name
+    result = (await loadModule(fileName, fsOptions)).name;
   }
   return { name: result, version: '0.0.1' };
 }
 
 export async function loadCoreModules() {
   for (let i = 0; i < CoreModules.length; ++i) {
-    internModule(await parseModule(CoreModules[i]))
+    internModule(await parseModule(CoreModules[i]));
   }
 }
 

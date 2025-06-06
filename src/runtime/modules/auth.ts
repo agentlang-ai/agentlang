@@ -95,7 +95,7 @@ async function evalEvent(
   attrs: Array<any> | object,
   env: Environment
 ): Promise<Result> {
-  return await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, AdminUserId, env, true)
+  return await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, AdminUserId, env, true);
 }
 
 export async function createUser(
@@ -114,11 +114,11 @@ export async function createUser(
       lastName: lastName,
     },
     env
-  )
+  );
 }
 
 export async function findRole(name: string, env: Environment): Promise<Result> {
-  return await evalEvent('FindRole', { name: name }, env)
+  return await evalEvent('FindRole', { name: name }, env);
 }
 
 export async function createRole(name: string, env: Environment) {
@@ -170,7 +170,7 @@ export async function assignUserToRole(
 }
 
 export async function findUserRoles(userId: string, env: Environment): Promise<Result> {
-  const result: any = await evalEvent('FindUserRoles', { userId: userId }, env)
+  const result: any = await evalEvent('FindUserRoles', { userId: userId }, env);
   const inst: Instance | undefined = result ? (result[0] as Instance) : undefined;
   if (inst) {
     return inst.getRelatedInstances('UserRole');
@@ -190,11 +190,11 @@ const UserRoleCache: Map<string, string[]> = new Map();
 const RolePermissionsCache: Map<string, RbacPermission[]> = new Map();
 
 async function findRolePermissions(role: string, env: Environment): Promise<Result> {
-  return await evalEvent('FindRolePermissions', { role: role }, env)
+  return await evalEvent('FindRolePermissions', { role: role }, env);
 }
 
 async function updatePermissionCacheForRole(role: string, env: Environment) {
-  const result: any = await findRolePermissions(role, env)
+  const result: any = await findRolePermissions(role, env);
   if (result instanceof Array && result.length > 0) {
     const roleInst: Instance = result[0] as Instance;
     const permInsts: Instance[] | undefined = roleInst.getRelatedInstances('RolePermission');
@@ -220,7 +220,7 @@ export async function userHasPermissions(
   }
   let userRoles: string[] | undefined = UserRoleCache.get(userId);
   if (userRoles == undefined) {
-    const roles: any = await findUserRoles(userId, env)
+    const roles: any = await findUserRoles(userId, env);
     userRoles = [];
     if (roles) {
       for (let i = 0; i < roles.length; ++i) {
@@ -278,7 +278,7 @@ function canUserPerfom(opr: Set<RbacPermissionFlag>): PermCheckForUser {
     if (userId == AdminUserId) {
       return true;
     }
-    return await userHasPermissions(userId, resourceFqName, opr, env)
+    return await userHasPermissions(userId, resourceFqName, opr, env);
   }
   return f;
 }

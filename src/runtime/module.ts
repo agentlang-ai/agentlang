@@ -658,7 +658,7 @@ export class WorkflowEntry extends ModuleEntry {
   }
 
   async addStatement(stmt: string) {
-    const result: Statement = await parseStatement(stmt)
+    const result: Statement = await parseStatement(stmt);
     this.statements.push(result);
   }
 }

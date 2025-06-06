@@ -106,11 +106,11 @@ export class SqlDbResolver extends Resolver {
   }
 
   public override async createInstance(inst: Instance): Promise<Instance> {
-    return await this.insertInstance(inst)
+    return await this.insertInstance(inst);
   }
 
   public override async upsertInstance(inst: Instance): Promise<Instance> {
-    return await this.insertInstance(inst, true)
+    return await this.insertInstance(inst, true);
   }
 
   public override async updateInstance(
@@ -146,7 +146,7 @@ export class SqlDbResolver extends Resolver {
       queryAll ? undefined : inst.queryAttributeValuesAsObject(),
       inst.getAllUserAttributeNames(),
       this.getDbContext(inst.getFqName())
-    )
+    );
     if (rslt instanceof Array) {
       result = new Array<Instance>();
       rslt.forEach((r: object) => {
@@ -182,7 +182,7 @@ export class SqlDbResolver extends Resolver {
     inst: Instance
   ): Promise<Instance[]> {
     inst.addQuery(PathAttributeName, 'like', parentPath + '%');
-    return await this.queryInstances(inst, false)
+    return await this.queryInstances(inst, false);
   }
 
   public override async queryConnectedInstances(
@@ -222,7 +222,7 @@ export class SqlDbResolver extends Resolver {
       return result;
     } else {
       relationship.setBetweenRef(inst, connectedInstance.attributes.get(PathAttributeName), true);
-      return await this.queryInstances(inst, false)
+      return await this.queryInstances(inst, false);
     }
   }
 

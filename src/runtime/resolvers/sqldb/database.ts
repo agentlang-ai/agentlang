@@ -264,24 +264,28 @@ async function checkUserPerm(
         f = undefined;
     }
     if (f != undefined) {
-      hasPerm = await f(userId, ctx.resourceFqName, ctx.activeEnv)
+      hasPerm = await f(userId, ctx.resourceFqName, ctx.activeEnv);
     }
   }
   if (!hasPerm) {
-    hasPerm = await isOwnerOfParent(instRows[PathKey], ctx)
+    hasPerm = await isOwnerOfParent(instRows[PathKey], ctx);
   }
   return hasPerm;
 }
 
 async function checkCreatePermission(ctx: DbContext, inst: Instance): Promise<boolean> {
   const tmpCtx = ctx.clone().setResourceFqNameFrom(inst);
-  return await checkUserPerm(RbacPermissionFlag.CREATE, tmpCtx, attributesAsColumns(inst.attributes))
+  return await checkUserPerm(
+    RbacPermissionFlag.CREATE,
+    tmpCtx,
+    attributesAsColumns(inst.attributes)
+  );
 }
 
 export async function insertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
   let hasPerm = ctx.isPermitted();
   if (!hasPerm) {
-    hasPerm = await checkUserPerm(RbacPermissionFlag.CREATE, ctx, rows[0])
+    hasPerm = await checkUserPerm(RbacPermissionFlag.CREATE, ctx, rows[0]);
   }
   if (hasPerm) {
     await insertRowsHelper(tableName, rows, ctx);
@@ -307,9 +311,9 @@ export async function insertBetweenRow(
   node2: Instance,
   ctx: DbContext
 ): Promise<void> {
-  let hasPerm = await checkCreatePermission(ctx, node1)
+  let hasPerm = await checkCreatePermission(ctx, node1);
   if (hasPerm) {
-    hasPerm = await checkCreatePermission(ctx, node2)
+    hasPerm = await checkCreatePermission(ctx, node2);
   }
   if (hasPerm) {
     const attrs: InstanceAttributes = newInstanceAttributes();
@@ -362,7 +366,7 @@ async function isOwnerOfParent(path: string, ctx: DbContext): Promise<boolean> {
   }
   for (let i = 0; i < parentPaths.length; ++i) {
     const [parentName, parentPath] = parentPaths[i];
-    const result = await isOwner(parentName, parentPath, ctx)
+    const result = await isOwner(parentName, parentPath, ctx);
     if (result) return result;
   }
   return false;
@@ -415,7 +419,7 @@ export async function upsertRows(tableName: string, rows: object[], ctx: DbConte
     .execute();*/
   let hasPerm = ctx.isPermitted();
   if (!hasPerm) {
-    hasPerm = await checkUserPerm(RbacPermissionFlag.UPDATE, ctx, rows[0])
+    hasPerm = await checkUserPerm(RbacPermissionFlag.UPDATE, ctx, rows[0]);
   }
   if (hasPerm) {
     for (let i = 0; i < rows.length; ++i) {
@@ -502,12 +506,12 @@ export async function getMany(
     const userId = ctx.getUserId();
     const fqName = ctx.resourceFqName;
     const env: Environment = ctx.activeEnv;
-    let hasGlobalPerms = await canUserRead(userId, fqName, env)
+    let hasGlobalPerms = await canUserRead(userId, fqName, env);
     if (hasGlobalPerms) {
       if (ctx.isForUpdate()) {
-        hasGlobalPerms = await canUserUpdate(userId, fqName, env)
+        hasGlobalPerms = await canUserUpdate(userId, fqName, env);
       } else if (ctx.isForDelete()) {
-        hasGlobalPerms = await canUserDelete(userId, fqName, env)
+        hasGlobalPerms = await canUserDelete(userId, fqName, env);
       }
     }
     if (!hasGlobalPerms) {
@@ -540,7 +544,7 @@ export async function getMany(
     qb.innerJoin(ot, otAlias, ownersJoinCond.join(' AND '));
   }
   qb.where(queryStr, queryVals);
-  return await qb.getRawMany()
+  return await qb.getRawMany();
 }
 
 const NotDeletedClause: string = `${DeletedFlagAttributeName} = false`;
@@ -589,7 +593,7 @@ export async function getAllConnected(
       connAlias,
       buildQueryFromConnnectionInfo(connAlias, alias, connInfo)
     )
-    .getRawMany()
+    .getRawMany();
   callback(result);
 }
 

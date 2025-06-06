@@ -49,7 +49,7 @@ export async function parseModule(moduleDef: string): Promise<Module> {
 
 export async function parseStatement(stmt: string): Promise<Statement> {
   let result: Statement | undefined;
-  const mod: Module = await parseModule(`module Temp\nworkflow TempEvent { ${stmt} }`)
+  const mod: Module = await parseModule(`module Temp\nworkflow TempEvent { ${stmt} }`);
   if (isWorkflow(mod.defs[0])) {
     result = mod.defs[0].statements[0];
   } else {
@@ -77,7 +77,7 @@ function maybeRaiseParserErrors(document: LangiumDocument) {
 
 export async function introspect(s: string): Promise<BasePattern[]> {
   let result: BasePattern[] = [];
-  const v: LangiumDocument<Module> = await parse(`module Temp workflow Test {${s}}`)
+  const v: LangiumDocument<Module> = await parse(`module Temp workflow Test {${s}}`);
   if (v.parseResult.lexerErrors.length > 0) {
     throw new Error(
       `Lexer errors: ${v.parseResult.lexerErrors
