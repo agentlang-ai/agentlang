@@ -49,13 +49,12 @@ export async function parseModule(moduleDef: string): Promise<Module> {
 
 export async function parseStatement(stmt: string): Promise<Statement> {
   let result: Statement | undefined;
-  await parseModule(`module Temp\nworkflow TempEvent { ${stmt} }`).then((mod: Module) => {
-    if (isWorkflow(mod.defs[0])) {
-      result = mod.defs[0].statements[0];
-    } else {
-      throw new Error('Failed to extract workflow-statement');
-    }
-  });
+  const mod: Module = await parseModule(`module Temp\nworkflow TempEvent { ${stmt} }`);
+  if (isWorkflow(mod.defs[0])) {
+    result = mod.defs[0].statements[0];
+  } else {
+    throw new Error('Failed to extract workflow-statement');
+  }
   if (result) {
     return result;
   } else {
@@ -78,31 +77,30 @@ function maybeRaiseParserErrors(document: LangiumDocument) {
 
 export async function introspect(s: string): Promise<BasePattern[]> {
   let result: BasePattern[] = [];
-  await parse(`module Temp workflow Test {${s}}`).then((v: LangiumDocument<Module>) => {
-    if (v.parseResult.lexerErrors.length > 0) {
-      throw new Error(
-        `Lexer errors: ${v.parseResult.lexerErrors
-          .map((err: any) => {
-            return err.message;
-          })
-          .join('\n')}`
-      );
-    }
-    if (v.parseResult.parserErrors.length > 0) {
-      throw new Error(
-        `Parser errors: ${v.parseResult.parserErrors
-          .map((err: any) => {
-            return err.message;
-          })
-          .join('\n')}`
-      );
-    }
-    if (isWorkflow(v.parseResult.value.defs[0])) {
-      result = introspectHelper(v.parseResult.value.defs[0].statements);
-    } else {
-      throw new Error(`Failed to parse statements`);
-    }
-  });
+  const v: LangiumDocument<Module> = await parse(`module Temp workflow Test {${s}}`);
+  if (v.parseResult.lexerErrors.length > 0) {
+    throw new Error(
+      `Lexer errors: ${v.parseResult.lexerErrors
+        .map((err: any) => {
+          return err.message;
+        })
+        .join('\n')}`
+    );
+  }
+  if (v.parseResult.parserErrors.length > 0) {
+    throw new Error(
+      `Parser errors: ${v.parseResult.parserErrors
+        .map((err: any) => {
+          return err.message;
+        })
+        .join('\n')}`
+    );
+  }
+  if (isWorkflow(v.parseResult.value.defs[0])) {
+    result = introspectHelper(v.parseResult.value.defs[0].statements);
+  } else {
+    throw new Error(`Failed to parse statements`);
+  }
   return result;
 }
 
