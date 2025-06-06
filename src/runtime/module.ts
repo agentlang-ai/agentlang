@@ -12,6 +12,15 @@ import {
   Def,
   isWorkflow,
   Module,
+  isEntity,
+  isEvent,
+  isRecord,
+  isRelationship,
+  Entity,
+  Record,
+  Event,
+  Relationship,
+  Workflow,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -22,6 +31,7 @@ import {
   isFqName,
   makeFqName,
   maybeRaiseParserErrors,
+  maybeExtends,
 } from './util.js';
 import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 import { getResolverNameForPath } from './resolvers/registry.js';
@@ -961,6 +971,10 @@ export function addEntity(
   return name;
 }
 
+export function addEntityFromDef(def: Entity, moduleName: string) {
+  addEntity(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+}
+
 export function addEvent(
   name: string,
   moduleName = activeModule,
@@ -973,6 +987,10 @@ export function addEvent(
   return name;
 }
 
+export function addEventFromDef(def: Event, moduleName: string) {
+  addEvent(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+}
+
 export function addRecord(
   name: string,
   moduleName = activeModule,
@@ -983,6 +1001,10 @@ export function addRecord(
   if (attrs) attrs.forEach(a => verifyAttribute(a));
   module.addEntry(new RecordEntry(name, moduleName, attrs, ext));
   return name;
+}
+
+export function addRecordFromDef(def: Record, moduleName: string) {
+  addEvent(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
 }
 
 const DefaultRelAttrbutes: Array<Attribute> = new Array<Attribute>();
@@ -1011,6 +1033,10 @@ export function addRelationship(
   if (props != undefined) propsMap = asPropertiesMap(props);
   module.addEntry(new RelationshipEntry(name, type, n1, n2, moduleName, attrs, propsMap));
   return name;
+}
+
+export function addRelationshipFromDef(def: Relationship, moduleName: string) {
+  addRelationship(def.name, def.type, def.nodes, moduleName, def.attributes, def.properties);
 }
 
 export function addBetweenRelationship(name: string, moduleName: string, nodes: RelNodeEntry[]) {
@@ -1049,12 +1075,25 @@ export function addWorkflow(name: string, moduleName = activeModule, statements?
   return name;
 }
 
-export async function parseAndAddWorkflow(code: string, moduleName: string) {
+export function addWorkflowFromDef(def: Workflow, moduleName: string) {
+  addWorkflow(def.name, moduleName, def.statements);
+}
+
+export function addFromDef(def: Def, moduleName: string) {
+  if (isEntity(def)) addEntityFromDef(def, moduleName);
+  else if (isEvent(def)) addEventFromDef(def, moduleName);
+  else if (isRecord(def)) addRecordFromDef(def, moduleName);
+  else if (isRelationship(def)) addRelationshipFromDef(def, moduleName);
+  else if (isWorkflow(def)) addWorkflowFromDef(def, moduleName);
+}
+
+export async function parseAndIntern(code: string, moduleName: string) {
+  if (!isModule(moduleName)) {
+    throw new Error(`Moudle not found - ${moduleName}`);
+  }
   const r = await parse(`module ${moduleName} ${code}`);
-  r.parseResult.value.defs.forEach((v: Def) => {
-    if (isWorkflow(v)) {
-      addWorkflow(v.name, moduleName, v.statements);
-    }
+  r.parseResult.value.defs.forEach((def: Def) => {
+    addFromDef(def, moduleName);
   });
 }
 

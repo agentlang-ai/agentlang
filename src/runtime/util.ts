@@ -1,5 +1,6 @@
 import { LangiumDocument } from 'langium';
 import { isNodeEnv } from '../utils/runtime.js';
+import { ExtendsClause } from '../language/generated/ast.js';
 
 export const QuerySuffix = '?';
 
@@ -196,4 +197,8 @@ export function maybeRaiseParserErrors(document: LangiumDocument) {
     });
     throw new Error(`There were parser errors: \n ${errs.join('\n')}`);
   }
+}
+
+export function maybeExtends(ext: ExtendsClause | undefined): string | undefined {
+  return ext ? ext.parentName : undefined;
 }

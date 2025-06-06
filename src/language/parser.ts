@@ -6,12 +6,18 @@ import {
   Delete,
   Expr,
   ForEach,
+  Group,
   If,
+  isGroup,
+  isLiteral,
+  isPrimExpr,
   isWorkflow,
   Literal,
   LogicalExpression,
   Module,
+  NegExpr,
   Pattern,
+  PrimExpr,
   RelationshipPattern,
   SetAttribute,
   Statement,
@@ -25,9 +31,11 @@ import {
   ExpressionPattern,
   ForEachPattern,
   FunctionCallPattern,
+  GroupExpressionPattern,
   IfPattern,
   LiteralPattern,
   LiteralPatternType,
+  NegExpressionPattern,
 } from './syntax.js';
 
 const services = createAgentlangServices(EmptyFileSystem);
@@ -117,18 +125,39 @@ function isQueryPattern(pat: Pattern): boolean {
   return false;
 }
 
-function introspectExpression(expr: Expr | LogicalExpression): string {
-  if (expr.$cstNode) {
-    return expr.$cstNode.text;
+function introspectGroup(expr: Group): GroupExpressionPattern {
+  return new GroupExpressionPattern(introspectExpression(expr.ge) as ExpressionPattern);
+}
+
+function introspectNegExpr(expr: NegExpr): NegExpressionPattern {
+  return new NegExpressionPattern(introspectExpression(expr.ne) as ExpressionPattern);
+}
+
+function introspectPrimExpr(expr: PrimExpr): BasePattern {
+  if (isLiteral(expr)) {
+    return introspectLiteral(expr);
+  } else if (isGroup(expr)) {
+    return introspectGroup(expr);
+  } else {
+    return introspectNegExpr(expr);
   }
-  return '???';
+}
+
+function introspectExpression(expr: Expr | LogicalExpression): BasePattern {
+  if (isPrimExpr(expr)) {
+    return introspectPrimExpr(expr);
+  }
+  if (expr.$cstNode) {
+    return new ExpressionPattern(expr.$cstNode.text);
+  }
+  throw new Error('Failed to introspect expression - ' + expr);
 }
 
 function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
   if (crudMap) {
     const cp: CrudPattern = new CrudPattern(crudMap.name);
     crudMap.attributes.forEach((sa: SetAttribute) => {
-      cp.addAttribute(sa.name, new ExpressionPattern(introspectExpression(sa.value)), sa.op);
+      cp.addAttribute(sa.name, introspectExpression(sa.value), sa.op);
     });
     crudMap.relationships.forEach((rp: RelationshipPattern) => {
       cp.addRelationship(rp.name, introspectPattern(rp.pattern) as CrudPattern | CrudPattern[]);
@@ -146,7 +175,7 @@ function introspectCreatePattern(crudMap: CrudMap): CrudPattern {
       if (!cp.isQueryUpdate && sa.name.endsWith(QuerySuffix)) {
         cp.isQueryUpdate = true;
       }
-      cp.addAttribute(sa.name, new ExpressionPattern(introspectExpression(sa.value)));
+      cp.addAttribute(sa.name, introspectExpression(sa.value));
     });
     crudMap.relationships.forEach((rp: RelationshipPattern) => {
       cp.addRelationship(rp.name, introspectPattern(rp.pattern) as CrudPattern | CrudPattern[]);
@@ -197,7 +226,7 @@ function introspectForEach(forEach: ForEach): ForEachPattern {
 }
 
 function introspectIf(ifpat: If): IfPattern {
-  const ifp: IfPattern = new IfPattern(new ExpressionPattern(introspectExpression(ifpat.cond)));
+  const ifp: IfPattern = new IfPattern(introspectExpression(ifpat.cond));
   ifpat.statements.forEach((stmt: Statement) => {
     ifp.addPattern(introspectStatement(stmt));
   });
