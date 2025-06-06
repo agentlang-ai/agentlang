@@ -15,7 +15,7 @@ import * as url from 'node:url';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { startServer } from '../api/http.js';
-import { initDefaultDatabase } from '../runtime/resolvers/sqldb/database.js';
+import { initDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { logger } from '../runtime/logger.js';
 import { runInitFunctions } from '../runtime/util.js';
 import { RuntimeModule } from '../runtime/module.js';
@@ -86,13 +86,23 @@ async function runPreInitTasks(): Promise<boolean> {
   return result;
 }
 
-async function runPostInitTasks(appSpec?: ApplicationSpec) {
-  await initDefaultDatabase();
+async function runPostInitTasks(appSpec?: ApplicationSpec, config?: any) {
+  await initDatabase(config.store);
   await runInitFunctions();
   if (appSpec) startServer(appSpec, 8080);
 }
 
 export const runModule = async (fileName: string): Promise<void> => {
+  const configPath = path.dirname(fileName) === '.' ? 
+    path.resolve(process.cwd(), 'config.js') :
+    path.dirname(fileName) + path.sep + 'config.js';
+  let config;
+  try {
+    config = await import(configPath).then(module => module.default);
+  } catch (err) {
+    console.log(`No config file found at ${err}`);
+  }
+
   await runPreInitTasks().then((r: boolean) => {
     if (!r) {
       throw new Error('Failed to initialize runtime');
@@ -102,7 +112,7 @@ export const runModule = async (fileName: string): Promise<void> => {
   await load(fileName).then((aspec: ApplicationSpec) => {
     appSpec = aspec;
   });
-  await runPostInitTasks(appSpec);
+  await runPostInitTasks(appSpec, config);
 };
 
 export async function internAndRunModule(

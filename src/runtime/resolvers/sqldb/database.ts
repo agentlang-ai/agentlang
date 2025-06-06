@@ -102,6 +102,19 @@ function mkDbName(): string {
   return `db-${Date.now()}`;
 }
 
+export async function initDatabaseFromSource(dataSource: any) {
+  await dataSource.initialize();
+  await createTables()
+    .then((_: void) => {
+      const msg: string = 'Database schema initialized';
+      logger.debug(msg);
+      console.log(chalk.gray(msg));
+    })
+    .catch(err => {
+      logger.error('Error during Data Source initialization', err);
+    });
+}
+
 export async function initDefaultDatabase() {
   if (defaultDataSource == undefined) {
     defaultDataSource = new DataSource({
@@ -109,16 +122,36 @@ export async function initDefaultDatabase() {
       database: mkDbName(),
       synchronize: true,
     });
-    await defaultDataSource.initialize();
-    await createTables()
-      .then((_: void) => {
-        const msg: string = 'Database schema initialized';
-        logger.debug(msg);
-        console.log(chalk.gray(msg));
-      })
-      .catch(err => {
-        logger.error('Error during Data Source initialization', err);
-      });
+    await initDatabaseFromSource(defaultDataSource);
+  }
+}
+
+export async function initDatabase(config: any) {
+  if (config == undefined) {
+    await initDefaultDatabase();
+  } else {
+    defaultDataSource = new DataSource({
+      type: config.type,
+      ...((() => {
+        switch (config.type) {
+          case 'sqlite':
+            return {
+              database: config.dbname
+            };
+          case 'postgres':
+          case 'mysql':
+            return {
+              host: config.host,
+              username: config.username,
+              password: config.password,
+              database: config.dbname
+            };
+          default:
+            throw new Error(`Unsupported database type: ${config.type}`);
+        }
+      })())
+    })
+    await initDatabaseFromSource(defaultDataSource);
   }
 }
 
