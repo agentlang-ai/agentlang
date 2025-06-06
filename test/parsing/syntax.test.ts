@@ -1,5 +1,5 @@
 import { assert, describe, test } from "vitest";
-import { BasePattern, CrudPattern, DeletePattern, ExpressionPattern, ForEachPattern, IfPattern, LiteralPattern, LiteralPatternType, ReferencePattern } from "../../src/language/syntax.js";
+import { BasePattern, CrudPattern, DeletePattern, ExpressionPattern, ForEachPattern, IfPattern, isCreatePattern, isQueryPattern, LiteralPattern, LiteralPatternType, ReferencePattern } from "../../src/language/syntax.js";
 import { introspect } from "../../src/language/parser.js";
 
 describe('Pattern generation using the syntax API', () => {
@@ -56,6 +56,11 @@ describe('Pattern introspection', () => {
         assert(cp.recordName == 'Blog/User', 'Invalid record name')
         assert(cp.isCreate, "Failed to detect create pattern")
         assert(cp.toString() == '{Blog/User {name CreateUser.name, email CreateUser.email}}', "Failed to regenerate create pattern")
+
+        pats = await introspect('{Blog/User {}}')
+        assert(isCreatePattern(pats[0]), 'Failed to detect empty create pattern')
+        pats = await introspect('{Blog/User? {}}')
+        assert(isQueryPattern(pats[0]), 'Failed to detect empty query-all pattern')
 
         pats = await introspect('{Blog/User {email? "joe@acme.com"}} as users')
         cp = pats[0] as CrudPattern
