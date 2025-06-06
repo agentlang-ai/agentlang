@@ -1,24 +1,7 @@
 import chalk from 'chalk';
 import { createAgentlangServices } from '../language/agentlang-module.js';
-import {
-  Module,
-  Def,
-  isEntity,
-  isEvent,
-  isRecord,
-  isWorkflow,
-  Import,
-  isRelationship,
-  ExtendsClause,
-} from '../language/generated/ast.js';
-import {
-  addModule,
-  addEntity,
-  addEvent,
-  addRecord,
-  addWorkflow,
-  addRelationship,
-} from './module.js';
+import { Module, Def, Import } from '../language/generated/ast.js';
+import { addModule, addFromDef } from './module.js';
 import { importModule, runShellCommand } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
@@ -252,25 +235,14 @@ function getFsAdapter(fs: any) {
   return cachedFsAdapter;
 }
 
-function maybeExtends(ext: ExtendsClause | undefined): string | undefined {
-  return ext ? ext.parentName : undefined;
-}
-
 function internModule(module: Module): string {
-  addModule(module.name);
+  const mn = module.name;
+  addModule(mn);
   module.imports.forEach((imp: Import) => {
     importModule(imp.path, imp.name);
   });
   module.defs.forEach((def: Def) => {
-    if (isEntity(def))
-      addEntity(def.name, module.name, def.schema.attributes, maybeExtends(def.extends));
-    else if (isEvent(def))
-      addEvent(def.name, module.name, def.schema.attributes, maybeExtends(def.extends));
-    else if (isRecord(def))
-      addRecord(def.name, module.name, def.schema.attributes, maybeExtends(def.extends));
-    else if (isRelationship(def))
-      addRelationship(def.name, def.type, def.nodes, module.name, def.attributes, def.properties);
-    else if (isWorkflow(def)) addWorkflow(def.name, module.name, def.statements);
+    addFromDef(def, mn);
   });
-  return module.name;
+  return mn;
 }

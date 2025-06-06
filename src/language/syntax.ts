@@ -111,7 +111,7 @@ export class FunctionCallPattern extends BasePattern {
 }
 
 export class ExpressionPattern extends BasePattern {
-  expression: string;
+  expression: any;
 
   constructor(expression: any) {
     super();
@@ -119,7 +119,34 @@ export class ExpressionPattern extends BasePattern {
   }
 
   override toString(): string {
-    return this.expression.concat(this.aliasAsString());
+    const s = this.expression.toString();
+    return s.concat(this.aliasAsString());
+  }
+}
+
+export class GroupExpressionPattern extends BasePattern {
+  expression: ExpressionPattern;
+
+  constructor(expr: ExpressionPattern) {
+    super();
+    this.expression = expr;
+  }
+
+  override toString(): string {
+    return `(${this.expression.toString()})`;
+  }
+}
+
+export class NegExpressionPattern extends BasePattern {
+  expression: ExpressionPattern;
+
+  constructor(expr: ExpressionPattern) {
+    super();
+    this.expression = expr;
+  }
+
+  override toString(): string {
+    return `-${this.expression.toString}`;
   }
 }
 
@@ -250,12 +277,12 @@ export class ForEachPattern extends BasePattern {
 }
 
 export class IfPattern extends BasePattern {
-  condition: ExpressionPattern;
+  condition: BasePattern;
   body: BasePattern[];
   elseIf: BasePattern | undefined;
   elseBody: BasePattern[] | undefined;
 
-  constructor(condition: ExpressionPattern) {
+  constructor(condition: BasePattern) {
     super();
     this.condition = condition;
     this.body = [];
