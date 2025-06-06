@@ -48,9 +48,7 @@ describe('Pattern generation using the syntax API', () => {
 
 describe('Pattern introspection', () => {
     test('check pattern introspection', async () => {
-        let pats: BasePattern[] = []
-        await introspect("{Blog/User {name CreateUser.name, email CreateUser.email}}")
-            .then((r: BasePattern[]) => { pats = r })
+        let pats: BasePattern[] = await introspect("{Blog/User {name CreateUser.name, email CreateUser.email}}")
         assert(pats.length == 1, "Exactly one pattern expected")
         const bp: BasePattern = pats[0]
         assert(bp instanceof CrudPattern, "Expected a Crud pattern")
@@ -59,38 +57,33 @@ describe('Pattern introspection', () => {
         assert(cp.isCreate, "Failed to detect create pattern")
         assert(cp.toString() == '{Blog/User {name CreateUser.name, email CreateUser.email}}', "Failed to regenerate create pattern")
 
-        await introspect('{Blog/User {email? "joe@acme.com"}} as users')
-            .then((r: BasePattern[]) => { pats = r })
+        pats = await introspect('{Blog/User {email? "joe@acme.com"}} as users')
         cp = pats[0] as CrudPattern
         assert(cp.isQuery, "Failed to detect query pattern")
         assert(cp.alias == 'users', 'Failed to detect query alias')
         assert(cp.toString() == '{Blog/User {email? "joe@acme.com"}} as users', "Failed to regenerate query pattern")
         
-        await introspect('{Blog/User {email? "joe@acme.com", name "Sam"}} as [user]')
-            .then((r: BasePattern[]) => { pats = r })
+        pats = await introspect('{Blog/User {email? "joe@acme.com", name "Sam"}} as [user]')
         cp = pats[0] as CrudPattern
         assert(cp.isQueryUpdate, "Failed to detect query-update pattern")
         assert(cp.aliases && cp.aliases.length == 1 && cp.aliases[0] == 'user', 'Failed to parse aliases')
         assert(cp.toString() == '{Blog/User {email? "joe@acme.com", name "Sam"}} as [user]', "Failed to regenerate query-update pattern")
 
-        await introspect('{User {name CreateUser.name}, UserProfile {Profile {email CreateUser.email}}, UserPost {Post {title "hello, world"}}}')
-            .then((r: BasePattern[]) => { pats = r })
+        pats = await introspect('{User {name CreateUser.name}, UserProfile {Profile {email CreateUser.email}}, UserPost {Post {title "hello, world"}}}')
         cp = pats[0] as CrudPattern
         assert(cp.isCreate, "Failed to detect create pattern with relationships")
         assert(cp.relationships && cp.relationships.size == 2, "Failed to parse relationships")
         assert(cp.toString() == '{User {name CreateUser.name},UserProfile {Profile {email CreateUser.email}},UserPost {Post {title "hello, world"}}}',
             "Failed to regenerate create pattern with relationships")
 
-        await introspect('delete {Blog/User {email? "joe@acme.com"}} as users')
-            .then((r: BasePattern[]) => { pats = r })
+        pats = await introspect('delete {Blog/User {email? "joe@acme.com"}} as users')
         const dp: DeletePattern = pats[0] as DeletePattern
         assert(dp.alias == 'users', "Failed to detect alias for delete")
         cp = dp.pattern as CrudPattern
         assert(cp.isQuery, "Failed to detect query pattern in delete")
         assert(dp.toString() == 'delete {Blog/User {email? "joe@acme.com"}} as users', "Failed to re-generate delete pattern")
 
-        await introspect('for user in {Blog/User {email? "joe@acme.com"}} { {Blog/Person {name user.name}} } as result')
-            .then((r: BasePattern[]) => { pats = r })
+        pats = await introspect('for user in {Blog/User {email? "joe@acme.com"}} { {Blog/Person {name user.name}} } as result')
         const fep: ForEachPattern = pats[0] as ForEachPattern
         assert(fep.variable == 'user', 'Failed to detect variable of for-each')
         cp = fep.source as CrudPattern
@@ -100,7 +93,7 @@ describe('Pattern introspection', () => {
         assert(fep.toString() == 'for user in {Blog/User {email? "joe@acme.com"}}{{Blog/Person {name user.name}}} as result',
             'Failed to regenerate for-each')
 
-        await introspect('if (1 < 2) { user.email } else { user.name }').then((r: BasePattern[]) => { pats = r })
+        pats = await introspect('if (1 < 2) { user.email } else { user.name }')
         const ifp: IfPattern = pats[0] as IfPattern
         assert(ifp.toString() == 'if(1 < 2) {user.email} else {user.name}', 'Failed to regenerate if pattern')
     })

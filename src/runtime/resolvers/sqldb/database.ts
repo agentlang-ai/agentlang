@@ -264,36 +264,24 @@ async function checkUserPerm(
         f = undefined;
     }
     if (f != undefined) {
-      await f(userId, ctx.resourceFqName, ctx.activeEnv).then((r: boolean) => {
-        hasPerm = r;
-      });
+      hasPerm = await f(userId, ctx.resourceFqName, ctx.activeEnv)
     }
   }
   if (!hasPerm) {
-    await isOwnerOfParent(instRows[PathKey], ctx).then((r: boolean) => {
-      hasPerm = r;
-    });
+    hasPerm = await isOwnerOfParent(instRows[PathKey], ctx)
   }
   return hasPerm;
 }
 
 async function checkCreatePermission(ctx: DbContext, inst: Instance): Promise<boolean> {
   const tmpCtx = ctx.clone().setResourceFqNameFrom(inst);
-  let result = false;
-  await checkUserPerm(RbacPermissionFlag.CREATE, tmpCtx, attributesAsColumns(inst.attributes)).then(
-    (r: boolean) => {
-      result = r;
-    }
-  );
-  return result;
+  return await checkUserPerm(RbacPermissionFlag.CREATE, tmpCtx, attributesAsColumns(inst.attributes))
 }
 
 export async function insertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
   let hasPerm = ctx.isPermitted();
   if (!hasPerm) {
-    await checkUserPerm(RbacPermissionFlag.CREATE, ctx, rows[0]).then((r: boolean) => {
-      hasPerm = r;
-    });
+    hasPerm = await checkUserPerm(RbacPermissionFlag.CREATE, ctx, rows[0])
   }
   if (hasPerm) {
     await insertRowsHelper(tableName, rows, ctx);
@@ -319,14 +307,9 @@ export async function insertBetweenRow(
   node2: Instance,
   ctx: DbContext
 ): Promise<void> {
-  let hasPerm = false;
-  await checkCreatePermission(ctx, node1).then((r: boolean) => {
-    hasPerm = r;
-  });
+  let hasPerm = await checkCreatePermission(ctx, node1)
   if (hasPerm) {
-    await checkCreatePermission(ctx, node2).then((r: boolean) => {
-      hasPerm = r;
-    });
+    hasPerm = await checkCreatePermission(ctx, node2)
   }
   if (hasPerm) {
     const attrs: InstanceAttributes = newInstanceAttributes();
@@ -379,10 +362,7 @@ async function isOwnerOfParent(path: string, ctx: DbContext): Promise<boolean> {
   }
   for (let i = 0; i < parentPaths.length; ++i) {
     const [parentName, parentPath] = parentPaths[i];
-    let result = false;
-    await isOwner(parentName, parentPath, ctx).then((r: boolean) => {
-      result = r;
-    });
+    const result = await isOwner(parentName, parentPath, ctx)
     if (result) return result;
   }
   return false;
@@ -435,9 +415,7 @@ export async function upsertRows(tableName: string, rows: object[], ctx: DbConte
     .execute();*/
   let hasPerm = ctx.isPermitted();
   if (!hasPerm) {
-    await checkUserPerm(RbacPermissionFlag.UPDATE, ctx, rows[0]).then((r: boolean) => {
-      hasPerm = r;
-    });
+    hasPerm = await checkUserPerm(RbacPermissionFlag.UPDATE, ctx, rows[0])
   }
   if (hasPerm) {
     for (let i = 0; i < rows.length; ++i) {
@@ -523,20 +501,13 @@ export async function getMany(
   if (!ctx.isPermitted()) {
     const userId = ctx.getUserId();
     const fqName = ctx.resourceFqName;
-    let hasGlobalPerms: boolean = false;
     const env: Environment = ctx.activeEnv;
-    await canUserRead(userId, fqName, env).then((r: boolean) => {
-      hasGlobalPerms = r;
-    });
+    let hasGlobalPerms = await canUserRead(userId, fqName, env)
     if (hasGlobalPerms) {
       if (ctx.isForUpdate()) {
-        await canUserUpdate(userId, fqName, env).then((r: boolean) => {
-          hasGlobalPerms = r;
-        });
+        hasGlobalPerms = await canUserUpdate(userId, fqName, env)
       } else if (ctx.isForDelete()) {
-        await canUserDelete(userId, fqName, env).then((r: boolean) => {
-          hasGlobalPerms = r;
-        });
+        hasGlobalPerms = await canUserDelete(userId, fqName, env)
       }
     }
     if (!hasGlobalPerms) {
@@ -569,9 +540,7 @@ export async function getMany(
     qb.innerJoin(ot, otAlias, ownersJoinCond.join(' AND '));
   }
   qb.where(queryStr, queryVals);
-  let result: any;
-  await qb.getRawMany().then((r: any) => (result = r));
-  return result;
+  return await qb.getRawMany()
 }
 
 const NotDeletedClause: string = `${DeletedFlagAttributeName} = false`;
@@ -610,7 +579,7 @@ export async function getAllConnected(
 ) {
   const alias: string = tableName.toLowerCase();
   const connAlias: string = connInfo.connectionTable.toLowerCase();
-  await getDatasourceForTransaction(ctx.txnId)
+  const result: any = await getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
     .select()
     .from(tableName, alias)
@@ -621,7 +590,7 @@ export async function getAllConnected(
       buildQueryFromConnnectionInfo(connAlias, alias, connInfo)
     )
     .getRawMany()
-    .then((result: any) => callback(result));
+  callback(result);
 }
 
 const transactionsDb: Map<string, QueryRunner> = new Map<string, QueryRunner>();

@@ -4,7 +4,6 @@ import { AgentlangLanguageMetaData } from '../language/generated/module.js';
 import { createAgentlangServices } from '../language/agentlang-module.js';
 import {
   ApplicationSpec,
-  DefaultAppSpec,
   internModule,
   load,
   loadCoreModules,
@@ -93,15 +92,11 @@ async function runPostInitTasks(appSpec?: ApplicationSpec) {
 }
 
 export const runModule = async (fileName: string): Promise<void> => {
-  await runPreInitTasks().then((r: boolean) => {
-    if (!r) {
-      throw new Error('Failed to initialize runtime');
-    }
-  });
-  let appSpec: ApplicationSpec = DefaultAppSpec;
-  await load(fileName).then((aspec: ApplicationSpec) => {
-    appSpec = aspec;
-  });
+  const r: boolean = await runPreInitTasks()
+  if (!r) {
+    throw new Error('Failed to initialize runtime');
+  }
+  const appSpec: ApplicationSpec = await load(fileName)
   await runPostInitTasks(appSpec);
 };
 
@@ -109,12 +104,11 @@ export async function internAndRunModule(
   module: Module,
   appSpec?: ApplicationSpec
 ): Promise<RuntimeModule> {
-  await runPreInitTasks().then((r: boolean) => {
-    if (!r) {
-      throw new Error('Failed to initialize runtime');
-    }
-  });
-  const r: RuntimeModule = internModule(module);
+  const r: boolean = await runPreInitTasks()
+  if (!r) {
+    throw new Error('Failed to initialize runtime');
+  }
+  const rm: RuntimeModule = internModule(module);
   await runPostInitTasks(appSpec);
-  return r;
+  return rm;
 }

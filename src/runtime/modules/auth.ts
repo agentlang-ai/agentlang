@@ -95,11 +95,7 @@ async function evalEvent(
   attrs: Array<any> | object,
   env: Environment
 ): Promise<Result> {
-  let result: any;
-  await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, AdminUserId, env, true).then(
-    (r: any) => (result = r)
-  );
-  return result;
+  return await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, AdminUserId, env, true)
 }
 
 export async function createUser(
@@ -109,8 +105,7 @@ export async function createUser(
   lastName: string,
   env: Environment
 ): Promise<Result> {
-  let result: any;
-  await evalEvent(
+  return await evalEvent(
     'CreateUser',
     {
       id: id,
@@ -119,14 +114,11 @@ export async function createUser(
       lastName: lastName,
     },
     env
-  ).then((r: any) => (result = r));
-  return result;
+  )
 }
 
 export async function findRole(name: string, env: Environment): Promise<Result> {
-  let result: any;
-  await evalEvent('FindRole', { name: name }, env).then((r: any) => (result = r));
-  return result;
+  return await evalEvent('FindRole', { name: name }, env)
 }
 
 export async function createRole(name: string, env: Environment) {
@@ -178,8 +170,7 @@ export async function assignUserToRole(
 }
 
 export async function findUserRoles(userId: string, env: Environment): Promise<Result> {
-  let result: any;
-  await evalEvent('FindUserRoles', { userId: userId }, env).then((r: any) => (result = r));
+  const result: any = await evalEvent('FindUserRoles', { userId: userId }, env)
   const inst: Instance | undefined = result ? (result[0] as Instance) : undefined;
   if (inst) {
     return inst.getRelatedInstances('UserRole');
@@ -199,14 +190,11 @@ const UserRoleCache: Map<string, string[]> = new Map();
 const RolePermissionsCache: Map<string, RbacPermission[]> = new Map();
 
 async function findRolePermissions(role: string, env: Environment): Promise<Result> {
-  let result: any;
-  await evalEvent('FindRolePermissions', { role: role }, env).then((r: any) => (result = r));
-  return result;
+  return await evalEvent('FindRolePermissions', { role: role }, env)
 }
 
 async function updatePermissionCacheForRole(role: string, env: Environment) {
-  let result: any;
-  await findRolePermissions(role, env).then((r: any) => (result = r));
+  const result: any = await findRolePermissions(role, env)
   if (result instanceof Array && result.length > 0) {
     const roleInst: Instance = result[0] as Instance;
     const permInsts: Instance[] | undefined = roleInst.getRelatedInstances('RolePermission');
@@ -232,10 +220,7 @@ export async function userHasPermissions(
   }
   let userRoles: string[] | undefined = UserRoleCache.get(userId);
   if (userRoles == undefined) {
-    let roles: any;
-    await findUserRoles(userId, env).then((result: any) => {
-      roles = result;
-    });
+    const roles: any = await findUserRoles(userId, env)
     userRoles = [];
     if (roles) {
       for (let i = 0; i < roles.length; ++i) {
@@ -293,11 +278,7 @@ function canUserPerfom(opr: Set<RbacPermissionFlag>): PermCheckForUser {
     if (userId == AdminUserId) {
       return true;
     }
-    let result: boolean = false;
-    await userHasPermissions(userId, resourceFqName, opr, env).then((r: boolean) => {
-      result = r;
-    });
-    return result;
+    return await userHasPermissions(userId, resourceFqName, opr, env)
   }
   return f;
 }
