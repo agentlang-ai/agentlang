@@ -12,7 +12,9 @@ entity Profile {
 
 entity User {
     id UUID @id @default(uuid()),
-    name String @indexed
+    name String @indexed,
+    @rbac [(roles: [manager], allow: [create]),
+           (allow: [read], where: auth.user = this.id)]
 }
 
 relationship UserProfile between (Blog/User, Blog/Profile) @one_one
@@ -57,6 +59,16 @@ workflow AddPost {
     {User {id? AddPost.userId},
      UserPost {Post {title AddPost.title},
                PostCategory {Category {description AddPost.category}}}}
+}
+
+workflow AddCategory {
+    {Category {description AddCategory.description}}
+}
+
+workflow AddCategoryToPost {
+    {Post {id? AddCategoryToPost.postId}} as [post];
+    {Category {id? AddCategoryToPost.catId}} as [cat];
+    {PostCategory {Post post, Category cat}}
 }
 
 workflow GetUserPosts {

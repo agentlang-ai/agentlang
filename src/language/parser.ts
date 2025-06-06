@@ -41,6 +41,41 @@ import {
 const services = createAgentlangServices(EmptyFileSystem);
 export const parse = parseHelper<Module>(services.Agentlang);
 
+export async function parseModule(moduleDef: string): Promise<Module> {
+  const document = await parse(moduleDef, { validation: true });
+  maybeRaiseParserErrors(document);
+  return document.parseResult.value;
+}
+
+export async function parseStatement(stmt: string): Promise<Statement> {
+  let result: Statement | undefined;
+  await parseModule(`module Temp\nworkflow TempEvent { ${stmt} }`).then((mod: Module) => {
+    if (isWorkflow(mod.defs[0])) {
+      result = mod.defs[0].statements[0];
+    } else {
+      throw new Error('Failed to extract workflow-statement');
+    }
+  });
+  if (result) {
+    return result;
+  } else {
+    throw new Error('There was an error parsing the statement');
+  }
+}
+
+function maybeRaiseParserErrors(document: LangiumDocument) {
+  if (document.parseResult.lexerErrors.length > 0 || document.parseResult.parserErrors.length > 0) {
+    const errs: Array<string> = [];
+    document.parseResult.lexerErrors.forEach((v: any) => {
+      errs.push(v.message);
+    });
+    document.parseResult.parserErrors.forEach((v: any) => {
+      errs.push(v.message);
+    });
+    throw new Error(`There were parser errors: \n ${errs.join('\n')}`);
+  }
+}
+
 export async function introspect(s: string): Promise<BasePattern[]> {
   let result: BasePattern[] = [];
   await parse(`module Temp workflow Test {${s}}`).then((v: LangiumDocument<Module>) => {

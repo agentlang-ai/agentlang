@@ -9,6 +9,7 @@ import {
 import { evaluate, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
+import { AdminUserId } from '../runtime/modules/auth.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number) {
   const app = express();
@@ -40,7 +41,11 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
 }
 
 function handleEventPost(moduleName: string, eventName: string, req: Request, res: Response): void {
-  const inst: Instance = makeInstance(moduleName, eventName, objectAsInstanceAttributes(req.body));
+  const inst: Instance = makeInstance(
+    moduleName,
+    eventName,
+    objectAsInstanceAttributes(req.body)
+  ).setAuthContext(AdminUserId);
   evaluate(inst, (value: Result) => {
     const result: Result = normalizedResult(value);
     res.contentType('application/json');

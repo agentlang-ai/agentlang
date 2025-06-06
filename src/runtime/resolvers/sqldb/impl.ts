@@ -1,10 +1,12 @@
 import {
+  assertInstance,
   AttributeEntry,
-  attributesAsColumns,
+  BetweenInstanceNodeValuesResult,
   findIdAttribute,
+  getBetweenInstanceNodeValues,
   Instance,
   InstanceAttributes,
-  MarkDeletedAttributes,
+  isBetweenRelationship,
   newInstanceAttributes,
   RelationshipEntry,
 } from '../../module.js';
@@ -21,7 +23,12 @@ import {
   startDbTransaction,
   commitDbTransaction,
   rollbackDbTransaction,
+  upsertRow,
+  hardDeleteRow,
+  DbContext,
+  insertBetweenRow,
 } from './database.js';
+import { Environment } from '../../interpreter.js';
 
 function addDefaultIdAttribute(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
@@ -39,39 +46,75 @@ function addDefaultIdAttribute(inst: Instance): string | undefined {
 }
 
 export class SqlDbResolver extends Resolver {
-  private name: string = '';
   private txnId: string | undefined;
+
   constructor(name: string) {
     super();
     this.name = name;
   }
+
   public override getName(): string {
     return this.name;
   }
+
+  private getDbContext(resourceFqName: string): DbContext {
+    const activeEnv: Environment = this.getUserData() as Environment;
+    if (!activeEnv) {
+      throw new Error('Active environment context is required by SqlDbResolver');
+    }
+    return new DbContext(
+      resourceFqName,
+      this.authInfo,
+      activeEnv,
+      this.txnId,
+      activeEnv.isInKernelMode()
+    );
+  }
+
   public override onSetPath(moduleName: string, entryName: string): string {
     return entryName;
   }
 
-  public override async createInstance(inst: Instance): Promise<Instance> {
-    const idAttrName: string | undefined = addDefaultIdAttribute(inst);
-    const attrs: InstanceAttributes = inst.attributes;
-    if (idAttrName != undefined) {
-      const idAttrVal: any = attrs.get(idAttrName);
-      const pp: string | undefined = attrs.get(PathAttributeName);
-      const n: string = `${inst.moduleName}/${inst.name}`;
-      let p: string = '';
-      if (pp != undefined) p = `${pp}/${escapeFqName(n)}/${idAttrVal}`;
-      else p = `${n}/${idAttrVal}`;
-      attrs.set(PathAttributeName, p);
+  private async insertInstance(inst: Instance, orUpdate = false): Promise<Instance> {
+    if (isBetweenRelationship(inst.name, inst.moduleName)) {
+      const nodeVals: BetweenInstanceNodeValuesResult = getBetweenInstanceNodeValues(inst);
+      assertInstance(nodeVals.node1);
+      assertInstance(nodeVals.node2);
+      await this.connectInstances(nodeVals.node1, nodeVals.node2, nodeVals.entry, orUpdate);
+      return inst;
+    } else {
+      const idAttrName: string | undefined = addDefaultIdAttribute(inst);
+      const attrs: InstanceAttributes = inst.attributes;
+      if (idAttrName != undefined) {
+        const idAttrVal: any = attrs.get(idAttrName);
+        const pp: string | undefined = attrs.get(PathAttributeName);
+        const n: string = `${inst.moduleName}/${inst.name}`;
+        let p: string = '';
+        if (pp != undefined) p = `${pp}/${escapeFqName(n)}/${idAttrVal}`;
+        else p = `${n.replace('/', '$')}/${idAttrVal}`;
+        attrs.set(PathAttributeName, p);
+      }
+      const n: string = asTableName(inst.moduleName, inst.name);
+      const rowObj: object = inst.attributesAsObject();
+      let f = insertRow;
+      if (orUpdate) {
+        f = upsertRow;
+      }
+      await f(n, rowObj, this.getDbContext(inst.getFqName()));
+      return inst;
     }
-    const n: string = asTableName(inst.moduleName, inst.name);
-    const rowObj: object = inst.attributesAsObject();
-    await insertRow(n, rowObj, this.txnId);
-    return inst;
+  }
+
+  public override async createInstance(inst: Instance): Promise<Instance> {
+    let result: Instance = inst;
+    await this.insertInstance(inst).then((r: Instance) => (result = r));
+    return result;
   }
 
   public override async upsertInstance(inst: Instance): Promise<Instance> {
-    throw new Error(`upsertInstace not implemented - cannot upsert ${inst.name}`);
+    let result: Instance = inst;
+    await this.insertInstance(inst, true).then((r: Instance) => (result = r));
+    return result;
   }
 
   public override async updateInstance(
@@ -88,7 +131,7 @@ export class SqlDbResolver extends Resolver {
       queryObj,
       queryVals,
       updateObj,
-      this.txnId
+      this.getDbContext(inst.getFqName())
     );
     return inst.mergeAttributes(newAttrs);
   }
@@ -100,26 +143,29 @@ export class SqlDbResolver extends Resolver {
     queryAll: boolean = false
   ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
+
     await getMany(
       asTableName(inst.moduleName, inst.name),
       queryAll ? undefined : inst.queryAttributesAsObject(),
       queryAll ? undefined : inst.queryAttributeValuesAsObject(),
-      (rslt: any) => {
-        if (rslt instanceof Array) {
-          result = new Array<Instance>();
-          rslt.forEach((r: object) => {
-            const attrs: InstanceAttributes = new Map(Object.entries(r));
-            attrs.delete(DeletedFlagAttributeName);
-            result.push(Instance.newWithAttributes(inst, attrs));
-          });
-        }
-      },
-      this.txnId
-    );
+      inst.getAllUserAttributeNames(),
+      this.getDbContext(inst.getFqName())
+    ).then((rslt: any) => {
+      if (rslt instanceof Array) {
+        result = new Array<Instance>();
+        rslt.forEach((r: object) => {
+          const attrs: InstanceAttributes = new Map(Object.entries(r));
+          attrs.delete(DeletedFlagAttributeName);
+          result.push(Instance.newWithAttributes(inst, attrs));
+        });
+      }
+    });
     return result;
   }
 
-  static MarkDeletedObject: object = Object.fromEntries(MarkDeletedAttributes);
+  static MarkDeletedObject: object = Object.fromEntries(
+    newInstanceAttributes().set(DeletedFlagAttributeName, true)
+  );
 
   public override async deleteInstance(
     target: Instance | Instance[]
@@ -180,7 +226,7 @@ export class SqlDbResolver extends Resolver {
             });
           }
         },
-        this.txnId
+        this.getDbContext(inst.getFqName())
       );
       return result;
     } else {
@@ -202,30 +248,60 @@ export class SqlDbResolver extends Resolver {
       target.queryAttributesAsObject(),
       queryVals,
       SqlDbResolver.MarkDeletedObject,
-      this.txnId
+      this.getDbContext(target.getFqName())
     );
   }
 
   public override async connectInstances(
     node1: Instance,
     otherNodeOrNodes: Instance | Instance[],
-    relEntry: RelationshipEntry
+    relEntry: RelationshipEntry,
+    orUpdate: boolean
   ): Promise<Instance> {
-    const n: string = asTableName(relEntry.moduleName, relEntry.name);
-    const a1: string = relEntry.node1.alias;
-    const a2: string = relEntry.node2.alias;
     if (otherNodeOrNodes instanceof Array) {
       for (let i = 0; i < otherNodeOrNodes.length; ++i) {
-        await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes[i], this.txnId);
+        await this.connectInstancesHelper(node1, otherNodeOrNodes[i], relEntry, orUpdate);
       }
+      return node1;
     } else {
-      await insertBetweenRow(n, a1, a2, node1, otherNodeOrNodes, this.txnId);
+      await this.connectInstancesHelper(node1, otherNodeOrNodes as Instance, relEntry, orUpdate);
+      return node1;
     }
-    return node1;
   }
 
-  public override startTransaction(): string {
-    this.txnId = startDbTransaction();
+  async connectInstancesHelper(
+    node1: Instance,
+    node2: Instance,
+    relEntry: RelationshipEntry,
+    orUpdate: boolean
+  ): Promise<void> {
+    const n: string = asTableName(relEntry.moduleName, relEntry.name);
+    const [firstNode, secondNode] = relEntry.isFirstNode(node1) ? [node1, node2] : [node2, node1];
+    const a1: string = relEntry.node1.alias;
+    const a2: string = relEntry.node2.alias;
+    const n1path: any = orUpdate ? firstNode.lookup(PathAttributeName) : undefined;
+    if (orUpdate) {
+      await hardDeleteRow(
+        n,
+        [
+          [a1, n1path],
+          [a2, secondNode.lookup(PathAttributeName)],
+        ],
+        this.getDbContext(relEntry.getFqName())
+      );
+    }
+    await insertBetweenRow(
+      n,
+      a1,
+      a2,
+      firstNode,
+      secondNode,
+      this.getDbContext(relEntry.getFqName())
+    );
+  }
+
+  public override async startTransaction(): Promise<string> {
+    this.txnId = await startDbTransaction();
     return this.txnId;
   }
 
@@ -244,20 +320,4 @@ export class SqlDbResolver extends Resolver {
     }
     return txnId;
   }
-}
-
-async function insertBetweenRow(
-  n: string,
-  a1: string,
-  a2: string,
-  node1: Instance,
-  node2: Instance,
-  txnId?: string
-): Promise<void> {
-  const attrs: InstanceAttributes = newInstanceAttributes();
-  attrs.set(a1, node1.attributes.get(PathAttributeName));
-  attrs.set(a2, node2.attributes.get(PathAttributeName));
-  attrs.set(PathAttributeName, crypto.randomUUID());
-  const row = attributesAsColumns(attrs);
-  await insertRow(n, row, txnId);
 }

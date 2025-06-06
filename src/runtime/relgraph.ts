@@ -1,12 +1,11 @@
 import {
-  DefaultModuleName,
   fetchModule,
   getUserModuleNames,
   RelationshipEntry,
   RelNodeEntry,
   RuntimeModule,
 } from './module.js';
-import { Path } from './util.js';
+import { DefaultModuleName, Path } from './util.js';
 
 export type RelationshipGraphNode = {
   entity: Path;

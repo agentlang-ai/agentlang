@@ -1,7 +1,6 @@
 import { TableColumnOptions, TableForeignKey, TableIndexOptions } from 'typeorm';
 import {
   AttributeSpec,
-  EntityEntry,
   fetchModule,
   getAttributeDefaultValue,
   getAttributeLength,
@@ -34,8 +33,8 @@ export function modulesAsDbSchema(): TableSchema[] {
   getModuleNames().forEach((n: string) => {
     buildGraph(n);
     const mod: RuntimeModule = fetchModule(n);
-    const entities: EntityEntry[] = mod.getEntityEntries();
-    const betRels: RelationshipEntry[] = mod
+    const entities: RecordEntry[] = mod.getEntityEntries();
+    const betRels: RecordEntry[] = mod
       .getBetweenRelationshipEntries()
       .filter((v: RelationshipEntry) => v.isManyToMany());
     const allEntries: RecordEntry[] = entities.concat(betRels) as RecordEntry[];
@@ -121,4 +120,8 @@ export function asSqlType(type: string): string {
   else if (type == 'Int') return 'integer';
   else if (!isBuiltInType(type)) return 'varchar';
   else return type.toLowerCase();
+}
+
+export function isSqlTrue(v: true | false | 1 | 0): boolean {
+  return v == true || v == 1;
 }

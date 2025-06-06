@@ -1,4 +1,3 @@
-import { LangiumDocument } from 'langium';
 import { isNodeEnv } from '../utils/runtime.js';
 import { ExtendsClause } from '../language/generated/ast.js';
 
@@ -186,17 +185,23 @@ export function arrayEquals(a: Array<any>, b: Array<any>) {
   }
 }
 
-export function maybeRaiseParserErrors(document: LangiumDocument) {
-  if (document.parseResult.lexerErrors.length > 0 || document.parseResult.parserErrors.length > 0) {
-    const errs: Array<string> = [];
-    document.parseResult.lexerErrors.forEach((v: any) => {
-      errs.push(v.message);
-    });
-    document.parseResult.parserErrors.forEach((v: any) => {
-      errs.push(v.message);
-    });
-    throw new Error(`There were parser errors: \n ${errs.join('\n')}`);
+export const DefaultModuleName = 'agentlang';
+
+export function makeCoreModuleName(n: string): string {
+  return DefaultModuleName + '_' + n;
+}
+
+const InitFunctions: Function[] = [];
+
+export function registerInitFunction(f: Function) {
+  InitFunctions.push(f);
+}
+
+export async function runInitFunctions() {
+  for (let i = 0; i < InitFunctions.length; ++i) {
+    await InitFunctions[i]();
   }
+  InitFunctions.splice(0, InitFunctions.length);
 }
 
 export function maybeExtends(ext: ExtendsClause | undefined): string | undefined {

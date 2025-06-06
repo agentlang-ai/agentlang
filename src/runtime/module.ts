@@ -9,18 +9,6 @@ import {
   RelNodes,
   Node,
   isRelNodes,
-  Def,
-  isWorkflow,
-  Module,
-  isEntity,
-  isEvent,
-  isRecord,
-  isRelationship,
-  Entity,
-  Record,
-  Event,
-  Relationship,
-  Workflow,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -30,15 +18,10 @@ import {
   isBoolean,
   isFqName,
   makeFqName,
-  maybeRaiseParserErrors,
-  maybeExtends,
+  DefaultModuleName,
 } from './util.js';
-import { DeletedFlagAttributeName } from './resolvers/sqldb/database.js';
 import { getResolverNameForPath } from './resolvers/registry.js';
-import { parse } from '../language/parser.js';
-import { createAgentlangServices } from '../language/agentlang-module.js';
-import { EmptyFileSystem } from 'langium';
-import { parseHelper } from 'langium/test';
+import { parseStatement } from '../language/parser.js';
 
 export class ModuleEntry {
   name: string;
@@ -259,6 +242,10 @@ export class RecordEntry extends ModuleEntry {
     });
     return recSchema;
   }
+
+  getUserAttributeNames(): string[] {
+    return [...this.getUserAttributes().keys()];
+  }
 }
 
 type FetchModuleByEntryNameResult = {
@@ -366,11 +353,103 @@ function normalizeKvPairValue(kvp: KvPair): any | null {
   return null;
 }
 
-export const DefaultModuleName = 'agentlang';
 export const PlaceholderRecordEntry = new RecordEntry('--', DefaultModuleName);
+
+export enum RbacPermissionFlag {
+  CREATE,
+  READ,
+  UPDATE,
+  DELETE,
+}
+
+type RbacExpression = {
+  lhs: string;
+  rhs: string;
+};
+
+export class RbacSpecification {
+  private static EmptyRoles: Set<string> = new Set();
+  resource: string = '';
+  roles: Set<string> = RbacSpecification.EmptyRoles;
+  permissions: Set<RbacPermissionFlag>;
+  expression: RbacExpression | undefined;
+
+  constructor() {
+    this.permissions = new Set();
+  }
+
+  setResource(s: string): RbacSpecification {
+    this.resource = s;
+    return this;
+  }
+
+  hasResource(): boolean {
+    return this.resource.length > 0;
+  }
+
+  setPermissions(perms: Array<string>): RbacSpecification {
+    perms.forEach((v: string) => {
+      const idx: any = v.toUpperCase();
+      const a: any = RbacPermissionFlag[idx];
+      if (a == undefined) {
+        throw new Error(`Not a valid RBAC permission - ${v}`);
+      }
+      this.permissions.add(a);
+    });
+    return this;
+  }
+
+  hasPermissions(): boolean {
+    return this.permissions.size > 0;
+  }
+
+  hasCreatePermission(): boolean {
+    return this.permissions.has(RbacPermissionFlag.CREATE);
+  }
+
+  hasReadPermission(): boolean {
+    return this.permissions.has(RbacPermissionFlag.READ);
+  }
+
+  hasUpdatePermission(): boolean {
+    return this.permissions.has(RbacPermissionFlag.UPDATE);
+  }
+
+  hasDeletePermission(): boolean {
+    return this.permissions.has(RbacPermissionFlag.DELETE);
+  }
+
+  setRoles(roles: Array<string>): RbacSpecification {
+    if (this.expression) {
+      throw new Error('Cannot set roles while `where` expression is set');
+    }
+    this.roles = new Set();
+    roles.forEach((r: string) => {
+      this.roles.add(r);
+    });
+    return this;
+  }
+
+  setExpression(lhs: string, rhs: string): RbacSpecification {
+    if (this.roles != RbacSpecification.EmptyRoles) {
+      throw new Error('Cannot set `where` expression along with roles');
+    }
+    this.expression = {
+      lhs: lhs,
+      rhs: rhs,
+    };
+    return this;
+  }
+}
 
 export class EntityEntry extends RecordEntry {
   override type: RecordType = RecordType.ENTITY;
+  rbac: RbacSpecification[] | undefined;
+
+  setRbacSpecifications(rbac: RbacSpecification[]): EntityEntry {
+    this.rbac = rbac;
+    return this;
+  }
 }
 
 export class EventEntry extends RecordEntry {
@@ -534,6 +613,10 @@ export class RelationshipEntry extends RecordEntry {
     return !(this.isOneToOne() || this.isOneToMany());
   }
 
+  isFirstNode(inst: Instance): boolean {
+    return inst.getFqName() == this.node1.path.asFqName();
+  }
+
   override toString(): string {
     const n1 = relNodeEntryToString(this.node1);
     const n2 = relNodeEntryToString(this.node2);
@@ -575,17 +658,9 @@ export class WorkflowEntry extends ModuleEntry {
   }
 
   async addStatement(stmt: string) {
-    const services = createAgentlangServices(EmptyFileSystem);
-    const parse = parseHelper<Module>(services.Agentlang);
-    const prog = `module Temp\nworkflow TempEvent { ${stmt} }`;
-    const document = await parse(prog, { validation: true });
-    maybeRaiseParserErrors(document);
-    const mod: Module = document.parseResult.value;
-    if (isWorkflow(mod.defs[0])) {
-      this.statements.push(mod.defs[0].statements[0]);
-    } else {
-      throw new Error('Failed to extract workflow-staement');
-    }
+    await parseStatement(stmt).then((result: Statement) => {
+      this.statements.push(result);
+    });
   }
 }
 
@@ -606,9 +681,10 @@ export class RuntimeModule {
     this.entriesByTypeCache = null;
   }
 
-  addEntry(entry: ModuleEntry): void {
+  addEntry(entry: ModuleEntry): ModuleEntry {
     this.entries.push(entry);
     if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
+    return entry;
   }
 
   private getEntryIndex(entryName: string): number {
@@ -755,16 +831,16 @@ export class RuntimeModule {
 
   isContainsRelationship(entryName: string): boolean {
     if (this.hasEntry(entryName)) {
-      const entry: RelationshipEntry = this.getEntry(entryName) as RelationshipEntry;
-      return entry.isContains();
+      const entry: ModuleEntry = this.getEntry(entryName);
+      if (entry instanceof RelationshipEntry) return entry.isContains();
     }
     return false;
   }
 
   isBetweenRelationship(entryName: string): boolean {
     if (this.hasEntry(entryName)) {
-      const entry: RelationshipEntry = this.getEntry(entryName) as RelationshipEntry;
-      return entry.isBetween();
+      const entry: ModuleEntry = this.getEntry(entryName);
+      if (entry instanceof RelationshipEntry) return entry.isBetween();
     }
     return false;
   }
@@ -828,6 +904,11 @@ export function fetchModule(moduleName: string): RuntimeModule {
     throw new Error(`Module not found - ${moduleName}`);
   }
   return module;
+}
+
+export function fetchModuleEntry(entryName: string, moduleName: string): ModuleEntry {
+  const module: RuntimeModule = fetchModule(moduleName);
+  return module.getEntry(entryName);
 }
 
 const builtInChecks = new Map([
@@ -969,15 +1050,10 @@ export function addEntity(
   moduleName = activeModule,
   attrs?: Attribute[],
   ext?: string
-): string {
+): EntityEntry {
   const module: RuntimeModule = fetchModule(moduleName);
   if (attrs) attrs.forEach(a => verifyAttribute(a));
-  module.addEntry(new EntityEntry(name, moduleName, attrs, ext));
-  return name;
-}
-
-export function addEntityFromDef(def: Entity, moduleName: string) {
-  addEntity(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+  return module.addEntry(new EntityEntry(name, moduleName, attrs, ext)) as EntityEntry;
 }
 
 export function addEvent(
@@ -985,15 +1061,10 @@ export function addEvent(
   moduleName = activeModule,
   attrs?: Attribute[],
   ext?: string
-) {
+): EventEntry {
   const module: RuntimeModule = fetchModule(moduleName);
   if (attrs) attrs.forEach(a => verifyAttribute(a));
-  module.addEntry(new EventEntry(name, moduleName, attrs, ext));
-  return name;
-}
-
-export function addEventFromDef(def: Event, moduleName: string) {
-  addEvent(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+  return module.addEntry(new EventEntry(name, moduleName, attrs, ext)) as EventEntry;
 }
 
 export function addRecord(
@@ -1001,15 +1072,10 @@ export function addRecord(
   moduleName = activeModule,
   attrs?: Attribute[],
   ext?: string
-) {
+): RecordEntry {
   const module: RuntimeModule = fetchModule(moduleName);
   if (attrs) attrs.forEach(a => verifyAttribute(a));
-  module.addEntry(new RecordEntry(name, moduleName, attrs, ext));
-  return name;
-}
-
-export function addRecordFromDef(def: Record, moduleName: string) {
-  addRecord(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+  return module.addEntry(new RecordEntry(name, moduleName, attrs, ext)) as RecordEntry;
 }
 
 const DefaultRelAttrbutes: Array<Attribute> = new Array<Attribute>();
@@ -1021,7 +1087,7 @@ export function addRelationship(
   moduleName = activeModule,
   attrs?: Attribute[] | undefined,
   props?: Property[] | undefined
-) {
+): RelationshipEntry {
   const module: RuntimeModule = fetchModule(moduleName);
   if (attrs != undefined) attrs.forEach(a => verifyAttribute(a));
   else attrs = DefaultRelAttrbutes;
@@ -1036,20 +1102,25 @@ export function addRelationship(
   }
   let propsMap: Map<string, any> | undefined;
   if (props != undefined) propsMap = asPropertiesMap(props);
-  module.addEntry(new RelationshipEntry(name, type, n1, n2, moduleName, attrs, propsMap));
-  return name;
+  return module.addEntry(
+    new RelationshipEntry(name, type, n1, n2, moduleName, attrs, propsMap)
+  ) as RelationshipEntry;
 }
 
-export function addRelationshipFromDef(def: Relationship, moduleName: string) {
-  addRelationship(def.name, def.type, def.nodes, moduleName, def.attributes, def.properties);
+export function addBetweenRelationship(
+  name: string,
+  moduleName: string,
+  nodes: RelNodeEntry[]
+): RelationshipEntry {
+  return addRelationship(name, 'between', nodes, moduleName);
 }
 
-export function addBetweenRelationship(name: string, moduleName: string, nodes: RelNodeEntry[]) {
-  addRelationship(name, 'between', nodes, moduleName);
-}
-
-export function addContainsRelationship(name: string, moduleName: string, nodes: RelNodeEntry[]) {
-  addRelationship(name, 'contains', nodes, moduleName);
+export function addContainsRelationship(
+  name: string,
+  moduleName: string,
+  nodes: RelNodeEntry[]
+): RelationshipEntry {
+  return addRelationship(name, 'contains', nodes, moduleName);
 }
 
 function asWorkflowName(n: string): string {
@@ -1064,7 +1135,11 @@ function normalizeWorkflowName(n: string): string {
   return n;
 }
 
-export function addWorkflow(name: string, moduleName = activeModule, statements?: Statement[]) {
+export function addWorkflow(
+  name: string,
+  moduleName = activeModule,
+  statements?: Statement[]
+): WorkflowEntry {
   const module: RuntimeModule = fetchModule(moduleName);
   if (module.hasEntry(name)) {
     const entry: ModuleEntry = module.getEntry(name);
@@ -1076,38 +1151,14 @@ export function addWorkflow(name: string, moduleName = activeModule, statements?
     event.addMeta(SystemDefinedEvent, 'true');
   }
   if (!statements) statements = new Array<Statement>();
-  module.addEntry(new WorkflowEntry(asWorkflowName(name), statements, moduleName));
-  return name;
-}
-
-export function addWorkflowFromDef(def: Workflow, moduleName: string) {
-  addWorkflow(def.name, moduleName, def.statements);
-}
-
-export function addFromDef(def: Def, moduleName: string) {
-  if (isEntity(def)) addEntityFromDef(def, moduleName);
-  else if (isEvent(def)) addEventFromDef(def, moduleName);
-  else if (isRecord(def)) addRecordFromDef(def, moduleName);
-  else if (isRelationship(def)) addRelationshipFromDef(def, moduleName);
-  else if (isWorkflow(def)) addWorkflowFromDef(def, moduleName);
-}
-
-export async function parseAndIntern(code: string, moduleName: string) {
-  if (!isModule(moduleName)) {
-    throw new Error(`Moudle not found - ${moduleName}`);
-  }
-  const r = await parse(`module ${moduleName} ${code}`);
-  r.parseResult.value.defs.forEach((def: Def) => {
-    addFromDef(def, moduleName);
-  });
+  return module.addEntry(
+    new WorkflowEntry(asWorkflowName(name), statements, moduleName)
+  ) as WorkflowEntry;
 }
 
 export function getWorkflow(eventInstance: Instance): WorkflowEntry {
-  const name: string = eventInstance.name;
-  const path: Path = splitFqName(name);
-  let moduleName: string = activeModule;
-  if (path.hasModule()) moduleName = path.getModuleName();
-  const eventName: string = path.getEntryName();
+  const eventName: string = eventInstance.name;
+  const moduleName: string = eventInstance.moduleName;
   const wfName: string = asWorkflowName(eventName);
   const module: RuntimeModule = fetchModule(moduleName);
   if (module.hasEntry(wfName)) {
@@ -1220,11 +1271,6 @@ export function newInstanceAttributes(): InstanceAttributes {
 
 const EmptyInstanceAttributes: InstanceAttributes = newInstanceAttributes();
 
-export const MarkDeletedAttributes: InstanceAttributes = newInstanceAttributes().set(
-  DeletedFlagAttributeName,
-  true
-);
-
 export class Instance {
   record: RecordEntry;
   name: string;
@@ -1233,6 +1279,7 @@ export class Instance {
   queryAttributes: InstanceAttributes | undefined;
   queryAttributeValues: InstanceAttributes | undefined;
   relatedInstances: Map<string, Instance[]> | undefined;
+  contextData: Map<string, any> | undefined;
 
   constructor(
     record: RecordEntry,
@@ -1347,6 +1394,55 @@ export class Instance {
       this.detachAllRelatedInstance();
     }
   }
+
+  getRelatedInstances(relName: string): Instance[] | undefined {
+    if (this.relatedInstances) {
+      const insts: Instance[] | undefined = this.relatedInstances.get(relName);
+      return insts ? insts : undefined;
+    }
+    return undefined;
+  }
+
+  getAllUserAttributeNames(): string[] {
+    return this.record.getUserAttributeNames();
+  }
+
+  getFqName(): string {
+    return makeFqName(this.moduleName, this.name);
+  }
+
+  addContextData(k: string, v: any): Instance {
+    if (this.contextData == undefined) {
+      this.contextData = new Map();
+    }
+    this.contextData.set(k, v);
+    return this;
+  }
+
+  getContextData(k: string, notFoundValue?: any): any {
+    if (this.contextData) {
+      const v: any = this.contextData.get(k);
+      if (v == undefined) return notFoundValue;
+      return v;
+    }
+    return notFoundValue;
+  }
+
+  setAuthContext(userId: string): Instance {
+    return this.addContextData('UserId', userId);
+  }
+
+  getAuthContextUserId(): string {
+    return this.getContextData('UserId') || '?';
+  }
+
+  cast<T>(): T {
+    return Object.fromEntries(this.attributes) as T;
+  }
+
+  get(k: string): any {
+    return this.attributes.get(k);
+  }
 }
 
 export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSchema): object {
@@ -1455,4 +1551,44 @@ export function isContainsRelationship(relName: string, moduleName: string): boo
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(relName, moduleName);
   const mod: RuntimeModule = fr.module;
   return mod.isContainsRelationship(fr.entryName);
+}
+
+export type BetweenInstanceNodeValuesResult = {
+  node1: any;
+  node2: any;
+  entry: RelationshipEntry;
+};
+
+export function getBetweenInstanceNodeValues(inst: Instance): BetweenInstanceNodeValuesResult {
+  const re: RelationshipEntry = fetchModuleEntry(inst.name, inst.moduleName) as RelationshipEntry;
+  return {
+    node1: inst.attributes.get(re.node1.alias),
+    node2: inst.attributes.get(re.node2.alias),
+    entry: re,
+  };
+}
+
+export function isInstance(obj: any): boolean {
+  if (obj) {
+    return obj instanceof Instance;
+  }
+  return false;
+}
+
+export function isInstanceOfType(obj: any, fqName: string): boolean {
+  if (obj) {
+    return isInstance(obj) && fqName == (obj as Instance).getFqName();
+  }
+  return false;
+}
+
+export function assertInstance(obj: any) {
+  if (obj instanceof Array) {
+    if (obj.length == 0) {
+      throw new Error(`Empty instances`);
+    }
+    obj.forEach(assertInstance);
+  } else if (!(obj instanceof Instance)) {
+    throw new Error(`${obj} is not an Instance`);
+  }
 }

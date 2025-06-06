@@ -1,32 +1,129 @@
-import { DataSource, EntityManager, QueryRunner, Table, TableColumnOptions } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  InsertQueryBuilder,
+  QueryRunner,
+  SelectQueryBuilder,
+  Table,
+  TableColumnOptions,
+} from 'typeorm';
 import { logger } from '../../logger.js';
 import { modulesAsDbSchema, TableSchema } from './dbutil.js';
 import chalk from 'chalk';
+import { ResolverAuthInfo } from '../interface.js';
+import {
+  canUserCreate,
+  canUserDelete,
+  canUserRead,
+  canUserUpdate,
+  UnauthorisedError,
+} from '../../modules/auth.js';
+import { Environment } from '../../interpreter.js';
+import {
+  attributesAsColumns,
+  Instance,
+  InstanceAttributes,
+  newInstanceAttributes,
+  RbacPermissionFlag,
+} from '../../module.js';
 
 let defaultDataSource: DataSource | undefined;
 
 export const PathAttributeName: string = '__path__';
 export const DeletedFlagAttributeName: string = '__is_deleted__';
 
+export class DbContext {
+  txnId: string | undefined;
+  authInfo: ResolverAuthInfo;
+  private inKernelMode: boolean = false;
+  resourceFqName: string;
+  activeEnv: Environment;
+  private needAuthCheckFlag: boolean = true;
+
+  constructor(
+    resourceFqName: string,
+    authInfo: ResolverAuthInfo,
+    activeEnv: Environment,
+    txnId?: string,
+    inKernelMode?: boolean
+  ) {
+    this.resourceFqName = resourceFqName;
+    this.authInfo = authInfo;
+    this.activeEnv = activeEnv;
+    this.txnId = txnId;
+    if (inKernelMode != undefined) {
+      this.inKernelMode = inKernelMode;
+    }
+  }
+
+  // Shallow clone
+  clone(): DbContext {
+    return new DbContext(
+      this.resourceFqName,
+      this.authInfo,
+      this.activeEnv,
+      this.txnId,
+      this.inKernelMode
+    );
+  }
+
+  getUserId(): string {
+    return this.authInfo.userId;
+  }
+
+  isForDelete(): boolean {
+    return this.authInfo.readForDelete;
+  }
+
+  isForUpdate(): boolean {
+    return this.authInfo.readForUpdate;
+  }
+
+  setResourceFqNameFrom(inst: Instance): DbContext {
+    this.resourceFqName = inst.getFqName();
+    return this;
+  }
+
+  setNeedAuthCheck(flag: boolean): DbContext {
+    this.needAuthCheckFlag = flag;
+    return this;
+  }
+
+  isPermitted(): boolean {
+    return this.inKernelMode || !this.needAuthCheckFlag;
+  }
+
+  isInKernelMode(): boolean {
+    return this.inKernelMode;
+  }
+}
+
+function mkDbName(): string {
+  return `db-${Date.now()}`;
+}
+
 export async function initDefaultDatabase() {
   if (defaultDataSource == undefined) {
     defaultDataSource = new DataSource({
       type: 'sqlite',
-      database: 'db',
+      database: mkDbName(),
+      synchronize: true,
     });
-    await defaultDataSource
-      .initialize()
-      .then(() => {
-        createTables().then((_: void) => {
-          const msg: string = 'Database schema initialized';
-          logger.debug(msg);
-          console.log(chalk.gray(msg));
-        });
+    await defaultDataSource.initialize();
+    await createTables()
+      .then((_: void) => {
+        const msg: string = 'Database schema initialized';
+        logger.debug(msg);
+        console.log(chalk.gray(msg));
       })
       .catch(err => {
         logger.error('Error during Data Source initialization', err);
       });
   }
+}
+
+function ownersTable(tableName: string): string {
+  return tableName + `_owners`;
 }
 
 async function createTables(): Promise<void> {
@@ -73,7 +170,7 @@ async function createTables(): Promise<void> {
         await queryRunner
           .createTable(
             new Table({
-              name: ts.name + '_owners',
+              name: ownersTable(ts.name),
               columns: [
                 {
                   name: 'path',
@@ -87,20 +184,25 @@ async function createTables(): Promise<void> {
                 {
                   name: 'type',
                   type: 'char(1)',
-                  default: "'u'",
+                  default: "'o'",
                 },
                 {
-                  name: 'can_read',
+                  name: 'c',
                   type: 'boolean',
                   default: true,
                 },
                 {
-                  name: 'can_write',
+                  name: 'r',
                   type: 'boolean',
                   default: true,
                 },
                 {
-                  name: 'can_delete',
+                  name: 'u',
+                  type: 'boolean',
+                  default: true,
+                },
+                {
+                  name: 'd',
                   type: 'boolean',
                   default: true,
                 },
@@ -127,19 +229,231 @@ async function createTables(): Promise<void> {
   }
 }
 
-export async function insertRows(tableName: string, rows: object[], txnId?: string): Promise<void> {
+async function insertRowsHelper(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
+  const qb: InsertQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
+    .createQueryBuilder()
+    .insert()
+    .into(tableName)
+    .values(rows);
+  await qb.execute();
+}
+
+async function checkUserPerm(
+  opr: RbacPermissionFlag,
+  ctx: DbContext,
+  instRows: object
+): Promise<boolean> {
+  let hasPerm = ctx.isPermitted();
+  if (!hasPerm) {
+    const userId = ctx.getUserId();
+    let f: Function | undefined;
+    switch (opr) {
+      case RbacPermissionFlag.CREATE:
+        f = canUserCreate;
+        break;
+      case RbacPermissionFlag.READ:
+        f = canUserRead;
+        break;
+      case RbacPermissionFlag.UPDATE:
+        f = canUserUpdate;
+        break;
+      case RbacPermissionFlag.DELETE:
+        f = canUserDelete;
+        break;
+      default:
+        f = undefined;
+    }
+    if (f != undefined) {
+      await f(userId, ctx.resourceFqName, ctx.activeEnv).then((r: boolean) => {
+        hasPerm = r;
+      });
+    }
+  }
+  if (!hasPerm) {
+    await isOwnerOfParent(instRows[PathKey], ctx).then((r: boolean) => {
+      hasPerm = r;
+    });
+  }
+  return hasPerm;
+}
+
+async function checkCreatePermission(ctx: DbContext, inst: Instance): Promise<boolean> {
+  const tmpCtx = ctx.clone().setResourceFqNameFrom(inst);
+  let result = false;
+  await checkUserPerm(RbacPermissionFlag.CREATE, tmpCtx, attributesAsColumns(inst.attributes)).then(
+    (r: boolean) => {
+      result = r;
+    }
+  );
+  return result;
+}
+
+export async function insertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
+  let hasPerm = ctx.isPermitted();
+  if (!hasPerm) {
+    await checkUserPerm(RbacPermissionFlag.CREATE, ctx, rows[0]).then((r: boolean) => {
+      hasPerm = r;
+    });
+  }
+  if (hasPerm) {
+    await insertRowsHelper(tableName, rows, ctx);
+    if (!ctx.isInKernelMode()) {
+      await createOwnership(tableName, rows, ctx);
+    }
+  } else {
+    throw new UnauthorisedError({ opr: 'insert', entity: tableName });
+  }
+}
+
+export async function insertRow(tableName: string, row: object, ctx: DbContext): Promise<void> {
+  const rows: Array<object> = new Array<object>();
+  rows.push(row);
+  await insertRows(tableName, rows, ctx);
+}
+
+export async function insertBetweenRow(
+  n: string,
+  a1: string,
+  a2: string,
+  node1: Instance,
+  node2: Instance,
+  ctx: DbContext
+): Promise<void> {
+  let hasPerm = false;
+  await checkCreatePermission(ctx, node1).then((r: boolean) => {
+    hasPerm = r;
+  });
+  if (hasPerm) {
+    await checkCreatePermission(ctx, node2).then((r: boolean) => {
+      hasPerm = r;
+    });
+  }
+  if (hasPerm) {
+    const attrs: InstanceAttributes = newInstanceAttributes();
+    attrs.set(a1, node1.attributes.get(PathAttributeName));
+    attrs.set(a2, node2.attributes.get(PathAttributeName));
+    attrs.set(PathAttributeName, crypto.randomUUID());
+    const row = attributesAsColumns(attrs);
+    await insertRow(n, row, ctx.clone().setNeedAuthCheck(false));
+  } else {
+    throw new UnauthorisedError({ opr: 'insert', entity: n });
+  }
+}
+
+const PathKey = PathAttributeName as keyof object;
+
+async function createOwnership(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
+  const ownerRows: object[] = [];
+  rows.forEach((r: object) => {
+    ownerRows.push({
+      path: r[PathKey],
+      user_id: ctx.authInfo.userId,
+      type: 'o',
+      c: true,
+      r: true,
+      u: true,
+      d: true,
+    });
+  });
+  const tname = ownersTable(tableName);
+  await insertRowsHelper(tname, ownerRows, ctx);
+}
+
+async function isOwnerOfParent(path: string, ctx: DbContext): Promise<boolean> {
+  const parts = path.split('/');
+  if (parts.length <= 2) {
+    return false;
+  }
+  const parentPaths = new Array<[string, string]>();
+  let i = 0;
+  let lastPath: string | undefined;
+  while (i < parts.length - 2) {
+    const parentName = parts[i].replace('$', '_');
+    const parentPath = `${lastPath ? lastPath + '/' : ''}${parts[i]}/${parts[i + 1]}`;
+    lastPath = `${parentPath}/${parts[i + 2]}`;
+    parentPaths.push([parentName, parentPath]);
+    i += 3;
+  }
+  if (parentPaths.length == 0) {
+    return false;
+  }
+  for (let i = 0; i < parentPaths.length; ++i) {
+    const [parentName, parentPath] = parentPaths[i];
+    let result = false;
+    await isOwner(parentName, parentPath, ctx).then((r: boolean) => {
+      result = r;
+    });
+    if (result) return result;
+  }
+  return false;
+}
+
+async function isOwner(tableName: string, instPath: string, ctx: DbContext): Promise<boolean> {
+  const userId = ctx.getUserId();
+  const tabName = ownersTable(tableName);
+  const alias = tabName.toLowerCase();
+  const query = [
+    `${alias}.path = '${instPath}'`,
+    `${alias}.user_id = '${userId}'`,
+    `${alias}.type = 'o'`,
+  ];
+  let result: any = undefined;
+  const sq: SelectQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
+    .createQueryBuilder()
+    .select()
+    .from(tabName, alias)
+    .where(query.join(' AND '));
+  await sq
+    .getRawMany()
+    .then((r: any) => (result = r))
+    .catch((reason: any) => {
+      logger.error(`Failed to check ownership on parent ${tableName} - ${reason}`);
+    });
+  if (result == undefined || result.length == 0) {
+    return false;
+  }
+  return true;
+}
+
+export async function upsertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
+  // This is the right way to do an upsert in TypeORM, but `orUpdate` does not seem to work
+  // without a (TypeORM) entity definition.
+
+  /*const rowsForUpsert: Array<string> = Object.keys(rows[0]);
+  const idx = rowsForUpsert.findIndex((s: string) => {
+    return s == PathAttributeName;
+  });
+  if (idx >= 0) {
+    rowsForUpsert.splice(idx, 1);
+  }
   await getDatasourceForTransaction(txnId)
     .createQueryBuilder()
     .insert()
     .into(tableName)
     .values(rows)
-    .execute();
+    .orUpdate(rowsForUpsert, PathAttributeName)
+    .execute();*/
+  let hasPerm = ctx.isPermitted();
+  if (!hasPerm) {
+    await checkUserPerm(RbacPermissionFlag.UPDATE, ctx, rows[0]).then((r: boolean) => {
+      hasPerm = r;
+    });
+  }
+  if (hasPerm) {
+    for (let i = 0; i < rows.length; ++i) {
+      const r: object = rows[i];
+      await hardDeleteRow(tableName, [[PathAttributeName, r[PathKey]]], ctx);
+    }
+    await insertRows(tableName, rows, ctx);
+  } else {
+    throw new UnauthorisedError({ opr: 'upsert', entity: tableName });
+  }
 }
 
-export async function insertRow(tableName: string, row: object, txnId?: string): Promise<void> {
+export async function upsertRow(tableName: string, row: object, ctx: DbContext): Promise<void> {
   const rows: Array<object> = new Array<object>();
   rows.push(row);
-  await insertRows(tableName, rows, txnId);
+  await upsertRows(tableName, rows, ctx);
 }
 
 export async function updateRow(
@@ -147,13 +461,36 @@ export async function updateRow(
   queryObj: object,
   queryVals: object,
   updateObj: object,
-  txtId?: string
+  ctx: DbContext
 ): Promise<boolean> {
-  await getDatasourceForTransaction(txtId)
+  await getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
     .update(tableName)
     .set(updateObj)
     .where(objectToWhereClause(queryObj), queryVals)
+    .execute();
+  return true;
+}
+
+type QueryObjectEntry = [string, any];
+export type QueryObject = Array<QueryObjectEntry>;
+
+function queryObjectAsWhereClause(qobj: QueryObject): string {
+  const ss: Array<string> = [];
+  qobj.forEach((kv: QueryObjectEntry) => {
+    const k = kv[0];
+    ss.push(`${k} = :${k}`);
+  });
+  return ss.join(' AND ');
+}
+
+export async function hardDeleteRow(tableName: string, queryObject: QueryObject, ctx: DbContext) {
+  const clause = queryObjectAsWhereClause(queryObject);
+  await getDatasourceForTransaction(ctx.txnId)
+    .createQueryBuilder()
+    .delete()
+    .from(tableName)
+    .where(clause, Object.fromEntries(queryObject))
     .execute();
   return true;
 }
@@ -173,20 +510,68 @@ export async function getMany(
   tableName: string,
   queryObj: object | undefined,
   queryVals: object | undefined,
-  callback: Function,
-  txtId?: string
-) {
+  colNamesToSelect: string[],
+  ctx: DbContext
+): Promise<any> {
   const alias: string = tableName.toLowerCase();
   const queryStr: string = withNotDeletedClause(
     queryObj != undefined ? objectToWhereClause(queryObj, alias) : ''
   );
-  await getDatasourceForTransaction(txtId)
+  let ownersJoinCond: string[] | undefined;
+  let ot: string = '';
+  let otAlias: string = '';
+  if (!ctx.isPermitted()) {
+    const userId = ctx.getUserId();
+    const fqName = ctx.resourceFqName;
+    let hasGlobalPerms: boolean = false;
+    const env: Environment = ctx.activeEnv;
+    await canUserRead(userId, fqName, env).then((r: boolean) => {
+      hasGlobalPerms = r;
+    });
+    if (hasGlobalPerms) {
+      if (ctx.isForUpdate()) {
+        await canUserUpdate(userId, fqName, env).then((r: boolean) => {
+          hasGlobalPerms = r;
+        });
+      } else if (ctx.isForDelete()) {
+        await canUserDelete(userId, fqName, env).then((r: boolean) => {
+          hasGlobalPerms = r;
+        });
+      }
+    }
+    if (!hasGlobalPerms) {
+      ot = ownersTable(tableName);
+      otAlias = ot.toLowerCase();
+      ownersJoinCond = [
+        `${otAlias}.path = ${alias}.${PathAttributeName}`,
+        `${otAlias}.user_id = '${ctx.authInfo.userId}'`,
+        `${otAlias}.r = true`,
+      ];
+      if (ctx.isForUpdate()) {
+        ownersJoinCond.push(`${otAlias}.u = true`);
+      }
+      if (ctx.isForDelete()) {
+        ownersJoinCond.push(`${otAlias}.d = true`);
+      }
+    }
+  }
+  const selCols = new Array<string>();
+  colNamesToSelect.forEach((s: string) => {
+    selCols.push(`${alias}.${s}`);
+  });
+  selCols.push(`${alias}.${PathAttributeName}`);
+
+  const qb: SelectQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
-    .select()
-    .from(tableName, alias)
-    .where(queryStr, queryVals)
-    .getRawMany()
-    .then((result: any) => callback(result));
+    .select(selCols.join(','))
+    .from(tableName, alias);
+  if (ownersJoinCond) {
+    qb.innerJoin(ot, otAlias, ownersJoinCond.join(' AND '));
+  }
+  qb.where(queryStr, queryVals);
+  let result: any;
+  await qb.getRawMany().then((r: any) => (result = r));
+  return result;
 }
 
 const NotDeletedClause: string = `${DeletedFlagAttributeName} = false`;
@@ -221,11 +606,11 @@ export async function getAllConnected(
   queryVals: object,
   connInfo: BetweenConnectionInfo,
   callback: Function,
-  txtId?: string
+  ctx: DbContext
 ) {
   const alias: string = tableName.toLowerCase();
   const connAlias: string = connInfo.connectionTable.toLowerCase();
-  await getDatasourceForTransaction(txtId)
+  await getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
     .select()
     .from(tableName, alias)
@@ -241,10 +626,10 @@ export async function getAllConnected(
 
 const transactionsDb: Map<string, QueryRunner> = new Map<string, QueryRunner>();
 
-export function startDbTransaction(): string {
+export async function startDbTransaction(): Promise<string> {
   if (defaultDataSource != undefined) {
     const queryRunner = defaultDataSource.createQueryRunner();
-    queryRunner.startTransaction();
+    await queryRunner.startTransaction();
     const txnId: string = crypto.randomUUID();
     transactionsDb.set(txnId, queryRunner);
     return txnId;
@@ -253,7 +638,7 @@ export function startDbTransaction(): string {
   }
 }
 
-export function getDatasourceForTransaction(txnId: string | undefined): DataSource | EntityManager {
+function getDatasourceForTransaction(txnId: string | undefined): DataSource | EntityManager {
   if (txnId) {
     const qr: QueryRunner | undefined = transactionsDb.get(txnId);
     if (qr == undefined) {
@@ -281,6 +666,7 @@ async function endTransaction(txnId: string, commit: boolean): Promise<void> {
     try {
       if (commit)
         await qr.commitTransaction().catch((reason: any) => {
+          console.log(reason.type);
           logger.error(`failed to commit transaction ${txnId} - ${reason}`);
         });
       else
@@ -288,7 +674,7 @@ async function endTransaction(txnId: string, commit: boolean): Promise<void> {
           logger.error(`failed to rollback transaction ${txnId} - ${reason}`);
         });
     } finally {
-      qr.release();
+      await qr.release();
       transactionsDb.delete(txnId);
     }
   }

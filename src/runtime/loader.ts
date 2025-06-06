@@ -1,12 +1,55 @@
 import chalk from 'chalk';
 import { createAgentlangServices } from '../language/agentlang-module.js';
-import { Module, Def, Import } from '../language/generated/ast.js';
-import { addModule, addFromDef } from './module.js';
-import { importModule, runShellCommand } from './util.js';
+import {
+  Module,
+  Def,
+  Import,
+  Entity,
+  RbacSpec,
+  RbacSpecEntries,
+  RbacSpecEntry,
+  RbacOpr,
+  Event,
+  Record,
+  Relationship,
+  Workflow,
+  isEntity,
+  isEvent,
+  isRecord,
+  isRelationship,
+  isWorkflow,
+  isModule,
+} from '../language/generated/ast.js';
+import {
+  addEntity,
+  addEvent,
+  addModule,
+  addRelationship,
+  addWorkflow,
+  EntityEntry,
+  EventEntry,
+  RbacSpecification,
+  RecordEntry,
+  RelationshipEntry,
+  RuntimeModule,
+  WorkflowEntry,
+} from './module.js';
+import {
+  importModule,
+  makeFqName,
+  maybeExtends,
+  registerInitFunction,
+  runShellCommand,
+} from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
+import { CoreModules } from './modules/core.js';
+import { parse, parseModule } from '../language/parser.js';
+import { logger } from './logger.js';
+import { Environment } from './interpreter.js';
+import { createPermission, createRole } from './modules/auth.js';
 
 export async function extractDocument(
   fileName: string,
@@ -96,11 +139,12 @@ export type ApplicationSpec = {
   dependencies?: object | undefined;
 };
 
-const loadApp = async (
-  appJsonFile: string,
-  continuation: Function,
-  fsOptions?: any
-): Promise<void> => {
+export const DefaultAppSpec: ApplicationSpec = {
+  name: 'agentlang-app',
+  version: '0.0.1',
+};
+
+async function loadApp(appJsonFile: string, fsOptions?: any): Promise<string> {
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
 
@@ -109,8 +153,8 @@ const loadApp = async (
   const dir: string = path.dirname(appJsonFile);
   const alFiles: Array<string> = new Array<string>();
   const directoryContents = await fs.readdir(dir);
-
-  const cont2: Function = () => {
+  let lastModuleLoaded: string = '';
+  async function cont2() {
     if (!directoryContents) {
       console.error(chalk.red(`Directory ${dir} does not exist or is empty.`));
       return;
@@ -120,19 +164,12 @@ const loadApp = async (
         alFiles.push(dir + path.sep + file);
       }
     });
-    if (alFiles.length > 0) {
-      let loadedCount: number = 0;
-      const cont: Function = (_: string) => {
-        ++loadedCount;
-        if (loadedCount >= alFiles.length) {
-          continuation(appSpec);
-        }
-      };
-      alFiles.forEach((fileName: string) => {
-        loadModule(fileName, cont, fsOptions);
+    for (let i = 0; i < alFiles.length; ++i) {
+      await loadModule(alFiles[i], fsOptions).then((r: RuntimeModule) => {
+        lastModuleLoaded = r.name;
       });
     }
-  };
+  }
   if (appSpec.dependencies != undefined) {
     if (isNodeEnv) {
       // Only run shell commands in Node.js environment
@@ -142,12 +179,13 @@ const loadApp = async (
     } else {
       // In non-Node environments, log a warning and continue
       console.warn('Dependencies cannot be installed in non-Node.js environments');
-      cont2();
+      await cont2();
     }
   } else {
-    cont2();
+    await cont2();
   }
-};
+  return appSpec.name || lastModuleLoaded;
+}
 
 /**
  * Load a module from a file
@@ -155,32 +193,27 @@ const loadApp = async (
  * @param fsOptions Optional configuration for the filesystem
  * @returns Promise that resolves when the module is loaded
  */
-export const load = async (
-  fileName: string,
-  continuation: Function,
-  fsOptions?: any
-): Promise<void> => {
+export async function load(fileName: string, fsOptions?: any): Promise<ApplicationSpec> {
+  let result: string = '';
   if (path.basename(fileName) == 'app.json') {
-    loadApp(fileName, continuation, fsOptions);
+    await loadApp(fileName, fsOptions).then((r: string) => {
+      result = r;
+    });
   } else {
-    loadModule(
-      fileName,
-      (moduleName: string) => {
-        continuation({
-          name: moduleName,
-          version: '0.0.1',
-        });
-      },
-      fsOptions
-    );
+    await loadModule(fileName, fsOptions).then((r: RuntimeModule) => {
+      result = r.name;
+    });
   }
-};
+  return { name: result, version: '0.0.1' };
+}
 
-const loadModule = async (
-  fileName: string,
-  continuation: Function,
-  fsOptions?: any
-): Promise<void> => {
+export async function loadCoreModules() {
+  for (let i = 0; i < CoreModules.length; ++i) {
+    await parseModule(CoreModules[i]).then(internModule);
+  }
+}
+
+async function loadModule(fileName: string, fsOptions?: any): Promise<RuntimeModule> {
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
 
@@ -193,10 +226,11 @@ const loadModule = async (
 
   // Extract the AST node
   const module = await extractAstNode<Module>(fileName, services);
-  const moduleName = internModule(module);
-  console.log(chalk.green(`Module ${chalk.bold(moduleName)} loaded`));
-  if (continuation != undefined) continuation(moduleName);
-};
+  const result: RuntimeModule = internModule(module);
+  console.log(chalk.green(`Module ${chalk.bold(result.name)} loaded`));
+  logger.info(`Module ${result.name} loaded`);
+  return result;
+}
 
 let cachedFsAdapter: any = null;
 
@@ -235,14 +269,112 @@ function getFsAdapter(fs: any) {
   return cachedFsAdapter;
 }
 
-function internModule(module: Module): string {
+function setRbacForEntity(entity: EntityEntry, rbacSpec: RbacSpec) {
+  const rbac: RbacSpecification[] = new Array<RbacSpecification>();
+  rbacSpec.specEntries.forEach((specEntries: RbacSpecEntries) => {
+    const rs: RbacSpecification = new RbacSpecification().setResource(
+      makeFqName(entity.moduleName, entity.name)
+    );
+    specEntries.entries.forEach((spec: RbacSpecEntry) => {
+      if (spec.allow) {
+        rs.setPermissions(
+          spec.allow.oprs.map((v: RbacOpr) => {
+            return v.value;
+          })
+        );
+      } else if (spec.role) {
+        rs.setRoles(spec.role.roles);
+      } else if (spec.expr) {
+        rs.setExpression(spec.expr.lhs, spec.expr.rhs);
+      }
+    });
+    rbac.push(rs);
+  });
+  if (rbac.length > 0) {
+    const f = async () => {
+      for (let i = 0; i < rbac.length; ++i) {
+        await createRolesAndPermissions(rbac[i]);
+      }
+    };
+    registerInitFunction(f);
+    entity.setRbacSpecifications(rbac);
+  }
+}
+
+async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
+  const roles: Array<string> = [...rbacSpec.roles];
+  const env: Environment = new Environment();
+  async function f() {
+    for (let i = 0; i < roles.length; ++i) {
+      const r = roles[i];
+      await createRole(r, env);
+      if (rbacSpec.hasPermissions() && rbacSpec.hasResource()) {
+        await createPermission(
+          `${r}_permission`,
+          r,
+          rbacSpec.resource,
+          rbacSpec.hasCreatePermission(),
+          rbacSpec.hasReadPermission(),
+          rbacSpec.hasUpdatePermission(),
+          rbacSpec.hasDeletePermission(),
+          env
+        );
+      }
+    }
+  }
+  await env.callInTransaction(f);
+}
+
+export function addEntityFromDef(def: Entity, moduleName: string): EntityEntry {
+  const entity = addEntity(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+  if (def.schema.rbacSpec) {
+    setRbacForEntity(entity, def.schema.rbacSpec);
+  }
+  return entity;
+}
+
+export function addEventFromDef(def: Event, moduleName: string): EventEntry {
+  return addEvent(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+}
+
+export function addRecordFromDef(def: Record, moduleName: string): RecordEntry {
+  return addEvent(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+}
+
+export function addRelationshipFromDef(def: Relationship, moduleName: string): RelationshipEntry {
+  return addRelationship(def.name, def.type, def.nodes, moduleName, def.attributes, def.properties);
+}
+
+export function addWorkflowFromDef(def: Workflow, moduleName: string): WorkflowEntry {
+  return addWorkflow(def.name, moduleName, def.statements);
+}
+
+export function addFromDef(def: Def, moduleName: string) {
+  if (isEntity(def)) addEntityFromDef(def, moduleName);
+  else if (isEvent(def)) addEventFromDef(def, moduleName);
+  else if (isRecord(def)) addRecordFromDef(def, moduleName);
+  else if (isRelationship(def)) addRelationshipFromDef(def, moduleName);
+  else if (isWorkflow(def)) addWorkflowFromDef(def, moduleName);
+}
+
+export async function parseAndIntern(code: string, moduleName: string) {
+  if (!isModule(moduleName)) {
+    throw new Error(`Moudle not found - ${moduleName}`);
+  }
+  const r = await parse(`module ${moduleName} ${code}`);
+  r.parseResult.value.defs.forEach((def: Def) => {
+    addFromDef(def, moduleName);
+  });
+}
+
+export function internModule(module: Module): RuntimeModule {
   const mn = module.name;
-  addModule(mn);
+  const r = addModule(mn);
   module.imports.forEach((imp: Import) => {
     importModule(imp.path, imp.name);
   });
   module.defs.forEach((def: Def) => {
     addFromDef(def, mn);
   });
-  return mn;
+  return r;
 }
