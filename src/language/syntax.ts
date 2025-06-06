@@ -64,6 +64,10 @@ export class LiteralPattern extends BasePattern {
   }
 }
 
+export function isLiteralPattern(p: BasePattern): boolean {
+  return p instanceof LiteralPattern;
+}
+
 export class ArrayPattern extends BasePattern {
   values: Array<BasePattern>;
 
@@ -83,6 +87,10 @@ export class ArrayPattern extends BasePattern {
       return '[]';
     }
   }
+}
+
+export function isArrayPattern(p: BasePattern): boolean {
+  return p instanceof ArrayPattern;
 }
 
 export class FunctionCallPattern extends BasePattern {
@@ -110,6 +118,10 @@ export class FunctionCallPattern extends BasePattern {
   }
 }
 
+export function isFunctionCallPattern(p: BasePattern): boolean {
+  return p instanceof FunctionCallPattern;
+}
+
 export class ExpressionPattern extends BasePattern {
   expression: any;
 
@@ -122,6 +134,10 @@ export class ExpressionPattern extends BasePattern {
     const s = this.expression.toString();
     return s.concat(this.aliasAsString());
   }
+}
+
+export function isExpressionPattern(p: BasePattern): boolean {
+  return p instanceof ExpressionPattern;
 }
 
 export class GroupExpressionPattern extends BasePattern {
@@ -137,6 +153,10 @@ export class GroupExpressionPattern extends BasePattern {
   }
 }
 
+export function isGroupExpressionPattern(p: BasePattern): boolean {
+  return p instanceof GroupExpressionPattern;
+}
+
 export class NegExpressionPattern extends BasePattern {
   expression: ExpressionPattern;
 
@@ -148,6 +168,10 @@ export class NegExpressionPattern extends BasePattern {
   override toString(): string {
     return `-${this.expression.toString}`;
   }
+}
+
+export function isNegExpressionPattern(p: BasePattern): boolean {
+  return p instanceof NegExpressionPattern;
 }
 
 export class ReferencePattern extends BasePattern {
@@ -163,6 +187,10 @@ export class ReferencePattern extends BasePattern {
   override toString(): string {
     return `${this.record}.${this.member}`.concat(this.aliasAsString());
   }
+}
+
+export function isReferencePattern(p: BasePattern): boolean {
+  return p instanceof ReferencePattern;
 }
 
 export type AttributePattern = {
@@ -247,6 +275,22 @@ export class CrudPattern extends BasePattern {
   }
 }
 
+export function isCrudPattern(p: BasePattern): boolean {
+  return p instanceof CrudPattern;
+}
+
+export function isCreatePattern(p: BasePattern): boolean {
+  return isCrudPattern(p) && (p as CrudPattern).isCreate;
+}
+
+export function isQueryPattern(p: BasePattern): boolean {
+  return isCrudPattern(p) && (p as CrudPattern).isQuery;
+}
+
+export function isQueryUpdatePattern(p: BasePattern): boolean {
+  return isCrudPattern(p) && (p as CrudPattern).isQueryUpdate;
+}
+
 export class ForEachPattern extends BasePattern {
   variable: string;
   source: BasePattern;
@@ -274,6 +318,10 @@ export class ForEachPattern extends BasePattern {
     s = s.concat(`{${patternsToString(this.body)}}`);
     return s.concat(this.aliasAsString());
   }
+}
+
+export function isForEachPattern(p: BasePattern): boolean {
+  return p instanceof ForEachPattern;
 }
 
 export class IfPattern extends BasePattern {
@@ -331,6 +379,10 @@ export class IfPattern extends BasePattern {
   }
 }
 
+export function isIfPattern(p: BasePattern): boolean {
+  return p instanceof IfPattern;
+}
+
 export function newCreatePattern(recName: string): CrudPattern {
   const cp: CrudPattern = new CrudPattern(recName);
   cp.isCreate = true;
@@ -360,6 +412,10 @@ export class DeletePattern extends BasePattern {
   override toString(): string {
     return `delete ${this.pattern.toString()}`.concat(this.aliasAsString());
   }
+}
+
+export function isDeletePattern(p: BasePattern): boolean {
+  return p instanceof DeletePattern;
 }
 
 export function newDeletePattern(recName: string): DeletePattern {
