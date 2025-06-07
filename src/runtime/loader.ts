@@ -24,6 +24,7 @@ import {
   addEntity,
   addEvent,
   addModule,
+  addRecord,
   addRelationship,
   addWorkflow,
   EntityEntry,
@@ -332,7 +333,7 @@ export function addEventFromDef(def: Event, moduleName: string): EventEntry {
 }
 
 export function addRecordFromDef(def: Record, moduleName: string): RecordEntry {
-  return addEvent(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+  return addRecord(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
 }
 
 export function addRelationshipFromDef(def: Relationship, moduleName: string): RelationshipEntry {
