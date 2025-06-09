@@ -21,136 +21,61 @@ AgentLang comes with all the modern tooling, dependency management and REPL need
 
 Agents are a built-in language construct - developers can choose from one of the built-in agent-types, or easily add their own agent-types.
 
-## Deno Support
+## Runtime Support
 
-AgentLang provides first-class support for [Deno](https://deno.land/), a modern JavaScript/TypeScript runtime. You can use Deno for building and running the AgentLang language server and REPL.
+AgentLang supports both Node.js and Deno runtimes for development and execution.
 
 ### Prerequisites
 
-- [Deno](https://deno.land/) 1.35.0 or later
-- Node.js 20+ (for some build steps)
+- Node.js 20+ (CI runs on 20.x, local development often uses 24.x)
+  - Note: Some functions may behave differently between versions (e.g., array methods on iterators)
+- [Deno](https://deno.land/) 1.35.0 or later (optional, for Deno-based workflows)
 
-### Available Deno Commands
+## Common Development Commands
 
-#### Interactive REPL
+AgentLang provides npm scripts for common tasks. Here are the most frequently used commands:
 
-AgentLang provides a unified REPL (Read-Eval-Print Loop) for interactive development with automatic watch mode. The REPL automatically detects changes in your app.json and .al source files and rebuilds/refreshes your application when changes are detected:
+```shell
+# Install dependencies
+npm install
 
-```bash
-# Start the REPL with the default app
-deno task repl
-
-# Or using the npm script
-npm run repl
-
-# Start the REPL with a specific app
-deno task repl --app path/to/app.json
-
-# Enable Langium parsing and validation
-deno task repl --langium
-
-# Show all available options
-deno task repl --help
-```
-
-Once in the REPL, you can use these commands:
-- `:help` - Show available commands
-- `:app` - Show current app info
-- `:load <path>` - Load a different app
-- `:source` - Show the AgentLang source file
-- `:langium <on|off>` - Toggle Langium parsing
-- `:q` or `:quit` - Exit the REPL
-
-**Watch Mode**: The REPL automatically watches your app.json and AgentLang source files. When changes are detected, it automatically rebuilds the project and refreshes the loaded app, providing immediate feedback during development.
-
-#### Run TypeScript Files
-
-Execute TypeScript files directly with AgentLang's environment:
-
-```bash
-# Run a TypeScript file
-deno task run path/to/file.ts
-
-# Or using the npm script
-npm run run -- path/to/file.ts
-
-# Run with watch mode (automatically rebuilds on file changes)
-deno task run -w path/to/file.ts
-
-# Run with a specific app.json file
-deno task run --app path/to/app.json path/to/file.ts
-
-# Show available options
-deno task run --help
-```
-
-**Watch Mode**: When using the `-w` or `--watch` flag, the script will detect file changes and automatically rebuild and restart your application, providing a smooth development experience.
-
-#### Build with Deno
-
-Build the project using Deno:
-
-```bash
 # Build the project
-deno run -A scripts/build.ts
+npm run build
 
-# Or using the npm script
+# Generate Agentlang parser
+npm run langium:generate
+
+# Run tests
+npm test
+
+# Interactive REPL with specific app.json
+npm run repl -- --app example/erp/app.json
+
+# Run TypeScript files with specific app.json
+npm run run -- --app example/blog/app.json path/to/file.ts
+
+# Development server
+npm run dev
+```
+
+## Using Deno
+
+When working with Deno, use these npm scripts:
+
+```shell
+# Build with Deno
 npm run build:deno
 
-# Watch for changes and rebuild
-deno run --watch -A scripts/build.ts
-
-# Or using the npm script
+# Watch mode with Deno
 npm run watch:deno
-```
 
-#### Linting and Formatting
-
-Lint and format your code with Deno:
-
-```bash
-# Lint the code
-deno lint scripts/
-
-# Or using the npm script
-npm run lint:deno
-
-# Format the code
-deno fmt scripts/
-
-# Or using the npm script
-npm run format:deno
-```
-
-#### Testing
-
-Run tests with Deno:
-
-```bash
-# Run tests
-deno test -A scripts/
-
-# Or using the npm script
+# Run tests with Deno
 npm run test:deno
 ```
 
-### Development Workflow
-
-For a smooth development experience, you can use the following workflow:
-
-1. Start the watcher in one terminal:
-   ```bash
-   npm run watch:deno
-   ```
-
-2. In another terminal, run tests:
-   ```bash
-   npm run test:deno -- --watch
-   ```
-
 ## Build instructions
 
-Make sure you have a working Node environment with version 22 or higher.
+Make sure you have a working Node environment with version 20 or higher (CI runs on 20.x, while local development often uses 24.x).
 
 Install dependencies:
 
@@ -166,11 +91,17 @@ npm run build
 npm test
 ```
 
-Test with a sample .al file:
+Test with sample app.json files:
 
 ```shell
+# Parse and validate an AgentLang file
 node ./bin/cli.js parseAndValidate example/blog/blog.al
+
+# Run a specific app.json
 node ./bin/cli.js run example/blog/app.json
+
+# Run another app configuration
+node ./bin/cli.js run example/erp/app.json
 ```
 
 ## Linting and Code Style
