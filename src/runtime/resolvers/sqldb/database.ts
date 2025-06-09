@@ -4,12 +4,9 @@ import {
   InsertQueryBuilder,
   QueryRunner,
   SelectQueryBuilder,
-  Table,
-  TableColumnOptions,
 } from 'typeorm';
 import { logger } from '../../logger.js';
-import { modulesAsDbSchema, TableSchema } from './dbutil.js';
-import chalk from 'chalk';
+import { modulesAsOrmSchema } from './dbutil.js';
 import { ResolverAuthInfo } from '../interface.js';
 import {
   canUserCreate,
@@ -26,7 +23,6 @@ import {
   newInstanceAttributes,
   RbacPermissionFlag,
 } from '../../module.js';
-//import { CategorySchema, PostSchema } from '../../orm.js';
 
 export let defaultDataSource: DataSource | undefined;
 
@@ -109,10 +105,10 @@ export async function initDefaultDatabase() {
       type: 'sqlite',
       database: mkDbName(),
       synchronize: true,
-      //entities: [CategorySchema, PostSchema]
+      entities: modulesAsOrmSchema(),
     });
     await defaultDataSource.initialize();
-    await createTables()
+    /*await createTables()
       .then((_: void) => {
         const msg: string = 'Database schema initialized';
         logger.debug(msg);
@@ -120,7 +116,7 @@ export async function initDefaultDatabase() {
       })
       .catch(err => {
         logger.error('Error during Data Source initialization', err);
-      });
+      });*/
   }
 }
 
@@ -128,7 +124,7 @@ function ownersTable(tableName: string): string {
   return tableName + `_owners`;
 }
 
-async function createTables(): Promise<void> {
+/*async function createTables(): Promise<void> {
   if (defaultDataSource != undefined) {
     const queryRunner = defaultDataSource.createQueryRunner();
     const tableSpecs: TableSchema[] = modulesAsDbSchema();
@@ -230,7 +226,7 @@ async function createTables(): Promise<void> {
     throw new Error('Datasource not initialized, cannot create tables.');
   }
 }
-
+*/
 async function insertRowsHelper(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
   const qb: InsertQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()

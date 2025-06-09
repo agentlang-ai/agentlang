@@ -1,4 +1,4 @@
-import { TableColumnOptions, TableForeignKey, TableIndexOptions } from 'typeorm';
+import { ColumnType, EntitySchema, EntitySchemaColumnOptions, EntitySchemaOptions, TableColumnOptions, TableForeignKey, TableIndexOptions } from 'typeorm';
 import {
   AttributeSpec,
   fetchModule,
@@ -49,6 +49,61 @@ export function modulesAsDbSchema(): TableSchema[] {
   return result;
 }
 
+export function modulesAsOrmSchema(): EntitySchema[] {
+  const result: EntitySchema[] = new Array<EntitySchema>();
+  getModuleNames().forEach((n: string) => {
+    buildGraph(n);
+    const mod: RuntimeModule = fetchModule(n);
+    const entities: RecordEntry[] = mod.getEntityEntries();
+    entities.forEach((entry: RecordEntry) => {
+      result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, entry)))
+    })
+  })
+  return result
+}
+
+function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry): EntitySchemaOptions<any> {
+  const entityName = entry.name
+  const scm: RecordSchema = entry.schema
+  const result = new EntitySchemaOptions<any>()
+  result.name = entityName
+  result.tableName = asTableName(moduleName, entityName)
+  const cols = new Map<string, any>()
+  const indices = new Array<any>()
+  scm.forEach((attrSpec: AttributeSpec, attrName: string) => {
+    let d: any = getAttributeDefaultValue(attrSpec);
+    const autoUuid: boolean = d && d == 'uuid()' ? true : false;
+    const autoIncr: boolean = !autoUuid && d && d == 'autoincrement()' ? true : false;
+    if (autoUuid || autoIncr) d = undefined;
+    let genStrat: 'uuid' | 'increment' | undefined = undefined
+    if (autoIncr) genStrat = 'increment';
+    else if (autoUuid) genStrat = 'uuid';
+    const isuq: boolean = isUniqueAttribute(attrSpec)
+    const colDef: EntitySchemaColumnOptions =
+    {
+      type: asSqlType(attrSpec.type),
+      generated: genStrat,
+      default: d,
+      primary: isIdAttribute(attrSpec),
+      unique: isuq,
+      nullable: isOptionalAttribute(attrSpec),
+      array: isArrayAttribute(attrSpec)
+    };
+    if (isIndexedAttribute(attrSpec)) {
+      indices.push(Object.fromEntries(new Map()
+        .set('name', `${entityName}_${attrName}_index`)
+        .set('columns', [attrName])
+        .set('unique', isuq)))
+    }
+    cols.set(attrName, colDef)
+  });
+  result.columns = Object.fromEntries(cols)
+  if (indices.length > 0) {
+    result.indices = indices
+  }
+  return result
+}
+
 export type TableSpec = {
   columns: TableColumnOptions[];
   indices: Array<TableIndexOptions>;
@@ -88,7 +143,7 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
     }
     const colOpt: TableColumnOptions = {
       name: attrName,
-      type: asSqlType(attrSpec.type),
+      type: asSqlType(attrSpec.type) as string,
       isPrimary: genStrat == 'increment',
       default: d,
       isUnique: isUniqueAttribute(attrSpec),
@@ -115,11 +170,11 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
   return { columns: cols, indices: indices, idColumns: idCols, fks: fkSpecs };
 }
 
-export function asSqlType(type: string): string {
+export function asSqlType(type: string): ColumnType {
   if (type == 'String' || type == 'Email') return 'varchar';
   else if (type == 'Int') return 'integer';
   else if (!isBuiltInType(type)) return 'varchar';
-  else return type.toLowerCase();
+  else return type.toLowerCase() as ColumnType;
 }
 
 export function isSqlTrue(v: true | false | 1 | 0): boolean {

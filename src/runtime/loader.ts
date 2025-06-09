@@ -365,8 +365,8 @@ export async function parseAndIntern(code: string, moduleName: string) {
 export function internModule(module: Module): RuntimeModule {
   const mn = module.name;
   const r = addModule(mn);
-  module.imports.forEach((imp: Import) => {
-    importModule(imp.path, imp.name);
+  module.imports.forEach(async (imp: Import) => {
+    await importModule(imp.path, imp.name);
   });
   module.defs.forEach((def: Def) => {
     addFromDef(def, mn);
