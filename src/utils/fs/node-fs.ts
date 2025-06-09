@@ -1,9 +1,9 @@
 /**
  * Node.js filesystem implementation
  */
-import * as fs from 'fs/promises';
-import { Stats } from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import { Stats } from 'node:fs';
+import * as path from 'node:path';
 import { ExtendedFileSystem, FileStat } from './interfaces.js';
 
 /**

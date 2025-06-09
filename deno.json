@@ -1,0 +1,60 @@
+{
+  "tasks": {
+    "init": "deno run --allow-env --allow-read --allow-write --allow-run scripts/initEnv.ts",
+    "run": "deno run --allow-run --allow-read --allow-write --allow-net --allow-env --allow-ffi scripts/deno-run.ts",
+    "repl": "deno run --allow-run --allow-read --allow-write --allow-net --allow-env scripts/repl.ts",
+    "test": "deno test --unstable-ffi --allow-ffi=./out/parser/agentlang.wasm --allow-read --allow-write --allow-net --allow-env",
+    "check": "deno check scripts/*.ts",
+    "cache": "deno cache --reload scripts/*.ts"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window", "esnext"],
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "types": ["node"]
+  },
+  "imports": {
+    "@std/cli": "jsr:@std/cli@^1.0.19",
+    "@std/async": "jsr:@std/async@^1.0.13",
+    "@std/io": "jsr:@std/io@^0.225.2",
+    "@std/streams": "jsr:@std/streams@^1.0.9",
+    "langium": "npm:langium@3.5.0",
+    "vscode-languageserver": "npm:vscode-languageserver@9.0.1"
+  },
+  "lint": {
+    "files": {
+      "include": ["scripts/**/*.ts"]
+    },
+    "rules": {
+      "tags": ["recommended"],
+      "include": ["ban-untagged-todo"]
+    },
+    "exclude": ["node_modules", "**/*.d.ts"]
+  },
+  "fmt": {
+    "files": {
+      "include": ["scripts/**/*.ts"],
+      "exclude": ["node_modules"]
+    },
+    "options": {
+      "useTabs": false,
+      "lineWidth": 120,
+      "indentWidth": 2,
+      "singleQuote": true,
+      "semi": true,
+      "proseWrap": "always"
+    }
+  },
+  "nodeModulesDir": "auto",
+  "lock": false,
+  "unstable": ["ffi"]
+}
