@@ -50,6 +50,7 @@ npm test
 
 # Interactive REPL with specific app.json
 npm run repl -- --app example/erp/app.json
+# To exit REPL: use close() or Ctrl+C or Ctrl+D, then press Ctrl+C again to fully exit
 
 # Run TypeScript files with specific app.json
 npm run run -- --app example/blog/app.json path/to/file.ts
