@@ -215,6 +215,9 @@ export class CrudPattern extends BasePattern {
 
   addAttribute(n: string, p: BasePattern, op?: string) {
     this.attributes.push({ name: n, op: op, value: p });
+    if (this.isQuery && this.recordName.endsWith('?')) {
+      this.recordName = this.recordName.substring(0, this.recordName.length - 1);
+    }
     return this;
   }
 
