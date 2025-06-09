@@ -390,6 +390,7 @@ export function newCreatePattern(recName: string): CrudPattern {
 }
 
 export function newQueryPattern(recName: string): CrudPattern {
+  recName = recName.charAt(recName.length - 1) == '?' ? recName : recName + '?';
   const cp: CrudPattern = new CrudPattern(recName);
   cp.isQuery = true;
   return cp;
