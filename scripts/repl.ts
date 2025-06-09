@@ -1,6 +1,18 @@
 import { parseArgs } from '@std/cli/parse-args';
 import { debounce } from '@std/async/debounce';
 
+// Add a global exitRepl type to allow proper REPL termination
+declare global {
+  // eslint-disable-next-line no-var
+  var exitRepl: (() => void) | null;
+  // eslint-disable-next-line no-var
+  var appSpec: { [key: string]: unknown };
+}
+
+// Initialize globals to avoid TypeScript errors
+globalThis.exitRepl = null;
+globalThis.appSpec = {};
+
 // Define interfaces
 interface CommandResult {
   success: boolean;
@@ -180,7 +192,14 @@ async function startDenoRepl(appFile: string): Promise<Deno.ChildProcess | null>
   // Get the absolute path for the app file
   const appPath = new URL(appFile, `file://${Deno.cwd()}/`).pathname;
 
+  // Define paths to required modules
+  const modulePath = new URL('../src/runtime/module.ts', import.meta.url).pathname;
+  const loaderPath = new URL('../src/runtime/loader.ts', import.meta.url).pathname;
+
   // Create a temporary file with the initialization code
+  const tempFile = await Deno.makeTempFile({ suffix: '.ts' });
+
+  // Create initialization code with proper template literals
   const initCode = `
 // Add shims for Node.js built-in modules
 globalThis.require = (modulePath) => {
@@ -196,7 +215,7 @@ globalThis.require = (modulePath) => {
 globalThis.global = globalThis;
 
 // Create a minimal process object with common properties
-globalThis.process = { 
+globalThis.process = {
   env: Deno.env.toObject(),
   cwd: () => Deno.cwd(),
   stdout: Deno.stdout,
@@ -204,24 +223,35 @@ globalThis.process = {
   platform: Deno.build.os
 };
 
-// Import AgentLang functions
-const cliPath = '${new URL('../bin/cli.js', import.meta.url).pathname}';
-const modulePath = '${new URL('../src/runtime/module.ts', import.meta.url).pathname}';
-const loaderPath = '${new URL('../src/runtime/loader.ts', import.meta.url).pathname}';
-
+// Import AgentLang runtime functions from module path
 const { getEntity, addEntity, removeEntity, getRecord, addRecord, removeRecord, 
         getEntrySchema, getRelationship, addRelationship, removeRelationship,
         getWorkflow, addWorkflow, removeWorkflow, getEvent, addEvent, removeEvent,
         addModule, getActiveModuleName, fetchModule, removeModule, getModuleNames,
-        getUserModuleNames } = await import(modulePath);
+        getUserModuleNames } = await import("${modulePath}");
 
-const { load, ApplicationSpec } = await import(loaderPath);
+// Add close function to properly exit the REPL with a single command
+const close = () => {
+  console.log('Exiting REPL...');
+  if (typeof globalThis.exitRepl === 'function') {
+    globalThis.exitRepl();
+    return 'Shutting down REPL and cleaning up resources...';
+  } else {
+    console.log('Using fallback exit method');
+    Deno.exit(0);
+    return 'Exiting...'; // This won't actually execute due to Deno.exit(0)
+  }
+};
 
+// Import loader functions
+const { load, ApplicationSpec } = await import("${loaderPath}");
 
 // Load the application
-console.log('Loading application: ${appFile}');
+console.log(\`Loading application: ${appPath}\`);
+
+// Load the application with the specified path
 await load(
-  '${appPath}',
+  "${appPath}",
   (appSpec) => {
     console.log('Application loaded successfully');
     globalThis.appSpec = appSpec;
@@ -230,33 +260,34 @@ await load(
 
 console.log('AgentLang functions loaded. Type help() for available commands.');
 
+// Helper function to display available commands
 const help = () => {
   console.log(\`
-AgentLang REPL Commands:
+AgentLang REPL Help
 
 Entity operations:
-  addEntity(name, module?)
+  addEntity(entity)
   getEntity(name, module?)
   removeEntity(name, module?)
 
 Record operations:
-  addRecord(name, module?)
-  getRecord(name, module?)
+  addRecord(record)
+  getRecord(id, module?)
   getEntrySchema(name, module?)
-  removeRecord(name, module?)
+  removeRecord(id, module?)
 
 Relationship operations:
-  addRelationship(name, module?)
+  addRelationship(relationship)
   getRelationship(name, module?)
   removeRelationship(name, module?)
 
 Workflow operations:
-  addWorkflow(name, module?)
-  getWorkflow(name)
+  addWorkflow(workflow)
+  getWorkflow(name, module?)
   removeWorkflow(name, module?)
 
 Event operations:
-  addEvent(name, module?)
+  addEvent(event)
   getEvent(name, module?)
   removeEvent(name, module?)
 
@@ -267,35 +298,114 @@ Module operations:
   removeModule(name)
   getModuleNames()
   getUserModuleNames()
+
+REPL operations:
+  close() - Exit the REPL cleanly
 \`);
 };
+
+// Export the necessary functions and variables as global bindings
+globalThis.close = close;
+globalThis.help = help;
+globalThis.getEntity = getEntity;
+globalThis.addEntity = addEntity;
+globalThis.removeEntity = removeEntity;
+globalThis.getRecord = getRecord;
+globalThis.addRecord = addRecord;
+globalThis.removeRecord = removeRecord;
+globalThis.getEntrySchema = getEntrySchema;
+globalThis.getRelationship = getRelationship;
+globalThis.addRelationship = addRelationship;
+globalThis.removeRelationship = removeRelationship;
+globalThis.getWorkflow = getWorkflow;
+globalThis.addWorkflow = addWorkflow;
+globalThis.removeWorkflow = removeWorkflow;
+globalThis.getEvent = getEvent;
+globalThis.addEvent = addEvent;
+globalThis.removeEvent = removeEvent;
+globalThis.addModule = addModule;
+globalThis.getActiveModuleName = getActiveModuleName;
+globalThis.fetchModule = fetchModule;
+globalThis.removeModule = removeModule;
+globalThis.getModuleNames = getModuleNames;
+globalThis.getUserModuleNames = getUserModuleNames;
+globalThis.ApplicationSpec = ApplicationSpec;
 `;
 
-  const tempFile = await Deno.makeTempFile({ suffix: '.js' });
+  // Write initialization code to the temporary file
   await Deno.writeTextFile(tempFile, initCode);
 
-  // Start Deno REPL with the initialization file
   const cmd = new Deno.Command('deno', {
     args: [
       'repl',
+      '--quiet',
+      `--eval-file=${tempFile}`,
+      '--allow-all',
       '--unstable-sloppy-imports',
-      '--allow-sys',
-      '--allow-env',
-      '--allow-read',
-      '--eval-file=' + tempFile,
     ],
     stdout: 'inherit',
     stderr: 'inherit',
-    stdin: 'inherit',
+    stdin: 'inherit', // Inherit stdin to allow user input
   });
 
   const process = cmd.spawn();
   _replProcess = process;
 
-  // Clean up temp file after a delay
-  setTimeout(() => {
-    Deno.remove(tempFile).catch(() => {});
-  }, 1000);
+  // Register the file for cleanup on exit
+  // Track cleanup status to avoid multiple attempts
+  let fileCleanupComplete = false;
+
+  const cleanupTempFile = () => {
+    if (fileCleanupComplete) {
+      return; // Skip if already cleaned up
+    }
+
+    try {
+      Deno.removeSync(tempFile);
+      console.log('Temporary REPL file cleaned up');
+      fileCleanupComplete = true;
+    } catch (err) {
+      // Only show error if file should exist but removal failed
+      if (!(err instanceof Deno.errors.NotFound)) {
+        console.debug(
+          'Failed to clean up temp file:',
+          err instanceof Error ? err.message : String(err)
+        );
+      }
+      fileCleanupComplete = true;
+    }
+  };
+
+  // Add signal listeners for cleanup but remove them after cleanup
+  const cleanupHandler = () => {
+    cleanupTempFile();
+  };
+
+  // Use one-time signal listeners to prevent recursion
+  const onSignalInt = () => {
+    cleanupHandler();
+    // After cleanup, remove this listener to prevent repeated handling
+    Deno.removeSignalListener('SIGINT', onSignalInt);
+  };
+
+  const onSignalTerm = () => {
+    cleanupHandler();
+    // After cleanup, remove this listener to prevent repeated handling
+    Deno.removeSignalListener('SIGTERM', onSignalTerm);
+  };
+
+  // Add individual signal listeners to avoid type issues
+  Deno.addSignalListener('SIGINT', onSignalInt);
+  Deno.addSignalListener('SIGTERM', onSignalTerm);
+
+  // Ensure temp file is cleaned up when REPL exits
+  process.status
+    .then(() => {
+      cleanupTempFile();
+    })
+    .catch(() => {
+      cleanupTempFile();
+    });
 
   return process;
 }
@@ -355,7 +465,13 @@ async function startProcesses(appFile: string): Promise<void> {
   // Wait for REPL to exit
   await replProcess.status;
   console.log('REPL exited');
-  stopAllProcesses();
+
+  // If exitRepl function exists, call it to resolve the main promise
+  if (typeof globalThis.exitRepl === 'function') {
+    globalThis.exitRepl();
+  } else {
+    stopAllProcesses();
+  }
 }
 
 // Set up file watcher for watch mode
@@ -430,6 +546,8 @@ Options:
 
 // Main function to run the REPL
 async function main(): Promise<void> {
+  // exitRepl already initialized to null at the module level
+
   // Show help if requested
   if (args.help) {
     showHelp();
@@ -457,21 +575,46 @@ async function main(): Promise<void> {
   await startProcesses(args.app);
 
   // Keep the main process running
-  await new Promise(() => {});
+  await new Promise<void>(resolve => {
+    // The exitRepl function that will be exported to the global context
+    // Using non-async function to fix lint warning (479555a3-0fa2-4c24-8365-5bede31a1e96)
+    globalThis.exitRepl = (): void => {
+      console.log('Cleaning up and exiting REPL...');
+      stopAllProcesses();
+      resolve();
+    };
+  });
 }
 
 // Handle process termination
-Deno.addSignalListener('SIGINT', () => {
-  console.log('\nReceived interrupt signal');
-  stopAllProcesses();
-  Deno.exit(0);
-});
+// Use a module-level variable for tracking exit state
+let isExitingRepl = false;
 
-Deno.addSignalListener('SIGTERM', () => {
-  console.log('\nReceived termination signal');
-  stopAllProcesses();
-  Deno.exit(0);
-});
+function handleSignal(signal: string) {
+  if (isExitingRepl) {
+    // If already in exit process, force quit after a short delay
+    console.log('Force exit initiated...');
+    setTimeout(() => {
+      Deno.exit(0);
+    }, 500);
+    return;
+  }
+
+  console.log(`\nReceived ${signal} signal`);
+  isExitingRepl = true;
+
+  if (typeof globalThis.exitRepl === 'function') {
+    globalThis.exitRepl();
+  } else {
+    console.log('Cleaning up and exiting...');
+    stopAllProcesses();
+    Deno.exit(0);
+  }
+}
+
+// Use the same handler for both signals
+Deno.addSignalListener('SIGINT', () => handleSignal('interrupt'));
+Deno.addSignalListener('SIGTERM', () => handleSignal('termination'));
 
 // Run the main function
 main().catch(error => {
