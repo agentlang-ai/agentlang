@@ -21,9 +21,62 @@ AgentLang comes with all the modern tooling, dependency management and REPL need
 
 Agents are a built-in language construct - developers can choose from one of the built-in agent-types, or easily add their own agent-types.
 
+## Runtime Support
+
+AgentLang supports both Node.js and Deno runtimes for development and execution.
+
+### Prerequisites
+
+- Node.js 20+ (CI runs on 20.x, local development often uses 24.x)
+  - Note: Some functions may behave differently between versions (e.g., array methods on iterators)
+- [Deno](https://deno.land/) 1.35.0 or later (optional, for Deno-based workflows)
+
+## Common Development Commands
+
+AgentLang provides npm scripts for common tasks. Here are the most frequently used commands:
+
+```shell
+# Install dependencies
+npm install
+
+# Build the project
+npm run build
+
+# Generate Agentlang parser
+npm run langium:generate
+
+# Run tests
+npm test
+
+# Interactive REPL with specific app.json
+npm run repl -- --app example/erp/app.json
+# To exit REPL: use close() or Ctrl+C or Ctrl+D, then press Ctrl+C again to fully exit
+
+# Run TypeScript files with specific app.json
+npm run run -- --app example/blog/app.json path/to/file.ts
+
+# Development server
+npm run dev
+```
+
+## Using Deno
+
+When working with Deno, use these npm scripts:
+
+```shell
+# Build with Deno
+npm run build:deno
+
+# Watch mode with Deno
+npm run watch:deno
+
+# Run tests with Deno
+npm run test:deno
+```
+
 ## Build instructions
 
-Make sure you have a working Node environment with version 22 or higher.
+Make sure you have a working Node environment with version 20 or higher (CI runs on 20.x, while local development often uses 24.x).
 
 Install dependencies:
 
@@ -39,11 +92,17 @@ npm run build
 npm test
 ```
 
-Test with a sample .al file:
+Test with sample app.json files:
 
 ```shell
+# Parse and validate an AgentLang file
 node ./bin/cli.js parseAndValidate example/blog/blog.al
+
+# Run a specific app.json
 node ./bin/cli.js run example/blog/app.json
+
+# Run another app configuration
+node ./bin/cli.js run example/erp/app.json
 ```
 
 ## Linting and Code Style

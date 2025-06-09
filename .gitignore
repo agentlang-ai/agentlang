@@ -48,6 +48,20 @@ web_modules/
 # TypeScript cache
 *.tsbuildinfo
 
+# Version manager directories
+# Version Manager Files
+.mise/
+!.mise/config.toml
+.mise.toml
+.mise.local.toml
+
+# Deno
+.deno/
+*.d.*
+.volta/
+.vercel
+.netlify
+
 # Optional npm cache directory
 .npm
 
