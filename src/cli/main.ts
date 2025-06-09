@@ -14,7 +14,7 @@ import { logger } from '../runtime/logger.js';
 import { runInitFunctions } from '../runtime/util.js';
 import { RuntimeModule } from '../runtime/module.js';
 import { Module } from '../language/generated/ast.js';
-import { CreateTestEntities } from '../runtime/orm.js';
+//import { CreateTestEntities } from '../runtime/orm.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -84,7 +84,7 @@ async function runPreInitTasks(): Promise<boolean> {
 async function runPostInitTasks(appSpec?: ApplicationSpec) {
   await initDefaultDatabase();
   await runInitFunctions();
-  await CreateTestEntities()
+  //await CreateTestEntities()
   if (appSpec) startServer(appSpec, 8080);
 }
 

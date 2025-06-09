@@ -26,6 +26,7 @@ import {
   newInstanceAttributes,
   RbacPermissionFlag,
 } from '../../module.js';
+//import { CategorySchema, PostSchema } from '../../orm.js';
 
 export let defaultDataSource: DataSource | undefined;
 
@@ -108,6 +109,7 @@ export async function initDefaultDatabase() {
       type: 'sqlite',
       database: mkDbName(),
       synchronize: true,
+      //entities: [CategorySchema, PostSchema]
     });
     await defaultDataSource.initialize();
     await createTables()
