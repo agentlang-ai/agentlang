@@ -2,6 +2,11 @@ import { ColumnType, EntitySchema, EntitySchemaColumnOptions, EntitySchemaOption
 import {
   AttributeSpec,
   fetchModule,
+  getAllBetweenRelationships,
+  getAllManyToManyRelationshipsForEntity,
+  getAllManyToOneRelationshipsForEntity,
+  getAllOneToManyRelationshipsForEntity,
+  getAllOneToOneRelationshipsForEntity,
   getAttributeDefaultValue,
   getAttributeLength,
   getFkSpec,
@@ -18,6 +23,7 @@ import {
   RuntimeModule,
 } from '../../module.js';
 import { buildGraph } from '../../relgraph.js';
+import { DeletedFlagAttributeName, PathAttributeName } from './database.js';
 
 export type TableSchema = {
   name: string;
@@ -79,12 +85,10 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry): Enti
     if (autoIncr) genStrat = 'increment';
     else if (autoUuid) genStrat = 'uuid';
     const isuq: boolean = isUniqueAttribute(attrSpec)
-    const colDef: EntitySchemaColumnOptions =
-    {
+    const colDef: EntitySchemaColumnOptions = {
       type: asSqlType(attrSpec.type),
       generated: genStrat,
       default: d,
-      primary: isIdAttribute(attrSpec),
       unique: isuq,
       nullable: isOptionalAttribute(attrSpec),
       array: isArrayAttribute(attrSpec)
@@ -97,6 +101,46 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry): Enti
     }
     cols.set(attrName, colDef)
   });
+  cols.set(PathAttributeName, { type: "varchar", primary: true })
+  cols.set(DeletedFlagAttributeName, { type: "boolean", default: false })
+  const allBetRels = getAllBetweenRelationships()
+  const relsSpec = new Map()
+  getAllOneToOneRelationshipsForEntity(moduleName, entityName, allBetRels)
+    .forEach((re: RelationshipEntry) => {
+      const colSpec = new Map()
+        .set('target', asTableName(re.node2.path.getModuleName(), re.node2.path.getEntryName()))
+        .set("type", "one-to-one")
+        .set('joinColumn', true)
+        .set('cascade', true)
+      relsSpec.set(re.node2.alias, Object.fromEntries(colSpec))
+    })
+  getAllOneToManyRelationshipsForEntity(moduleName, entityName, allBetRels)
+    .forEach((re: RelationshipEntry) => {
+      const colSpec = new Map()
+        .set('target', asTableName(re.node2.path.getModuleName(), re.node2.path.getEntryName()))
+        .set("type", "one-to-many")
+        .set('inverseSide', re.node1.alias)
+      relsSpec.set(re.node2.alias, Object.fromEntries(colSpec))
+    })
+  getAllManyToOneRelationshipsForEntity(moduleName, entityName, allBetRels)
+    .forEach((re: RelationshipEntry) => {
+      const colSpec = new Map()
+        .set('target', asTableName(re.node1.path.getModuleName(), re.node1.path.getEntryName()))
+        .set("type", "many-to-one")
+        .set('joinColumn', true)
+      relsSpec.set(re.node1.alias, Object.fromEntries(colSpec))
+    })
+  getAllManyToManyRelationshipsForEntity(moduleName, entityName, allBetRels)
+    .forEach((re: RelationshipEntry) => {
+      const colSpec = new Map()
+        .set('target', asTableName(re.node2.path.getModuleName(), re.node2.path.getEntryName()))
+        .set("type", "many-to-many")
+        .set('joinTable', true)
+      relsSpec.set(re.node2.alias, Object.fromEntries(colSpec))
+    })
+  if (relsSpec.size > 0) {
+    result.relations = Object.fromEntries(relsSpec)
+  }
   result.columns = Object.fromEntries(cols)
   if (indices.length > 0) {
     result.indices = indices

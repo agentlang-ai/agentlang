@@ -611,7 +611,12 @@ export class RelationshipEntry extends RecordEntry {
   }
 
   isManyToMany(): boolean {
-    return !(this.isOneToOne() || this.isOneToMany());
+    if (this.isBetween()) {
+      return this.hasBooleanFlagSet('many_many')
+        || (!this.hasBooleanFlagSet('one_one') && !this.hasBooleanFlagSet('one_many'))
+    } else {
+      return false
+    }
   }
 
   isFirstNode(inst: Instance): boolean {
@@ -913,6 +918,10 @@ export function fetchModule(moduleName: string): RuntimeModule {
   return module;
 }
 
+export function allModuleNames(): string[] {
+  return [...moduleDb.keys()]
+}
+
 export function fetchModuleEntry(entryName: string, moduleName: string): ModuleEntry {
   const module: RuntimeModule = fetchModule(moduleName);
   return module.getEntry(entryName);
@@ -1204,6 +1213,54 @@ export function getRelationship(name: string, moduleName: string): RelationshipE
     return fr.module.getEntry(fr.entryName) as RelationshipEntry;
   }
   throw new Error(`Relationship ${fr.entryName} not found in module ${fr.moduleName}`);
+}
+
+export function getAllBetweenRelationships(): RelationshipEntry[] {
+  let result: RelationshipEntry[] = new Array()
+  allModuleNames().forEach((moduleName: string) => {
+    const mod = fetchModule(moduleName)
+    result = result.concat(mod.getBetweenRelationshipEntries())
+  })
+  return result
+}
+
+function filterBetweenRelationshipsForEntity(moduleName: string, entityName: string, predic: Function,
+  allBetweenRels?: RelationshipEntry[]): RelationshipEntry[] {
+  if (allBetweenRels == undefined) {
+    allBetweenRels = getAllBetweenRelationships()
+  }
+  const p = new Path(moduleName, entityName)
+  return allBetweenRels.filter((re: RelationshipEntry) => {
+    return predic(re, p)
+  })
+}
+
+export function getAllOneToOneRelationshipsForEntity(moduleName: string, entityName: string, allBetweenRels?: RelationshipEntry[]): RelationshipEntry[] {
+  return filterBetweenRelationshipsForEntity(moduleName, entityName, (re: RelationshipEntry, p: Path) => {
+    return re.isOneToOne() && re.node1.path.equals(p)
+  },
+    allBetweenRels)
+}
+
+export function getAllOneToManyRelationshipsForEntity(moduleName: string, entityName: string, allBetweenRels?: RelationshipEntry[]): RelationshipEntry[] {
+  return filterBetweenRelationshipsForEntity(moduleName, entityName, (re: RelationshipEntry, p: Path) => {
+    return re.isOneToMany() && re.node1.path.equals(p)
+  },
+    allBetweenRels)
+}
+
+export function getAllManyToOneRelationshipsForEntity(moduleName: string, entityName: string, allBetweenRels?: RelationshipEntry[]): RelationshipEntry[] {
+  return filterBetweenRelationshipsForEntity(moduleName, entityName, (re: RelationshipEntry, p: Path) => {
+    return re.isOneToMany() && re.node2.path.equals(p)
+  },
+    allBetweenRels)
+}
+
+export function getAllManyToManyRelationshipsForEntity(moduleName: string, entityName: string, allBetweenRels?: RelationshipEntry[]): RelationshipEntry[] {
+  return filterBetweenRelationshipsForEntity(moduleName, entityName, (re: RelationshipEntry, p: Path) => {
+    return re.isManyToMany() && re.node1.path.equals(p)
+  },
+    allBetweenRels)
 }
 
 export function getEntrySchema(name: string, moduleName: string): RecordSchema {
