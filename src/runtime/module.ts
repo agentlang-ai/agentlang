@@ -658,9 +658,16 @@ export class WorkflowEntry extends ModuleEntry {
     return s.concat('\n}');
   }
 
-  async addStatement(stmt: string) {
+  async addStatement(stmt: string): Promise<WorkflowEntry> {
     const result: Statement = await parseStatement(stmt);
     this.statements.push(result);
+    return this;
+  }
+
+  async setStatementAt(stmt: string, index: number): Promise<WorkflowEntry> {
+    const result: Statement = await parseStatement(stmt);
+    this.statements[index] = result;
+    return this;
   }
 }
 
