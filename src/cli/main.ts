@@ -87,12 +87,22 @@ async function runPostInitTasks(appSpec?: ApplicationSpec, config?: any) {
 }
 
 export const runModule = async (fileName: string): Promise<void> => {
+  const configPath = path.dirname(fileName) === '.' ? 
+  path.resolve(process.cwd(), 'config.js') :
+  path.dirname(fileName) + path.sep + 'config.js';
+  let config;
+  try {
+    config = await import(configPath).then(module => module.default);
+  } catch (err) {
+    console.log(`No config file found at ${err}`);
+  }
+
   const r: boolean = await runPreInitTasks();
   if (!r) {
     throw new Error('Failed to initialize runtime');
   }
   const appSpec: ApplicationSpec = await load(fileName);
-  await runPostInitTasks(appSpec);
+  await runPostInitTasks(appSpec, config);
 };
 
 export async function internAndRunModule(

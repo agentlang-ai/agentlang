@@ -6,8 +6,8 @@ entity Profile {
     id UUID @id @default(uuid()),
     address String @optional,
     email Email,
-    photo URL @optional,
-    DOB DateTime @optional
+    photo String @optional,
+    DOB String @optional
 }
 
 entity User {
