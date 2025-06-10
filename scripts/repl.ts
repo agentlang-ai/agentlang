@@ -224,11 +224,8 @@ globalThis.process = {
 };
 
 // Import AgentLang runtime functions from module path
-const { getEntity, addEntity, removeEntity, getRecord, addRecord, removeRecord, 
-        getEntrySchema, getRelationship, addRelationship, removeRelationship,
-        getWorkflow, addWorkflow, removeWorkflow, getEvent, addEvent, removeEvent,
-        addModule, getActiveModuleName, fetchModule, removeModule, getModuleNames,
-        getUserModuleNames } = await import("${modulePath}");
+const { addModule, getActiveModuleName, fetchModule, getModuleNames,
+        getUserModuleNames, parseAndIntern } = await import("${modulePath}");
 
 // Add close function to properly exit the REPL with a single command
 const close = () => {
@@ -246,6 +243,77 @@ const close = () => {
 // Import loader functions
 const { load, ApplicationSpec } = await import("${loaderPath}");
 
+function isJavaScriptCode(input) {
+  const trimmed = input.trim();
+  
+  // Check for common JS patterns
+  const jsPatterns = [
+    /^(const|let|var|function|class|import|export)\\s/,
+    /^\\s*(console\\.|window\\.|document\\.|globalThis\\.)/,
+    /^\\s*[a-zA-Z_$][a-zA-Z0-9_$]*\\s*=/,
+    /^\\s*[a-zA-Z_$][a-zA-Z0-9_$]*\\s*\\(/,
+    /^\\s*\\{.*\\}\\s*$/,
+    /^\\s*\\[.*\\]\\s*$/,
+    /^\\s*["'\`].*["'\`]\\s*$/,
+    /^\\s*\\d+(\\.\\d+)?\\s*$/,
+    /^\\s*(true|false|null|undefined)\\s*$/,
+    /^\\s*\\/\\//,
+    /^\\s*\\/\\*/
+  ];
+  
+  return jsPatterns.some(pattern => pattern.test(trimmed));
+}
+
+function isAgentlangCode(input) {
+  const trimmed = input.trim();
+  
+  // Check for Agentlang patterns
+  const agentlangPatterns = [
+    /^\\s*(entity|record|event|relationship|workflow)\\s+/i,
+    /^\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*\\{[^}]*\\}\\s*$/,
+    /\\s+@(id|indexed|optional|default|unique|autoincrement|array|object|ref)\\b/
+  ];
+  
+  return agentlangPatterns.some(pattern => pattern.test(trimmed));
+}
+
+async function processAgentlang(code) {
+  try {
+    const currentModule = getActiveModuleName();
+    console.log("The code is: ", code);
+    console.log("The currentModule is: ", currentModule);
+    await parseAndIntern(code, currentModule);
+    console.log('✓ Agentlang code processed successfully');
+    return 'OK';
+  } catch (error) {
+    console.error('✗ Error processing Agentlang code:', error.message);
+    throw error;
+  }
+}
+
+// Override the default eval to handle Agentlang syntax
+const originalEval = globalThis.eval;
+globalThis.eval = function(input) {
+  const trimmed = input.trim();
+  
+  // Skip empty input
+  if (!trimmed) return;
+  
+  // If it looks like JavaScript, use normal eval
+  if (isJavaScriptCode(trimmed)) {
+    return originalEval(input);
+  }
+  
+  // If it looks like Agentlang, use parseAndIntern
+  if (isAgentlangCode(trimmed)) {
+    // Return a promise for async handling
+    return processAgentlang(trimmed);
+  }
+  
+  // Default to JavaScript eval
+  return originalEval(input);
+};
+
 // Load the application
 console.log(\`Loading application: ${appPath}\`);
 
@@ -258,46 +326,57 @@ await load(
   }
 );
 
-console.log('AgentLang functions loaded. Type help() for available commands.');
+console.log('AgentLang REPL ready! You can now type Agentlang syntax directly.');
+console.log('Type help() for available commands.');
+
+// Helper functions for the REPL
+globalThis.ag = processAgentlang; // Shortcut: ag\`entity User { name String }\`
+globalThis.current = () => getActiveModuleName();
+globalThis.modules = () => getModuleNames();
+globalThis.userModules = () => getUserModuleNames();
+globalThis.module = (name) => fetchModule(name);
+globalThis.newModule = (name) => addModule(name);
 
 // Helper function to display available commands
 const help = () => {
   console.log(\`
-AgentLang REPL Help
+AgentLang REPL - Direct Language Support
 
-Entity operations:
-  addEntity(entity)
-  getEntity(name, module?)
-  removeEntity(name, module?)
+DIRECT AGENTLANG SYNTAX:
+Type Agentlang code directly in the REPL:
 
-Record operations:
-  addRecord(record)
-  getRecord(id, module?)
-  getEntrySchema(name, module?)
-  removeRecord(id, module?)
+  entity Employee {
+    email Email @id,
+    firstName String @indexed,
+    lastName String @optional,
+    salary Number @default(4500.0) @indexed
+  }
 
-Relationship operations:
-  addRelationship(relationship)
-  getRelationship(name, module?)
-  removeRelationship(name, module?)
+  record UserProfile {
+    name String,
+    age Int @optional
+  }
 
-Workflow operations:
-  addWorkflow(workflow)
-  getWorkflow(name, module?)
-  removeWorkflow(name, module?)
+  event UserCreated {
+    userId String @id,
+    timestamp DateTime @default(now())
+  }
 
-Event operations:
-  addEvent(event)
-  getEvent(name, module?)
-  removeEvent(name, module?)
+  relationship EmployeeCompany contains (Employee, Company)
 
-Module operations:
-  addModule(name)
-  getActiveModuleName()
-  fetchModule(name)
-  removeModule(name)
-  getModuleNames()
-  getUserModuleNames()
+HELPER FUNCTIONS:
+  ag(code)          - Process Agentlang code programmatically
+  current()         - Get current active module name
+  modules()         - List all modules
+  userModules()     - List user-defined modules
+  module(name)      - Get module by name
+  newModule(name)   - Create new module
+
+JAVASCRIPT/TYPESCRIPT:
+You can also execute JavaScript/TypeScript code normally.
+The REPL automatically detects the input type and processes accordingly.
+
+Use help() to see this message again.
 
 REPL operations:
   close() - Exit the REPL cleanly
