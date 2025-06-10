@@ -3,6 +3,7 @@ import { logger } from '../logger.js';
 import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
+import { Console } from 'console';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
 export const AdminUserId = '00000000-0000-0000-0000-000000000000';
@@ -256,12 +257,13 @@ export async function userHasPermissions(
     perms.has(RbacPermissionFlag.DELETE),
   ];
   for (let i = 0; i < userRoles.length; ++i) {
-    const permInsts: RbacPermission[] | undefined = RolePermissionsCache.get(userRoles[i]);
+    const permInsts: any = RolePermissionsCache.get(userRoles[i]);
+   
     if (permInsts) {
       if (
-        permInsts.find((p: RbacPermission) => {
+        permInsts.find((p: any) => {
           return (
-            p.resourceFqName == resourceFqName &&
+            p.resourcefqname == resourceFqName &&
             (c ? isSqlTrue(p.c) : true) &&
             (r ? isSqlTrue(p.r) : true) &&
             (u ? isSqlTrue(p.u) : true) &&
