@@ -68,6 +68,34 @@ export function isLiteralPattern(p: BasePattern): boolean {
   return p instanceof LiteralPattern;
 }
 
+export function isReferenceLiteral(p: LiteralPattern): boolean {
+  return p.type == LiteralPatternType.REFERENCE;
+}
+
+export function referenceParts(p: LiteralPattern): string[] | undefined {
+  if (isReferenceLiteral(p)) {
+    const s: string = p.value as string;
+    return s.split('.');
+  }
+  return undefined;
+}
+
+export function isStringLiteral(p: LiteralPattern): boolean {
+  return p.type == LiteralPatternType.STRING;
+}
+
+export function isNumberLiteral(p: LiteralPattern): boolean {
+  return p.type == LiteralPatternType.NUMBER;
+}
+
+export function isBooleanLiteral(p: LiteralPattern): boolean {
+  return p.type == LiteralPatternType.BOOLEAN;
+}
+
+export function isIdentifierLiteral(p: LiteralPattern): boolean {
+  return p.type == LiteralPatternType.ID;
+}
+
 export class ArrayPattern extends BasePattern {
   values: Array<BasePattern>;
 
@@ -215,6 +243,9 @@ export class CrudPattern extends BasePattern {
 
   addAttribute(n: string, p: BasePattern, op?: string) {
     this.attributes.push({ name: n, op: op, value: p });
+    if (this.isQuery && this.recordName.endsWith('?')) {
+      this.recordName = this.recordName.substring(0, this.recordName.length - 1);
+    }
     return this;
   }
 
@@ -389,16 +420,19 @@ export function newCreatePattern(recName: string): CrudPattern {
   return cp;
 }
 
-export function newQueryPattern(recName: string): CrudPattern {
+export function newQueryPattern(recName: string, forQueryUpdate: boolean = false): CrudPattern {
+  recName = recName.charAt(recName.length - 1) == '?' ? recName : recName + '?';
   const cp: CrudPattern = new CrudPattern(recName);
-  cp.isQuery = true;
+  if (forQueryUpdate) {
+    cp.isQueryUpdate = true;
+  } else {
+    cp.isQuery = true;
+  }
   return cp;
 }
 
 export function newQueryUpdatePattern(recName: string): CrudPattern {
-  const cp: CrudPattern = new CrudPattern(recName);
-  cp.isQueryUpdate = true;
-  return cp;
+  return newQueryPattern(recName, true);
 }
 
 export class DeletePattern extends BasePattern {

@@ -116,7 +116,13 @@ export function buildGraph(moduleName: string): RelationshipGraph {
   if (localMod == undefined) {
     throw new Error(`Failed to find module ${moduleName}`);
   }
-  const remEnts: Set<string> = new Set(localMod.getEntityNames()).difference(inRels);
+  const remEnts: Set<string> = new Set();
+  const entityNames = localMod.getEntityNames();
+  for (const name of entityNames) {
+    if (!inRels.has(name)) {
+      remEnts.add(name);
+    }
+  }
   remEnts.forEach((n: string) => {
     if (!rootEnts.has(n)) {
       const rn: RelationshipGraphNode = {

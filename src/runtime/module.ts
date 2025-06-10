@@ -43,8 +43,9 @@ export type AttributeSpec = {
 };
 
 function normalizePropertyNames(props: Map<string, any>) {
-  const normKs = props.keys().filter((k: string) => {
-    k.charAt(0) == '@';
+  // Convert iterator to array for compatibility with different Node.js versions
+  const normKs = Array.from(props.keys()).filter((k: string) => {
+    return k.charAt(0) === '@';
   });
   normKs.forEach((k: string) => {
     const v: any = props.get(k);
@@ -657,10 +658,21 @@ export class WorkflowEntry extends ModuleEntry {
     return s.concat('\n}');
   }
 
-  async addStatement(stmt: string) {
-    await parseStatement(stmt).then((result: Statement) => {
-      this.statements.push(result);
-    });
+  async addStatement(stmt: string): Promise<WorkflowEntry> {
+    const result: Statement = await parseStatement(stmt);
+    this.statements.push(result);
+    return this;
+  }
+
+  async setStatementAt(stmt: string, index: number): Promise<WorkflowEntry> {
+    const result: Statement = await parseStatement(stmt);
+    this.statements[index] = result;
+    return this;
+  }
+
+  removeStatemtAt(index: number): WorkflowEntry {
+    this.statements.splice(index, 1);
+    return this;
   }
 }
 
@@ -886,7 +898,7 @@ export function getModuleNames(): string[] {
 
 export function getUserModuleNames(): string[] {
   const result: Array<string> = new Array<string>();
-  moduleDb.keys().forEach((n: string) => {
+  Array.from(moduleDb.keys()).forEach((n: string) => {
     if (n != DefaultModuleName) {
       result.push(n);
     }
