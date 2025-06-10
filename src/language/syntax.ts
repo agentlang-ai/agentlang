@@ -68,6 +68,34 @@ export function isLiteralPattern(p: BasePattern): boolean {
   return p instanceof LiteralPattern;
 }
 
+export function isReferenceLiteral(p: LiteralPattern): boolean {
+  return p.type == LiteralPatternType.REFERENCE;
+}
+
+export function referenceParts(p: LiteralPattern): string[] | undefined {
+  if (isReferenceLiteral(p)) {
+    const s: string = p.value as string;
+    return s.split('.');
+  }
+  return undefined;
+}
+
+export function isStringLiteral(p: LiteralPattern): boolean {
+  return p.type == LiteralPatternType.STRING;
+}
+
+export function isNumberLiteral(p: LiteralPattern): boolean {
+  return p.type == LiteralPatternType.NUMBER;
+}
+
+export function isBooleanLiteral(p: LiteralPattern): boolean {
+  return p.type == LiteralPatternType.BOOLEAN;
+}
+
+export function isIdentifierLiteral(p: LiteralPattern): boolean {
+  return p.type == LiteralPatternType.ID;
+}
+
 export class ArrayPattern extends BasePattern {
   values: Array<BasePattern>;
 
