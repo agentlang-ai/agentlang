@@ -674,6 +674,11 @@ export class WorkflowEntry extends ModuleEntry {
     this.statements[index] = result;
     return this;
   }
+
+  removeStatemtAt(index: number): WorkflowEntry {
+    this.statements.splice(index, 1);
+    return this;
+  }
 }
 
 const EmptyWorkflow: WorkflowEntry = new WorkflowEntry('', [], DefaultModuleName);
