@@ -72,7 +72,7 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry): Enti
   const entityName = entry.name
   const scm: RecordSchema = entry.schema
   const result = new EntitySchemaOptions<any>()
-  result.name = entityName
+  result.name = entry.getFqName()
   result.tableName = asTableName(moduleName, entityName)
   const cols = new Map<string, any>()
   const indices = new Array<any>()
@@ -95,7 +95,7 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry): Enti
     };
     if (isIndexedAttribute(attrSpec)) {
       indices.push(Object.fromEntries(new Map()
-        .set('name', `${entityName}_${attrName}_index`)
+        .set('name', `${result.tableName}_${attrName}_index`)
         .set('columns', [attrName])
         .set('unique', isuq)))
     }
@@ -215,7 +215,7 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
 }
 
 export function asSqlType(type: string): ColumnType {
-  if (type == 'String' || type == 'Email') return 'varchar';
+  if (type == 'String' || type == 'Email' || type == 'URL') return 'varchar';
   else if (type == 'Int') return 'integer';
   else if (!isBuiltInType(type)) return 'varchar';
   else return type.toLowerCase() as ColumnType;
