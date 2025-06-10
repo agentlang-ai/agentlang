@@ -132,11 +132,11 @@ export async function initDatabase(config: any) {
   } else {
     defaultDataSource = new DataSource({
       type: config.type,
-      ...((() => {
+      ...(() => {
         switch (config.type) {
           case 'sqlite':
             return {
-              database: config.dbname
+              database: config.dbname,
             };
           case 'postgres':
           case 'mysql':
@@ -144,13 +144,13 @@ export async function initDatabase(config: any) {
               host: config.host,
               username: config.username,
               password: config.password,
-              database: config.dbname
+              database: config.dbname,
             };
           default:
             throw new Error(`Unsupported database type: ${config.type}`);
         }
-      })())
-    })
+      })(),
+    });
     await initDatabaseFromSource(defaultDataSource);
   }
 }

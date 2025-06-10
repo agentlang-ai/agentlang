@@ -87,9 +87,10 @@ async function runPostInitTasks(appSpec?: ApplicationSpec, config?: any) {
 }
 
 export const runModule = async (fileName: string): Promise<void> => {
-  const configPath = path.dirname(fileName) === '.' ? 
-  path.resolve(process.cwd(), 'config.js') :
-  path.dirname(fileName) + path.sep + 'config.js';
+  const configPath =
+    path.dirname(fileName) === '.'
+      ? path.resolve(process.cwd(), 'config.js')
+      : path.dirname(fileName) + path.sep + 'config.js';
   let config;
   try {
     config = await import(configPath).then(module => module.default);

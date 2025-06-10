@@ -1469,9 +1469,7 @@ export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSc
       });
     }
   }
-  return Object.fromEntries(
-    Array.from(attrs).map(([key, value]) => [key.toLowerCase(), value])
-  );
+  return Object.fromEntries(Array.from(attrs).map(([key, value]) => [key.toLowerCase(), value]));
 }
 
 export function objectAsInstanceAttributes(obj: object): InstanceAttributes {
