@@ -63,19 +63,23 @@ export function modulesAsOrmSchema(): EntitySchema[] {
     const entities: RecordEntry[] = mod.getEntityEntries();
     entities.forEach((entry: RecordEntry) => {
       result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, entry)))
+      const ownerEntry = createOwnersEntity(entry)
+      result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, ownerEntry, true)))
     })
   })
   return result
 }
 
-function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry): EntitySchemaOptions<any> {
+function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry, hasOwnPk?: boolean): EntitySchemaOptions<any> {
   const entityName = entry.name
   const scm: RecordSchema = entry.schema
   const result = new EntitySchemaOptions<any>()
-  result.name = entry.getFqName()
   result.tableName = asTableName(moduleName, entityName)
+  result.name = result.tableName
   const cols = new Map<string, any>()
   const indices = new Array<any>()
+  const chkforpk: boolean = hasOwnPk == undefined ? false : true
+  let needPath = true
   scm.forEach((attrSpec: AttributeSpec, attrName: string) => {
     let d: any = getAttributeDefaultValue(attrSpec);
     const autoUuid: boolean = d && d == 'uuid()' ? true : false;
@@ -85,14 +89,19 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry): Enti
     if (autoIncr) genStrat = 'increment';
     else if (autoUuid) genStrat = 'uuid';
     const isuq: boolean = isUniqueAttribute(attrSpec)
+    const ispk: boolean = chkforpk && isIdAttribute(attrSpec)
     const colDef: EntitySchemaColumnOptions = {
       type: asSqlType(attrSpec.type),
       generated: genStrat,
       default: d,
       unique: isuq,
+      primary: ispk,
       nullable: isOptionalAttribute(attrSpec),
       array: isArrayAttribute(attrSpec)
     };
+    if (ispk) {
+      needPath = false
+    }
     if (isIndexedAttribute(attrSpec)) {
       indices.push(Object.fromEntries(new Map()
         .set('name', `${result.tableName}_${attrName}_index`)
@@ -101,7 +110,7 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry): Enti
     }
     cols.set(attrName, colDef)
   });
-  cols.set(PathAttributeName, { type: "varchar", primary: true })
+  if (needPath) cols.set(PathAttributeName, { type: "varchar", primary: true })
   cols.set(DeletedFlagAttributeName, { type: "boolean", default: false })
   const allBetRels = getAllBetweenRelationships()
   const relsSpec = new Map()
@@ -146,6 +155,18 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry): Enti
     result.indices = indices
   }
   return result
+}
+
+function createOwnersEntity(entry: RecordEntry): RecordEntry {
+  const ownersEntry = new RecordEntry(`${entry.name}_owners`, entry.moduleName)
+  const permProps = new Map().set('default', true)
+  return ownersEntry.addAttribute('id', { type: 'UUID', properties: new Map().set('id', true) })
+    .addAttribute('user_id', { type: 'String' })
+    .addAttribute('type', { type: 'String', properties: new Map().set('default', 'o') })
+    .addAttribute('c', { type: 'Boolean', properties: permProps })
+    .addAttribute('r', { type: 'Boolean', properties: permProps })
+    .addAttribute('u', { type: 'Boolean', properties: permProps })
+    .addAttribute('d', { type: 'Boolean', properties: permProps })
 }
 
 export type TableSpec = {

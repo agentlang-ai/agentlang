@@ -153,7 +153,7 @@ export class RecordEntry extends ModuleEntry {
     this.meta.set(k, v);
   }
 
-  addAttribute(n: string, attrSpec: AttributeSpec) {
+  addAttribute(n: string, attrSpec: AttributeSpec): RecordEntry {
     if (this.schema.has(n)) {
       throw new Error(`Attribute named ${n} already exists in ${this.moduleName}.${this.name}`);
     }
@@ -161,10 +161,12 @@ export class RecordEntry extends ModuleEntry {
       normalizePropertyNames(attrSpec.properties);
     }
     this.schema.set(n, attrSpec);
+    return this;
   }
 
-  removeAttribute(n: string) {
+  removeAttribute(n: string): RecordEntry {
     this.schema.delete(n);
+    return this;
   }
 
   reorderAttributes(desiredOrder: string[]) {
@@ -175,9 +177,10 @@ export class RecordEntry extends ModuleEntry {
     );
   }
 
-  addSystemAttribute(n: string, attrSpec: AttributeSpec) {
+  addSystemAttribute(n: string, attrSpec: AttributeSpec): RecordEntry {
     setAsSystemAttribute(attrSpec);
     this.addAttribute(n, attrSpec);
+    return this;
   }
 
   findAttribute(predic: Function): AttributeEntry | undefined {
@@ -623,6 +626,14 @@ export class RelationshipEntry extends RecordEntry {
 
   isFirstNode(inst: Instance): boolean {
     return inst.getFqName() == this.node1.path.asFqName();
+  }
+
+  getAliasFor(inst: Instance): string {
+    if (this.isFirstNode(inst)) {
+      return this.node1.alias;
+    } else {
+      return this.node2.alias;
+    }
   }
 
   override toString(): string {
@@ -1466,23 +1477,43 @@ export class Instance {
     return this;
   }
 
-  attachRelatedInstances(relName: string, insts: Instance | Instance[]) {
-    if (this.relatedInstances == undefined) {
-      this.relatedInstances = new Map<string, Array<Instance>>();
-    }
-    let relInsts: Array<Instance> | undefined = this.relatedInstances.get(relName);
-    if (relInsts == undefined) {
-      relInsts = new Array<Instance>();
-    }
-    if (insts instanceof Instance) {
-      relInsts.push(insts);
+  attachRelatedInstances(relEntry: RelationshipEntry, insts: Instance | Instance[]) {
+    if (relEntry.isBetween()) {
+      const inst: Instance = insts instanceof Array ? insts[0] : insts;
+      if (relEntry.isOneToOne()) {
+        this.attributes.set(relEntry.getAliasFor(inst), inst);
+      } else if (relEntry.isOneToMany()) {
+        if (relEntry.isFirstNode(this)) {
+          this.attributes.set(relEntry.getAliasFor(inst), insts);
+        } else {
+          this.attributes.set(relEntry.getAliasFor(this), inst);
+        }
+      } else {
+        // many-to-many
+        if (relEntry.isFirstNode(this)) {
+          this.attributes.set(relEntry.getAliasFor(inst), insts);
+        } else {
+          this.attributes.set(relEntry.getAliasFor(this), insts);
+        }
+      }
     } else {
-      insts.forEach((inst: Instance) => {
-        relInsts.push(inst);
-      });
+      if (this.relatedInstances == undefined) {
+        this.relatedInstances = new Map<string, Array<Instance>>();
+      }
+      let relInsts: Array<Instance> | undefined = this.relatedInstances.get(relEntry.name);
+      if (relInsts == undefined) {
+        relInsts = new Array<Instance>();
+      }
+      if (insts instanceof Instance) {
+        relInsts.push(insts);
+      } else {
+        insts.forEach((inst: Instance) => {
+          relInsts.push(inst);
+        });
+      }
+      this.relatedInstances.set(relEntry.name, relInsts);
+      this.attributes.set('->', this.relatedInstances);
     }
-    this.relatedInstances.set(relName, relInsts);
-    this.attributes.set('->', this.relatedInstances);
   }
 
   detachAllRelatedInstance() {

@@ -352,11 +352,15 @@ export function addFromDef(def: Def, moduleName: string) {
   else if (isWorkflow(def)) addWorkflowFromDef(def, moduleName);
 }
 
-export async function parseAndIntern(code: string, moduleName: string) {
-  if (!isModule(moduleName)) {
+export async function parseAndIntern(code: string, moduleName?: string) {
+  if (moduleName && !isModule(moduleName)) {
     throw new Error(`Moudle not found - ${moduleName}`);
   }
-  const r = await parse(`module ${moduleName} ${code}`);
+  const r = await parse(moduleName ? `module ${moduleName} ${code}` : code);
+  if (!moduleName) {
+    moduleName = r.parseResult.value.name;
+    addModule(moduleName);
+  }
   r.parseResult.value.defs.forEach((def: Def) => {
     addFromDef(def, moduleName);
   });

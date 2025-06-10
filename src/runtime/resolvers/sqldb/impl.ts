@@ -136,7 +136,8 @@ export class SqlDbResolver extends Resolver {
 
   public override async queryInstances(
     inst: Instance,
-    queryAll: boolean = false
+    queryAll: boolean = false,
+    betRelQueries?: Array<[string, string]>
   ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
 
@@ -145,6 +146,7 @@ export class SqlDbResolver extends Resolver {
       queryAll ? undefined : inst.queryAttributesAsObject(),
       queryAll ? undefined : inst.queryAttributeValuesAsObject(),
       inst.getAllUserAttributeNames(),
+      betRelQueries,
       this.getDbContext(inst.getFqName())
     );
     if (rslt instanceof Array) {

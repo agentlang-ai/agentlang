@@ -2706,10 +2706,6 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 {
                   "$type": "Keyword",
                   "value": "between"
-                },
-                {
-                  "$type": "Keyword",
-                  "value": "+"
                 }
               ]
             },

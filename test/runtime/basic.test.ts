@@ -1,4 +1,5 @@
-import { load } from '../../src/runtime/loader.js';
+import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
+import { ApplicationSpec, load } from '../../src/runtime/loader.js';
 import {
   addBetweenRelationship,
   addContainsRelationship,
@@ -7,6 +8,9 @@ import {
   AttributeSpec,
   EntityEntry,
   fetchModule,
+  Instance,
+  isInstanceOfType,
+  isModule,
   newRelNodeEntry,
   RecordEntry,
   removeModule,
@@ -21,6 +25,7 @@ import {
 } from '../../src/runtime/relgraph.js';
 import { arrayEquals } from '../../src/runtime/util.js';
 import { assert, describe, test } from 'vitest';
+import { doInternModule, doPreInit } from '../util.js';
 
 function createTestModule(): RuntimeModule | undefined {
   addModule('Acme');
@@ -74,7 +79,9 @@ describe('Basic module operations', () => {
 
 describe('Basic loader test', () => {
   test('Check loader with graph', async () => {
-    load('example/blog/blog.al', () => {
+    await doPreInit()
+    await load('example/blog/blog.al').then((appSpec: ApplicationSpec) => {
+      assert(appSpec.name, 'Invalid application spec')
       const m: RuntimeModule = fetchModule('Blog');
       try {
         assert(m.name == 'Blog', 'Failed to load Blog module');
@@ -150,3 +157,22 @@ describe('Basic loader test', () => {
     });
   });
 });
+
+describe('Basic CRUD tests', () => {
+  test('Check CRUD patterns', async () => {
+    await doInternModule(`module Erp
+      entity User {
+         email Email @id
+         name String
+      }`)
+    assert(isModule('Erp'), 'Module `Erp` not found')
+    await parseAndEvaluateStatement(`{Erp/User {email "j@erp.com", name "JJ"}}`)
+      .then((result: Instance) => {
+        assert(isInstanceOfType(result, 'Erp/User'), "Failed to create Erp/User")
+      })
+    await parseAndEvaluateStatement(`{Erp/User? {}}`).then((result: Instance[]) => {
+      assert(result.length == 1, "Invalid result count")
+      assert(isInstanceOfType(result[0], 'Erp/User'), "Query result is not a Erp/User")
+    })
+  })
+})

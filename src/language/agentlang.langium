@@ -81,7 +81,7 @@ Delete: 'delete' pattern=Pattern;
 
 Upsert: 'upsert' pattern=CrudMap;
 
-SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between'|'+')? value=AttributeValueExpression;
+SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')? value=AttributeValueExpression;
 
 AttributeValueExpression: Expr;
 

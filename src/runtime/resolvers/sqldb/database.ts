@@ -1,10 +1,4 @@
-import {
-  DataSource,
-  EntityManager,
-  InsertQueryBuilder,
-  QueryRunner,
-  SelectQueryBuilder,
-} from 'typeorm';
+import { DataSource, EntityManager, QueryRunner, SelectQueryBuilder } from 'typeorm';
 import { logger } from '../../logger.js';
 import { modulesAsOrmSchema } from './dbutil.js';
 import { ResolverAuthInfo } from '../interface.js';
@@ -108,15 +102,6 @@ export async function initDefaultDatabase() {
       entities: modulesAsOrmSchema(),
     });
     await defaultDataSource.initialize();
-    /*await createTables()
-      .then((_: void) => {
-        const msg: string = 'Database schema initialized';
-        logger.debug(msg);
-        console.log(chalk.gray(msg));
-      })
-      .catch(err => {
-        logger.error('Error during Data Source initialization', err);
-      });*/
   }
 }
 
@@ -124,116 +109,8 @@ function ownersTable(tableName: string): string {
   return tableName + `_owners`;
 }
 
-/*async function createTables(): Promise<void> {
-  if (defaultDataSource != undefined) {
-    const queryRunner = defaultDataSource.createQueryRunner();
-    const tableSpecs: TableSchema[] = modulesAsDbSchema();
-    try {
-      for (let i = 0; i < tableSpecs.length; ++i) {
-        const ts: TableSchema = tableSpecs[i];
-        const hasPk: boolean =
-          ts.columns.columns.find((tco: TableColumnOptions) => {
-            return tco.isPrimary == true;
-          }) == undefined
-            ? false
-            : true;
-        ts.columns.columns.push({
-          name: PathAttributeName,
-          type: 'varchar',
-          isPrimary: !hasPk,
-          isUnique: hasPk,
-          isNullable: false,
-        });
-        ts.columns.columns.push({
-          name: DeletedFlagAttributeName,
-          type: 'boolean',
-          isNullable: false,
-          default: false,
-        });
-        if (hasPk) {
-          ts.columns.indices.push({ columnNames: [PathAttributeName] });
-        }
-        await queryRunner
-          .createTable(
-            new Table({
-              name: ts.name,
-              columns: ts.columns.columns,
-              indices: ts.columns.indices,
-            }),
-            true
-          )
-          .catch((reason: any) => {
-            logger.error(`failed to create table ${ts.name} - ${reason}`);
-          });
-        await queryRunner
-          .createTable(
-            new Table({
-              name: ownersTable(ts.name),
-              columns: [
-                {
-                  name: 'path',
-                  type: 'varchar',
-                  isPrimary: true,
-                },
-                {
-                  name: 'user_id',
-                  type: 'varchar',
-                },
-                {
-                  name: 'type',
-                  type: 'char(1)',
-                  default: "'o'",
-                },
-                {
-                  name: 'c',
-                  type: 'boolean',
-                  default: true,
-                },
-                {
-                  name: 'r',
-                  type: 'boolean',
-                  default: true,
-                },
-                {
-                  name: 'u',
-                  type: 'boolean',
-                  default: true,
-                },
-                {
-                  name: 'd',
-                  type: 'boolean',
-                  default: true,
-                },
-              ],
-            }),
-            true
-          )
-          .catch((reason: any) => {
-            logger.error(`failed to create owners table for ${ts.name} - ${reason}`);
-          });
-        if (ts.columns.fks != undefined) {
-          for (let j = 0; j < ts.columns.fks.length; ++j) {
-            await queryRunner.createForeignKey(ts.name, ts.columns.fks[j]).catch((reason: any) => {
-              logger.error(`failed to create fk constraint for ${ts.name} - ${reason}`);
-            });
-          }
-        }
-      }
-    } finally {
-      queryRunner.release();
-    }
-  } else {
-    throw new Error('Datasource not initialized, cannot create tables.');
-  }
-}
-*/
 async function insertRowsHelper(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
-  const qb: InsertQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
-    .createQueryBuilder()
-    .insert()
-    .into(tableName)
-    .values(rows);
-  await qb.execute();
+  await getDatasourceForTransaction(ctx.txnId).getRepository(tableName).save(rows);
 }
 
 async function checkUserPerm(
@@ -331,13 +208,9 @@ async function createOwnership(tableName: string, rows: object[], ctx: DbContext
   const ownerRows: object[] = [];
   rows.forEach((r: object) => {
     ownerRows.push({
+      id: crypto.randomUUID(),
       path: r[PathKey],
       user_id: ctx.authInfo.userId,
-      type: 'o',
-      c: true,
-      r: true,
-      u: true,
-      d: true,
     });
   });
   const tname = ownersTable(tableName);
@@ -491,6 +364,7 @@ export async function getMany(
   queryObj: object | undefined,
   queryVals: object | undefined,
   colNamesToSelect: string[],
+  betRelQueries: Array<[string, string]> | undefined,
   ctx: DbContext
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
@@ -535,14 +409,18 @@ export async function getMany(
   selCols.push(`${alias}.${PathAttributeName}`);
 
   const qb: SelectQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
-    .createQueryBuilder()
-    .select(selCols.join(','))
-    .from(tableName, alias);
+    .getRepository(tableName)
+    .createQueryBuilder();
   if (ownersJoinCond) {
     qb.innerJoin(ot, otAlias, ownersJoinCond.join(' AND '));
   }
+  if (betRelQueries) {
+    betRelQueries.forEach(([colName, tableName]) => {
+      qb.leftJoinAndSelect(`${alias}.${colName}`, tableName);
+    });
+  }
   qb.where(queryStr, queryVals);
-  return await qb.getRawMany();
+  return await qb.getMany();
 }
 
 const NotDeletedClause: string = `${DeletedFlagAttributeName} = false`;
