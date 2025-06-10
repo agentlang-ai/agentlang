@@ -434,7 +434,7 @@ async function isOwner(tableName: string, instPath: string, ctx: DbContext): Pro
   const sq: SelectQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
     .select()
-    .from(tabName, alias)
+    .from(tabName.toLowerCase(), alias)
     .where(query.join(' AND '));
   await sq
     .getRawMany()

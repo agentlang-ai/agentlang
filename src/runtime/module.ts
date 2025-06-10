@@ -1457,13 +1457,15 @@ export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSc
       });
     }
   }
-  return Object.fromEntries(attrs);
+  return Object.fromEntries(
+    Array.from(attrs).map(([key, value]) => [key.toLowerCase(), value])
+  );
 }
 
 export function objectAsInstanceAttributes(obj: object): InstanceAttributes {
   const attrs: InstanceAttributes = newInstanceAttributes();
   Object.entries(obj).forEach((v: [string, any]) => {
-    attrs.set(v[0], v[1]);
+    attrs.set(v[0].toLowerCase(), v[1]);
   });
   return attrs;
 }

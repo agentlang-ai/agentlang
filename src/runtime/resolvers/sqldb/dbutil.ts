@@ -25,7 +25,7 @@ export type TableSchema = {
 };
 
 export function asTableName(moduleName: string, entityName: string): string {
-  return `${moduleName}_${entityName}`;
+  return `${moduleName}_${entityName}`.toLowerCase();
 }
 
 export function modulesAsDbSchema(): TableSchema[] {
@@ -87,7 +87,7 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
       fkSpecs.push(fk);
     }
     const colOpt: TableColumnOptions = {
-      name: attrName,
+      name: attrName.toLowerCase(),
       type: asSqlType(attrSpec.type),
       isPrimary: genStrat == 'increment',
       default: d,
