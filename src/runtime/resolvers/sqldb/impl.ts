@@ -3,6 +3,8 @@ import {
   AttributeEntry,
   BetweenInstanceNodeValuesResult,
   findIdAttribute,
+  getAllBetweenRelationships,
+  getAllOneToOneRelationshipsForEntity,
   getBetweenInstanceNodeValues,
   Instance,
   InstanceAttributes,
@@ -83,6 +85,7 @@ export class SqlDbResolver extends Resolver {
       return inst;
     } else {
       const idAttrName: string | undefined = addDefaultIdAttribute(inst);
+      ensureOneToOneAttributes(inst);
       const attrs: InstanceAttributes = inst.attributes;
       if (idAttrName != undefined) {
         const idAttrVal: any = attrs.get(idAttrName);
@@ -269,11 +272,11 @@ export class SqlDbResolver extends Resolver {
     if (relEntry.isOneToOne()) {
       await this.updateInstance(
         node1,
-        newInstanceAttributes().set(relEntry.node2.alias, node1.lookup(PathAttributeName))
+        newInstanceAttributes().set(relEntry.node2.alias, node2.lookup(PathAttributeName))
       );
       await this.updateInstance(
         node2,
-        newInstanceAttributes().set(relEntry.node1.alias, node2.lookup(PathAttributeName))
+        newInstanceAttributes().set(relEntry.node1.alias, node1.lookup(PathAttributeName))
       );
     } else {
       if (orUpdate) {
@@ -318,4 +321,16 @@ export class SqlDbResolver extends Resolver {
     }
     return txnId;
   }
+}
+
+function ensureOneToOneAttributes(inst: Instance) {
+  const betRels = getAllBetweenRelationships();
+  getAllOneToOneRelationshipsForEntity(inst.moduleName, inst.name, betRels).forEach(
+    (re: RelationshipEntry) => {
+      const n = re.getInverseAliasFor(inst);
+      if (!inst.attributes.has(n)) {
+        inst.attributes.set(n, crypto.randomUUID());
+      }
+    }
+  );
 }
