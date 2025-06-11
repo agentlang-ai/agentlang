@@ -1,4 +1,5 @@
-import { load } from '../../src/runtime/loader.js';
+import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
+import { ApplicationSpec, load } from '../../src/runtime/loader.js';
 import {
   addBetweenRelationship,
   addContainsRelationship,
@@ -7,6 +8,9 @@ import {
   AttributeSpec,
   EntityEntry,
   fetchModule,
+  Instance,
+  isInstanceOfType,
+  isModule,
   newRelNodeEntry,
   RecordEntry,
   removeModule,
@@ -21,6 +25,7 @@ import {
 } from '../../src/runtime/relgraph.js';
 import { arrayEquals } from '../../src/runtime/util.js';
 import { assert, describe, test } from 'vitest';
+import { doInternModule, doPreInit } from '../util.js';
 
 function createTestModule(): RuntimeModule | undefined {
   addModule('Acme');
@@ -74,7 +79,9 @@ describe('Basic module operations', () => {
 
 describe('Basic loader test', () => {
   test('Check loader with graph', async () => {
-    load('example/blog/blog.al', () => {
+    await doPreInit()
+    await load('example/blog/blog.al').then((appSpec: ApplicationSpec) => {
+      assert(appSpec.name, 'Invalid application spec')
       const m: RuntimeModule = fetchModule('Blog');
       try {
         assert(m.name == 'Blog', 'Failed to load Blog module');
@@ -150,3 +157,75 @@ describe('Basic loader test', () => {
     });
   });
 });
+
+describe('Basic CRUD tests', () => {
+  test('Check CRUD patterns', async () => {
+    await doInternModule(`module Blogger
+      entity User {
+        email Email @id,
+        name String
+      }
+      entity Post {
+        id Int @id,
+        title String
+      }
+      relationship UserPost between(User, Post) @one_many
+      `)
+    assert(isModule('Blogger'), 'Module `Blogger` not found')
+    const isUser = (inst: Instance): boolean => {
+      return isInstanceOfType(inst, 'Blogger/User')
+    }
+    const isPost = (inst: Instance): boolean => {
+      return isInstanceOfType(inst, 'Blogger/Post')
+    }
+    const createUser = async (name: string, email: string) => {
+      await parseAndEvaluateStatement(`{Blogger/User {email "${email}", name "${name}"}}`)
+        .then((result: Instance) => {
+          assert(isUser(result), "Failed to create Blogger/User")
+        })
+    }
+    const hasUser = (result: Instance[], email: string) => {
+      assert(result.find((inst: Instance) => {
+        return inst.attributes.get('email') == email
+      }), `Failed to find Blogger/User with email ${email}`)
+    }
+    const hasPost = (result: Instance[], id: number) => {
+      assert(result.find((inst: Instance) => {
+        return inst.attributes.get('id') == id
+      }), `Failed to find Blogger/Post with id ${id}`)
+    }
+    await createUser('Joe', 'j@b.com')
+    await createUser('Tom', 't@b.com')
+    await parseAndEvaluateStatement(`{Blogger/User? {}}`).then((result: Instance[]) => {
+      assert(result.length == 2, "Invalid result count")
+      assert(result.every(isUser), "Query result is not a Blogger/User")
+      hasUser(result, 'j@b.com')
+      hasUser(result, 't@b.com')
+    })
+    const withPosts = async (pat: string, email: string, postIds: number[]) => {
+      await parseAndEvaluateStatement(pat).then((result: Instance[]) => {
+        assert(result.length == 1, 'Only one Blogger/User expected')
+        hasUser(result, email)
+        const inst: Instance = result[0]
+        const posts = inst.getRelatedInstances('UserPost')
+        if (posts) {
+          assert(posts.length == postIds.length, `Only ${postIds.length} Blogger/Posts expected, ${posts.length} found`)
+          assert(posts.every(isPost), 'Invalid Blogger/Post instance')
+          postIds.forEach((id: number) => {
+            hasPost(posts, id)
+          })
+        } else {
+          assert(posts, `Blogger/Posts not found for ${email}`)
+        }
+      })
+    }
+    const email = "j@b.com"
+    let pat = `{Blogger/User {email? "${email}"},
+                UserPost [{Blogger/Post {id 1, title "Post One"}}, 
+                          {Blogger/Post {id 2, title "Post Two"}}]}`
+    await withPosts(pat, email, [1, 2])
+    pat = `{Blogger/User {email? "${email}"},
+            UserPost {Blogger/Post? {}}}`
+    await withPosts(pat, email, [1, 2])
+  })
+})

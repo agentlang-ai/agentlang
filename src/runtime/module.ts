@@ -20,7 +20,6 @@ import {
   makeFqName,
   DefaultModuleName,
 } from './util.js';
-import { getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement } from '../language/parser.js';
 
 export class ModuleEntry {
@@ -153,7 +152,7 @@ export class RecordEntry extends ModuleEntry {
     this.meta.set(k, v);
   }
 
-  addAttribute(n: string, attrSpec: AttributeSpec) {
+  addAttribute(n: string, attrSpec: AttributeSpec): RecordEntry {
     if (this.schema.has(n)) {
       throw new Error(`Attribute named ${n} already exists in ${this.moduleName}.${this.name}`);
     }
@@ -161,10 +160,12 @@ export class RecordEntry extends ModuleEntry {
       normalizePropertyNames(attrSpec.properties);
     }
     this.schema.set(n, attrSpec);
+    return this;
   }
 
-  removeAttribute(n: string) {
+  removeAttribute(n: string): RecordEntry {
     this.schema.delete(n);
+    return this;
   }
 
   reorderAttributes(desiredOrder: string[]) {
@@ -175,9 +176,10 @@ export class RecordEntry extends ModuleEntry {
     );
   }
 
-  addSystemAttribute(n: string, attrSpec: AttributeSpec) {
+  addSystemAttribute(n: string, attrSpec: AttributeSpec): RecordEntry {
     setAsSystemAttribute(attrSpec);
     this.addAttribute(n, attrSpec);
+    return this;
   }
 
   findAttribute(predic: Function): AttributeEntry | undefined {
@@ -528,9 +530,6 @@ export class RelationshipEntry extends RecordEntry {
     this.node2 = node2;
     this.properties = props;
     this.updateSchemaWithNodeAttributes();
-    if (this.relType == RelType.BETWEEN && !this.isManyToMany()) {
-      this.updateBetweenTargetRefs();
-    }
   }
 
   private updateSchemaWithNodeAttributes() {
@@ -542,32 +541,17 @@ export class RelationshipEntry extends RecordEntry {
       type: 'string',
     };
     this.addSystemAttribute(this.node2.alias, attrSpec2);
+    if (this.relType == RelType.BETWEEN && this.isOneToMany()) {
+      const attrSpec3: AttributeSpec = {
+        type: 'string',
+        properties: new Map().set('unique', true),
+      };
+      this.addSystemAttribute(this.joinNodesAttributeName(), attrSpec3);
+    }
   }
 
-  private updateBetweenTargetRefs() {
-    const res1: string | undefined = getResolverNameForPath(this.node1.path.asFqName());
-    const res2: string | undefined = getResolverNameForPath(this.node2.path.asFqName());
-    if (res1 == undefined && res2 == undefined) {
-      const mod: RuntimeModule = fetchModule(this.node2.path.getModuleName());
-      const entry: RecordEntry = mod.getEntry(this.node2.path.getEntryName()) as RecordEntry;
-      if (entry.hasRefTo(this.node1.path.getModuleName(), this.node1.path.getEntryName())) {
-        throw new Error(
-          `Cannot create between relationship, ${this.node2.path.getEntryName()} already has a ref to ${this.node1.path.getEntryName()}`
-        );
-      }
-      const refn: string = `__${this.node1.alias.toLowerCase()}`;
-      const props: Map<string, any> | undefined = this.isOneToOne()
-        ? new Map<string, any>()
-        : undefined;
-      if (props != undefined) {
-        props.set('unique', true);
-      }
-      const attrspec: AttributeSpec = {
-        type: 'String',
-        properties: props,
-      };
-      entry.addSystemAttribute(refn, attrspec);
-    }
+  joinNodesAttributeName(): string {
+    return this.node1.alias + '_' + this.node2.alias;
   }
 
   setBetweenRef(inst: Instance, refPath: string, isQuery: boolean = false) {
@@ -611,11 +595,46 @@ export class RelationshipEntry extends RecordEntry {
   }
 
   isManyToMany(): boolean {
-    return !(this.isOneToOne() || this.isOneToMany());
+    if (this.isBetween()) {
+      return (
+        this.hasBooleanFlagSet('many_many') ||
+        (!this.hasBooleanFlagSet('one_one') && !this.hasBooleanFlagSet('one_many'))
+      );
+    } else {
+      return false;
+    }
   }
 
   isFirstNode(inst: Instance): boolean {
-    return inst.getFqName() == this.node1.path.asFqName();
+    return this.isFirstNodeName(inst.getFqName());
+  }
+
+  getAliasFor(inst: Instance): string {
+    return this.getAliasForName(inst.getFqName());
+  }
+
+  getInverseAliasFor(inst: Instance): string {
+    return this.getInverseAliasForName(inst.getFqName());
+  }
+
+  isFirstNodeName(fqName: string): boolean {
+    return fqName == this.node1.path.asFqName();
+  }
+
+  getAliasForName(fqName: string): string {
+    if (this.isFirstNodeName(fqName)) {
+      return this.node1.alias;
+    } else {
+      return this.node2.alias;
+    }
+  }
+
+  getInverseAliasForName(fqName: string): string {
+    if (this.isFirstNodeName(fqName)) {
+      return this.node2.alias;
+    } else {
+      return this.node1.alias;
+    }
   }
 
   override toString(): string {
@@ -781,6 +800,12 @@ export class RuntimeModule {
     return this.getRelationshipEntriesOfType(RelType.CONTAINS);
   }
 
+  getBetweenRelationshipEntriesThatNeedStore(): RelationshipEntry[] {
+    return this.getBetweenRelationshipEntries().filter((re: RelationshipEntry) => {
+      return re.isManyToMany() || re.isOneToMany();
+    });
+  }
+
   getWorkflowForEvent(eventName: string): WorkflowEntry {
     return this.getEntry(asWorkflowName(eventName)) as WorkflowEntry;
   }
@@ -916,6 +941,10 @@ export function fetchModule(moduleName: string): RuntimeModule {
     throw new Error(`Module not found - ${moduleName}`);
   }
   return module;
+}
+
+export function allModuleNames(): string[] {
+  return [...moduleDb.keys()];
 }
 
 export function fetchModuleEntry(entryName: string, moduleName: string): ModuleEntry {
@@ -1209,6 +1238,90 @@ export function getRelationship(name: string, moduleName: string): RelationshipE
     return fr.module.getEntry(fr.entryName) as RelationshipEntry;
   }
   throw new Error(`Relationship ${fr.entryName} not found in module ${fr.moduleName}`);
+}
+
+export function getAllBetweenRelationships(): RelationshipEntry[] {
+  let result: RelationshipEntry[] = [];
+  allModuleNames().forEach((moduleName: string) => {
+    const mod = fetchModule(moduleName);
+    result = result.concat(mod.getBetweenRelationshipEntries());
+  });
+  return result;
+}
+
+function filterBetweenRelationshipsForEntity(
+  moduleName: string,
+  entityName: string,
+  predic: Function,
+  allBetweenRels?: RelationshipEntry[]
+): RelationshipEntry[] {
+  if (allBetweenRels == undefined) {
+    allBetweenRels = getAllBetweenRelationships();
+  }
+  const p = new Path(moduleName, entityName);
+  return allBetweenRels.filter((re: RelationshipEntry) => {
+    return predic(re, p);
+  });
+}
+
+export function getAllOneToOneRelationshipsForEntity(
+  moduleName: string,
+  entityName: string,
+  allBetweenRels?: RelationshipEntry[]
+): RelationshipEntry[] {
+  return filterBetweenRelationshipsForEntity(
+    moduleName,
+    entityName,
+    (re: RelationshipEntry, p: Path) => {
+      return re.isOneToOne() && (re.node1.path.equals(p) || re.node2.path.equals(p));
+    },
+    allBetweenRels
+  );
+}
+
+export function getAllOneToManyRelationshipsForEntity(
+  moduleName: string,
+  entityName: string,
+  allBetweenRels?: RelationshipEntry[]
+): RelationshipEntry[] {
+  return filterBetweenRelationshipsForEntity(
+    moduleName,
+    entityName,
+    (re: RelationshipEntry, p: Path) => {
+      return re.isOneToMany() && re.node1.path.equals(p);
+    },
+    allBetweenRels
+  );
+}
+
+export function getAllManyToOneRelationshipsForEntity(
+  moduleName: string,
+  entityName: string,
+  allBetweenRels?: RelationshipEntry[]
+): RelationshipEntry[] {
+  return filterBetweenRelationshipsForEntity(
+    moduleName,
+    entityName,
+    (re: RelationshipEntry, p: Path) => {
+      return re.isOneToMany() && re.node2.path.equals(p);
+    },
+    allBetweenRels
+  );
+}
+
+export function getAllManyToManyRelationshipsForEntity(
+  moduleName: string,
+  entityName: string,
+  allBetweenRels?: RelationshipEntry[]
+): RelationshipEntry[] {
+  return filterBetweenRelationshipsForEntity(
+    moduleName,
+    entityName,
+    (re: RelationshipEntry, p: Path) => {
+      return re.isManyToMany() && re.node1.path.equals(p);
+    },
+    allBetweenRels
+  );
 }
 
 export function getEntrySchema(name: string, moduleName: string): RecordSchema {

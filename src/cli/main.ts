@@ -69,7 +69,7 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
   }
 };
 
-async function runPreInitTasks(): Promise<boolean> {
+export async function runPreInitTasks(): Promise<boolean> {
   let result: boolean = true;
   await loadCoreModules().catch((reason: any) => {
     const msg = `Failed to load core modules - ${reason.toString()}`;
@@ -80,7 +80,7 @@ async function runPreInitTasks(): Promise<boolean> {
   return result;
 }
 
-async function runPostInitTasks(appSpec?: ApplicationSpec) {
+export async function runPostInitTasks(appSpec?: ApplicationSpec) {
   await initDefaultDatabase();
   await runInitFunctions();
   if (appSpec) startServer(appSpec, 8080);

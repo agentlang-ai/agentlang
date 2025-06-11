@@ -538,21 +538,23 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   if (isEntityInstance(inst) || isBetweenRelationship(inst.name, inst.moduleName)) {
     if (qattrs == undefined && !isQueryAll) {
       const parentPath: string | undefined = env.getParentPath();
-      if (parentPath != undefined) inst.attributes.set(PathAttributeName, parentPath);
+      if (parentPath) inst.attributes.set(PathAttributeName, parentPath);
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
-      const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
-      if (betRelInfo != undefined && res.getName() == DefaultResolverName) {
-        betRelInfo.relationship.setBetweenRef(
-          inst,
-          betRelInfo.connectedInstance.attributes.get(PathAttributeName)
-        );
-      }
       if (env.isInUpsertMode()) {
         const r: Instance = await res.upsertInstance(inst);
         env.setLastResult(r);
       } else {
         const r: Instance = await res.createInstance(inst);
         env.setLastResult(r);
+      }
+      const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
+      if (betRelInfo) {
+        await res.connectInstances(
+          betRelInfo.connectedInstance,
+          env.getLastResult(),
+          betRelInfo.relationship,
+          env.isInUpsertMode()
+        );
       }
       if (crud.relationships != undefined) {
         for (let i = 0; i < crud.relationships.length; ++i) {
@@ -568,15 +570,13 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           } else if (isBetweenRelationship(rel.name, moduleName)) {
             const lastInst: Instance = env.getLastResult() as Instance;
             const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
-            if (relEntry.isOneToOne() || relEntry.isOneToMany()) {
+            if (!relEntry.isManyToMany()) {
               newEnv.setBetweenRelInfo({ relationship: relEntry, connectedInstance: lastInst });
             }
             await evaluatePattern(rel.pattern, newEnv);
-            if (relEntry.isManyToMany()) {
-              const relResult: any = newEnv.getLastResult();
-              const res: Resolver = await getResolverForPath(rel.name, moduleName, env);
-              await res.connectInstances(lastInst, relResult, relEntry, env.isInUpsertMode());
-            }
+            const relResult: any = newEnv.getLastResult();
+            const res: Resolver = await getResolverForPath(rel.name, moduleName, env);
+            await res.connectInstances(lastInst, relResult, relEntry, env.isInUpsertMode());
             lastInst.attachRelatedInstances(rel.name, newEnv.getLastResult());
           }
         }

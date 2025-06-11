@@ -18,7 +18,9 @@
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
         "rootDir": ".",
-        "noEmit": true
+        "noEmit": true,
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true
     },
     "include": [
         "src/**/*.ts",
