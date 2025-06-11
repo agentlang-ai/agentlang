@@ -3,9 +3,6 @@ import {
   AttributeSpec,
   fetchModule,
   getAllBetweenRelationships,
-  getAllManyToManyRelationshipsForEntity,
-  getAllManyToOneRelationshipsForEntity,
-  getAllOneToManyRelationshipsForEntity,
   getAllOneToOneRelationshipsForEntity,
   getAttributeDefaultValue,
   getAttributeLength,
@@ -24,6 +21,7 @@ import {
 } from '../../module.js';
 import { buildGraph } from '../../relgraph.js';
 import { DeletedFlagAttributeName, PathAttributeName } from './database.js';
+import { makeFqName } from '../../util.js';
 
 export type TableSchema = {
   name: string;
@@ -60,8 +58,9 @@ export function modulesAsOrmSchema(): EntitySchema[] {
   getModuleNames().forEach((n: string) => {
     buildGraph(n);
     const mod: RuntimeModule = fetchModule(n);
-    const entities: RecordEntry[] = mod.getEntityEntries();
-    entities.forEach((entry: RecordEntry) => {
+    const entities: RecordEntry[] = mod.getEntityEntries()
+    const rels: RecordEntry[] = mod.getBetweenRelationshipEntriesThatNeedStore();
+    entities.concat(rels).forEach((entry: RecordEntry) => {
       result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, entry)))
       const ownerEntry = createOwnersEntity(entry)
       result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, ownerEntry, true)))
@@ -114,38 +113,14 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry, hasOw
   cols.set(DeletedFlagAttributeName, { type: "boolean", default: false })
   const allBetRels = getAllBetweenRelationships()
   const relsSpec = new Map()
+  const fqName = makeFqName(moduleName, entityName)
   getAllOneToOneRelationshipsForEntity(moduleName, entityName, allBetRels)
     .forEach((re: RelationshipEntry) => {
-      const colSpec = new Map()
-        .set('target', asTableName(re.node2.path.getModuleName(), re.node2.path.getEntryName()))
-        .set("type", "one-to-one")
-        .set('joinColumn', true)
-        .set('cascade', true)
-      relsSpec.set(re.node2.alias, Object.fromEntries(colSpec))
-    })
-  getAllOneToManyRelationshipsForEntity(moduleName, entityName, allBetRels)
-    .forEach((re: RelationshipEntry) => {
-      const colSpec = new Map()
-        .set('target', asTableName(re.node2.path.getModuleName(), re.node2.path.getEntryName()))
-        .set("type", "one-to-many")
-        .set('inverseSide', re.node1.alias)
-      relsSpec.set(re.node2.alias, Object.fromEntries(colSpec))
-    })
-  getAllManyToOneRelationshipsForEntity(moduleName, entityName, allBetRels)
-    .forEach((re: RelationshipEntry) => {
-      const colSpec = new Map()
-        .set('target', asTableName(re.node1.path.getModuleName(), re.node1.path.getEntryName()))
-        .set("type", "many-to-one")
-        .set('joinColumn', true)
-      relsSpec.set(re.node1.alias, Object.fromEntries(colSpec))
-    })
-  getAllManyToManyRelationshipsForEntity(moduleName, entityName, allBetRels)
-    .forEach((re: RelationshipEntry) => {
-      const colSpec = new Map()
-        .set('target', asTableName(re.node2.path.getModuleName(), re.node2.path.getEntryName()))
-        .set("type", "many-to-many")
-        .set('joinTable', true)
-      relsSpec.set(re.node2.alias, Object.fromEntries(colSpec))
+      const colName = re.getInverseAliasForName(fqName)
+      if (cols.has(colName)) {
+        throw new Error(`Cannot establish relationship ${re.name}, ${entityName}.${colName} already exists`)
+      }
+      cols.set(colName, { type: "varchar", unique: true })
     })
   if (relsSpec.size > 0) {
     result.relations = Object.fromEntries(relsSpec)

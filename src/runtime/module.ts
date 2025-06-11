@@ -20,7 +20,6 @@ import {
   makeFqName,
   DefaultModuleName,
 } from './util.js';
-import { getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement } from '../language/parser.js';
 
 export class ModuleEntry {
@@ -531,9 +530,6 @@ export class RelationshipEntry extends RecordEntry {
     this.node2 = node2;
     this.properties = props;
     this.updateSchemaWithNodeAttributes();
-    if (this.relType == RelType.BETWEEN && !this.isManyToMany()) {
-      this.updateBetweenTargetRefs();
-    }
   }
 
   private updateSchemaWithNodeAttributes() {
@@ -545,32 +541,17 @@ export class RelationshipEntry extends RecordEntry {
       type: 'string',
     };
     this.addSystemAttribute(this.node2.alias, attrSpec2);
+    if (this.relType == RelType.BETWEEN && this.isOneToMany()) {
+      const attrSpec3: AttributeSpec = {
+        type: 'string',
+        properties: new Map().set('unique', true),
+      };
+      this.addSystemAttribute(this.joinNodesAttributeName(), attrSpec3);
+    }
   }
 
-  private updateBetweenTargetRefs() {
-    const res1: string | undefined = getResolverNameForPath(this.node1.path.asFqName());
-    const res2: string | undefined = getResolverNameForPath(this.node2.path.asFqName());
-    if (res1 == undefined && res2 == undefined) {
-      const mod: RuntimeModule = fetchModule(this.node2.path.getModuleName());
-      const entry: RecordEntry = mod.getEntry(this.node2.path.getEntryName()) as RecordEntry;
-      if (entry.hasRefTo(this.node1.path.getModuleName(), this.node1.path.getEntryName())) {
-        throw new Error(
-          `Cannot create between relationship, ${this.node2.path.getEntryName()} already has a ref to ${this.node1.path.getEntryName()}`
-        );
-      }
-      const refn: string = `__${this.node1.alias.toLowerCase()}`;
-      const props: Map<string, any> | undefined = this.isOneToOne()
-        ? new Map<string, any>()
-        : undefined;
-      if (props != undefined) {
-        props.set('unique', true);
-      }
-      const attrspec: AttributeSpec = {
-        type: 'String',
-        properties: props,
-      };
-      entry.addSystemAttribute(refn, attrspec);
-    }
+  joinNodesAttributeName(): string {
+    return this.node1.alias + '_' + this.node2.alias;
   }
 
   setBetweenRef(inst: Instance, refPath: string, isQuery: boolean = false) {
@@ -625,14 +606,34 @@ export class RelationshipEntry extends RecordEntry {
   }
 
   isFirstNode(inst: Instance): boolean {
-    return inst.getFqName() == this.node1.path.asFqName();
+    return this.isFirstNodeName(inst.getFqName());
   }
 
   getAliasFor(inst: Instance): string {
-    if (this.isFirstNode(inst)) {
+    return this.getAliasForName(inst.getFqName());
+  }
+
+  getInverseAliasFor(inst: Instance): string {
+    return this.getInverseAliasForName(inst.getFqName());
+  }
+
+  isFirstNodeName(fqName: string): boolean {
+    return fqName == this.node1.path.asFqName();
+  }
+
+  getAliasForName(fqName: string): string {
+    if (this.isFirstNodeName(fqName)) {
       return this.node1.alias;
     } else {
       return this.node2.alias;
+    }
+  }
+
+  getInverseAliasForName(fqName: string): string {
+    if (this.isFirstNodeName(fqName)) {
+      return this.node2.alias;
+    } else {
+      return this.node1.alias;
     }
   }
 
@@ -797,6 +798,12 @@ export class RuntimeModule {
 
   getContainsRelationshipEntries(): RelationshipEntry[] {
     return this.getRelationshipEntriesOfType(RelType.CONTAINS);
+  }
+
+  getBetweenRelationshipEntriesThatNeedStore(): RelationshipEntry[] {
+    return this.getBetweenRelationshipEntries().filter((re: RelationshipEntry) => {
+      return re.isManyToMany() || re.isOneToMany();
+    });
   }
 
   getWorkflowForEvent(eventName: string): WorkflowEntry {
@@ -1266,7 +1273,7 @@ export function getAllOneToOneRelationshipsForEntity(
     moduleName,
     entityName,
     (re: RelationshipEntry, p: Path) => {
-      return re.isOneToOne() && re.node1.path.equals(p);
+      return re.isOneToOne() && (re.node1.path.equals(p) || re.node2.path.equals(p));
     },
     allBetweenRels
   );
@@ -1477,43 +1484,23 @@ export class Instance {
     return this;
   }
 
-  attachRelatedInstances(relEntry: RelationshipEntry, insts: Instance | Instance[]) {
-    if (relEntry.isBetween()) {
-      const inst: Instance = insts instanceof Array ? insts[0] : insts;
-      if (relEntry.isOneToOne()) {
-        this.attributes.set(relEntry.getAliasFor(inst), inst);
-      } else if (relEntry.isOneToMany()) {
-        if (relEntry.isFirstNode(this)) {
-          this.attributes.set(relEntry.getAliasFor(inst), insts);
-        } else {
-          this.attributes.set(relEntry.getAliasFor(this), inst);
-        }
-      } else {
-        // many-to-many
-        if (relEntry.isFirstNode(this)) {
-          this.attributes.set(relEntry.getAliasFor(inst), insts);
-        } else {
-          this.attributes.set(relEntry.getAliasFor(this), insts);
-        }
-      }
-    } else {
-      if (this.relatedInstances == undefined) {
-        this.relatedInstances = new Map<string, Array<Instance>>();
-      }
-      let relInsts: Array<Instance> | undefined = this.relatedInstances.get(relEntry.name);
-      if (relInsts == undefined) {
-        relInsts = new Array<Instance>();
-      }
-      if (insts instanceof Instance) {
-        relInsts.push(insts);
-      } else {
-        insts.forEach((inst: Instance) => {
-          relInsts.push(inst);
-        });
-      }
-      this.relatedInstances.set(relEntry.name, relInsts);
-      this.attributes.set('->', this.relatedInstances);
+  attachRelatedInstances(relName: string, insts: Instance | Instance[]) {
+    if (this.relatedInstances == undefined) {
+      this.relatedInstances = new Map<string, Array<Instance>>();
     }
+    let relInsts: Array<Instance> | undefined = this.relatedInstances.get(relName);
+    if (relInsts == undefined) {
+      relInsts = new Array<Instance>();
+    }
+    if (insts instanceof Instance) {
+      relInsts.push(insts);
+    } else {
+      insts.forEach((inst: Instance) => {
+        relInsts.push(inst);
+      });
+    }
+    this.relatedInstances.set(relName, relInsts);
+    this.attributes.set('->', this.relatedInstances);
   }
 
   detachAllRelatedInstance() {

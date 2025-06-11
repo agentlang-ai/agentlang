@@ -84,7 +84,7 @@ export class SqlDbResolver extends Resolver {
     } else {
       const idAttrName: string | undefined = addDefaultIdAttribute(inst);
       const attrs: InstanceAttributes = inst.attributes;
-      if (idAttrName != undefined && !orUpdate) {
+      if (idAttrName != undefined) {
         const idAttrVal: any = attrs.get(idAttrName);
         const pp: string | undefined = attrs.get(PathAttributeName);
         const n: string = `${inst.moduleName}/${inst.name}`;
@@ -134,8 +134,7 @@ export class SqlDbResolver extends Resolver {
 
   public override async queryInstances(
     inst: Instance,
-    queryAll: boolean = false,
-    betRelQueries?: Array<[string, string]>
+    queryAll: boolean = false
   ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
 
@@ -144,7 +143,6 @@ export class SqlDbResolver extends Resolver {
       queryAll ? undefined : inst.queryAttributesAsObject(),
       queryAll ? undefined : inst.queryAttributeValuesAsObject(),
       inst.getAllUserAttributeNames(),
-      betRelQueries,
       this.getDbContext(inst.getFqName())
     );
     if (rslt instanceof Array) {
@@ -191,7 +189,11 @@ export class SqlDbResolver extends Resolver {
     inst: Instance
   ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
-    if (relationship.isManyToMany()) {
+    if (relationship.isOneToOne()) {
+      const col = relationship.getAliasFor(connectedInstance);
+      inst.addQuery(col, '=', connectedInstance.lookup(PathAttributeName));
+      return await this.queryInstances(inst, false);
+    } else {
       await getAllConnected(
         asTableName(inst.moduleName, inst.name),
         inst.queryAttributesAsObject(),
@@ -199,30 +201,26 @@ export class SqlDbResolver extends Resolver {
         {
           connectionTable: asTableName(inst.moduleName, relationship.name),
           fromColumn: relationship.node1.alias,
-          fromValue: `'${connectedInstance.attributes.get(PathAttributeName)}'`,
+          fromValue: `'${connectedInstance.lookup(PathAttributeName)}'`,
           toColumn: relationship.node2.alias,
           toRef: PathAttributeName,
         },
-        (rslt: any) => {
-          if (rslt instanceof Array) {
-            result = new Array<Instance>();
-            const connInst: Instance = Instance.EmptyInstance(
-              relationship.node2.path.getEntryName(),
-              relationship.node2.path.getModuleName()
-            );
-            rslt.forEach((r: object) => {
-              const attrs: InstanceAttributes = new Map(Object.entries(r));
-              attrs.delete(DeletedFlagAttributeName);
-              result.push(Instance.newWithAttributes(connInst, attrs));
-            });
-          }
-        },
         this.getDbContext(inst.getFqName())
-      );
+      ).then((rslt: any) => {
+        if (rslt instanceof Array) {
+          result = new Array<Instance>();
+          const connInst: Instance = Instance.EmptyInstance(
+            relationship.node2.path.getEntryName(),
+            relationship.node2.path.getModuleName()
+          );
+          rslt.forEach((r: object) => {
+            const attrs: InstanceAttributes = new Map(Object.entries(r));
+            attrs.delete(DeletedFlagAttributeName);
+            result.push(Instance.newWithAttributes(connInst, attrs));
+          });
+        }
+      });
       return result;
-    } else {
-      relationship.setBetweenRef(inst, connectedInstance.attributes.get(PathAttributeName), true);
-      return await this.queryInstances(inst, false);
     }
   }
 
@@ -268,24 +266,36 @@ export class SqlDbResolver extends Resolver {
     const a1: string = relEntry.node1.alias;
     const a2: string = relEntry.node2.alias;
     const n1path: any = orUpdate ? firstNode.lookup(PathAttributeName) : undefined;
-    if (orUpdate) {
-      await hardDeleteRow(
+    if (relEntry.isOneToOne()) {
+      await this.updateInstance(
+        node1,
+        newInstanceAttributes().set(relEntry.node2.alias, node1.lookup(PathAttributeName))
+      );
+      await this.updateInstance(
+        node2,
+        newInstanceAttributes().set(relEntry.node1.alias, node2.lookup(PathAttributeName))
+      );
+    } else {
+      if (orUpdate) {
+        await hardDeleteRow(
+          n,
+          [
+            [a1, n1path],
+            [a2, secondNode.lookup(PathAttributeName)],
+          ],
+          this.getDbContext(relEntry.getFqName())
+        );
+      }
+      await insertBetweenRow(
         n,
-        [
-          [a1, n1path],
-          [a2, secondNode.lookup(PathAttributeName)],
-        ],
+        a1,
+        a2,
+        firstNode,
+        secondNode,
+        relEntry,
         this.getDbContext(relEntry.getFqName())
       );
     }
-    await insertBetweenRow(
-      n,
-      a1,
-      a2,
-      firstNode,
-      secondNode,
-      this.getDbContext(relEntry.getFqName())
-    );
   }
 
   public override async startTransaction(): Promise<string> {

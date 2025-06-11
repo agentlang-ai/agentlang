@@ -16,6 +16,7 @@ import {
   InstanceAttributes,
   newInstanceAttributes,
   RbacPermissionFlag,
+  RelationshipEntry,
 } from '../../module.js';
 
 export let defaultDataSource: DataSource | undefined;
@@ -184,6 +185,7 @@ export async function insertBetweenRow(
   a2: string,
   node1: Instance,
   node2: Instance,
+  relEntry: RelationshipEntry,
   ctx: DbContext
 ): Promise<void> {
   let hasPerm = await checkCreatePermission(ctx, node1);
@@ -192,9 +194,14 @@ export async function insertBetweenRow(
   }
   if (hasPerm) {
     const attrs: InstanceAttributes = newInstanceAttributes();
-    attrs.set(a1, node1.attributes.get(PathAttributeName));
-    attrs.set(a2, node2.attributes.get(PathAttributeName));
+    const p1 = node1.attributes.get(PathAttributeName);
+    const p2 = node2.attributes.get(PathAttributeName);
+    attrs.set(a1, p1);
+    attrs.set(a2, p2);
     attrs.set(PathAttributeName, crypto.randomUUID());
+    if (relEntry.isOneToMany()) {
+      attrs.set(relEntry.joinNodesAttributeName(), `${p1}_${p2}`);
+    }
     const row = attributesAsColumns(attrs);
     await insertRow(n, row, ctx.clone().setNeedAuthCheck(false));
   } else {
@@ -364,7 +371,6 @@ export async function getMany(
   queryObj: object | undefined,
   queryVals: object | undefined,
   colNamesToSelect: string[],
-  betRelQueries: Array<[string, string]> | undefined,
   ctx: DbContext
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
@@ -414,11 +420,6 @@ export async function getMany(
   if (ownersJoinCond) {
     qb.innerJoin(ot, otAlias, ownersJoinCond.join(' AND '));
   }
-  if (betRelQueries) {
-    betRelQueries.forEach(([colName, tableName]) => {
-      qb.leftJoinAndSelect(`${alias}.${colName}`, tableName);
-    });
-  }
   qb.where(queryStr, queryVals);
   return await qb.getMany();
 }
@@ -454,12 +455,11 @@ export async function getAllConnected(
   queryObj: object,
   queryVals: object,
   connInfo: BetweenConnectionInfo,
-  callback: Function,
   ctx: DbContext
 ) {
   const alias: string = tableName.toLowerCase();
   const connAlias: string = connInfo.connectionTable.toLowerCase();
-  const result: any = await getDatasourceForTransaction(ctx.txnId)
+  const qb = getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
     .select()
     .from(tableName, alias)
@@ -468,9 +468,8 @@ export async function getAllConnected(
       connInfo.connectionTable,
       connAlias,
       buildQueryFromConnnectionInfo(connAlias, alias, connInfo)
-    )
-    .getRawMany();
-  callback(result);
+    );
+  return await qb.getRawMany();
 }
 
 const transactionsDb: Map<string, QueryRunner> = new Map<string, QueryRunner>();

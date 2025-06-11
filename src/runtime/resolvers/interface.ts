@@ -70,14 +70,9 @@ export class Resolver {
   /**
    * @param {Instance} inst - an Instance with query attributes
    * @param {boolean} queryAll - if this flag is set, fetch all instances
-   * @param {Array<[string, string]>} betRelQueries - between-relationship column and table names for left-join-select
    */
-  public async queryInstances(
-    inst: Instance,
-    queryAll: boolean,
-    betRelQueries?: Array<[string, string]>
-  ): Promise<any> {
-    return this.notImpl(`queryInstances(${inst}, ${queryAll}, ${betRelQueries})`);
+  public async queryInstances(inst: Instance, queryAll: boolean): Promise<any> {
+    return this.notImpl(`queryInstances(${inst}, ${queryAll})`);
   }
 
   /**
