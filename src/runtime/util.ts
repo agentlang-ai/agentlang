@@ -207,3 +207,11 @@ export async function runInitFunctions() {
 export function maybeExtends(ext: ExtendsClause | undefined): string | undefined {
   return ext ? ext.parentName : undefined;
 }
+
+export function escapeQueryName(s: string): string {
+  if (s.endsWith('?')) {
+    return s.substring(0, s.length - 1);
+  } else {
+    return s;
+  }
+}

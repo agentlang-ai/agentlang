@@ -1,3 +1,5 @@
+import { escapeQueryName } from '../runtime/util.js';
+
 export class BasePattern {
   alias: string | undefined;
   aliases: string[] | undefined;
@@ -294,6 +296,10 @@ export class CrudPattern extends BasePattern {
     } else {
       return '';
     }
+  }
+
+  getNormalizedRecordName(): string {
+    return escapeQueryName(this.recordName);
   }
 
   override toString(): string {
