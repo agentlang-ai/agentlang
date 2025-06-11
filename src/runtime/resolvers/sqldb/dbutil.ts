@@ -142,6 +142,7 @@ function createOwnersEntity(entry: RecordEntry): RecordEntry {
     .addAttribute('r', { type: 'Boolean', properties: permProps })
     .addAttribute('u', { type: 'Boolean', properties: permProps })
     .addAttribute('d', { type: 'Boolean', properties: permProps })
+    .addAttribute('path', { type: 'String', properties: new Map().set('indexed', true) })
 }
 
 export type TableSpec = {

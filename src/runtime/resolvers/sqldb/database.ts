@@ -375,6 +375,7 @@ export async function getMany(
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
   const queryStr: string = withNotDeletedClause(
+    alias,
     queryObj != undefined ? objectToWhereClause(queryObj, alias) : ''
   );
   let ownersJoinCond: string[] | undefined;
@@ -424,13 +425,15 @@ export async function getMany(
   return await qb.getMany();
 }
 
-const NotDeletedClause: string = `${DeletedFlagAttributeName} = false`;
+function notDeletedClause(alias: string): string {
+  return `${alias}.${DeletedFlagAttributeName} = false`;
+}
 
-function withNotDeletedClause(sql: string): string {
+function withNotDeletedClause(alias: string, sql: string): string {
   if (sql == '') {
-    return NotDeletedClause;
+    return notDeletedClause(alias);
   } else {
-    return `${sql} AND ${NotDeletedClause}`;
+    return `${sql} AND ${notDeletedClause(alias)}`;
   }
 }
 
