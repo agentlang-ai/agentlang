@@ -95,6 +95,7 @@ export class Environment extends Instance {
   private inUpsertMode: boolean = false;
   private inDeleteMode: boolean = false;
   private inKernelMode: boolean = false;
+  private noResolverAccess: boolean = false;
 
   constructor(name?: string, parent?: Environment) {
     super(
@@ -152,6 +153,15 @@ export class Environment extends Instance {
       this.activeEventInstance = eventInst;
     }
     return this;
+  }
+
+  turnOffResolverAccess(): Environment {
+    this.noResolverAccess = true
+    return this
+  }
+
+  hasResolverAccess(): boolean {
+    return !this.noResolverAccess
   }
 
   protected getActiveEventInstance(): Instance | undefined {
@@ -536,6 +546,10 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (p.hasEntry()) entryName = p.getEntryName();
   }
   const inst: Instance = makeInstance(moduleName, entryName, attrs, qattrs, qattrVals);
+  if (!env.hasResolverAccess()) {
+    env.setLastResult(inst)
+    return
+  }
   if (isEntityInstance(inst)) {
     const containsRels: RelationshipPattern[] = [];
     const betweenRels: RelationshipPattern[] = [];
@@ -593,7 +607,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           env.isInDeleteMode()
         );
         const betRelQueries = new Array<[string, string]>();
-        //const betweenRelsForCreate = new Array<RelationshipPattern>()
+        const betweenRelsForCreate = new Array<RelationshipPattern>()
         betweenRels.forEach(async (rp: RelationshipPattern) => {
           const relEntry: RelationshipEntry = getRelationship(rp.name, moduleName);
           if (isRelQueryPattern(rp.pattern)) {
@@ -603,18 +617,25 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
               : relEntry.node1.alias;
             betRelQueries.push([thatCol, thatTable]);
           } else {
-            //betweenRelsForCreate.push(rp)
-            throw new Error(`Create for between not yet supported`);
+            betweenRelsForCreate.push(rp)
           }
         });
         const insts: Instance[] = await res.queryInstances(inst, isQueryAll, betRelQueries);
-        /*if (betweenRelsForCreate.length > 0) {
-          insts.forEach(async (inst: Instance) => {
-            betweenRelsForCreate.forEach(async (rp: RelationshipPattern) => {
-
+        if (betweenRelsForCreate.length > 0) {
+          betweenRelsForCreate.forEach(async (rp: RelationshipPattern) => {
+            const newEnv: Environment = Environment.from(env);
+            await evaluatePattern(rp.pattern, newEnv.turnOffResolverAccess())
+            const relEntry = getRelationship(rp.name, moduleName)
+            const result: Instance | Instance[] = newEnv.getLastResult()
+            const attrName = relEntry.getAliasFor(result instanceof Array ? result[0] : result)
+            insts.forEach((inst: Instance) => {
+              inst.attributes.set(attrName, result)
             })
           })
-        }*/
+          insts.forEach(async (inst: Instance) => {
+            res.upsertInstance(inst)
+          })
+        }
         env.setLastResult(insts);
       }
       if (crud.relationships != undefined) {

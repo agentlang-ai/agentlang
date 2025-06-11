@@ -160,19 +160,44 @@ describe('Basic loader test', () => {
 
 describe('Basic CRUD tests', () => {
   test('Check CRUD patterns', async () => {
-    await doInternModule(`module Erp
+    await doInternModule(`module Blogger
       entity User {
-         email Email @id
-         name String
-      }`)
-    assert(isModule('Erp'), 'Module `Erp` not found')
-    await parseAndEvaluateStatement(`{Erp/User {email "j@erp.com", name "JJ"}}`)
-      .then((result: Instance) => {
-        assert(isInstanceOfType(result, 'Erp/User'), "Failed to create Erp/User")
-      })
-    await parseAndEvaluateStatement(`{Erp/User? {}}`).then((result: Instance[]) => {
-      assert(result.length == 1, "Invalid result count")
-      assert(isInstanceOfType(result[0], 'Erp/User'), "Query result is not a Erp/User")
+        email Email @id,
+        name String
+      }
+      entity Post {
+        id Int @id,
+        title String
+      }
+      relationship UserPost between(User, Post) @one_many
+      `)
+    assert(isModule('Blogger'), 'Module `Blogger` not found')
+    const isUser = (inst: Instance): boolean => {
+      return isInstanceOfType(inst, 'Blogger/User')
+    }
+    const createUser = async (name: string, email: string) => {
+      await parseAndEvaluateStatement(`{Blogger/User {email "${email}", name "${name}"}}`)
+        .then((result: Instance) => {
+          assert(isUser(result), "Failed to create Blogger/User")
+        })
+    }
+    await createUser('Joe', 'j@b.com')
+    await createUser('Tom', 't@b.com')
+    await parseAndEvaluateStatement(`{Blogger/User? {}}`).then((result: Instance[]) => {
+      assert(result.length == 2, "Invalid result count")
+      assert(result.every(isUser), "Query result is not a Blogger/User")
+      const hasUser = (result: Instance[], email: string) => {
+        assert(result.find((inst: Instance) => {
+          return inst.attributes.get('email') == email
+        }), `Failed to find user with email ${email}`)
+      }
+      hasUser(result, 'j@b.com')
+      hasUser(result, 't@b.com')
+    })
+    const pat = `{Blogger/User {email? "j@b.com"},
+                  UserPost {Blogger/Post {id 1, title "Post One"}}}`
+    await parseAndEvaluateStatement(pat).then((result: Instance[]) => {
+      console.log(result)
     })
   })
 })

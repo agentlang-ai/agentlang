@@ -23,7 +23,6 @@ import {
   startDbTransaction,
   commitDbTransaction,
   rollbackDbTransaction,
-  upsertRow,
   hardDeleteRow,
   DbContext,
   insertBetweenRow,
@@ -85,7 +84,7 @@ export class SqlDbResolver extends Resolver {
     } else {
       const idAttrName: string | undefined = addDefaultIdAttribute(inst);
       const attrs: InstanceAttributes = inst.attributes;
-      if (idAttrName != undefined) {
+      if (idAttrName != undefined && !orUpdate) {
         const idAttrVal: any = attrs.get(idAttrName);
         const pp: string | undefined = attrs.get(PathAttributeName);
         const n: string = `${inst.moduleName}/${inst.name}`;
@@ -96,11 +95,10 @@ export class SqlDbResolver extends Resolver {
       }
       const n: string = asTableName(inst.moduleName, inst.name);
       const rowObj: object = inst.attributesAsObject();
-      let f = insertRow;
-      if (orUpdate) {
+      /*if (orUpdate) {
         f = upsertRow;
-      }
-      await f(n, rowObj, this.getDbContext(inst.getFqName()));
+      }*/
+      await insertRow(n, rowObj, this.getDbContext(inst.getFqName()));
       return inst;
     }
   }
