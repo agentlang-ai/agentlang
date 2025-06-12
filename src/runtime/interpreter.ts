@@ -464,7 +464,7 @@ async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
   else if (lit.array != undefined) await realizeArray(lit.array, env);
   else if (lit.num != undefined) env.setLastResult(lit.num);
   else if (lit.str != undefined) env.setLastResult(lit.str);
-  else if (lit.bool != undefined) env.setLastResult(lit.bool);
+  else if (lit.bool != undefined) env.setLastResult(lit.bool == 'true' ? true : false);
 }
 
 const DefaultResolverName: string = '--default-resolver--';
@@ -732,6 +732,8 @@ async function evaluateLogicalExpression(
     await evaluateComparisonExpression(logExpr.expr, env);
   } else if (isOrAnd(logExpr.expr)) {
     await evaluateOrAnd(logExpr.expr, env);
+  } else if (isLiteral(logExpr.expr)) {
+    await evaluateLiteral(logExpr.expr, env);
   }
 }
 

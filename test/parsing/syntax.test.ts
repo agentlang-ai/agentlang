@@ -1,5 +1,6 @@
 import { assert, describe, test } from 'vitest';
 import {
+  ArrayPattern,
   BasePattern,
   CrudPattern,
   DeletePattern,
@@ -39,6 +40,12 @@ describe('Pattern generation using the syntax API', () => {
           new ReferencePattern('CreateUser', 'email')
         )
       );
+    const crud4 = new CrudPattern('Erp/User')
+    const age1 = new LiteralPattern(LiteralPatternType.NUMBER, 20)
+    const age2 = new LiteralPattern(LiteralPatternType.NUMBER, 40)
+    crud4.addAttribute('age?', new ArrayPattern().addValue(age1).addValue(age2), 'between')
+    .addAttribute('status', new LiteralPattern(LiteralPatternType.STRING, 'ok'))
+    assert(crud4.toString() == '{Erp/User {age?between [20, 40], status "ok"}}', 'Failed to generate query-update')
     const stmt3 =
       '{Blog/User {name CreateUser.name},UserProfile {Profile {email CreateUser.email}}}';
     assert(crud3.toString() == stmt3, 'Failed to generate relationship pattern');

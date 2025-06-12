@@ -379,7 +379,7 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: BinExpr | ComparisonExpression | FnCall | Group | KvPair | NegExpr | Pattern | SetAttribute;
+    readonly $container: BinExpr | ComparisonExpression | FnCall | Group | KvPair | LogicalExpression | NegExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     bool?: Boolean;
@@ -399,7 +399,7 @@ export function isLiteral(item: unknown): item is Literal {
 export interface LogicalExpression extends langium.AstNode {
     readonly $container: If | OrAnd;
     readonly $type: 'LogicalExpression';
-    expr: ComparisonExpression | OrAnd;
+    expr: ComparisonExpression | Literal | OrAnd;
 }
 
 export const LogicalExpression = 'LogicalExpression';

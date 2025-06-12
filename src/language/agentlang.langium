@@ -85,7 +85,7 @@ SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')
 
 AttributeValueExpression: Expr;
 
-LogicalExpression: expr=ComparisonExpression | expr=OrAnd;
+LogicalExpression: expr=ComparisonExpression | expr=OrAnd | expr=Literal;
 OrAnd: op=('or' | 'and') '(' (exprs+=LogicalExpression (',' exprs+=LogicalExpression)*)*')';
 
 ComparisonExpression:

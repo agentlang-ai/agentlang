@@ -2778,6 +2778,18 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
               },
               "arguments": []
             }
+          },
+          {
+            "$type": "Assignment",
+            "feature": "expr",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@26"
+              },
+              "arguments": []
+            }
           }
         ]
       },

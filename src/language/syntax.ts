@@ -101,9 +101,14 @@ export function isIdentifierLiteral(p: LiteralPattern): boolean {
 export class ArrayPattern extends BasePattern {
   values: Array<BasePattern>;
 
-  constructor(values: Array<BasePattern>) {
+  constructor(values?: Array<BasePattern>) {
     super();
-    this.values = values;
+    this.values = values ? values : [];
+  }
+
+  addValue(p: BasePattern): ArrayPattern {
+    this.values.push(p);
+    return this;
   }
 
   override toString(): string {
