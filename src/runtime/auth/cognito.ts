@@ -1,53 +1,71 @@
-import { CognitoUserPool, CognitoUserAttribute } from 'amazon-cognito-identity-js';
+import {
+  CognitoUserPool,
+  CognitoUserAttribute,
+  ICognitoUserPoolData,
+  CognitoUser,
+  AuthenticationDetails,
+  CognitoUserSession,
+} from 'amazon-cognito-identity-js';
 
-// Replace with your Cognito details
 const poolData = {
-  UserPoolId: 'YOUR_USER_POOL_ID',
-  ClientId: 'YOUR_APP_CLIENT_ID',
+  UserPoolId: process.env.COGNITO_USER_POOL_ID,
+  ClientId: process.env.COGNITO_CLIENT_ID,
 };
-const userPool = new CognitoUserPool(poolData);
 
-// Sign-up Functionality
-const attributeList = [];
-const attributeEmail = new CognitoUserAttribute({
-  Name: 'email',
-  Value: 'user@example.com',
-});
-attributeList.push(attributeEmail);
+export class CognitoAuth {
+  private userPool: any;
 
-// Example registration
-userPool.signUp('username', 'password', attributeList, null, (err, result) => {
-  if (err) {
-    console.log(err);
-    return;
+  constructor(config?: Map<string, any>) {
+    const pd = config ? config.get('cognito') : poolData;
+    this.userPool = new CognitoUserPool(pd as ICognitoUserPoolData);
   }
-  const cognitoUser = result.user;
-  console.log('User registered:', cognitoUser);
-});
 
-// Sign-in Functionality
-// Example authentication
-import { CognitoUser, AuthenticationDetails } from 'amazon-cognito-identity-js';
+  private static DefaultValidationAttributes = new Array<CognitoUserAttribute>();
 
-const username = 'username'; // Replace with actual username
-const password = 'password'; // Replace with actual password
+  async signUp(username: string, password: string, userData: Map<string, any>): Promise<any> {
+    const attributeList = userData.get('userAttributes') as CognitoUserAttribute[];
+    let cognitoUser: any;
+    await this.userPool.signUp(
+      username,
+      password,
+      attributeList,
+      CognitoAuth.DefaultValidationAttributes,
+      (err: any, result: any) => {
+        if (err) {
+          throw new Error(`Failed to signup ${username} - ${err}`);
+        }
+        if (result) {
+          cognitoUser = result.user;
+          console.log('User registered:', cognitoUser);
+        } else {
+          throw new Error(`Failed to signup ${username}`);
+        }
+      }
+    );
+    return cognitoUser;
+  }
 
-const user = new CognitoUser({
-  Username: username,
-  Pool: userPool,
-});
+  async signin(username: string, password: string): Promise<CognitoUserSession | undefined> {
+    const user = new CognitoUser({
+      Username: username,
+      Pool: this.userPool,
+    });
 
-const authDetails = new AuthenticationDetails({
-  Username: username,
-  Password: password,
-});
-
-user.authenticateUser(authDetails, {
-  onSuccess: (session) => {
-    console.log('Session:', session);
-    console.log('Access Token:', session.getIdToken().jwtToken);
-  },
-  onFailure: (err) => {
-    console.log('Authentication failed:', err);
-  },
-});
+    const authDetails = new AuthenticationDetails({
+      Username: username,
+      Password: password,
+    });
+    let result: CognitoUserSession | undefined;
+    await user.authenticateUser(authDetails, {
+      onSuccess: session => {
+        console.log('Session:', session);
+        console.log('Access Token:', session.getIdToken().getJwtToken());
+        result = session;
+      },
+      onFailure: err => {
+        throw new Error(`Authentication failed for ${username} - ${err}`);
+      },
+    });
+    return result;
+  }
+}
