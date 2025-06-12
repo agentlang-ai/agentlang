@@ -10,7 +10,7 @@ import {
   InstanceAttributes,
   isBetweenRelationship,
   newInstanceAttributes,
-  RelationshipEntry,
+  Relationship,
 } from '../../module.js';
 import { escapeFqName } from '../../util.js';
 import { Resolver } from '../interface.js';
@@ -187,7 +187,7 @@ export class SqlDbResolver extends Resolver {
   }
 
   public override async queryConnectedInstances(
-    relationship: RelationshipEntry,
+    relationship: Relationship,
     connectedInstance: Instance,
     inst: Instance
   ): Promise<Instance[]> {
@@ -244,7 +244,7 @@ export class SqlDbResolver extends Resolver {
   public override async connectInstances(
     node1: Instance,
     otherNodeOrNodes: Instance | Instance[],
-    relEntry: RelationshipEntry,
+    relEntry: Relationship,
     orUpdate: boolean
   ): Promise<Instance> {
     if (otherNodeOrNodes instanceof Array) {
@@ -261,7 +261,7 @@ export class SqlDbResolver extends Resolver {
   async connectInstancesHelper(
     node1: Instance,
     node2: Instance,
-    relEntry: RelationshipEntry,
+    relEntry: Relationship,
     orUpdate: boolean
   ): Promise<void> {
     const n: string = asTableName(relEntry.moduleName, relEntry.name);
@@ -326,7 +326,7 @@ export class SqlDbResolver extends Resolver {
 function ensureOneToOneAttributes(inst: Instance) {
   const betRels = getAllBetweenRelationships();
   getAllOneToOneRelationshipsForEntity(inst.moduleName, inst.name, betRels).forEach(
-    (re: RelationshipEntry) => {
+    (re: Relationship) => {
       const n = re.getInverseAliasFor(inst);
       if (!inst.attributes.has(n)) {
         inst.attributes.set(n, crypto.randomUUID());

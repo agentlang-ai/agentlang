@@ -1,4 +1,4 @@
-import { Instance, InstanceAttributes, RelationshipEntry } from '../module.js';
+import { Instance, InstanceAttributes, Relationship } from '../module.js';
 
 export class ResolverAuthInfo {
   userId: string;
@@ -91,7 +91,7 @@ export class Resolver {
    * @param inst Target instance with query attributes
    */
   public async queryConnectedInstances(
-    relationship: RelationshipEntry,
+    relationship: Relationship,
     connectedInstance: Instance,
     inst: Instance
   ): Promise<any> {
@@ -114,7 +114,7 @@ export class Resolver {
   public async connectInstances(
     node1: Instance,
     otherNodeOrNodes: Instance | Instance[],
-    relEntry: RelationshipEntry,
+    relEntry: Relationship,
     orUpdate: boolean
   ): Promise<any> {
     return this.notImpl(

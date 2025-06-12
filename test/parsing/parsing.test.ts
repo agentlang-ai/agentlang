@@ -3,15 +3,15 @@ import { EmptyFileSystem, type LangiumDocument } from 'langium';
 import { expandToString as s } from 'langium/generate';
 import { parseHelper } from 'langium/test';
 import { createAgentlangServices } from '../../src/language/agentlang-module.js';
-import { Module, isModule, Def } from '../../src/language/generated/ast.js';
+import { Definition, isModuleDefinition, ModuleDefinition } from '../../src/language/generated/ast.js';
 
 let services: ReturnType<typeof createAgentlangServices>;
-let parse: ReturnType<typeof parseHelper<Module>>;
-let model: LangiumDocument<Module> | undefined;
+let parse: ReturnType<typeof parseHelper<ModuleDefinition>>;
+let model: LangiumDocument<ModuleDefinition> | undefined;
 
 beforeAll(async () => {
   services = createAgentlangServices(EmptyFileSystem);
-  parse = parseHelper<Module>(services.Agentlang);
+  parse = parseHelper<ModuleDefinition>(services.Agentlang);
 
   // activate the following if your linking test requires elements from a built-in library, for example
   // await services.shared.workspace.WorkspaceManager.initializeWorkspace([]);
@@ -43,7 +43,7 @@ describe('Parsing tests', () => {
       // prior to the tagged template expression we check for validity of the parsed document object
       //  by means of the reusable function 'checkDocumentValid()' to sort out (critical) typos first;
       checkDocumentValid(model) ||
-        model.parseResult.value.defs.map((v: Def) => {
+        model.parseResult.value.defs.map((v: Definition) => {
           return v.name;
         })
     ).toStrictEqual(['Person', 'UpdatePersonEmail']);
@@ -58,8 +58,8 @@ function checkDocumentValid(document: LangiumDocument): string | undefined {
           ${document.parseResult.parserErrors.map(e => e.message).join('\n  ')}
     `) ||
     (document.parseResult.value === undefined && `ParseResult is 'undefined'.`) ||
-    (!isModule(document.parseResult.value) &&
-      `Root AST object is a ${document.parseResult.value.$type}, expected a '${Module}'.`) ||
+    (!isModuleDefinition(document.parseResult.value) &&
+      `Root AST object is a ${document.parseResult.value.$type}, expected a '${ModuleDefinition}'.`) ||
     undefined
   );
 }

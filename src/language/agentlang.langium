@@ -1,36 +1,36 @@
 grammar Agentlang
 
-entry Module: 'module' name=ID (imports+=Import)* (defs+=Def)*;
+entry ModuleDefinition: 'module' name=ID (imports+=Import)* (defs+=Definition)*;
 
 Import: 'import' path=STRING 'as' name=ID;
 
-Def: SchemaDef | Relationship | Workflow;
-SchemaDef: Entity | Event | Record;
+Definition: SchemaDef | RelationshipDefinition | WorkflowDefinition;
+SchemaDef: EntityDefinition | EventDefinition | RecordDefinition;
 
-Property: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
+PropertyDefinition: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 
 KvPair: value=Literal | key=ID ':' value=Literal;
 KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 
-RecAttrs: '{''}' | '{' (attributes+=Attribute (',' attributes+=Attribute)*)+ (',' rbacSpec=RbacSpec?)? '}'?;
+RecAttrs: '{''}' | '{' (attributes+=AttributeDefinition (',' attributes+=AttributeDefinition)*)+ (',' rbacSpec=RbacSpecDefinition?)? '}'?;
 fragment RecDef: name=ID extends=ExtendsClause? schema=RecAttrs;
 
-Entity: 'entity' RecDef;
-Event: 'event' RecDef;
-Record: 'record' RecDef;
+EntityDefinition: 'entity' RecDef;
+EventDefinition: 'event' RecDef;
+RecordDefinition: 'record' RecDef;
 
 ExtendsClause: 'extends' parentName=ID;
 
-Relationship: 'relationship' name=ID type=('contains' | 'between') nodes=RelNodes properties+=Property*
-('{' (attributes+=Attribute (',' attributes+=Attribute)*)+ '}')?;
+RelationshipDefinition: 'relationship' name=ID type=('contains' | 'between') nodes=RelNodes properties+=PropertyDefinition*
+('{' (attributes+=AttributeDefinition (',' attributes+=AttributeDefinition)*)+ '}')?;
 
-Node: name=ID | name=ID 'as' alias=ID;
+NodeDefinition: name=ID | name=ID 'as' alias=ID;
 
-RelNodes: '(' node1=Node ',' node2=Node ')';
+RelNodes: '(' node1=NodeDefinition ',' node2=NodeDefinition ')';
 
-Attribute: name=ID (type=ID | arrayType=ID '['']') properties+=Property*;
+AttributeDefinition: name=ID (type=ID | arrayType=ID '['']') properties+=PropertyDefinition*;
 
-RbacSpec: '@rbac' '[' (specEntries+=RbacSpecEntries (',' specEntries+=RbacSpecEntries)*)+ ']';
+RbacSpecDefinition: '@rbac' '[' (specEntries+=RbacSpecEntries (',' specEntries+=RbacSpecEntries)*)+ ']';
 
 RbacSpecEntry: role=RbacRolesSpec | allow=RbacAllowSpec | expr=RbacExpressionSpec;
 
@@ -52,13 +52,13 @@ Literal: (id=ID | num=Decimal | str=STRING | ref=Ref | bool=Boolean | fnCall=FnC
 
 fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*)+ '}' | '{' statements+=Statement ';'+ '}' | statements+=Statement;
 
-Workflow: 'workflow' name=ID Body;
+WorkflowDefinition: 'workflow' name=ID Body;
 
 Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | upsert=Upsert;
 
 Statement: pattern=Pattern ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*)+ ']'))? throws=Throws?;
 
-CrudMap: QueryAllPattern | '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=Property* '}'
+CrudMap: QueryAllPattern | '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}'
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';
 
 QueryAllPattern: '{' name=QueryId '{''}' (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';

@@ -14,10 +14,10 @@ import {
   isIndexedAttribute,
   isOptionalAttribute,
   isUniqueAttribute,
-  RecordEntry,
+  Record,
   RecordSchema,
-  RelationshipEntry,
-  RuntimeModule,
+  Relationship,
+  Module,
 } from '../../module.js';
 import { buildGraph } from '../../relgraph.js';
 import { DeletedFlagAttributeName, PathAttributeName } from './database.js';
@@ -36,13 +36,13 @@ export function modulesAsDbSchema(): TableSchema[] {
   const result: TableSchema[] = new Array<TableSchema>();
   getModuleNames().forEach((n: string) => {
     buildGraph(n);
-    const mod: RuntimeModule = fetchModule(n);
-    const entities: RecordEntry[] = mod.getEntityEntries();
-    const betRels: RecordEntry[] = mod
+    const mod: Module = fetchModule(n);
+    const entities: Record[] = mod.getEntityEntries();
+    const betRels: Record[] = mod
       .getBetweenRelationshipEntries()
-      .filter((v: RelationshipEntry) => v.isManyToMany());
-    const allEntries: RecordEntry[] = entities.concat(betRels) as RecordEntry[];
-    allEntries.forEach((ent: RecordEntry) => {
+      .filter((v: Relationship) => v.isManyToMany());
+    const allEntries: Record[] = entities.concat(betRels) as Record[];
+    allEntries.forEach((ent: Record) => {
       const tspec: TableSchema = {
         name: asTableName(n, ent.name),
         columns: entitySchemaToTable(ent.schema),
@@ -57,10 +57,10 @@ export function modulesAsOrmSchema(): EntitySchema[] {
   const result: EntitySchema[] = new Array<EntitySchema>();
   getModuleNames().forEach((n: string) => {
     buildGraph(n);
-    const mod: RuntimeModule = fetchModule(n);
-    const entities: RecordEntry[] = mod.getEntityEntries()
-    const rels: RecordEntry[] = mod.getBetweenRelationshipEntriesThatNeedStore();
-    entities.concat(rels).forEach((entry: RecordEntry) => {
+    const mod: Module = fetchModule(n);
+    const entities: Record[] = mod.getEntityEntries()
+    const rels: Record[] = mod.getBetweenRelationshipEntriesThatNeedStore();
+    entities.concat(rels).forEach((entry: Record) => {
       result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, entry)))
       const ownerEntry = createOwnersEntity(entry)
       result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, ownerEntry, true)))
@@ -69,7 +69,7 @@ export function modulesAsOrmSchema(): EntitySchema[] {
   return result
 }
 
-function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry, hasOwnPk?: boolean): EntitySchemaOptions<any> {
+function ormSchemaFromRecordSchema(moduleName: string, entry: Record, hasOwnPk?: boolean): EntitySchemaOptions<any> {
   const entityName = entry.name
   const scm: RecordSchema = entry.schema
   const result = new EntitySchemaOptions<any>()
@@ -115,7 +115,7 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry, hasOw
   const relsSpec = new Map()
   const fqName = makeFqName(moduleName, entityName)
   getAllOneToOneRelationshipsForEntity(moduleName, entityName, allBetRels)
-    .forEach((re: RelationshipEntry) => {
+    .forEach((re: Relationship) => {
       const colName = re.getInverseAliasForName(fqName)
       if (cols.has(colName)) {
         throw new Error(`Cannot establish relationship ${re.name}, ${entityName}.${colName} already exists`)
@@ -132,8 +132,8 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: RecordEntry, hasOw
   return result
 }
 
-function createOwnersEntity(entry: RecordEntry): RecordEntry {
-  const ownersEntry = new RecordEntry(`${entry.name}_owners`, entry.moduleName)
+function createOwnersEntity(entry: Record): Record {
+  const ownersEntry = new Record(`${entry.name}_owners`, entry.moduleName)
   const permProps = new Map().set('default', true)
   return ownersEntry.addAttribute('id', { type: 'UUID', properties: new Map().set('id', true) })
     .addAttribute('user_id', { type: 'String' })

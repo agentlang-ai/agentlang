@@ -35,8 +35,8 @@ import {
   makeInstance,
   newInstanceAttributes,
   PlaceholderRecordEntry,
-  RelationshipEntry,
-  WorkflowEntry,
+  Relationship,
+  Workflow,
 } from './module.js';
 import { Resolver, ResolverAuthInfo } from './resolvers/interface.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
@@ -65,7 +65,7 @@ export function isEmptyResult(r: Result): boolean {
 }
 
 type BetweenRelInfo = {
-  relationship: RelationshipEntry;
+  relationship: Relationship;
   connectedInstance: Instance;
 };
 
@@ -329,7 +329,7 @@ export async function evaluate(
   let txnRolledBack: boolean = false;
   try {
     if (isEventInstance(eventInstance)) {
-      const wf: WorkflowEntry = getWorkflow(eventInstance);
+      const wf: Workflow = getWorkflow(eventInstance);
       if (!isEmptyWorkflow(wf)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
         env.setActiveEvent(eventInstance);
@@ -569,7 +569,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             lastInst.attachRelatedInstances(rel.name, newEnv.getLastResult());
           } else if (isBetweenRelationship(rel.name, moduleName)) {
             const lastInst: Instance = env.getLastResult() as Instance;
-            const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
+            const relEntry: Relationship = getRelationship(rel.name, moduleName);
             if (!relEntry.isManyToMany()) {
               newEnv.setBetweenRelInfo({ relationship: relEntry, connectedInstance: lastInst });
             }
@@ -624,7 +624,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             } else if (isBetweenRelationship(rel.name, moduleName)) {
-              const relEntry: RelationshipEntry = getRelationship(rel.name, moduleName);
+              const relEntry: Relationship = getRelationship(rel.name, moduleName);
               newEnv.setBetweenRelInfo({ relationship: relEntry, connectedInstance: lastRes[j] });
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());

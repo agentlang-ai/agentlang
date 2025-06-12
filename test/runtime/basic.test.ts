@@ -6,15 +6,15 @@ import {
   addEntity,
   addModule,
   AttributeSpec,
-  EntityEntry,
+  Entity,
   fetchModule,
   Instance,
   isInstanceOfType,
   isModule,
   newRelNodeEntry,
-  RecordEntry,
+  Record,
   removeModule,
-  RuntimeModule,
+  Module,
 } from '../../src/runtime/module.js';
 import {
   buildGraph,
@@ -27,7 +27,7 @@ import { arrayEquals } from '../../src/runtime/util.js';
 import { assert, describe, test } from 'vitest';
 import { doInternModule, doPreInit } from '../util.js';
 
-function createTestModule(): RuntimeModule | undefined {
+function createTestModule(): Module | undefined {
   addModule('Acme');
   try {
     return fetchModule('Acme');
@@ -37,18 +37,18 @@ function createTestModule(): RuntimeModule | undefined {
   }
 }
 
-function addTestRecords(mod: RuntimeModule) {
-  const entry1: RecordEntry = new RecordEntry('A', 'Acme');
+function addTestRecords(mod: Module) {
+  const entry1: Record = new Record('A', 'Acme');
   entry1.addAttribute('x', { type: 'Int' });
   mod.addEntry(entry1);
-  const entry2: EntityEntry = new EntityEntry('B', 'Acme');
+  const entry2: Entity = new Entity('B', 'Acme');
   const p1: Map<string, any> = new Map();
   p1.set('@id', true);
   const aspec1: AttributeSpec = { type: 'String', properties: p1 };
   entry2.addAttribute('id', aspec1);
   entry2.addAttribute('name', { type: 'String' });
   mod.addEntry(entry2);
-  const entry3: EntityEntry = new EntityEntry('C', 'Acme');
+  const entry3: Entity = new Entity('C', 'Acme');
   const p2: Map<string, any> = new Map();
   p1.set('@id', true);
   const aspec2: AttributeSpec = { type: 'String', properties: p2 };
@@ -59,7 +59,7 @@ function addTestRecords(mod: RuntimeModule) {
 
 describe('Basic module operations', () => {
   test('check create module', async () => {
-    const m: RuntimeModule | undefined = createTestModule();
+    const m: Module | undefined = createTestModule();
     assert(m != undefined, 'Failed to create test module');
     if (m != undefined) {
       assert(m.name == 'Acme', 'Not the expected module`');
@@ -82,17 +82,17 @@ describe('Basic loader test', () => {
     await doPreInit()
     await load('example/blog/blog.al').then((appSpec: ApplicationSpec) => {
       assert(appSpec.name, 'Invalid application spec')
-      const m: RuntimeModule = fetchModule('Blog');
+      const m: Module = fetchModule('Blog');
       try {
         assert(m.name == 'Blog', 'Failed to load Blog module');
-        let re: RecordEntry = m.getEntry('UserPost') as RecordEntry;
+        let re: Record = m.getEntry('UserPost') as Record;
         assert(re != undefined, 'UserPost entry not found');
         const attrs: Set<string> = new Set(['User', 'Post']);
         re.schema.keys().forEach((k: string) => {
           assert(attrs.has(k), `Attribute ${k} not found in UserProfile`);
         });
         assert(re.getUserAttributes().size == 0, 'UserProfile has no user-attributes');
-        re = m.getEntry('Post') as RecordEntry;
+        re = m.getEntry('Post') as Record;
         assert(re.getUserAttributes().size == 2, 'Post has only 2 attributes');
         let g: RelationshipGraph = buildGraph('Blog');
         let obj: any = g.asObject();
@@ -129,7 +129,7 @@ describe('Basic loader test', () => {
             'Post must be related to Category'
           );
         }
-        const testMod: RuntimeModule = addModule('RelTest1');
+        const testMod: Module = addModule('RelTest1');
         try {
           addEntity('A', testMod.name);
           addEntity('B', testMod.name);
