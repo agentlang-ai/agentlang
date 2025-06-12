@@ -129,7 +129,7 @@ describe('Pattern introspection', () => {
     assert(cp.relationships && cp.relationships.size == 2, 'Failed to parse relationships');
     assert(
       cp.toString() ==
-        '{User {name CreateUser.name},UserProfile {Profile {email CreateUser.email}},UserPost {Post {title "hello, world"}}}',
+      '{User {name CreateUser.name},UserProfile {Profile {email CreateUser.email}},UserPost {Post {title "hello, world"}}}',
       'Failed to regenerate create pattern with relationships'
     );
 
@@ -154,7 +154,7 @@ describe('Pattern introspection', () => {
     assert(fep.alias == 'result', 'Failed to detect for-each alias');
     assert(
       fep.toString() ==
-        'for user in {Blog/User {email? "joe@acme.com"}}{{Blog/Person {name user.name}}} as result',
+      'for user in {Blog/User {email? "joe@acme.com"}}{{Blog/Person {name user.name}}} as result',
       'Failed to regenerate for-each'
     );
 
@@ -164,5 +164,20 @@ describe('Pattern introspection', () => {
       ifp.toString() == 'if(1 < 2) {user.email} else {user.name}',
       'Failed to regenerate if pattern'
     );
+
+    pats = await introspect('{User {Age? > 18 Status 3}}');
+    let qup: CrudPattern = pats[0] as CrudPattern
+    assert(qup.isQueryUpdate, "Failed to detect query-update pattern")
+    assert(qup.toString() == '{User {Age?> 18, Status 3}}', 'Failed to regenereate query-update pattern')
+
+    pats = await introspect('{User {Age?between [10, 20] Status 3}}');
+    qup = pats[0] as CrudPattern
+    assert(qup.isQueryUpdate, "Failed to detect query-update pattern")
+    assert(qup.toString() == '{User {Age?between [10, 20], Status 3}}', 'Failed to regenereate query-update pattern')
+
+    pats = await introspect('{User {Name?like "Th%" Status 3}}');
+    qup = pats[0] as CrudPattern
+    assert(qup.isQueryUpdate, "Failed to detect query-update pattern")
+    assert(qup.toString() == '{User {Name?like "Th%", Status 3}}', 'Failed to regenereate query-update pattern')
   });
 });

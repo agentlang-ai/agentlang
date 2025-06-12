@@ -329,11 +329,11 @@ export function isQueryUpdatePattern(p: BasePattern): boolean {
 }
 
 export class ForEachPattern extends BasePattern {
-  variable: string;
-  source: BasePattern;
+  variable: string | undefined;
+  source: BasePattern | undefined;
   body: BasePattern[];
 
-  constructor(variable: string, source: BasePattern) {
+  constructor(variable?: string, source?: BasePattern) {
     super();
     this.variable = variable;
     this.source = source;
@@ -350,7 +350,20 @@ export class ForEachPattern extends BasePattern {
     return this;
   }
 
+  setVariable(s: string): ForEachPattern {
+    this.variable = s;
+    return this;
+  }
+
+  setSourcePattern(p: BasePattern): ForEachPattern {
+    this.source = p;
+    return this;
+  }
+
   override toString(): string {
+    if (this.source == undefined || this.variable == undefined) {
+      throw new Error('`for` requires variable and source-pattern');
+    }
     let s = `for ${this.variable} in ${this.source.toString()}`;
     s = s.concat(`{${patternsToString(this.body)}}`);
     return s.concat(this.aliasAsString());
@@ -367,9 +380,11 @@ export class IfPattern extends BasePattern {
   elseIf: BasePattern | undefined;
   elseBody: BasePattern[] | undefined;
 
-  constructor(condition: BasePattern) {
+  private static True = new LiteralPattern(LiteralPatternType.BOOLEAN, true);
+
+  constructor(condition?: BasePattern) {
     super();
-    this.condition = condition;
+    this.condition = condition ? condition : IfPattern.True;
     this.body = [];
   }
 
@@ -380,6 +395,11 @@ export class IfPattern extends BasePattern {
 
   removePattern(index: number) {
     this.body.splice(index, 1);
+    return this;
+  }
+
+  setConditionPattern(p: BasePattern): IfPattern {
+    this.condition = p;
     return this;
   }
 
