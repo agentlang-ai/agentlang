@@ -209,7 +209,7 @@ function introspectCreatePattern(crudMap: CrudMap): CrudPattern {
       if (!cp.isQueryUpdate && sa.name.endsWith(QuerySuffix)) {
         cp.isQueryUpdate = true;
       }
-      cp.addAttribute(sa.name, introspectExpression(sa.value));
+      cp.addAttribute(sa.name, introspectExpression(sa.value), sa.op);
     });
     crudMap.relationships.forEach((rp: RelationshipPattern) => {
       cp.addRelationship(rp.name, introspectPattern(rp.pattern) as CrudPattern | CrudPattern[]);
