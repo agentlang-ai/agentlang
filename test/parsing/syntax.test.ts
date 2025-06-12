@@ -59,6 +59,8 @@ describe('Pattern generation using the syntax API', () => {
     const stmt4 =
       'for emp in {Acme/Employee {salary?>= 1500}}{{Acme/Manager {employeeEmail emp.email}}} as managers';
     assert(fe.toString() == stmt4, 'Failed to generate for-each');
+    const emptyfe = new ForEachPattern()
+    assert(emptyfe.toString() == 'for X in []{}', 'Failed to generate empty for-each')
     const ifp: IfPattern = new IfPattern(new ExpressionPattern('emp.salary > 1000'))
       .addPattern(new LiteralPattern(LiteralPatternType.STRING, '+1000'))
       .setElseIf(
