@@ -11,10 +11,10 @@ import {
   isGroup,
   isLiteral,
   isPrimExpr,
-  isWorkflow,
+  isWorkflowDefinition,
   Literal,
   LogicalExpression,
-  Module,
+  ModuleDefinition,
   NegExpr,
   Pattern,
   PrimExpr,
@@ -39,9 +39,9 @@ import {
 } from './syntax.js';
 
 const services = createAgentlangServices(EmptyFileSystem);
-export const parse = parseHelper<Module>(services.Agentlang);
+export const parse = parseHelper<ModuleDefinition>(services.Agentlang);
 
-export async function parseModule(moduleDef: string): Promise<Module> {
+export async function parseModule(moduleDef: string): Promise<ModuleDefinition> {
   const document = await parse(moduleDef, { validation: true });
   maybeRaiseParserErrors(document);
   return document.parseResult.value;
@@ -49,8 +49,8 @@ export async function parseModule(moduleDef: string): Promise<Module> {
 
 export async function parseStatement(stmt: string): Promise<Statement> {
   let result: Statement | undefined;
-  const mod: Module = await parseModule(`module Temp\nworkflow TempEvent { ${stmt} }`);
-  if (isWorkflow(mod.defs[0])) {
+  const mod: ModuleDefinition = await parseModule(`module Temp\nworkflow TempEvent { ${stmt} }`);
+  if (isWorkflowDefinition(mod.defs[0])) {
     result = mod.defs[0].statements[0];
   } else {
     throw new Error('Failed to extract workflow-statement');
@@ -77,7 +77,7 @@ function maybeRaiseParserErrors(document: LangiumDocument) {
 
 export async function introspect(s: string): Promise<BasePattern[]> {
   let result: BasePattern[] = [];
-  const v: LangiumDocument<Module> = await parse(`module Temp workflow Test {${s}}`);
+  const v: LangiumDocument<ModuleDefinition> = await parse(`module Temp workflow Test {${s}}`);
   if (v.parseResult.lexerErrors.length > 0) {
     throw new Error(
       `Lexer errors: ${v.parseResult.lexerErrors
@@ -96,7 +96,7 @@ export async function introspect(s: string): Promise<BasePattern[]> {
         .join('\n')}`
     );
   }
-  if (isWorkflow(v.parseResult.value.defs[0])) {
+  if (isWorkflowDefinition(v.parseResult.value.defs[0])) {
     result = introspectHelper(v.parseResult.value.defs[0].statements);
   } else {
     throw new Error(`Failed to parse statements`);

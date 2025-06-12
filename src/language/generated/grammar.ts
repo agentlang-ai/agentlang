@@ -15,7 +15,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     {
       "$type": "ParserRule",
       "entry": true,
-      "name": "Module",
+      "name": "ModuleDefinition",
       "definition": {
         "$type": "Group",
         "elements": [
@@ -118,7 +118,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     },
     {
       "$type": "ParserRule",
-      "name": "Def",
+      "name": "Definition",
       "definition": {
         "$type": "Alternatives",
         "elements": [
@@ -190,7 +190,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     },
     {
       "$type": "ParserRule",
-      "name": "Property",
+      "name": "PropertyDefinition",
       "definition": {
         "$type": "Alternatives",
         "elements": [
@@ -531,7 +531,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     },
     {
       "$type": "ParserRule",
-      "name": "Entity",
+      "name": "EntityDefinition",
       "definition": {
         "$type": "Group",
         "elements": [
@@ -557,7 +557,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     },
     {
       "$type": "ParserRule",
-      "name": "Event",
+      "name": "EventDefinition",
       "definition": {
         "$type": "Group",
         "elements": [
@@ -583,7 +583,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     },
     {
       "$type": "ParserRule",
-      "name": "Record",
+      "name": "RecordDefinition",
       "definition": {
         "$type": "Group",
         "elements": [
@@ -640,7 +640,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     },
     {
       "$type": "ParserRule",
-      "name": "Relationship",
+      "name": "RelationshipDefinition",
       "definition": {
         "$type": "Group",
         "elements": [
@@ -768,7 +768,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     },
     {
       "$type": "ParserRule",
-      "name": "Node",
+      "name": "NodeDefinition",
       "definition": {
         "$type": "Alternatives",
         "elements": [
@@ -879,7 +879,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     },
     {
       "$type": "ParserRule",
-      "name": "Attribute",
+      "name": "AttributeDefinition",
       "definition": {
         "$type": "Group",
         "elements": [
@@ -961,7 +961,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     },
     {
       "$type": "ParserRule",
-      "name": "RbacSpec",
+      "name": "RbacSpecDefinition",
       "definition": {
         "$type": "Group",
         "elements": [
@@ -1778,7 +1778,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     },
     {
       "$type": "ParserRule",
-      "name": "Workflow",
+      "name": "WorkflowDefinition",
       "definition": {
         "$type": "Group",
         "elements": [

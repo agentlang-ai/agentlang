@@ -1,14 +1,14 @@
 import chalk from 'chalk';
 import {
-  Attribute,
-  Property,
   Statement,
   KvPair,
   Literal,
   FnCall,
   RelNodes,
-  Node,
   isRelNodes,
+  AttributeDefinition,
+  PropertyDefinition,
+  NodeDefinition,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -111,7 +111,7 @@ export enum RecordType {
   RELATIONSHIP,
 }
 
-export class RecordEntry extends ModuleEntry {
+export class Record extends ModuleEntry {
   schema: RecordSchema;
   meta: Meta;
   type: RecordType = RecordType.RECORD;
@@ -120,7 +120,7 @@ export class RecordEntry extends ModuleEntry {
   constructor(
     name: string,
     moduleName: string,
-    attributes?: Attribute[],
+    attributes?: AttributeDefinition[],
     parentEntryName?: string
   ) {
     super(name, moduleName);
@@ -129,7 +129,7 @@ export class RecordEntry extends ModuleEntry {
       ? cloneParentSchema(parentEntryName, moduleName)
       : newRecordSchema();
     if (attributes != undefined) {
-      attributes.forEach((a: Attribute) => {
+      attributes.forEach((a: AttributeDefinition) => {
         const isArrayType: boolean = a.arrayType ? true : false;
         const t: string | undefined = isArrayType ? a.arrayType : a.type;
         if (t == undefined) throw new Error(`Attribute ${a.name} requires a type`);
@@ -152,7 +152,7 @@ export class RecordEntry extends ModuleEntry {
     this.meta.set(k, v);
   }
 
-  addAttribute(n: string, attrSpec: AttributeSpec): RecordEntry {
+  addAttribute(n: string, attrSpec: AttributeSpec): Record {
     if (this.schema.has(n)) {
       throw new Error(`Attribute named ${n} already exists in ${this.moduleName}.${this.name}`);
     }
@@ -163,7 +163,7 @@ export class RecordEntry extends ModuleEntry {
     return this;
   }
 
-  removeAttribute(n: string): RecordEntry {
+  removeAttribute(n: string): Record {
     this.schema.delete(n);
     return this;
   }
@@ -176,7 +176,7 @@ export class RecordEntry extends ModuleEntry {
     );
   }
 
-  addSystemAttribute(n: string, attrSpec: AttributeSpec): RecordEntry {
+  addSystemAttribute(n: string, attrSpec: AttributeSpec): Record {
     setAsSystemAttribute(attrSpec);
     this.addAttribute(n, attrSpec);
     return this;
@@ -252,7 +252,7 @@ export class RecordEntry extends ModuleEntry {
 }
 
 type FetchModuleByEntryNameResult = {
-  module: RuntimeModule;
+  module: Module;
   entryName: string;
   moduleName: string;
 };
@@ -277,8 +277,8 @@ function cloneParentSchema(parentName: string, currentModuleName: string): Recor
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(parentName, currentModuleName);
   parentName = fr.entryName;
   currentModuleName = fr.moduleName;
-  const mod: RuntimeModule = fr.module;
-  const entry: RecordEntry = mod.getEntry(parentName) as RecordEntry;
+  const mod: Module = fr.module;
+  const entry: Record = mod.getEntry(parentName) as Record;
   const result: RecordSchema = newRecordSchema();
   entry.schema.forEach((attrSpec: AttributeSpec, attrName: string) => {
     result.set(attrName, attrSpec);
@@ -286,10 +286,10 @@ function cloneParentSchema(parentName: string, currentModuleName: string): Recor
   return result;
 }
 
-function asPropertiesMap(props: Property[]): Map<string, any> | undefined {
+function asPropertiesMap(props: PropertyDefinition[]): Map<string, any> | undefined {
   if (props != undefined && props.length > 0) {
     const result: Map<string, any> = new Map<string, any>();
-    props.forEach((p: Property) => {
+    props.forEach((p: PropertyDefinition) => {
       const n: string = p.name.substring(1);
       if (p.value != undefined && p.value.pairs != undefined && p.value.pairs.length > 0) {
         if (p.value.pairs.length == 1) {
@@ -356,7 +356,7 @@ function normalizeKvPairValue(kvp: KvPair): any | null {
   return null;
 }
 
-export const PlaceholderRecordEntry = new RecordEntry('--', DefaultModuleName);
+export const PlaceholderRecordEntry = new Record('--', DefaultModuleName);
 
 export enum RbacPermissionFlag {
   CREATE,
@@ -445,17 +445,17 @@ export class RbacSpecification {
   }
 }
 
-export class EntityEntry extends RecordEntry {
+export class Entity extends Record {
   override type: RecordType = RecordType.ENTITY;
   rbac: RbacSpecification[] | undefined;
 
-  setRbacSpecifications(rbac: RbacSpecification[]): EntityEntry {
+  setRbacSpecifications(rbac: RbacSpecification[]): Entity {
     this.rbac = rbac;
     return this;
   }
 }
 
-export class EventEntry extends RecordEntry {
+export class Event extends Record {
   override type: RecordType = RecordType.EVENT;
 }
 
@@ -464,14 +464,14 @@ enum RelType {
   BETWEEN,
 }
 
-export type RelNodeEntry = {
+export type RelationshipNode = {
   path: Path;
   alias: string;
   origName: string;
   origAlias: string | undefined;
 };
 
-export function newRelNodeEntry(nodeFqName: string, alias?: string): RelNodeEntry {
+export function newRelNodeEntry(nodeFqName: string, alias?: string): RelationshipNode {
   const p: Path = splitFqName(nodeFqName);
   return {
     path: p,
@@ -481,7 +481,7 @@ export function newRelNodeEntry(nodeFqName: string, alias?: string): RelNodeEntr
   };
 }
 
-function relNodeEntryToString(node: RelNodeEntry): string {
+function relNodeEntryToString(node: RelationshipNode): string {
   let n = `${node.origName}`;
   if (node.origAlias) {
     n = n.concat(` as ${node.origAlias}`);
@@ -489,7 +489,7 @@ function relNodeEntryToString(node: RelNodeEntry): string {
   return n;
 }
 
-function asRelNodeEntry(n: Node): RelNodeEntry {
+function asRelNodeEntry(n: NodeDefinition): RelationshipNode {
   const path: Path = splitFqName(n.name);
   let modName = activeModule;
   const entryName = path.getEntryName();
@@ -508,20 +508,20 @@ function asRelNodeEntry(n: Node): RelNodeEntry {
   };
 }
 
-export class RelationshipEntry extends RecordEntry {
+export class Relationship extends Record {
   override type: RecordType = RecordType.RELATIONSHIP;
   relType: RelType = RelType.CONTAINS;
-  node1: RelNodeEntry;
-  node2: RelNodeEntry;
+  node1: RelationshipNode;
+  node2: RelationshipNode;
   properties: Map<string, any> | undefined;
 
   constructor(
     name: string,
     typ: string,
-    node1: RelNodeEntry,
-    node2: RelNodeEntry,
+    node1: RelationshipNode,
+    node2: RelationshipNode,
     moduleName: string,
-    attributes?: Attribute[],
+    attributes?: AttributeDefinition[],
     props?: Map<string, any>
   ) {
     super(name, moduleName, attributes);
@@ -571,11 +571,11 @@ export class RelationshipEntry extends RecordEntry {
     return this.relType == RelType.BETWEEN;
   }
 
-  parentNode(): RelNodeEntry {
+  parentNode(): RelationshipNode {
     return this.node1;
   }
 
-  childNode(): RelNodeEntry {
+  childNode(): RelationshipNode {
     return this.node2;
   }
 
@@ -652,7 +652,7 @@ export class RelationshipEntry extends RecordEntry {
   }
 }
 
-export class WorkflowEntry extends ModuleEntry {
+export class Workflow extends ModuleEntry {
   statements: Statement[];
 
   constructor(name: string, patterns: Statement[], moduleName: string) {
@@ -677,31 +677,31 @@ export class WorkflowEntry extends ModuleEntry {
     return s.concat('\n}');
   }
 
-  async addStatement(stmt: string): Promise<WorkflowEntry> {
+  async addStatement(stmt: string): Promise<Workflow> {
     const result: Statement = await parseStatement(stmt);
     this.statements.push(result);
     return this;
   }
 
-  async setStatementAt(stmt: string, index: number): Promise<WorkflowEntry> {
+  async setStatementAt(stmt: string, index: number): Promise<Workflow> {
     const result: Statement = await parseStatement(stmt);
     this.statements[index] = result;
     return this;
   }
 
-  removeStatemtAt(index: number): WorkflowEntry {
+  removeStatemtAt(index: number): Workflow {
     this.statements.splice(index, 1);
     return this;
   }
 }
 
-const EmptyWorkflow: WorkflowEntry = new WorkflowEntry('', [], DefaultModuleName);
+const EmptyWorkflow: Workflow = new Workflow('', [], DefaultModuleName);
 
-export function isEmptyWorkflow(wf: WorkflowEntry): boolean {
+export function isEmptyWorkflow(wf: Workflow): boolean {
   return wf == EmptyWorkflow;
 }
 
-export class RuntimeModule {
+export class Module {
   name: string;
   entries: ModuleEntry[];
   entriesByTypeCache: Map<RecordType, ModuleEntry[]> | null;
@@ -734,10 +734,10 @@ export class RuntimeModule {
     return this.entries[idx];
   }
 
-  getRecord(recordName: string): RecordEntry {
+  getRecord(recordName: string): Record {
     const e: ModuleEntry = this.getEntry(recordName);
-    if (e instanceof RecordEntry) {
-      return e as RecordEntry;
+    if (e instanceof Record) {
+      return e as Record;
     }
     throw new Error(`${recordName} is not a record in module ${this.name}`);
   }
@@ -759,7 +759,7 @@ export class RuntimeModule {
       return result;
     } else {
       const result: ModuleEntry[] = this.entries.filter((v: ModuleEntry) => {
-        const r: RecordEntry = v as RecordEntry;
+        const r: Record = v as Record;
         return r.type == t;
       });
       if (this.entriesByTypeCache != null)
@@ -769,50 +769,50 @@ export class RuntimeModule {
     }
   }
 
-  getEntityEntries(): EntityEntry[] {
-    return this.getEntriesOfType(RecordType.ENTITY) as EntityEntry[];
+  getEntityEntries(): Entity[] {
+    return this.getEntriesOfType(RecordType.ENTITY) as Entity[];
   }
 
-  getEventEntries(): EventEntry[] {
-    return this.getEntriesOfType(RecordType.EVENT) as EventEntry[];
+  getEventEntries(): Event[] {
+    return this.getEntriesOfType(RecordType.EVENT) as Event[];
   }
 
-  getRecordEntries(): RecordEntry[] {
-    return this.getEntriesOfType(RecordType.RECORD) as RecordEntry[];
+  getRecordEntries(): Record[] {
+    return this.getEntriesOfType(RecordType.RECORD) as Record[];
   }
 
-  getRelationshipEntries(): RelationshipEntry[] {
-    return this.getEntriesOfType(RecordType.RELATIONSHIP) as RelationshipEntry[];
+  getRelationshipEntries(): Relationship[] {
+    return this.getEntriesOfType(RecordType.RELATIONSHIP) as Relationship[];
   }
 
   private getRelationshipEntriesOfType(t: RelType) {
-    const rels: RelationshipEntry[] = this.getRelationshipEntries();
-    return rels.filter((e: RelationshipEntry) => {
+    const rels: Relationship[] = this.getRelationshipEntries();
+    return rels.filter((e: Relationship) => {
       return e.relType == t;
     });
   }
 
-  getBetweenRelationshipEntries(): RelationshipEntry[] {
+  getBetweenRelationshipEntries(): Relationship[] {
     return this.getRelationshipEntriesOfType(RelType.BETWEEN);
   }
 
-  getContainsRelationshipEntries(): RelationshipEntry[] {
+  getContainsRelationshipEntries(): Relationship[] {
     return this.getRelationshipEntriesOfType(RelType.CONTAINS);
   }
 
-  getBetweenRelationshipEntriesThatNeedStore(): RelationshipEntry[] {
-    return this.getBetweenRelationshipEntries().filter((re: RelationshipEntry) => {
+  getBetweenRelationshipEntriesThatNeedStore(): Relationship[] {
+    return this.getBetweenRelationshipEntries().filter((re: Relationship) => {
       return re.isManyToMany() || re.isOneToMany();
     });
   }
 
-  getWorkflowForEvent(eventName: string): WorkflowEntry {
-    return this.getEntry(asWorkflowName(eventName)) as WorkflowEntry;
+  getWorkflowForEvent(eventName: string): Workflow {
+    return this.getEntry(asWorkflowName(eventName)) as Workflow;
   }
 
   isEntryOfType(t: RecordType, name: string): boolean {
     const entry: ModuleEntry | undefined = this.getEntriesOfType(t).find((v: ModuleEntry) => {
-      const r: RecordEntry = v as RecordEntry;
+      const r: Record = v as Record;
       return r.name == name;
     });
     return entry != undefined;
@@ -869,7 +869,7 @@ export class RuntimeModule {
   isContainsRelationship(entryName: string): boolean {
     if (this.hasEntry(entryName)) {
       const entry: ModuleEntry = this.getEntry(entryName);
-      if (entry instanceof RelationshipEntry) return entry.isContains();
+      if (entry instanceof Relationship) return entry.isContains();
     }
     return false;
   }
@@ -877,7 +877,7 @@ export class RuntimeModule {
   isBetweenRelationship(entryName: string): boolean {
     if (this.hasEntry(entryName)) {
       const entry: ModuleEntry = this.getEntry(entryName);
-      if (entry instanceof RelationshipEntry) return entry.isBetween();
+      if (entry instanceof Relationship) return entry.isBetween();
     }
     return false;
   }
@@ -891,15 +891,15 @@ export class RuntimeModule {
   }
 }
 
-const moduleDb = new Map<string, RuntimeModule>();
+const moduleDb = new Map<string, Module>();
 let activeModule: string = '';
 
 export function getActiveModuleName() {
   return activeModule;
 }
 
-export function addModule(name: string): RuntimeModule {
-  const mod: RuntimeModule = new RuntimeModule(name);
+export function addModule(name: string): Module {
+  const mod: Module = new Module(name);
   moduleDb.set(name, mod);
   activeModule = name;
   return mod;
@@ -914,7 +914,7 @@ export function removeModule(name: string): boolean {
 }
 
 addModule(DefaultModuleName);
-addRecord('env', DefaultModuleName, new Array<Attribute>());
+addRecord('env', DefaultModuleName, new Array<AttributeDefinition>());
 
 export function getModuleNames(): string[] {
   const ks: Iterable<string> = moduleDb.keys();
@@ -935,8 +935,8 @@ export function isModule(name: string): boolean {
   return moduleDb.has(name);
 }
 
-export function fetchModule(moduleName: string): RuntimeModule {
-  const module: RuntimeModule | undefined = moduleDb.get(moduleName);
+export function fetchModule(moduleName: string): Module {
+  const module: Module | undefined = moduleDb.get(moduleName);
   if (module == undefined) {
     throw new Error(`Module not found - ${moduleName}`);
   }
@@ -948,7 +948,7 @@ export function allModuleNames(): string[] {
 }
 
 export function fetchModuleEntry(entryName: string, moduleName: string): ModuleEntry {
-  const module: RuntimeModule = fetchModule(moduleName);
+  const module: Module = fetchModule(moduleName);
   return module.getEntry(entryName);
 }
 
@@ -998,15 +998,15 @@ function checkType(type: string | undefined): void {
   }
 }
 
-function validateProperties(props: Property[] | undefined): void {
+function validateProperties(props: PropertyDefinition[] | undefined): void {
   if (props != undefined) {
-    props.forEach((p: Property) => {
+    props.forEach((p: PropertyDefinition) => {
       if (!propertyNames.has(p.name)) throw new Error(`Invalid property ${p.name}`);
     });
   }
 }
 
-function verifyAttribute(attr: Attribute): void {
+function verifyAttribute(attr: AttributeDefinition): void {
   checkType(attr.type || attr.arrayType);
   validateProperties(attr.properties);
 }
@@ -1089,51 +1089,51 @@ export function getFkSpec(attrSpec: AttributeSpec): string | undefined {
 export function addEntity(
   name: string,
   moduleName = activeModule,
-  attrs?: Attribute[],
+  attrs?: AttributeDefinition[],
   ext?: string
-): EntityEntry {
-  const module: RuntimeModule = fetchModule(moduleName);
+): Entity {
+  const module: Module = fetchModule(moduleName);
   if (attrs) attrs.forEach(a => verifyAttribute(a));
-  return module.addEntry(new EntityEntry(name, moduleName, attrs, ext)) as EntityEntry;
+  return module.addEntry(new Entity(name, moduleName, attrs, ext)) as Entity;
 }
 
 export function addEvent(
   name: string,
   moduleName = activeModule,
-  attrs?: Attribute[],
+  attrs?: AttributeDefinition[],
   ext?: string
-): EventEntry {
-  const module: RuntimeModule = fetchModule(moduleName);
+): Event {
+  const module: Module = fetchModule(moduleName);
   if (attrs) attrs.forEach(a => verifyAttribute(a));
-  return module.addEntry(new EventEntry(name, moduleName, attrs, ext)) as EventEntry;
+  return module.addEntry(new Event(name, moduleName, attrs, ext)) as Event;
 }
 
 export function addRecord(
   name: string,
   moduleName = activeModule,
-  attrs?: Attribute[],
+  attrs?: AttributeDefinition[],
   ext?: string
-): RecordEntry {
-  const module: RuntimeModule = fetchModule(moduleName);
+): Record {
+  const module: Module = fetchModule(moduleName);
   if (attrs) attrs.forEach(a => verifyAttribute(a));
-  return module.addEntry(new RecordEntry(name, moduleName, attrs, ext)) as RecordEntry;
+  return module.addEntry(new Record(name, moduleName, attrs, ext)) as Record;
 }
 
-const DefaultRelAttrbutes: Array<Attribute> = new Array<Attribute>();
+const DefaultRelAttrbutes: Array<AttributeDefinition> = [];
 
 export function addRelationship(
   name: string,
   type: 'contains' | 'between',
-  nodes: RelNodes | RelNodeEntry[],
+  nodes: RelNodes | RelationshipNode[],
   moduleName = activeModule,
-  attrs?: Attribute[] | undefined,
-  props?: Property[] | undefined
-): RelationshipEntry {
-  const module: RuntimeModule = fetchModule(moduleName);
+  attrs?: AttributeDefinition[] | undefined,
+  props?: PropertyDefinition[] | undefined
+): Relationship {
+  const module: Module = fetchModule(moduleName);
   if (attrs != undefined) attrs.forEach(a => verifyAttribute(a));
   else attrs = DefaultRelAttrbutes;
-  let n1: RelNodeEntry | undefined;
-  let n2: RelNodeEntry | undefined;
+  let n1: RelationshipNode | undefined;
+  let n2: RelationshipNode | undefined;
   if (isRelNodes(nodes)) {
     n1 = asRelNodeEntry(nodes.node1);
     n2 = asRelNodeEntry(nodes.node2);
@@ -1144,23 +1144,23 @@ export function addRelationship(
   let propsMap: Map<string, any> | undefined;
   if (props != undefined) propsMap = asPropertiesMap(props);
   return module.addEntry(
-    new RelationshipEntry(name, type, n1, n2, moduleName, attrs, propsMap)
-  ) as RelationshipEntry;
+    new Relationship(name, type, n1, n2, moduleName, attrs, propsMap)
+  ) as Relationship;
 }
 
 export function addBetweenRelationship(
   name: string,
   moduleName: string,
-  nodes: RelNodeEntry[]
-): RelationshipEntry {
+  nodes: RelationshipNode[]
+): Relationship {
   return addRelationship(name, 'between', nodes, moduleName);
 }
 
 export function addContainsRelationship(
   name: string,
   moduleName: string,
-  nodes: RelNodeEntry[]
-): RelationshipEntry {
+  nodes: RelationshipNode[]
+): Relationship {
   return addRelationship(name, 'contains', nodes, moduleName);
 }
 
@@ -1180,68 +1180,66 @@ export function addWorkflow(
   name: string,
   moduleName = activeModule,
   statements?: Statement[]
-): WorkflowEntry {
-  const module: RuntimeModule = fetchModule(moduleName);
+): Workflow {
+  const module: Module = fetchModule(moduleName);
   if (module.hasEntry(name)) {
     const entry: ModuleEntry = module.getEntry(name);
-    if (!(entry instanceof EventEntry))
+    if (!(entry instanceof Event))
       throw new Error(`Not an event, cannot attach workflow to ${entry.name}`);
   } else {
     addEvent(name, moduleName);
-    const event: RecordEntry = module.getEntry(name) as RecordEntry;
+    const event: Record = module.getEntry(name) as Record;
     event.addMeta(SystemDefinedEvent, 'true');
   }
   if (!statements) statements = new Array<Statement>();
-  return module.addEntry(
-    new WorkflowEntry(asWorkflowName(name), statements, moduleName)
-  ) as WorkflowEntry;
+  return module.addEntry(new Workflow(asWorkflowName(name), statements, moduleName)) as Workflow;
 }
 
-export function getWorkflow(eventInstance: Instance): WorkflowEntry {
+export function getWorkflow(eventInstance: Instance): Workflow {
   const eventName: string = eventInstance.name;
   const moduleName: string = eventInstance.moduleName;
   const wfName: string = asWorkflowName(eventName);
-  const module: RuntimeModule = fetchModule(moduleName);
+  const module: Module = fetchModule(moduleName);
   if (module.hasEntry(wfName)) {
-    return module.getEntry(wfName) as WorkflowEntry;
+    return module.getEntry(wfName) as Workflow;
   }
   return EmptyWorkflow;
 }
 
-export function getEntity(name: string, moduleName: string): EntityEntry {
+export function getEntity(name: string, moduleName: string): Entity {
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(name, moduleName);
   if (fr.module.isEntity(fr.entryName)) {
-    return fr.module.getEntry(fr.entryName) as EntityEntry;
+    return fr.module.getEntry(fr.entryName) as Entity;
   }
   throw new Error(`Entity ${fr.entryName} not found in module ${fr.moduleName}`);
 }
 
-export function getEvent(name: string, moduleName: string): EventEntry {
+export function getEvent(name: string, moduleName: string): Event {
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(name, moduleName);
   if (fr.module.isEvent(fr.entryName)) {
-    return fr.module.getEntry(fr.entryName) as EventEntry;
+    return fr.module.getEntry(fr.entryName) as Event;
   }
   throw new Error(`Event ${fr.entryName} not found in module ${fr.moduleName}`);
 }
 
-export function getRecord(name: string, moduleName: string): RecordEntry {
+export function getRecord(name: string, moduleName: string): Record {
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(name, moduleName);
   if (fr.module.isRecord(fr.entryName)) {
-    return fr.module.getEntry(fr.entryName) as RecordEntry;
+    return fr.module.getEntry(fr.entryName) as Record;
   }
   throw new Error(`Record ${fr.entryName} not found in module ${fr.moduleName}`);
 }
 
-export function getRelationship(name: string, moduleName: string): RelationshipEntry {
+export function getRelationship(name: string, moduleName: string): Relationship {
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(name, moduleName);
   if (fr.module.isRelationship(fr.entryName)) {
-    return fr.module.getEntry(fr.entryName) as RelationshipEntry;
+    return fr.module.getEntry(fr.entryName) as Relationship;
   }
   throw new Error(`Relationship ${fr.entryName} not found in module ${fr.moduleName}`);
 }
 
-export function getAllBetweenRelationships(): RelationshipEntry[] {
-  let result: RelationshipEntry[] = [];
+export function getAllBetweenRelationships(): Relationship[] {
+  let result: Relationship[] = [];
   allModuleNames().forEach((moduleName: string) => {
     const mod = fetchModule(moduleName);
     result = result.concat(mod.getBetweenRelationshipEntries());
@@ -1253,13 +1251,13 @@ function filterBetweenRelationshipsForEntity(
   moduleName: string,
   entityName: string,
   predic: Function,
-  allBetweenRels?: RelationshipEntry[]
-): RelationshipEntry[] {
+  allBetweenRels?: Relationship[]
+): Relationship[] {
   if (allBetweenRels == undefined) {
     allBetweenRels = getAllBetweenRelationships();
   }
   const p = new Path(moduleName, entityName);
-  return allBetweenRels.filter((re: RelationshipEntry) => {
+  return allBetweenRels.filter((re: Relationship) => {
     return predic(re, p);
   });
 }
@@ -1267,12 +1265,12 @@ function filterBetweenRelationshipsForEntity(
 export function getAllOneToOneRelationshipsForEntity(
   moduleName: string,
   entityName: string,
-  allBetweenRels?: RelationshipEntry[]
-): RelationshipEntry[] {
+  allBetweenRels?: Relationship[]
+): Relationship[] {
   return filterBetweenRelationshipsForEntity(
     moduleName,
     entityName,
-    (re: RelationshipEntry, p: Path) => {
+    (re: Relationship, p: Path) => {
       return re.isOneToOne() && (re.node1.path.equals(p) || re.node2.path.equals(p));
     },
     allBetweenRels
@@ -1282,12 +1280,12 @@ export function getAllOneToOneRelationshipsForEntity(
 export function getAllOneToManyRelationshipsForEntity(
   moduleName: string,
   entityName: string,
-  allBetweenRels?: RelationshipEntry[]
-): RelationshipEntry[] {
+  allBetweenRels?: Relationship[]
+): Relationship[] {
   return filterBetweenRelationshipsForEntity(
     moduleName,
     entityName,
-    (re: RelationshipEntry, p: Path) => {
+    (re: Relationship, p: Path) => {
       return re.isOneToMany() && re.node1.path.equals(p);
     },
     allBetweenRels
@@ -1297,12 +1295,12 @@ export function getAllOneToManyRelationshipsForEntity(
 export function getAllManyToOneRelationshipsForEntity(
   moduleName: string,
   entityName: string,
-  allBetweenRels?: RelationshipEntry[]
-): RelationshipEntry[] {
+  allBetweenRels?: Relationship[]
+): Relationship[] {
   return filterBetweenRelationshipsForEntity(
     moduleName,
     entityName,
-    (re: RelationshipEntry, p: Path) => {
+    (re: Relationship, p: Path) => {
       return re.isOneToMany() && re.node2.path.equals(p);
     },
     allBetweenRels
@@ -1312,12 +1310,12 @@ export function getAllManyToOneRelationshipsForEntity(
 export function getAllManyToManyRelationshipsForEntity(
   moduleName: string,
   entityName: string,
-  allBetweenRels?: RelationshipEntry[]
-): RelationshipEntry[] {
+  allBetweenRels?: Relationship[]
+): Relationship[] {
   return filterBetweenRelationshipsForEntity(
     moduleName,
     entityName,
-    (re: RelationshipEntry, p: Path) => {
+    (re: Relationship, p: Path) => {
       return re.isManyToMany() && re.node1.path.equals(p);
     },
     allBetweenRels
@@ -1325,13 +1323,13 @@ export function getAllManyToManyRelationshipsForEntity(
 }
 
 export function getEntrySchema(name: string, moduleName: string): RecordSchema {
-  const m: RuntimeModule = fetchModule(moduleName);
-  const r: RecordEntry = m.getEntry(name) as RecordEntry;
+  const m: Module = fetchModule(moduleName);
+  const r: Record = m.getEntry(name) as Record;
   return r.schema;
 }
 
 export function removeEntity(name: string, moduleName = activeModule): boolean {
-  const module: RuntimeModule = fetchModule(moduleName);
+  const module: Module = fetchModule(moduleName);
   if (module.isEntity(name)) {
     return module.removeEntry(name);
   }
@@ -1339,7 +1337,7 @@ export function removeEntity(name: string, moduleName = activeModule): boolean {
 }
 
 export function removeRecord(name: string, moduleName = activeModule): boolean {
-  const module: RuntimeModule = fetchModule(moduleName);
+  const module: Module = fetchModule(moduleName);
   if (module.isRecord(name)) {
     return module.removeEntry(name);
   }
@@ -1347,7 +1345,7 @@ export function removeRecord(name: string, moduleName = activeModule): boolean {
 }
 
 export function removeRelationship(name: string, moduleName = activeModule): boolean {
-  const module: RuntimeModule = fetchModule(moduleName);
+  const module: Module = fetchModule(moduleName);
   if (module.isRelationship(name)) {
     return module.removeEntry(name);
   }
@@ -1355,12 +1353,12 @@ export function removeRelationship(name: string, moduleName = activeModule): boo
 }
 
 export function removeWorkflow(name: string, moduleName = activeModule): boolean {
-  const module: RuntimeModule = fetchModule(moduleName);
+  const module: Module = fetchModule(moduleName);
   return module.removeEntry(asWorkflowName(name));
 }
 
 export function removeEvent(name: string, moduleName = activeModule): boolean {
-  const module: RuntimeModule = fetchModule(moduleName);
+  const module: Module = fetchModule(moduleName);
   if (module.isEvent(name)) {
     const r: boolean = module.removeEntry(name);
     if (r) {
@@ -1397,7 +1395,7 @@ export function newInstanceAttributes(): InstanceAttributes {
 const EmptyInstanceAttributes: InstanceAttributes = newInstanceAttributes();
 
 export class Instance {
-  record: RecordEntry;
+  record: Record;
   name: string;
   moduleName: string;
   attributes: InstanceAttributes;
@@ -1407,7 +1405,7 @@ export class Instance {
   contextData: Map<string, any> | undefined;
 
   constructor(
-    record: RecordEntry,
+    record: Record,
     moduleName: string,
     name: string,
     attributes: InstanceAttributes,
@@ -1423,13 +1421,8 @@ export class Instance {
   }
 
   static EmptyInstance(name: string, moduleName: string): Instance {
-    const module: RuntimeModule = fetchModule(moduleName);
-    return new Instance(
-      module.getEntry(name) as RecordEntry,
-      moduleName,
-      name,
-      EmptyInstanceAttributes
-    );
+    const module: Module = fetchModule(moduleName);
+    return new Instance(module.getEntry(name) as Record, moduleName, name, EmptyInstanceAttributes);
   }
 
   static newWithAttributes(inst: Instance, newAttrs: InstanceAttributes): Instance {
@@ -1619,8 +1612,8 @@ export function makeInstance(
   queryAttributes?: InstanceAttributes,
   queryAttributeValues?: InstanceAttributes
 ): Instance {
-  const module: RuntimeModule = fetchModule(moduleName);
-  const record: RecordEntry = module.getRecord(entryName);
+  const module: Module = fetchModule(moduleName);
+  const record: Record = module.getRecord(entryName);
   const schema: RecordSchema = record.schema;
   if (schema.size > 0) {
     attributes.forEach((value: any, key: string) => {
@@ -1655,7 +1648,7 @@ export function isRecordInstance(inst: Instance): boolean {
 
 export function getAllEventNames() {
   const result: Map<string, string[]> = new Map<string, string[]>();
-  moduleDb.forEach((v: RuntimeModule, k: string) => {
+  moduleDb.forEach((v: Module, k: string) => {
     result.set(
       k,
       v.getEventEntries().map((me: ModuleEntry) => {
@@ -1668,24 +1661,24 @@ export function getAllEventNames() {
 
 export function isBetweenRelationship(relName: string, moduleName: string): boolean {
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(relName, moduleName);
-  const mod: RuntimeModule = fr.module;
+  const mod: Module = fr.module;
   return mod.isBetweenRelationship(fr.entryName);
 }
 
 export function isContainsRelationship(relName: string, moduleName: string): boolean {
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(relName, moduleName);
-  const mod: RuntimeModule = fr.module;
+  const mod: Module = fr.module;
   return mod.isContainsRelationship(fr.entryName);
 }
 
 export type BetweenInstanceNodeValuesResult = {
   node1: any;
   node2: any;
-  entry: RelationshipEntry;
+  entry: Relationship;
 };
 
 export function getBetweenInstanceNodeValues(inst: Instance): BetweenInstanceNodeValuesResult {
-  const re: RelationshipEntry = fetchModuleEntry(inst.name, inst.moduleName) as RelationshipEntry;
+  const re: Relationship = fetchModuleEntry(inst.name, inst.moduleName) as Relationship;
   return {
     node1: inst.attributes.get(re.node1.alias),
     node2: inst.attributes.get(re.node2.alias),

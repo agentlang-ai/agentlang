@@ -1,24 +1,23 @@
 import chalk from 'chalk';
 import { createAgentlangServices } from '../language/agentlang-module.js';
 import {
-  Module,
-  Def,
   Import,
-  Entity,
-  RbacSpec,
   RbacSpecEntries,
   RbacSpecEntry,
   RbacOpr,
-  Event,
-  Record,
-  Relationship,
-  Workflow,
-  isEntity,
-  isEvent,
-  isRecord,
-  isRelationship,
-  isWorkflow,
-  isModule,
+  ModuleDefinition,
+  Definition,
+  isEntityDefinition,
+  isEventDefinition,
+  isRecordDefinition,
+  isRelationshipDefinition,
+  isWorkflowDefinition,
+  EntityDefinition,
+  EventDefinition,
+  RecordDefinition,
+  RelationshipDefinition,
+  WorkflowDefinition,
+  RbacSpecDefinition,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -27,13 +26,14 @@ import {
   addRecord,
   addRelationship,
   addWorkflow,
-  EntityEntry,
-  EventEntry,
+  Entity,
+  Event,
   RbacSpecification,
-  RecordEntry,
-  RelationshipEntry,
-  RuntimeModule,
-  WorkflowEntry,
+  Record,
+  Relationship,
+  Module,
+  Workflow,
+  isModule,
 } from './module.js';
 import {
   importModule,
@@ -208,7 +208,7 @@ export async function loadCoreModules() {
   }
 }
 
-async function loadModule(fileName: string, fsOptions?: any): Promise<RuntimeModule> {
+async function loadModule(fileName: string, fsOptions?: any): Promise<Module> {
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
 
@@ -220,8 +220,8 @@ async function loadModule(fileName: string, fsOptions?: any): Promise<RuntimeMod
   }).Agentlang;
 
   // Extract the AST node
-  const module = await extractAstNode<Module>(fileName, services);
-  const result: RuntimeModule = internModule(module);
+  const module = await extractAstNode<ModuleDefinition>(fileName, services);
+  const result: Module = internModule(module);
   console.log(chalk.green(`Module ${chalk.bold(result.name)} loaded`));
   logger.info(`Module ${result.name} loaded`);
   return result;
@@ -264,7 +264,7 @@ function getFsAdapter(fs: any) {
   return cachedFsAdapter;
 }
 
-function setRbacForEntity(entity: EntityEntry, rbacSpec: RbacSpec) {
+function setRbacForEntity(entity: Entity, rbacSpec: RbacSpecDefinition) {
   const rbac: RbacSpecification[] = new Array<RbacSpecification>();
   rbacSpec.specEntries.forEach((specEntries: RbacSpecEntries) => {
     const rs: RbacSpecification = new RbacSpecification().setResource(
@@ -320,7 +320,7 @@ async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
   await env.callInTransaction(f);
 }
 
-export function addEntityFromDef(def: Entity, moduleName: string): EntityEntry {
+export function addEntityFromDef(def: EntityDefinition, moduleName: string): Entity {
   const entity = addEntity(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
   if (def.schema.rbacSpec) {
     setRbacForEntity(entity, def.schema.rbacSpec);
@@ -328,28 +328,31 @@ export function addEntityFromDef(def: Entity, moduleName: string): EntityEntry {
   return entity;
 }
 
-export function addEventFromDef(def: Event, moduleName: string): EventEntry {
+export function addEventFromDef(def: EventDefinition, moduleName: string): Event {
   return addEvent(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
 }
 
-export function addRecordFromDef(def: Record, moduleName: string): RecordEntry {
+export function addRecordFromDef(def: RecordDefinition, moduleName: string): Record {
   return addRecord(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
 }
 
-export function addRelationshipFromDef(def: Relationship, moduleName: string): RelationshipEntry {
+export function addRelationshipFromDef(
+  def: RelationshipDefinition,
+  moduleName: string
+): Relationship {
   return addRelationship(def.name, def.type, def.nodes, moduleName, def.attributes, def.properties);
 }
 
-export function addWorkflowFromDef(def: Workflow, moduleName: string): WorkflowEntry {
+export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string): Workflow {
   return addWorkflow(def.name, moduleName, def.statements);
 }
 
-export function addFromDef(def: Def, moduleName: string) {
-  if (isEntity(def)) addEntityFromDef(def, moduleName);
-  else if (isEvent(def)) addEventFromDef(def, moduleName);
-  else if (isRecord(def)) addRecordFromDef(def, moduleName);
-  else if (isRelationship(def)) addRelationshipFromDef(def, moduleName);
-  else if (isWorkflow(def)) addWorkflowFromDef(def, moduleName);
+export function addFromDef(def: Definition, moduleName: string) {
+  if (isEntityDefinition(def)) addEntityFromDef(def, moduleName);
+  else if (isEventDefinition(def)) addEventFromDef(def, moduleName);
+  else if (isRecordDefinition(def)) addRecordFromDef(def, moduleName);
+  else if (isRelationshipDefinition(def)) addRelationshipFromDef(def, moduleName);
+  else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {
@@ -357,22 +360,26 @@ export async function parseAndIntern(code: string, moduleName?: string) {
     throw new Error(`Moudle not found - ${moduleName}`);
   }
   const r = await parse(moduleName ? `module ${moduleName} ${code}` : code);
-  if (!moduleName) {
+  if (moduleName == undefined) {
     moduleName = r.parseResult.value.name;
     addModule(moduleName);
   }
-  r.parseResult.value.defs.forEach((def: Def) => {
-    addFromDef(def, moduleName);
-  });
+  if (moduleName != undefined) {
+    r.parseResult.value.defs.forEach((def: Definition) => {
+      addFromDef(def, moduleName);
+    });
+  } else {
+    throw new Error('Failed to initialize module-name');
+  }
 }
 
-export function internModule(module: Module): RuntimeModule {
+export function internModule(module: ModuleDefinition): Module {
   const mn = module.name;
   const r = addModule(mn);
   module.imports.forEach(async (imp: Import) => {
     await importModule(imp.path, imp.name);
   });
-  module.defs.forEach((def: Def) => {
+  module.defs.forEach((def: Definition) => {
     addFromDef(def, mn);
   });
   return r;

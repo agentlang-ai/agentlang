@@ -1,9 +1,9 @@
 import {
   fetchModule,
   getUserModuleNames,
-  RelationshipEntry,
-  RelNodeEntry,
-  RuntimeModule,
+  Relationship,
+  RelationshipNode,
+  Module,
 } from './module.js';
 import { DefaultModuleName, Path } from './util.js';
 
@@ -13,7 +13,7 @@ export type RelationshipGraphNode = {
 };
 
 export type RelationshipGraphEdge = {
-  relationship: RelationshipEntry;
+  relationship: Relationship;
   node: RelationshipGraphNode;
 };
 
@@ -85,14 +85,14 @@ export function buildGraph(moduleName: string): RelationshipGraph {
   const rootEnts: Set<string> = new Set();
   const inRels: Set<string> = new Set();
   const nodes: Array<RelationshipGraphNode> = [];
-  let localMod: RuntimeModule | undefined;
+  let localMod: Module | undefined;
   getUserModuleNames().forEach((n: string) => {
-    const m: RuntimeModule = fetchModule(n);
+    const m: Module = fetchModule(n);
     if (n == moduleName) localMod = m;
-    const rels: RelationshipEntry[] = m.getRelationshipEntries();
-    rels.forEach((re: RelationshipEntry) => {
-      const n1: RelNodeEntry = re.parentNode();
-      const n2: RelNodeEntry = re.childNode();
+    const rels: Relationship[] = m.getRelationshipEntries();
+    rels.forEach((re: Relationship) => {
+      const n1: RelationshipNode = re.parentNode();
+      const n2: RelationshipNode = re.childNode();
       if (n1.path.getModuleName() == moduleName) {
         const nn: string = n1.path.getEntryName();
         if (!inRels.has(nn)) rootEnts.add(nn);
@@ -168,8 +168,8 @@ function findNodeInEdges(
   return undefined;
 }
 
-function connectEdge(node: RelationshipGraphNode, re: RelationshipEntry) {
-  const cn: RelNodeEntry = re.childNode();
+function connectEdge(node: RelationshipGraphNode, re: Relationship) {
+  const cn: RelationshipNode = re.childNode();
   const n: RelationshipGraphNode = {
     entity: cn.path,
     edges: NullEdge,

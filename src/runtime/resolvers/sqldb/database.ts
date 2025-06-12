@@ -16,7 +16,7 @@ import {
   InstanceAttributes,
   newInstanceAttributes,
   RbacPermissionFlag,
-  RelationshipEntry,
+  Relationship,
 } from '../../module.js';
 
 export let defaultDataSource: DataSource | undefined;
@@ -185,7 +185,7 @@ export async function insertBetweenRow(
   a2: string,
   node1: Instance,
   node2: Instance,
-  relEntry: RelationshipEntry,
+  relEntry: Relationship,
   ctx: DbContext
 ): Promise<void> {
   let hasPerm = await checkCreatePermission(ctx, node1);

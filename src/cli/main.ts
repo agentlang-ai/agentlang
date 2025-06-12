@@ -12,8 +12,8 @@ import { startServer } from '../api/http.js';
 import { initDefaultDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { logger } from '../runtime/logger.js';
 import { runInitFunctions } from '../runtime/util.js';
-import { RuntimeModule } from '../runtime/module.js';
-import { Module } from '../language/generated/ast.js';
+import { Module } from '../runtime/module.js';
+import { ModuleDefinition } from '../language/generated/ast.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -96,14 +96,14 @@ export const runModule = async (fileName: string): Promise<void> => {
 };
 
 export async function internAndRunModule(
-  module: Module,
+  module: ModuleDefinition,
   appSpec?: ApplicationSpec
-): Promise<RuntimeModule> {
+): Promise<Module> {
   const r: boolean = await runPreInitTasks();
   if (!r) {
     throw new Error('Failed to initialize runtime');
   }
-  const rm: RuntimeModule = internModule(module);
+  const rm: Module = internModule(module);
   await runPostInitTasks(appSpec);
   return rm;
 }

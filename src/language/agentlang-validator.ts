@@ -1,5 +1,5 @@
 import type { ValidationAcceptor, ValidationChecks } from 'langium';
-import { Module, AgentlangAstType, SchemaDef } from './generated/ast.js';
+import { AgentlangAstType, ModuleDefinition, SchemaDef } from './generated/ast.js';
 import type { AgentlangServices } from './agentlang-module.js';
 
 /**
@@ -9,7 +9,7 @@ export function registerValidationChecks(services: AgentlangServices) {
   const registry = services.validation.ValidationRegistry;
   const validator = services.validation.AgentlangValidator;
   const checks: ValidationChecks<AgentlangAstType> = {
-    Module: validator.checkUniqueDefs,
+    ModuleDefinition: validator.checkUniqueDefs,
     SchemaDef: validator.checkUniqueAttributes,
   };
   registry.register(checks, validator);
@@ -20,12 +20,12 @@ export function registerValidationChecks(services: AgentlangServices) {
  */
 export class AgentlangValidator {
   // our new validation function for defs
-  checkUniqueDefs(module: Module, accept: ValidationAcceptor): void {
+  checkUniqueDefs(module: ModuleDefinition, accept: ValidationAcceptor): void {
     // create a set of visited functions
     // and report an error when we see one we've already seen
     const reported = new Set();
     module.defs.forEach(d => {
-      if (d.$type != 'Workflow' && reported.has(d.name)) {
+      if (d.$type != 'WorkflowDefinition' && reported.has(d.name)) {
         accept('error', `Definition has non-unique name '${d.name}'.`, {
           node: d,
           property: 'name',
