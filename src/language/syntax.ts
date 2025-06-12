@@ -101,9 +101,16 @@ export function isIdentifierLiteral(p: LiteralPattern): boolean {
 export class ArrayPattern extends BasePattern {
   values: Array<BasePattern>;
 
-  constructor(values: Array<BasePattern>) {
+  static Empty: ArrayPattern = new ArrayPattern();
+
+  constructor(values?: Array<BasePattern>) {
     super();
-    this.values = values;
+    this.values = values ? values : [];
+  }
+
+  addValue(p: BasePattern): ArrayPattern {
+    this.values.push(p);
+    return this;
   }
 
   override toString(): string {
@@ -329,14 +336,14 @@ export function isQueryUpdatePattern(p: BasePattern): boolean {
 }
 
 export class ForEachPattern extends BasePattern {
-  variable: string | undefined;
-  source: BasePattern | undefined;
+  variable: string;
+  source: BasePattern;
   body: BasePattern[];
 
   constructor(variable?: string, source?: BasePattern) {
     super();
-    this.variable = variable;
-    this.source = source;
+    this.variable = variable ? variable : 'X';
+    this.source = source ? source : ArrayPattern.Empty;
     this.body = [];
   }
 
