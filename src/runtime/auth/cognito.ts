@@ -31,14 +31,23 @@ const poolData = {
 };
 
 export class CognitoAuth implements AgentlangAuth {
-  private userPool: CognitoUserPool;
+  private userPool: CognitoUserPool | undefined;
 
   constructor(config?: Map<string, any>) {
     const pd = config ? config.get('cognito') : poolData;
-    this.userPool = new CognitoUserPool(pd as ICognitoUserPoolData);
+    if (pd.UserPoolId && pd.ClientId) {
+      this.userPool = new CognitoUserPool(pd as ICognitoUserPoolData);
+    }
   }
 
   private static DefaultValidationAttributes = new Array<CognitoUserAttribute>();
+
+  private fetchUserPool(): CognitoUserPool {
+    if (!this.userPool) {
+      throw new Error(`User-pool not inited`);
+    }
+    return this.userPool;
+  }
 
   async signUp(
     username: string,
@@ -48,7 +57,8 @@ export class CognitoAuth implements AgentlangAuth {
   ): Promise<void> {
     const attributeList = userDataAsCognitoAttributes(userData.set('email', username));
     let cognitoUser: CognitoUser | undefined;
-    await this.userPool.signUp(
+    const userPool: CognitoUserPool = this.fetchUserPool();
+    await userPool.signUp(
       username,
       password,
       attributeList,
@@ -89,7 +99,7 @@ export class CognitoAuth implements AgentlangAuth {
     }
     const user = new CognitoUser({
       Username: username,
-      Pool: this.userPool,
+      Pool: this.fetchUserPool(),
     });
     const authDetails = new AuthenticationDetails({
       Username: username,
@@ -126,7 +136,7 @@ export class CognitoAuth implements AgentlangAuth {
     }
     const user = new CognitoUser({
       Username: localUser.email,
-      Pool: this.userPool,
+      Pool: this.fetchUserPool(),
     });
     await user.signOut();
     const sess = await findUserSession(localUser.id);
