@@ -689,9 +689,32 @@ export class Workflow extends ModuleEntry {
     return this;
   }
 
-  removeStatemtAt(index: number): Workflow {
-    this.statements.splice(index, 1);
-    return this;
+  removeStatemtAt(index: number | number[]): Workflow {
+    if (index instanceof Array) {
+      if (index.length == 1) {
+        return this.removeStatemtAt(index[0]);
+      }
+      let stmt = this.statements[index[0]];
+      if (stmt.pattern.forEach || stmt.pattern.if) {
+        for (let i = 1; i < index.length; ++i) {
+          const remove = i == index.length - 1;
+          const idx = index[i];
+          if (stmt.pattern.forEach) {
+            if (remove) stmt.pattern.forEach.statements.splice(idx, 1);
+            else stmt = stmt.pattern.forEach.statements[idx];
+          } else if (stmt.pattern.if) {
+            if (remove) stmt.pattern.if.statements.splice(idx, 1);
+            else stmt = stmt.pattern.if.statements[idx];
+          } else {
+            throw new Error('Cannot dig further into statements');
+          }
+        }
+      }
+      return this;
+    } else {
+      this.statements.splice(index, 1);
+      return this;
+    }
   }
 }
 
