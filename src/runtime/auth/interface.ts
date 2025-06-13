@@ -15,7 +15,7 @@ export type SignUpCallback = (userInfo: UserInfo) => void;
 export type LoginCallback = (sessionInfo: SessionInfo) => void;
 export type LogoutCallback = (status: boolean) => void;
 
-export interface Authentication {
+export interface AgentlangAuth {
   signUp(username: string, password: string, userData: Map<string, any>, cb: SignUpCallback): any;
   login(username: string, password: string, cb: LoginCallback): any;
   logout(sessionInfo: SessionInfo, cb?: LogoutCallback): any;

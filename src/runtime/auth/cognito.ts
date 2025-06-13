@@ -7,7 +7,7 @@ import {
   CognitoUserSession,
 } from 'amazon-cognito-identity-js';
 import {
-  Authentication,
+  AgentlangAuth,
   LoginCallback,
   LogoutCallback,
   SessionInfo,
@@ -22,13 +22,15 @@ import {
   findUserSession,
   removeSession,
 } from '../modules/auth.js';
+/*import { fromEnv } from "@aws-sdk/credential-providers";
+import { AdminGetUserCommand, CognitoIdentityProviderClient } from "@aws-sdk/client-cognito-identity-provider";*/
 
 const poolData = {
   UserPoolId: process.env.COGNITO_USER_POOL_ID,
   ClientId: process.env.COGNITO_CLIENT_ID,
 };
 
-export class CognitoAuth implements Authentication {
+export class CognitoAuth implements AgentlangAuth {
   private userPool: CognitoUserPool;
 
   constructor(config?: Map<string, any>) {
@@ -41,10 +43,10 @@ export class CognitoAuth implements Authentication {
   async signUp(
     username: string,
     password: string,
-    userData: Map<string, any>,
+    userData: Map<string, string>,
     cb: SignUpCallback
   ): Promise<void> {
-    const attributeList = userData.get('userAttributes') as CognitoUserAttribute[];
+    const attributeList = userDataAsCognitoAttributes(userData.set('email', username));
     let cognitoUser: CognitoUser | undefined;
     await this.userPool.signUp(
       username,
@@ -149,3 +151,24 @@ function findAttributeValue(
     return notFoundValue;
   }
 }
+
+function userDataAsCognitoAttributes(userData: Map<string, string>): CognitoUserAttribute[] {
+  const result: CognitoUserAttribute[] = [];
+  userData.forEach((v: string, k: string) => {
+    const ca = new CognitoUserAttribute({ Name: k, Value: v });
+    result.push(ca);
+  });
+  return result;
+}
+/*
+export async function congitoTest() {
+  const client = new CognitoIdentityProviderClient({ region: "us-west-2", credentials: fromEnv() });
+  const input = { // AdminGetUserRequest
+    UserPoolId: "us-west-2_Piy14iUPZ", // required
+    Username: "vijay@fractl.io", // required
+  };
+  const command = new AdminGetUserCommand(input);
+  const response = await client.send(command);
+  console.log(response)
+}
+*/

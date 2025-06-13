@@ -3,11 +3,15 @@ import { logger } from '../logger.js';
 import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
+import { AgentlangAuth, UserInfo } from '../auth/interface.js';
+import { CognitoAuth } from '../auth/cognito.js';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
 export const AdminUserId = '00000000-0000-0000-0000-000000000000';
 
 const moduleDef = `module ${CoreAuthModuleName}
+
+import "./modules/auth.js" as Auth
 
 entity User {
     id UUID @id @default(uuid()),
@@ -113,6 +117,10 @@ workflow FindUserSession {
 
 workflow RemoveSession {
   purge {Session {id? RemoveSession.id}}
+}
+
+workflow SignUp {
+  Auth.signUpUser(SignUp.email, SignUp.password, SignUp.userData)
 }
 `;
 
@@ -431,4 +439,23 @@ export class UnauthorisedError extends Error {
       options
     );
   }
+}
+
+const runtimeAuth: AgentlangAuth = new CognitoAuth();
+
+export async function signUpUser(
+  username: string,
+  password: string,
+  userData: object
+): Promise<UserInfo> {
+  let result: any;
+  await runtimeAuth.signUp(
+    username,
+    password,
+    new Map(Object.entries(userData)),
+    (userInfo: UserInfo) => {
+      result = userInfo;
+    }
+  );
+  return result as UserInfo;
 }
