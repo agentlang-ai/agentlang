@@ -357,7 +357,7 @@ export function addFromDef(def: Definition, moduleName: string) {
 
 export async function parseAndIntern(code: string, moduleName?: string) {
   if (moduleName && !isModule(moduleName)) {
-    throw new Error(`Moudle not found - ${moduleName}`);
+    throw new Error(`Module not found - ${moduleName}`);
   }
   const r = await parse(moduleName ? `module ${moduleName} ${code}` : code);
   if (moduleName == undefined) {

@@ -199,138 +199,597 @@ async function startDenoRepl(appFile: string): Promise<Deno.ChildProcess | null>
   // Create a temporary file with the initialization code
   const tempFile = await Deno.makeTempFile({ suffix: '.ts' });
 
-  // Create initialization code with proper template literals
-  const initCode = `
-// Add shims for Node.js built-in modules
-globalThis.require = (modulePath) => {
-  if (modulePath === 'path' || modulePath === 'fs' || 
-      modulePath === 'url' || modulePath === 'util' || 
-      modulePath === 'os' || modulePath === 'crypto') {
-    return import('node:' + modulePath);
-  }
-  return import(modulePath);
-};
+  const initCodeLines = [
+    '// Add shims for Node.js built-in modules',
+    'globalThis.require = (modulePath) => {',
+    '  if (modulePath === "path" || modulePath === "fs" ||',
+    '      modulePath === "url" || modulePath === "util" ||',
+    '      modulePath === "os" || modulePath === "crypto") {',
+    '    return import("node:" + modulePath);',
+    '  }',
+    '  return import(modulePath);',
+    '};',
+    '',
+    '// Create necessary globals that may be referenced',
+    'globalThis.global = globalThis;',
+    '',
+    '// Create a minimal process object with common properties',
+    'globalThis.process = {',
+    '  env: Deno.env.toObject(),',
+    '  cwd: () => Deno.cwd(),',
+    '  stdout: Deno.stdout,',
+    '  stderr: Deno.stderr,',
+    '  platform: Deno.build.os',
+    '};',
+    '',
+    '// Import AgentLang runtime functions from module path',
+    `const { addModule, getActiveModuleName, fetchModule, getModuleNames,`,
+    `        getUserModuleNames, getEntity, addEntity, removeEntity, getRecord,`,
+    `        addRecord, removeRecord, getEntrySchema, getRelationship,`,
+    `        addRelationship, removeRelationship, getWorkflow, addWorkflow,`,
+    `        removeWorkflow, getEvent, addEvent, removeEvent, removeModule } = await import("${modulePath}");`,
+    '',
+    '// Import parseAndIntern from loader',
+    `const { parseAndIntern } = await import("${loaderPath}");`,
+    '',
+    '// Import loader functions',
+    `const { load, ApplicationSpec } = await import("${loaderPath}");`,
+    '',
 
-// Create necessary globals that may be referenced
-globalThis.global = globalThis;
+    '// Core AgentLang processing function',
+    'async function processAgentlang(code) {',
+    '  try {',
+    '    let currentModule = getActiveModuleName();',
+    '    // If no active module, try to get from appSpec',
+    '    if (!currentModule && globalThis.appSpec && globalThis.appSpec.name) {',
+    '      currentModule = globalThis.appSpec.name;',
+    '      console.log(`Using module from appSpec: ${currentModule}`);',
+    '    }',
+    '    if (!currentModule) {',
+    '      throw new Error("No active module found. Please ensure the application is loaded.");',
+    '    }',
+    '    await parseAndIntern(code, currentModule);',
+    '    return "✓ AgentLang code processed successfully";',
+    '  } catch (error) {',
+    '    console.error("✗ Error processing AgentLang code:", error.message || error);',
+    '    throw error;',
+    '  }',
+    '}',
+    '',
+    '// ========== ENHANCED AGENTLANG HELPERS ==========',
+    '',
+    '// Template literal tag functions AND regular function for natural syntax',
+    'globalThis.al = globalThis.ag = function(strings, ...values) {',
+    '  // Check if called as a template literal',
+    '  if (Array.isArray(strings) && strings.raw) {',
+    '    const code = strings.reduce((acc, str, i) => {',
+    '      return acc + str + (values[i] !== undefined ? values[i] : "");',
+    '    }, "");',
+    '    return processAgentlang(code);',
+    '  }',
+    '  // Called as a regular function with a string',
+    '  else if (typeof strings === "string") {',
+    '    return processAgentlang(strings);',
+    '  }',
+    '  else {',
+    '    throw new Error("Usage: Check help for usage...");',
+    '  }',
+    '};',
+    '',
+    '// Enhanced entity function - supports both object and string definitions',
+    'globalThis.e = globalThis.entity = function(name, definition) {',
+    '  if (typeof name === "string" && typeof definition === "object") {',
+    '    // Object style: e("User", { name: "String", age: "Int" })',
+    '    const fields = Object.entries(definition)',
+    '      .map(([key, type]) => `  ${key} ${type}`)',
+    '      .join("\\n");',
+    '    const code = `entity ${name} {\\n${fields}\\n}`;',
+    '    return processAgentlang(code);',
+    '  }',
+    '  else if (typeof name === "string" && typeof definition === "string") {',
+    '    // String style: e("User", "{id String @id, name String}")',
+    '    // Clean up the string - remove outer braces if present',
+    '    const cleanDef = definition.trim();',
+    '    const fieldsContent = cleanDef.startsWith("{") && cleanDef.endsWith("}") ',
+    '      ? cleanDef.slice(1, -1).trim() ',
+    '      : cleanDef;',
+    '    const code = `entity ${name} { ${fieldsContent} }`;',
+    '    return processAgentlang(code);',
+    '  }',
+    '  else {',
+    '    throw new Error("Usage: check help() for entity usage");',
+    '  }',
+    '};',
+    '',
+    '// Enhanced record function - supports both object and string definitions',
+    'globalThis.r = globalThis.record = function(name, definition) {',
+    '  if (typeof name === "string" && typeof definition === "object") {',
+    '    // Object style: r("Profile", { bio: "String" })',
+    '    const fields = Object.entries(definition)',
+    '      .map(([key, type]) => `  ${key} ${type}`)',
+    '      .join("\\n");',
+    '    const code = `record ${name} {\\n${fields}\\n}`;',
+    '    return processAgentlang(code);',
+    '  }',
+    '  else if (typeof name === "string" && typeof definition === "string") {',
+    '    // String style: r("Profile", "{bio String @optional}")',
+    '    const cleanDef = definition.trim();',
+    '    const fieldsContent = cleanDef.startsWith("{") && cleanDef.endsWith("}") ',
+    '      ? cleanDef.slice(1, -1).trim() ',
+    '      : cleanDef;',
+    '    const code = `record ${name} { ${fieldsContent} }`;',
+    '    return processAgentlang(code);',
+    '  }',
+    '  else {',
+    '    throw new Error("Usage: check help() for record usage");',
+    '  }',
+    '};',
+    '',
+    '// Enhanced event function - supports both object and string definitions',
+    'globalThis.ev = globalThis.event = function(name, definition) {',
+    '  if (typeof name === "string" && typeof definition === "object") {',
+    '    // Object style: ev("UserCreated", { userId: "String" })',
+    '    const fields = Object.entries(definition)',
+    '      .map(([key, type]) => `  ${key} ${type}`)',
+    '      .join("\\n");',
+    '    const code = `event ${name} {\\n${fields}\\n}`;',
+    '    return processAgentlang(code);',
+    '  }',
+    '  else if (typeof name === "string" && typeof definition === "string") {',
+    '    // String style: ev("UserCreated", "{userId String, timestamp DateTime}")',
+    '    const cleanDef = definition.trim();',
+    '    const fieldsContent = cleanDef.startsWith("{") && cleanDef.endsWith("}") ',
+    '      ? cleanDef.slice(1, -1).trim() ',
+    '      : cleanDef;',
+    '    const code = `event ${name} { ${fieldsContent} }`;',
+    '    return processAgentlang(code);',
+    '  }',
+    '  else {',
+    '    throw new Error("Usage: check help() for event usage");',
+    '  }',
+    '};',
+    '',
+    '// Enhanced relationship function - supports multiple syntax styles',
+    'globalThis.rel = globalThis.relationship = function(name, typeOrDef, from, to, annotation) {',
+    '  // Style 1: rel("UserPost", "contains", "User", "Post", "@one_many")',
+    '  if (typeof name === "string" && typeof typeOrDef === "string" && typeof from === "string" && typeof to === "string") {',
+    '    const annotStr = annotation ? ` ${annotation}` : "";',
+    '    const code = `relationship ${name} ${typeOrDef} (${from}, ${to})${annotStr}`;',
+    '    return processAgentlang(code);',
+    '  }',
+    '  // Style 2: rel("UserPost", "contains (User, Post) @one_many")',
+    '  else if (typeof name === "string" && typeof typeOrDef === "string" && !from && !to) {',
+    '    const code = `relationship ${name} ${typeOrDef}`;',
+    '    return processAgentlang(code);',
+    '  }',
+    '  // Style 3: rel("relationship UserPost contains (User, Post) @one_many")',
+    '  else if (typeof name === "string" && !typeOrDef && !from && !to) {',
+    '    return processAgentlang(name);',
+    '  }',
+    '  else {',
+    '    throw new Error("Usage: check help() for relationship usage");',
+    '  }',
+    '};',
+    '',
+    '// Enhanced workflow function - supports string and builder syntax',
+    'globalThis.w = globalThis.workflow = function(name, definition) {',
+    '  // String style: w("CreateUser", "{ {User {name CreateUser.name}} }")',
+    '  if (typeof name === "string" && typeof definition === "string") {',
+    '    const cleanDef = definition.trim();',
+    '    const bodyContent = cleanDef.startsWith("{") && cleanDef.endsWith("}") ',
+    '      ? cleanDef.slice(1, -1).trim() ',
+    '      : cleanDef;',
+    '    const code = `workflow ${name} {\\n  ${bodyContent}\\n}`;',
+    '    return processAgentlang(code);',
+    '  }',
+    '  // Direct string: w("workflow CreateUser { ... }")',
+    '  else if (typeof name === "string" && !definition) {',
+    '    return processAgentlang(name);',
+    '  }',
+    '  else {',
+    '    throw new Error("Usage: check help() for workflow usage");',
+    '  }',
+    '};',
+    '',
+    '// Workflow builder helpers',
+    'globalThis.WF = {',
+    '  // Create a workflow operation',
+    '  op: (entity, fields) => {',
+    '    if (typeof fields === "string") return `{${entity} ${fields}}`;',
+    '    const fieldStr = Object.entries(fields)',
+    '      .map(([k, v]) => `${k} ${v}`)',
+    '      .join(", ");',
+    '    return `{${entity} {${fieldStr}}}`;',
+    '  },',
+    '  // Create a query operation (with ?)',
+    '  query: (entity, fields) => {',
+    '    if (!fields || fields === "{}") return `{${entity}? {}}`;',
+    '    if (typeof fields === "string") return `{${entity}? ${fields}}`;',
+    '    const fieldStr = Object.entries(fields)',
+    '      .map(([k, v]) => `${k}? ${v}`)',
+    '      .join(", ");',
+    '    return `{${entity} {${fieldStr}}}`;',
+    '  },',
+    '  // Create an alias',
+    '  as: (operation, alias) => `${operation} as [${alias}]`,',
+    '  // Join multiple operations',
+    '  join: (...operations) => operations.join(";\\n  "),',
+    '};',
+    '',
+    '// Multi-line AgentLang builder for complex definitions',
+    'globalThis.AL = class AgentLangBuilder {',
+    '  constructor() {',
+    '    this.lines = [];',
+    '    this.indentLevel = 0;',
+    '  }',
+    '  ',
+    '  indent() {',
+    '    this.indentLevel++;',
+    '    return this;',
+    '  }',
+    '  ',
+    '  dedent() {',
+    '    this.indentLevel = Math.max(0, this.indentLevel - 1);',
+    '    return this;',
+    '  }',
+    '  ',
+    '  add(line) {',
+    '    const indent = "  ".repeat(this.indentLevel);',
+    '    this.lines.push(indent + line);',
+    '    return this;',
+    '  }',
+    '  ',
+    '  entity(name) {',
+    '    this.add(`entity ${name} {`);',
+    '    this.indent();',
+    '    return this;',
+    '  }',
+    '  ',
+    '  record(name) {',
+    '    this.add(`record ${name} {`);',
+    '    this.indent();',
+    '    return this;',
+    '  }',
+    '  ',
+    '  event(name, extending) {',
+    '    if (extending) {',
+    '      this.add(`event ${name} extends ${extending} {`);',
+    '    } else {',
+    '      this.add(`event ${name} {`);',
+    '    }',
+    '    this.indent();',
+    '    return this;',
+    '  }',
+    '  ',
+    '  relationship(name, type, from, to, annotation) {',
+    '    const annotStr = annotation ? ` ${annotation}` : "";',
+    '    this.add(`relationship ${name} ${type} (${from}, ${to})${annotStr}`);',
+    '    return this;',
+    '  }',
+    '  ',
+    '  workflow(name) {',
+    '    this.add(`workflow ${name} {`);',
+    '    this.indent();',
+    '    return this;',
+    '  }',
+    '  ',
+    '  operation(content) {',
+    '    this.add(content);',
+    '    return this;',
+    '  }',
+    '  ',
+    '  field(name, type, ...annotations) {',
+    '    const annotStr = annotations.length > 0 ? " " + annotations.join(" ") : "";',
+    '    this.add(`${name} ${type}${annotStr}`);',
+    '    return this;',
+    '  }',
+    '  ',
+    '  rbac(rules) {',
+    '    this.add(`@rbac ${rules}`);',
+    '    return this;',
+    '  }',
+    '  ',
+    '  end() {',
+    '    this.dedent();',
+    '    this.add("}");',
+    '    return this;',
+    '  }',
+    '  ',
+    '  toString() {',
+    '    return this.lines.join("\\n");',
+    '  }',
+    '  ',
+    '  run() {',
+    '    return processAgentlang(this.toString());',
+    '  }',
+    '};',
+    '',
+    '// Quick type helpers with annotations',
+    'globalThis.T = {',
+    '  // Basic types',
+    '  String: "String",',
+    '  Int: "Int",',
+    '  Float: "Float",',
+    '  Double: "Double",',
+    '  Boolean: "Boolean",',
+    '  DateTime: "DateTime",',
+    '  Email: "Email",',
+    '  Uuid: "Uuid",',
+    '  UUID: "UUID",',
+    '  URL: "URL",',
+    '  ',
+    '  // Type with annotations',
+    '  id: (type = "UUID") => `${type} @id`,',
+    '  optional: (type) => `${type} @optional`,',
+    '  indexed: (type) => `${type} @indexed`,',
+    '  unique: (type) => `${type} @unique`,',
+    '  default: (type, value) => `${type} @default(${value})`,',
+    '  ref: (type) => `${type} @ref(${type})`,',
+    '  array: (type) => `${type} @array`,',
+    '  object: (type) => `${type} @object`,',
+    '  autoincrement: (type = "Int") => `${type} @autoincrement`,',
+    '};',
+    '',
+    '// Batch operations helper',
+    'globalThis.batch = function(...agentLangCodes) {',
+    '  const results = [];',
+    '  for (const code of agentLangCodes) {',
+    '    try {',
+    '      results.push(processAgentlang(code));',
+    '    } catch (error) {',
+    '      results.push(`Error: ${error.message}`);',
+    '    }',
+    '  }',
+    '  return results;',
+    '};',
+    '',
+    '// Module management shortcuts',
+    'globalThis.m = {',
+    '  current: () => getActiveModuleName(),',
+    '  list: () => getModuleNames(),',
+    '  user: () => getUserModuleNames(),',
+    '  get: (name) => fetchModule(name),',
+    '  new: (name) => addModule(name),',
+    '  remove: (name) => removeModule(name),',
+    '};',
+    '',
+    '// Entity/Record/Event inspection shortcuts',
+    'globalThis.inspect = {',
+    '  entity: (name) => getEntity(name),',
+    '  record: (name) => getRecord(name),',
+    '  event: (name) => getEvent(name),',
+    '  relationship: (name) => getRelationship(name),',
+    '  workflow: (name) => getWorkflow(name),',
+    '  schema: (name) => getEntrySchema(name),',
+    '};',
+    '',
+    '// Helper to check current module status',
+    'globalThis.checkModule = () => {',
+    '  const active = getActiveModuleName();',
+    '  const modules = getModuleNames();',
+    '  console.log("Active module:", active || "none");',
+    '  console.log("Available modules:", modules);',
+    '  if (globalThis.appSpec) {',
+    '    console.log("App spec name:", globalThis.appSpec.name);',
+    '  }',
+    '  return { active, modules };',
+    '};',
+    '',
+    '// Close function',
+    'const close = () => {',
+    '  console.log("Exiting REPL...");',
+    '  if (typeof globalThis.exitRepl === "function") {',
+    '    globalThis.exitRepl();',
+    '    return "Shutting down REPL...";',
+    '  } else {',
+    '    Deno.exit(0);',
+    '  }',
+    '};',
+    '',
+    '// Load the application',
+    `console.log("Loading application: ${appPath}");`,
+    'await load(',
+    `  "${appPath}",`,
+    '  (appSpec) => {',
+    '    console.log("Application loaded successfully");',
+    '    globalThis.appSpec = appSpec;',
+    '    // Set the active module from the loaded app spec',
+    '    if (appSpec && appSpec.name) {',
+    '      const moduleName = appSpec.name;',
+    '      console.log(`Setting active module: ${moduleName}`);',
+    "      // Try to add the module if it doesn't exist",
+    '      try {',
+    '        addModule(moduleName);',
+    '      } catch (e) {',
+    "        // Module might already exist, that's fine",
+    '      }',
+    '      // You may need to call a function to set the active module',
+    '      // This depends on the AgentLang runtime API',
+    '    }',
+    '  }',
+    ');',
+    '',
+    '// Enhanced help function',
+    'const help = () => {',
+    '  console.log(`',
+    '╔═══════════════════════════════════════════════════════════════╗',
+    '║                    AgentLang REPL - Enhanced                  ║',
+    '╚═══════════════════════════════════════════════════════════════╝',
+    '',
+    '🎯 QUICK START - Multiple Styles:',
+    '',
+    '  1️⃣ Template Literals:',
+    '    al\\`entity User {',
+    '      id UUID @id @default(uuid())',
+    '      name String @indexed',
+    '    }\\`',
+    '',
+    '  2️⃣ String Functions:',
+    '    al("entity User { id String @id, name String @indexed }")',
+    '    e("User", "{id String @id, name String @indexed}")',
+    '    r("Profile", "{bio String @optional, userId String @ref(User)}")',
+    '',
+    '  3️⃣ Object Style:',
+    '    e("User", { id: T.id(), name: T.indexed("String") })',
+    '    r("Profile", { bio: T.optional("String") })',
+    '',
+    '🚀 SHORT ALIASES:',
+    '  e()  / entity()      - Define entities',
+    '  r()  / record()      - Define records',
+    '  ev() / event()       - Define events',
+    '  rel()/ relationship()- Define relationships',
+    '  w()  / workflow()    - Define workflows',
+    '  al() / ag()          - Process any AgentLang code',
+    '',
+    '🔗 RELATIONSHIPS:',
+    '',
+    '  // Different syntax styles:',
+    '  rel("UserProfile", "between", "User", "Profile", "@one_one")',
+    '  rel("UserPost", "contains (User, Post) @one_many")',
+    '  al("relationship PostCategory between (Post, Category)")',
+    '',
+    '  // With namespaced entities:',
+    '  rel("UserProfile", "between (Blog/User, Blog/Profile) @one_one")',
+    '',
+    '⚡ WORKFLOWS:',
+    '',
+    '  // Simple workflow:',
+    '  w("GetUser", "{User {id? GetUser.userId}}")',
+    '',
+    '  // Multi-operation workflow:',
+    '  w("CreateUser", \\`{User {name CreateUser.name},',
+    '     UserProfile {Profile {email CreateUser.email}}}\\`)',
+    '',
+    '  // Workflow with aliases:',
+    '  al\\`workflow AddCategoryToPost {',
+    '    {Post {id? AddCategoryToPost.postId}} as [post];',
+    '    {Category {id? AddCategoryToPost.catId}} as [cat];',
+    '    {PostCategory {Post post, Category cat}}',
+    '  }\\`',
+    '',
+    '📋 EVENTS:',
+    '',
+    '  // Event extending another type:',
+    '  ev("CreateUser", "extends Profile { name String }")',
+    '  al("event UserCreated { userId String, timestamp DateTime }")',
+    '',
+    '📝 SYNTAX EXAMPLES:',
+    '',
+    '  // Entities - all equivalent:',
+    '  al\\`entity User { name String }\\`',
+    '  al("entity User { name String }")',
+    '  e("User", "{ name String }")',
+    '  e("User", "name String")  // Braces optional',
+    '  e("User", { name: "String" })',
+    '',
+    '  // Relationships - all equivalent:',
+    '  al\\`relationship UserPost contains (User, Post) @one_many\\`',
+    '  rel("UserPost", "contains", "User", "Post", "@one_many")',
+    '  rel("UserPost", "contains (User, Post) @one_many")',
+    '',
+    '  // Workflows - multiple styles:',
+    '  al\\`workflow FindUsers { {User {name? FindUsers.name}} }\\`',
+    '  w("FindUsers", "{User {name? FindUsers.name}}")',
+    '',
+    '🏗️  BUILDER PATTERN (for complex definitions):',
+    '  new AL()',
+    '    .entity("User")',
+    '      .field("id", "UUID", "@id", "@default(uuid())")',
+    '      .field("email", "Email", "@unique", "@indexed")',
+    '      .rbac("[(roles: [admin], allow: [all])]")',
+    '    .end()',
+    '    .relationship("UserPost", "contains", "User", "Post", "@one_many")',
+    '    .workflow("CreateUser")',
+    '      .operation("{User {name CreateUser.name}}")',
+    '    .end()',
+    '    .run()',
+    '',
+    '📦 TYPE HELPERS (T):',
+    '  T.String, T.Int, T.Boolean, T.DateTime',
+    '  T.UUID, T.Email, T.URL, T.Float, T.Double',
+    '  T.id(), T.id("UUID"), T.optional("String")',
+    '  T.indexed("Int"), T.unique("Email")',
+    '  T.default("UUID", "uuid()"), T.ref("User")',
+    '  T.autoincrement(), T.array("String")',
+    '',
+    '🛠️ WORKFLOW HELPERS (WF):',
+    '  WF.op("User", { name: "CreateUser.name" })',
+    '    => {User {name CreateUser.name}}',
+    '  ',
+    '  WF.query("User", { id: "GetUser.id" })',
+    '    => {User {id? GetUser.id}}',
+    '  ',
+    '  WF.as("{User {id? GetUser.id}}", "user")',
+    '    => {User {id? GetUser.id}} as [user]',
+    '',
+    '🔧 MODULE MANAGEMENT (m):',
+    '  m.current()     - Current module name',
+    '  m.list()        - All modules',
+    '  m.new("name")   - Create module',
+    '  m.get("name")   - Get module details',
+    '',
+    '🔍 INSPECTION (inspect):',
+    '  inspect.entity("User")',
+    '  inspect.record("Profile")',
+    '  inspect.event("CreateUser")',
+    '  inspect.relationship("UserPost")',
+    '  inspect.workflow("CreateUser")',
+    '  inspect.schema("User")',
+    '',
+    '⚡ BATCH OPERATIONS:',
+    '  batch(',
+    '    "entity User { name String }",',
+    '    "entity Post { title String }",',
+    '    "relationship UserPost contains (User, Post)"',
+    '  )',
+    '',
+    '💡 TIPS:',
+    '  • Braces {} are optional in string definitions',
+    '  • Use @one_one, @one_many for relationship cardinality',
+    '  • Use ? for query fields in workflows (e.g., id?)',
+    '  • Use Tab for auto-completion',
+    '  • Use arrow keys for history',
+    '  • Type help() in REPL for Deno commands',
+    '  • close() or Ctrl+C to exit',
+    '',
+    'Type help() to see this again.',
+    '`);',
+    '};',
+    '',
+    '// Show initial help',
+    'console.log("\\n✨ AgentLang Enhanced REPL ready!");',
+    'console.log("Type help() for usage examples\\n");',
+    '',
+    '// Export everything to global scope',
+    'globalThis.close = close;',
+    'globalThis.help = help;',
+    'globalThis.processAgentlang = processAgentlang;',
+    'globalThis.getEntity = getEntity;',
+    'globalThis.addEntity = addEntity;',
+    'globalThis.removeEntity = removeEntity;',
+    'globalThis.getRecord = getRecord;',
+    'globalThis.addRecord = addRecord;',
+    'globalThis.removeRecord = removeRecord;',
+    'globalThis.getEntrySchema = getEntrySchema;',
+    'globalThis.getRelationship = getRelationship;',
+    'globalThis.addRelationship = addRelationship;',
+    'globalThis.removeRelationship = removeRelationship;',
+    'globalThis.getWorkflow = getWorkflow;',
+    'globalThis.addWorkflow = addWorkflow;',
+    'globalThis.removeWorkflow = removeWorkflow;',
+    'globalThis.getEvent = getEvent;',
+    'globalThis.addEvent = addEvent;',
+    'globalThis.removeEvent = removeEvent;',
+    'globalThis.addModule = addModule;',
+    'globalThis.getActiveModuleName = getActiveModuleName;',
+    'globalThis.fetchModule = fetchModule;',
+    'globalThis.removeModule = removeModule;',
+    'globalThis.getModuleNames = getModuleNames;',
+    'globalThis.getUserModuleNames = getUserModuleNames;',
+    'globalThis.ApplicationSpec = ApplicationSpec;',
+  ];
 
-// Create a minimal process object with common properties
-globalThis.process = {
-  env: Deno.env.toObject(),
-  cwd: () => Deno.cwd(),
-  stdout: Deno.stdout,
-  stderr: Deno.stderr,
-  platform: Deno.build.os
-};
-
-// Import AgentLang runtime functions from module path
-const { getEntity, addEntity, removeEntity, getRecord, addRecord, removeRecord, 
-        getEntrySchema, getRelationship, addRelationship, removeRelationship,
-        getWorkflow, addWorkflow, removeWorkflow, getEvent, addEvent, removeEvent,
-        addModule, getActiveModuleName, fetchModule, removeModule, getModuleNames,
-        getUserModuleNames } = await import("${modulePath}");
-
-// Add close function to properly exit the REPL with a single command
-const close = () => {
-  console.log('Exiting REPL...');
-  if (typeof globalThis.exitRepl === 'function') {
-    globalThis.exitRepl();
-    return 'Shutting down REPL and cleaning up resources...';
-  } else {
-    console.log('Using fallback exit method');
-    Deno.exit(0);
-    return 'Exiting...'; // This won't actually execute due to Deno.exit(0)
-  }
-};
-
-// Import loader functions
-const { load, ApplicationSpec } = await import("${loaderPath}");
-
-// Load the application
-console.log(\`Loading application: ${appPath}\`);
-
-// Load the application with the specified path
-await load(
-  "${appPath}",
-  (appSpec) => {
-    console.log('Application loaded successfully');
-    globalThis.appSpec = appSpec;
-  }
-);
-
-console.log('AgentLang functions loaded. Type help() for available commands.');
-
-// Helper function to display available commands
-const help = () => {
-  console.log(\`
-AgentLang REPL Help
-
-Entity operations:
-  addEntity(entity)
-  getEntity(name, module?)
-  removeEntity(name, module?)
-
-Record operations:
-  addRecord(record)
-  getRecord(id, module?)
-  getEntrySchema(name, module?)
-  removeRecord(id, module?)
-
-Relationship operations:
-  addRelationship(relationship)
-  getRelationship(name, module?)
-  removeRelationship(name, module?)
-
-Workflow operations:
-  addWorkflow(workflow)
-  getWorkflow(name, module?)
-  removeWorkflow(name, module?)
-
-Event operations:
-  addEvent(event)
-  getEvent(name, module?)
-  removeEvent(name, module?)
-
-Module operations:
-  addModule(name)
-  getActiveModuleName()
-  fetchModule(name)
-  removeModule(name)
-  getModuleNames()
-  getUserModuleNames()
-
-REPL operations:
-  close() - Exit the REPL cleanly
-\`);
-};
-
-// Export the necessary functions and variables as global bindings
-globalThis.close = close;
-globalThis.help = help;
-globalThis.getEntity = getEntity;
-globalThis.addEntity = addEntity;
-globalThis.removeEntity = removeEntity;
-globalThis.getRecord = getRecord;
-globalThis.addRecord = addRecord;
-globalThis.removeRecord = removeRecord;
-globalThis.getEntrySchema = getEntrySchema;
-globalThis.getRelationship = getRelationship;
-globalThis.addRelationship = addRelationship;
-globalThis.removeRelationship = removeRelationship;
-globalThis.getWorkflow = getWorkflow;
-globalThis.addWorkflow = addWorkflow;
-globalThis.removeWorkflow = removeWorkflow;
-globalThis.getEvent = getEvent;
-globalThis.addEvent = addEvent;
-globalThis.removeEvent = removeEvent;
-globalThis.addModule = addModule;
-globalThis.getActiveModuleName = getActiveModuleName;
-globalThis.fetchModule = fetchModule;
-globalThis.removeModule = removeModule;
-globalThis.getModuleNames = getModuleNames;
-globalThis.getUserModuleNames = getUserModuleNames;
-globalThis.ApplicationSpec = ApplicationSpec;
-`;
+  const initCode = initCodeLines.join('\n');
 
   // Write initialization code to the temporary file
   await Deno.writeTextFile(tempFile, initCode);
@@ -503,7 +962,7 @@ function setupFileWatcher(appFile: string): void {
       for await (const event of watcher) {
         // Skip files and directories that match the skip patterns
         const eventPaths = Array.from(event.paths);
-        if (eventPaths.some(path => skipPatterns.some(pattern => pattern.test(path)))) {
+        if (eventPaths.some((path: string) => skipPatterns.some(pattern => pattern.test(path)))) {
           continue;
         }
 
@@ -515,7 +974,7 @@ function setupFileWatcher(appFile: string): void {
         // Filter for relevant file extensions
         const relevantExtensions = ['.al', '.json', '.ts', '.js'];
 
-        if (eventPaths.some(path => relevantExtensions.some(ext => path.endsWith(ext)))) {
+        if (eventPaths.some((path: string) => relevantExtensions.some(ext => path.endsWith(ext)))) {
           console.log(`File change detected: ${eventPaths.join(', ')}`);
           debouncedRestart();
         }
