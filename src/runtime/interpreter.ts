@@ -17,6 +17,7 @@ import {
   LogicalExpression,
   OrAnd,
   Pattern,
+  Purge,
   RelationshipPattern,
   SetAttribute,
   Statement,
@@ -452,6 +453,8 @@ async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
     await evaluateIf(pat.if, env);
   } else if (pat.delete != undefined) {
     await evaluateDelete(pat.delete, env);
+  } else if (pat.purge != undefined) {
+    await evaluatePurge(pat.purge, env);
   } else if (pat.upsert != undefined) {
     await evaluateUpsert(pat.upsert, env);
   }
@@ -700,9 +703,13 @@ async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
   }
 }
 
-async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> {
+async function evaluateDeleteHelper(
+  pattern: Pattern,
+  purge: boolean,
+  env: Environment
+): Promise<void> {
   const newEnv = Environment.from(env).setInDeleteMode(true);
-  await evaluatePattern(delStmt.pattern, newEnv);
+  await evaluatePattern(pattern, newEnv);
   const inst: Instance[] | Instance = newEnv.getLastResult();
   let resolver: Resolver = Resolver.Default;
   if (inst instanceof Array) {
@@ -710,7 +717,7 @@ async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> 
       resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, newEnv);
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
-        const r: any = await resolver.deleteInstance(inst[i]);
+        const r: any = await resolver.deleteInstance(inst[i], purge);
         finalResult.push(r);
       }
       newEnv.setLastResult(finalResult);
@@ -719,9 +726,18 @@ async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> 
     }
   } else {
     resolver = await getResolverForPath(inst.name, inst.moduleName, newEnv);
-    const r: Instance | null = await resolver.deleteInstance(inst);
+    const r: Instance | null = await resolver.deleteInstance(inst, purge);
     newEnv.setLastResult(r);
   }
+  env.setLastResult(newEnv.getLastResult());
+}
+
+async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> {
+  await evaluateDeleteHelper(delStmt.pattern, false, env);
+}
+
+async function evaluatePurge(purgeStmt: Purge, env: Environment): Promise<void> {
+  await evaluateDeleteHelper(purgeStmt.pattern, true, env);
 }
 
 async function evaluateLogicalExpression(

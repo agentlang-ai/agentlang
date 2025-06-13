@@ -54,7 +54,7 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 
 WorkflowDefinition: 'workflow' name=ID Body;
 
-Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | upsert=Upsert;
+Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | upsert=Upsert;
 
 Statement: pattern=Pattern ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*)+ ']'))? throws=Throws?;
 
@@ -78,6 +78,8 @@ Else: 'else' Body;
 ForEach: 'for' var=ID 'in' src=Pattern Body;
 
 Delete: 'delete' pattern=Pattern;
+
+Purge: 'purge' pattern=Pattern;
 
 Upsert: 'upsert' pattern=CrudMap;
 

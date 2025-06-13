@@ -60,6 +60,7 @@ export type AgentlangKeywordNames =
     | "module"
     | "not_found"
     | "or"
+    | "purge"
     | "read"
     | "record"
     | "relationship"
@@ -460,13 +461,14 @@ export function isOrAnd(item: unknown): item is OrAnd {
 }
 
 export interface Pattern extends langium.AstNode {
-    readonly $container: Delete | ForEach | RelationshipPattern | Statement;
+    readonly $container: Delete | ForEach | Purge | RelationshipPattern | Statement;
     readonly $type: 'Pattern';
     crudMap?: CrudMap;
     delete?: Delete;
     forEach?: ForEach;
     if?: If;
     literal?: Literal;
+    purge?: Purge;
     upsert?: Upsert;
 }
 
@@ -487,6 +489,18 @@ export const PropertyDefinition = 'PropertyDefinition';
 
 export function isPropertyDefinition(item: unknown): item is PropertyDefinition {
     return reflection.isInstance(item, PropertyDefinition);
+}
+
+export interface Purge extends langium.AstNode {
+    readonly $container: Pattern;
+    readonly $type: 'Purge';
+    pattern: Pattern;
+}
+
+export const Purge = 'Purge';
+
+export function isPurge(item: unknown): item is Purge {
+    return reflection.isInstance(item, Purge);
 }
 
 export interface RbacAllowSpec extends langium.AstNode {
@@ -754,6 +768,7 @@ export type AgentlangAstType = {
     Pattern: Pattern
     PrimExpr: PrimExpr
     PropertyDefinition: PropertyDefinition
+    Purge: Purge
     QueryAllPattern: QueryAllPattern
     RbacAllowSpec: RbacAllowSpec
     RbacExpressionSpec: RbacExpressionSpec
@@ -778,7 +793,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, ModuleDefinition, NegExpr, NodeDefinition, OrAnd, Pattern, PrimExpr, PropertyDefinition, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Upsert, WorkflowDefinition];
+        return [ArrayLiteral, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, ModuleDefinition, NegExpr, NodeDefinition, OrAnd, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1053,6 +1068,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'forEach' },
                         { name: 'if' },
                         { name: 'literal' },
+                        { name: 'purge' },
                         { name: 'upsert' }
                     ]
                 };
@@ -1063,6 +1079,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'name' },
                         { name: 'value' }
+                    ]
+                };
+            }
+            case Purge: {
+                return {
+                    name: Purge,
+                    properties: [
+                        { name: 'pattern' }
                     ]
                 };
             }

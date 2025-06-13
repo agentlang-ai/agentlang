@@ -23,6 +23,16 @@ workflow CreateUser {
          lastName CreateUser.lastName}}
 }
 
+workflow FindUser {
+  {User {id? FindUser.id}} as [user];
+  user
+}
+
+workflow FindUserByEmail {
+  {User {email? FindUser.email}} as [user];
+  user
+}
+
 entity Role {
     name String @id
 }
@@ -39,12 +49,6 @@ entity Permission {
 }
 
 relationship RolePermission between(Role, Permission)
-
-workflow CreateUser {
-    {User {email CreateUser.email,
-           firstName CreateUser.firstName,
-           lastName CreateUser.lastName}}
-}
 
 workflow CreateRole {
     upsert {Role {name CreateRole.name}}
@@ -86,6 +90,30 @@ workflow FindRolePermissions {
     {Role {name? FindRolePermissions.role},
      RolePermission {Permission? {}}}
 }
+
+entity Session {
+  id UUID @id,
+  userId UUID @indexed,
+  isActive Boolean
+}
+
+workflow CreateSession {
+  {Session {id CreateSession.id, userId CreateSession.userId, isActive true}}
+}
+
+workflow FindSession {
+  {Session {id? FindSession.id}} as [session];
+  session
+}
+
+workflow FindUserSession {
+  {Session {userId? FindUserSession.id}} as [session];
+  session
+}
+
+workflow RemoveSession {
+  purge {Session {id? RemoveSession.id}}
+}
 `;
 
 export default moduleDef;
@@ -112,6 +140,101 @@ export async function createUser(
       email: email,
       firstName: firstName,
       lastName: lastName,
+    },
+    env
+  );
+}
+
+export async function findUser(id: string, env?: Environment): Promise<Result> {
+  if (!env) {
+    env = new Environment();
+  }
+  return await evalEvent(
+    'FindUser',
+    {
+      id: id,
+    },
+    env
+  );
+}
+
+export async function findUserByEmail(email: string, env?: Environment): Promise<Result> {
+  if (!env) {
+    env = new Environment();
+  }
+  return await evalEvent(
+    'FindUserByEmail',
+    {
+      email: email,
+    },
+    env
+  );
+}
+
+export async function ensureUser(email: string, firstName: string, lastName: string) {
+  const env: Environment = new Environment();
+  const user = await findUserByEmail(email, env);
+  if (user) {
+    return user;
+  }
+  return await env.callInTransaction(async () => {
+    return await createUser(crypto.randomUUID(), email, firstName, lastName, env);
+  });
+}
+
+export async function ensureUserSession(userId: string) {
+  const env: Environment = new Environment();
+  return await env.callInTransaction(async () => {
+    const sess = await findUserSession(userId, env);
+    if (sess) {
+      await removeSession(sess.id, env);
+    }
+    return createSession(crypto.randomUUID(), userId, env);
+  });
+}
+
+export async function createSession(id: string, userId: string, env: Environment): Promise<Result> {
+  return await evalEvent(
+    'CreateSession',
+    {
+      id: id,
+      userId: userId,
+    },
+    env
+  );
+}
+
+export async function findSession(id: string, env: Environment): Promise<Result> {
+  return await evalEvent(
+    'FindSession',
+    {
+      id: id,
+    },
+    env
+  );
+}
+
+export async function findUserSession(userId: string, env?: Environment): Promise<Result> {
+  if (!env) {
+    env = new Environment();
+  }
+  return await evalEvent(
+    'FindUserSession',
+    {
+      userId: userId,
+    },
+    env
+  );
+}
+
+export async function removeSession(id: string, env?: Environment): Promise<Result> {
+  if (!env) {
+    env = new Environment();
+  }
+  return await evalEvent(
+    'RemoveSession',
+    {
+      id: id,
     },
     env
   );
