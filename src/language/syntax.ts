@@ -347,14 +347,28 @@ export class ForEachPattern extends BasePattern {
     this.body = [];
   }
 
-  addPattern(p: BasePattern) {
+  addPattern(p: BasePattern): ForEachPattern {
     this.body.push(p);
     return this;
   }
 
-  removePattern(index: number) {
+  removePattern(index: number): ForEachPattern {
     this.body.splice(index, 1);
     return this;
+  }
+
+  setPatternAt(p: BasePattern, index: number): ForEachPattern {
+    this.body[index] = p;
+    return this;
+  }
+
+  removePatternAt(index: number): ForEachPattern {
+    this.body.splice(index, 1);
+    return this;
+  }
+
+  getPatternAt(index: number): BasePattern {
+    return this.body[index];
   }
 
   setVariable(s: string): ForEachPattern {
@@ -395,14 +409,28 @@ export class IfPattern extends BasePattern {
     this.body = [];
   }
 
-  addPattern(p: BasePattern) {
+  addPattern(p: BasePattern): IfPattern {
     this.body.push(p);
     return this;
   }
 
-  removePattern(index: number) {
+  removePattern(index: number): IfPattern {
     this.body.splice(index, 1);
     return this;
+  }
+
+  setPatternAt(p: BasePattern, index: number): IfPattern {
+    this.body[index] = p;
+    return this;
+  }
+
+  removePatternAt(index: number): IfPattern {
+    this.body.splice(index, 1);
+    return this;
+  }
+
+  getPatternAt(index: number): BasePattern {
+    return this.body[index];
   }
 
   setConditionPattern(p: BasePattern): IfPattern {
@@ -490,10 +518,89 @@ export function newDeletePattern(recName: string): DeletePattern {
   return new DeletePattern(qp);
 }
 
-function patternsToString(body: BasePattern[], sep = ';'): string {
-  const pats: Array<string> = [];
-  body.forEach((p: BasePattern) => {
-    pats.push(p.toString());
-  });
-  return pats.join(sep);
+function patternsToString(body: BasePattern[], sep = ';\n'): string {
+  return body
+    .map((p: BasePattern) => {
+      return p.toString();
+    })
+    .join(sep);
+}
+
+export class MutableWorkflow {
+  name: string;
+  patterns: BasePattern[];
+
+  constructor(name: string) {
+    this.name = name;
+    this.patterns = [];
+  }
+
+  addPattern(p: BasePattern): MutableWorkflow {
+    this.patterns.push(p);
+    return this;
+  }
+
+  setPatternAt(pattern: BasePattern, index: number | number[]): MutableWorkflow {
+    if (index instanceof Array) {
+      if (index.length == 1) {
+        return this.setPatternAt(pattern, index[0]);
+      }
+      let p = this.patterns[index[0]];
+      const isFe = isForEachPattern(p);
+      const isIf = isIfPattern(p);
+      if (isFe || isIf) {
+        for (let i = 1; i < index.length; ++i) {
+          const add = i == index.length - 1;
+          const idx = index[i];
+          if (isForEachPattern(p)) {
+            if (add) (p as ForEachPattern).setPatternAt(pattern, idx);
+            else p = (p as ForEachPattern).getPatternAt(idx);
+          } else if (isIfPattern(p)) {
+            if (add) (p as IfPattern).setPatternAt(pattern, idx);
+            else p = (p as IfPattern).getPatternAt(idx);
+          } else {
+            throw new Error('Cannot dig further into statements');
+          }
+        }
+      }
+      return this;
+    } else {
+      this.patterns[index] = pattern;
+    }
+    return this;
+  }
+
+  removePatternAt(index: number | number[]): MutableWorkflow {
+    if (index instanceof Array) {
+      if (index.length == 1) {
+        return this.removePatternAt(index[0]);
+      }
+      let p = this.patterns[index[0]];
+      const isFe = isForEachPattern(p);
+      const isIf = isIfPattern(p);
+      if (isFe || isIf) {
+        for (let i = 1; i < index.length; ++i) {
+          const remove = i == index.length - 1;
+          const idx = index[i];
+          if (isForEachPattern(p)) {
+            if (remove) (p as ForEachPattern).removePatternAt(idx);
+            else p = (p as ForEachPattern).getPatternAt(idx);
+          } else if (isIfPattern(p)) {
+            if (remove) (p as IfPattern).removePatternAt(idx);
+            else p = (p as IfPattern).getPatternAt(idx);
+          } else {
+            throw new Error('Cannot dig further into statements');
+          }
+        }
+      }
+      return this;
+    } else {
+      this.patterns.splice(index, 1);
+    }
+    return this;
+  }
+
+  toString(): string {
+    return `workflow ${this.name} {${patternsToString(this.patterns)}}`;
+  }
 }

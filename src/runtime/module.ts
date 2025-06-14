@@ -20,7 +20,6 @@ import {
   makeFqName,
   DefaultModuleName,
 } from './util.js';
-import { parseStatement } from '../language/parser.js';
 
 export class ModuleEntry {
   name: string;
@@ -675,46 +674,6 @@ export class Workflow extends ModuleEntry {
     const ss = this.statementsToStrings();
     s = s.concat(ss.join(';\n'));
     return s.concat('\n}');
-  }
-
-  async addStatement(stmt: string): Promise<Workflow> {
-    const result: Statement = await parseStatement(stmt);
-    this.statements.push(result);
-    return this;
-  }
-
-  async setStatementAt(stmt: string, index: number): Promise<Workflow> {
-    const result: Statement = await parseStatement(stmt);
-    this.statements[index] = result;
-    return this;
-  }
-
-  removeStatemtAt(index: number | number[]): Workflow {
-    if (index instanceof Array) {
-      if (index.length == 1) {
-        return this.removeStatemtAt(index[0]);
-      }
-      let stmt = this.statements[index[0]];
-      if (stmt.pattern.forEach || stmt.pattern.if) {
-        for (let i = 1; i < index.length; ++i) {
-          const remove = i == index.length - 1;
-          const idx = index[i];
-          if (stmt.pattern.forEach) {
-            if (remove) stmt.pattern.forEach.statements.splice(idx, 1);
-            else stmt = stmt.pattern.forEach.statements[idx];
-          } else if (stmt.pattern.if) {
-            if (remove) stmt.pattern.if.statements.splice(idx, 1);
-            else stmt = stmt.pattern.if.statements[idx];
-          } else {
-            throw new Error('Cannot dig further into statements');
-          }
-        }
-      }
-      return this;
-    } else {
-      this.statements.splice(index, 1);
-      return this;
-    }
   }
 }
 
