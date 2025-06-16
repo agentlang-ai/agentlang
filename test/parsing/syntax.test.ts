@@ -9,6 +9,7 @@ import {
   IfPattern,
   isCreatePattern,
   isQueryPattern,
+  isQueryUpdatePattern,
   LiteralPattern,
   LiteralPatternType,
   ReferencePattern,
@@ -17,6 +18,15 @@ import { introspect } from '../../src/language/parser.js';
 
 describe('Pattern generation using the syntax API', () => {
   test('check pattern generation', async () => {
+    const crud0: CrudPattern = new CrudPattern('User?');
+    assert(crud0.toString() == '{User? {}}')
+    assert(isQueryPattern(crud0))
+    crud0.addAttribute('email', new LiteralPattern(LiteralPatternType.STRING, "joe@acme.com"))
+    assert(crud0.toString() == '{User {email "joe@acme.com"}}')
+    assert(isCreatePattern(crud0))
+    crud0.addAttribute('age?', new LiteralPattern(LiteralPatternType.NUMBER, 18), '>')
+    assert(crud0.toString() == '{User {email "joe@acme.com", age?> 18}}')
+    assert(isQueryUpdatePattern(crud0))
     const crud1: CrudPattern = new CrudPattern('Acme/Employee');
     crud1
       .addAttribute('firstName', new ReferencePattern('CreateEmployee', 'firstName'))
