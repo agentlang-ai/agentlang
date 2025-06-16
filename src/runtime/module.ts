@@ -767,7 +767,7 @@ export class Workflow extends ModuleEntry {
     return ss;
   }
 
-  statementToStrings(): string[] {
+  statementsToStrings(): string[] {
     return this.statementsToStringsHelper(this.statements);
   }
 
