@@ -739,25 +739,25 @@ export class Workflow extends ModuleEntry {
     return this;
   }
 
-  statementsToStrings(statements: Statement[]): string[] {
+  private statementsToStringsHelper(statements: Statement[]): string[] {
     const ss: Array<string> = [];
     statements.forEach((stmt: Statement) => {
       if (stmt.pattern.forEach) {
         ss.push(`   for ${stmt.pattern.forEach.var} in ${stmt.pattern.forEach.src.$cstNode?.text} {
-        ${joinStatements(this.statementsToStrings(stmt.pattern.forEach.statements))}
+        ${joinStatements(this.statementsToStringsHelper(stmt.pattern.forEach.statements))}
     }`);
       } else if (stmt.pattern.if) {
         ss.push(`   if (${stmt.pattern.if.cond.$cstNode?.text}) {
-        ${joinStatements(this.statementsToStrings(stmt.pattern.if.statements))}
+        ${joinStatements(this.statementsToStringsHelper(stmt.pattern.if.statements))}
     }`);
         if (stmt.pattern.if.elseif) {
           ss.push(` else if (${stmt.pattern.if.elseif.cond.$cstNode?.text}) {
-            ${joinStatements(this.statementsToStrings(stmt.pattern.if.elseif.statements))}
+            ${joinStatements(this.statementsToStringsHelper(stmt.pattern.if.elseif.statements))}
     }`);
         }
         if (stmt.pattern.if.else) {
           ss.push(` else {
-            ${joinStatements(this.statementsToStrings(stmt.pattern.if.else.statements))}
+            ${joinStatements(this.statementsToStringsHelper(stmt.pattern.if.else.statements))}
     }`);
         }
       } else if (stmt.$cstNode) {
@@ -767,9 +767,13 @@ export class Workflow extends ModuleEntry {
     return ss;
   }
 
+  statementToStrings(): string[] {
+    return this.statementsToStringsHelper(this.statements);
+  }
+
   override toString() {
     let s: string = `workflow ${normalizeWorkflowName(this.name)} {\n`;
-    const ss = this.statementsToStrings(this.statements);
+    const ss = this.statementsToStringsHelper(this.statements);
     s = s.concat(joinStatements(ss));
     return s.concat('\n}');
   }
