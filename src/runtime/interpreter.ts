@@ -892,6 +892,7 @@ async function applyFn(fnCall: FnCall, env: Environment, isAsync: boolean): Prom
         await evaluateLiteral(fnCall.args[i], env);
         args.push(env.getLastResult());
       }
+      args.push(env);
     }
     const r: Result = await invokeModuleFn(fnName, args, isAsync);
     env.setLastResult(r);

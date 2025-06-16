@@ -98,11 +98,13 @@ workflow FindRolePermissions {
 entity Session {
   id UUID @id,
   userId UUID @indexed,
+  authToken String @optional,
   isActive Boolean
 }
 
 workflow CreateSession {
-  {Session {id CreateSession.id, userId CreateSession.userId, isActive true}}
+  {Session {id CreateSession.id, userId CreateSession.userId,
+            authToken CreateSession.authToken, isActive true}}
 }
 
 workflow FindSession {
@@ -135,6 +137,9 @@ async function evalEvent(
   attrs: Array<any> | object,
   env: Environment
 ): Promise<Result> {
+  if (!env) {
+    env = new Environment();
+  }
   return await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, AdminUserId, env, true);
 }
 
@@ -157,10 +162,7 @@ export async function createUser(
   );
 }
 
-export async function findUser(id: string, env?: Environment): Promise<Result> {
-  if (!env) {
-    env = new Environment();
-  }
+export async function findUser(id: string, env: Environment): Promise<Result> {
   return await evalEvent(
     'FindUser',
     {
@@ -170,10 +172,7 @@ export async function findUser(id: string, env?: Environment): Promise<Result> {
   );
 }
 
-export async function findUserByEmail(email: string, env?: Environment): Promise<Result> {
-  if (!env) {
-    env = new Environment();
-  }
+export async function findUserByEmail(email: string, env: Environment): Promise<Result> {
   return await evalEvent(
     'FindUserByEmail',
     {
@@ -183,34 +182,39 @@ export async function findUserByEmail(email: string, env?: Environment): Promise
   );
 }
 
-export async function ensureUser(email: string, firstName: string, lastName: string) {
-  const env: Environment = new Environment();
+export async function ensureUser(
+  email: string,
+  firstName: string,
+  lastName: string,
+  env: Environment
+) {
   const user = await findUserByEmail(email, env);
   if (user) {
     return user;
   }
-  return await env.callInTransaction(async () => {
-    return await createUser(crypto.randomUUID(), email, firstName, lastName, env);
-  });
+  return await createUser(crypto.randomUUID(), email, firstName, lastName, env);
 }
 
-export async function ensureUserSession(userId: string) {
-  const env: Environment = new Environment();
-  return await env.callInTransaction(async () => {
-    const sess = await findUserSession(userId, env);
-    if (sess) {
-      await removeSession(sess.id, env);
-    }
-    return createSession(crypto.randomUUID(), userId, env);
-  });
+export async function ensureUserSession(userId: string, token: string, env: Environment) {
+  const sess: Instance = await findUserSession(userId, env);
+  if (sess) {
+    await removeSession(sess.lookup('id'), env);
+  }
+  return await createSession(crypto.randomUUID(), userId, token, env);
 }
 
-export async function createSession(id: string, userId: string, env: Environment): Promise<Result> {
+export async function createSession(
+  id: string,
+  userId: string,
+  token: string,
+  env: Environment
+): Promise<Result> {
   return await evalEvent(
     'CreateSession',
     {
       id: id,
       userId: userId,
+      authToken: token,
     },
     env
   );
@@ -226,10 +230,7 @@ export async function findSession(id: string, env: Environment): Promise<Result>
   );
 }
 
-export async function findUserSession(userId: string, env?: Environment): Promise<Result> {
-  if (!env) {
-    env = new Environment();
-  }
+export async function findUserSession(userId: string, env: Environment): Promise<Result> {
   return await evalEvent(
     'FindUserSession',
     {
@@ -239,10 +240,7 @@ export async function findUserSession(userId: string, env?: Environment): Promis
   );
 }
 
-export async function removeSession(id: string, env?: Environment): Promise<Result> {
-  if (!env) {
-    env = new Environment();
-  }
+export async function removeSession(id: string, env: Environment): Promise<Result> {
   return await evalEvent(
     'RemoveSession',
     {
@@ -450,13 +448,15 @@ const runtimeAuth: AgentlangAuth = new CognitoAuth();
 export async function signUpUser(
   username: string,
   password: string,
-  userData: object
+  userData: object,
+  env: Environment
 ): Promise<UserInfo> {
   let result: any;
   await runtimeAuth.signUp(
     username,
     password,
     new Map(Object.entries(userData)),
+    env,
     (userInfo: UserInfo) => {
       result = userInfo;
     }
@@ -464,10 +464,24 @@ export async function signUpUser(
   return result as UserInfo;
 }
 
-export async function loginUser(username: string, password: string): Promise<string> {
+export async function loginUser(
+  username: string,
+  password: string,
+  env: Environment
+): Promise<string> {
   let result: string = '';
-  await runtimeAuth.login(username, password, (r: SessionInfo) => {
-    result = r.authToken;
+  await runtimeAuth.login(username, password, env, (r: SessionInfo) => {
+    result = `${r.userId}/${r.sessionId}`;
   });
   return result;
+}
+
+export async function verifySession(cookieData: string, env: Environment) {
+  const sessId = cookieData.split('/')[1];
+  const sess: Instance = await findSession(sessId, env);
+  if (sess) {
+    await runtimeAuth.verifyToken(sess.lookup('id'), env);
+  } else {
+    throw new Error(`No active session for ${cookieData}`);
+  }
 }
