@@ -1,12 +1,4 @@
 import {
-  CognitoUserPool,
-  CognitoUserAttribute,
-  ICognitoUserPoolData,
-  CognitoUser,
-  AuthenticationDetails,
-  CognitoUserSession,
-} from 'amazon-cognito-identity-js';
-import {
   AgentlangAuth,
   LoginCallback,
   LogoutCallback,
@@ -15,6 +7,12 @@ import {
   UserInfo,
 } from './interface.js';
 import {
+  CognitoIdentityProviderClient,
+  SignUpCommand,
+  SignUpCommandOutput,
+} from '@aws-sdk/client-cognito-identity-provider';
+import { fromEnv } from '@aws-sdk/credential-providers';
+import {
   ensureUser,
   ensureUserSession,
   findUser,
@@ -22,33 +20,30 @@ import {
   findUserSession,
   removeSession,
 } from '../modules/auth.js';
-import { CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
-import { fromEnv } from '@aws-sdk/credential-providers';
-/*import { fromEnv } from "@aws-sdk/credential-providers";
-import { AdminGetUserCommand, CognitoIdentityProviderClient } from "@aws-sdk/client-cognito-identity-provider";*/
+import {
+  AuthenticationDetails,
+  CognitoUser,
+  CognitoUserPool,
+  CognitoUserSession,
+} from 'amazon-cognito-identity-js';
+import { logger } from '../logger.js';
+import { sleepMilliseconds } from '../util.js';
 
-const poolData = {
-  UserPoolId: process.env.COGNITO_USER_POOL_ID,
-  ClientId: process.env.COGNITO_CLIENT_ID,
-};
+const defaultConfig = new Map<string, string | undefined>()
+  .set('UserPoolId', process.env.COGNITO_USER_POOL_ID)
+  .set('ClientId', process.env.COGNITO_CLIENT_ID);
 
 export class CognitoAuth implements AgentlangAuth {
-  private userPool: CognitoUserPool | undefined;
-
-  constructor(config?: Map<string, any>) {
-    const pd = config ? config.get('cognito') : poolData;
-    if (pd.UserPoolId && pd.ClientId) {
-      this.userPool = new CognitoUserPool(pd as ICognitoUserPoolData);
-    }
-  }
-
-  private static DefaultValidationAttributes = new Array<CognitoUserAttribute>();
-
-  private fetchUserPool(): CognitoUserPool {
-    if (!this.userPool) {
-      throw new Error(`User-pool not inited`);
-    }
-    return this.userPool;
+  config: Map<string, string | undefined>;
+  userPool: CognitoUserPool | undefined;
+  constructor(config?: Map<string, string>) {
+    this.config = config ? config : defaultConfig;
+    const upid = this.config.get('UserPoolId');
+    if (upid)
+      this.userPool = new CognitoUserPool({
+        UserPoolId: this.config.get('UserPoolId') || '',
+        ClientId: this.config.get('ClientId') || '',
+      });
   }
 
   async signUp(
@@ -57,56 +52,47 @@ export class CognitoAuth implements AgentlangAuth {
     userData: Map<string, string>,
     cb: SignUpCallback
   ): Promise<void> {
-    const client = new CognitoIdentityProviderClient({ region: "us-west-2", credentials: fromEnv() });
-  const input = { // AdminGetUserRequest
-    UserPoolId: "us-west-2_Piy14iUPZ", // required
-    Username: "vijay@fractl.io", // required
-  };
-  const command = new AdminGetUserCommand(input);
-  const response = await client.send(command);
-  console.log(response)
-    /*const attributeList = userDataAsCognitoAttributes(userData.set('email', username)
-      .set('name.formatted', username));
-    let cognitoUser: CognitoUser | undefined;
-    const userPool: CognitoUserPool = this.fetchUserPool();
-    userPool.signUp(
-      username,
-      password,
-      attributeList,
-      CognitoAuth.DefaultValidationAttributes,
-      (err: any, result: any) => {
-        if (err) {
-          throw new Error(`Failed to signup ${username} - ${err}`);
-        }
-        if (result) {
-          cognitoUser = result.user;
-          console.log('User registered:', cognitoUser);
-        } else {
-          throw new Error(`Failed to signup ${username}`);
-        }
-      }
-    );
-    if (cognitoUser) {
-      const user = await ensureUser(
-        cognitoUser.getUsername(),
-        findAttributeValue(attributeList, 'firstName', ''),
-        findAttributeValue(attributeList, 'lastName', '')
-      );
+    const client = new CognitoIdentityProviderClient({
+      region: 'us-west-2',
+      credentials: fromEnv(),
+    });
+    const userAttrs = [
+      {
+        Name: 'email',
+        Value: username,
+      },
+      {
+        Name: 'name',
+        Value: username,
+      },
+    ];
+    const input = {
+      ClientId: this.config.get('ClientId'),
+      Username: username,
+      Password: password,
+      UserAttributes: userAttrs,
+      ValidationData: userAttrs,
+    };
+    const command = new SignUpCommand(input);
+    const response: SignUpCommandOutput = await client.send(command);
+    if (response.$metadata.httpStatusCode == 200) {
+      const user = await ensureUser(username, '', '');
       const userInfo: UserInfo = {
         username: username,
         id: user.id,
-        systemUserInfo: cognitoUser,
+        systemUserInfo: response.UserSub,
       };
       cb(userInfo);
     } else {
-      console.log(`Failed to signup ${username}`);
-    }*/
+      throw new Error(`Signup failed with status ${response.$metadata.httpStatusCode}`);
+    }
   }
 
   async login(username: string, password: string, cb: LoginCallback): Promise<void> {
-    const localUser = await findUserByEmail(username);
+    let localUser = await findUserByEmail(username);
     if (!localUser) {
-      throw new Error(`User not found ${username}`);
+      logger.warn(`User ${username} not found in local store`);
+      localUser = await ensureUser(username, '', '');
     }
     const user = new CognitoUser({
       Username: username,
@@ -117,7 +103,7 @@ export class CognitoAuth implements AgentlangAuth {
       Password: password,
     });
     let result: CognitoUserSession | undefined;
-    await user.authenticateUser(authDetails, {
+    user.authenticateUser(authDetails, {
       onSuccess: session => {
         result = session;
       },
@@ -125,6 +111,9 @@ export class CognitoAuth implements AgentlangAuth {
         throw new Error(`Authentication failed for ${username} - ${err}`);
       },
     });
+    while (result == undefined) {
+      await sleepMilliseconds(100);
+    }
     if (result) {
       const localSess = await ensureUserSession(localUser.id);
       const sessInfo: SessionInfo = {
@@ -135,7 +124,7 @@ export class CognitoAuth implements AgentlangAuth {
       };
       cb(sessInfo);
     } else {
-      throw new Error(`Login failed for ${username}`);
+      console.log(`Login failed for ${username}`);
     }
   }
 
@@ -149,47 +138,24 @@ export class CognitoAuth implements AgentlangAuth {
       Username: localUser.email,
       Pool: this.fetchUserPool(),
     });
-    await user.signOut();
+    let done = false;
+    user.signOut(() => {
+      done = true;
+    });
+    while (!done) {
+      await sleepMilliseconds(100);
+    }
     const sess = await findUserSession(localUser.id);
     if (sess) {
       await removeSession(sess.id);
     }
     if (cb) cb(true);
   }
-}
 
-function findAttributeValue(
-  attrs: CognitoUserAttribute[],
-  name: string,
-  notFoundValue: string
-): string {
-  const ca: CognitoUserAttribute | undefined = attrs.find((ca: CognitoUserAttribute) => {
-    return ca.getName() == name;
-  });
-  if (ca) {
-    return ca.getValue();
-  } else {
-    return notFoundValue;
+  private fetchUserPool(): CognitoUserPool {
+    if (this.userPool) {
+      return this.userPool;
+    }
+    throw new Error('UserPool not initialized');
   }
 }
-
-function userDataAsCognitoAttributes(userData: Map<string, string>): CognitoUserAttribute[] {
-  const result: CognitoUserAttribute[] = [];
-  userData.forEach((v: string, k: string) => {
-    const ca = new CognitoUserAttribute({ Name: k, Value: v });
-    result.push(ca);
-  });
-  return result;
-}
-/*
-export async function congitoTest() {
-  const client = new CognitoIdentityProviderClient({ region: "us-west-2", credentials: fromEnv() });
-  const input = { // AdminGetUserRequest
-    UserPoolId: "us-west-2_Piy14iUPZ", // required
-    Username: "vijay@fractl.io", // required
-  };
-  const command = new AdminGetUserCommand(input);
-  const response = await client.send(command);
-  console.log(response)
-}
-*/

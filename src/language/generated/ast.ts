@@ -42,6 +42,7 @@ export type AgentlangKeywordNames =
     | "allow"
     | "and"
     | "as"
+    | "await"
     | "between"
     | "contains"
     | "create"
@@ -166,6 +167,18 @@ export function isArrayLiteral(item: unknown): item is ArrayLiteral {
     return reflection.isInstance(item, ArrayLiteral);
 }
 
+export interface AsyncFnCall extends langium.AstNode {
+    readonly $container: Literal;
+    readonly $type: 'AsyncFnCall';
+    fnCall: FnCall;
+}
+
+export const AsyncFnCall = 'AsyncFnCall';
+
+export function isAsyncFnCall(item: unknown): item is AsyncFnCall {
+    return reflection.isInstance(item, AsyncFnCall);
+}
+
 export interface AttributeDefinition extends langium.AstNode {
     readonly $container: RecAttrs | RelationshipDefinition;
     readonly $type: 'AttributeDefinition';
@@ -288,7 +301,7 @@ export function isExtendsClause(item: unknown): item is ExtendsClause {
 }
 
 export interface FnCall extends langium.AstNode {
-    readonly $container: Literal;
+    readonly $container: AsyncFnCall | Literal;
     readonly $type: 'FnCall';
     args: Array<Literal>;
     name: Ref | string;
@@ -383,6 +396,7 @@ export interface Literal extends langium.AstNode {
     readonly $container: BinExpr | ComparisonExpression | FnCall | Group | KvPair | LogicalExpression | NegExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
+    asyncFnCall?: AsyncFnCall;
     bool?: Boolean;
     fnCall?: FnCall;
     id?: string;
@@ -739,6 +753,7 @@ export function isQueryAllPattern(item: unknown): item is QueryAllPattern {
 
 export type AgentlangAstType = {
     ArrayLiteral: ArrayLiteral
+    AsyncFnCall: AsyncFnCall
     AttributeDefinition: AttributeDefinition
     AttributeValueExpression: AttributeValueExpression
     BinExpr: BinExpr
@@ -793,7 +808,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, ModuleDefinition, NegExpr, NodeDefinition, OrAnd, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Upsert, WorkflowDefinition];
+        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, ModuleDefinition, NegExpr, NodeDefinition, OrAnd, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -848,6 +863,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: ArrayLiteral,
                     properties: [
                         { name: 'vals', defaultValue: [] }
+                    ]
+                };
+            }
+            case AsyncFnCall: {
+                return {
+                    name: AsyncFnCall,
+                    properties: [
+                        { name: 'fnCall' }
                     ]
                 };
             }
@@ -1006,6 +1029,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Literal,
                     properties: [
                         { name: 'array' },
+                        { name: 'asyncFnCall' },
                         { name: 'bool' },
                         { name: 'fnCall' },
                         { name: 'id' },

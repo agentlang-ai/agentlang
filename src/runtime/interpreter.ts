@@ -463,7 +463,8 @@ async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
 async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
   if (lit.id != undefined) env.setLastResult(env.lookup(lit.id));
   else if (lit.ref != undefined) env.setLastResult(followReference(env, lit.ref));
-  else if (lit.fnCall != undefined) await applyFn(lit.fnCall, env);
+  else if (lit.fnCall != undefined) await applyFn(lit.fnCall, env, false);
+  else if (lit.asyncFnCall != undefined) await applyFn(lit.asyncFnCall.fnCall, env, true);
   else if (lit.array != undefined) await realizeArray(lit.array, env);
   else if (lit.num != undefined) env.setLastResult(lit.num);
   else if (lit.str != undefined) env.setLastResult(lit.str);
@@ -881,7 +882,7 @@ function followReference(env: Environment, s: string): Result {
   return result;
 }
 
-async function applyFn(fnCall: FnCall, env: Environment): Promise<void> {
+async function applyFn(fnCall: FnCall, env: Environment, isAsync: boolean): Promise<void> {
   const fnName: string | undefined = fnCall.name;
   if (fnName != undefined) {
     let args: Array<Result> | null = null;
@@ -892,7 +893,7 @@ async function applyFn(fnCall: FnCall, env: Environment): Promise<void> {
         args.push(env.getLastResult());
       }
     }
-    const r: Result = invokeModuleFn(fnName, args);
+    const r: Result = await invokeModuleFn(fnName, args, isAsync);
     env.setLastResult(r);
   }
 }

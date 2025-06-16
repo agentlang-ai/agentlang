@@ -3,7 +3,7 @@ import { logger } from '../logger.js';
 import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
-import { AgentlangAuth, UserInfo } from '../auth/interface.js';
+import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
 import { CognitoAuth } from '../auth/cognito.js';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
@@ -120,7 +120,11 @@ workflow RemoveSession {
 }
 
 workflow SignUp {
-  Auth.signUpUser(SignUp.email, SignUp.password, SignUp.userData)
+  await Auth.signUpUser(SignUp.email, SignUp.password, SignUp.userData)
+}
+
+workflow login {
+  await Auth.loginUser(login.email, login.password)
 }
 `;
 
@@ -458,4 +462,12 @@ export async function signUpUser(
     }
   );
   return result as UserInfo;
+}
+
+export async function loginUser(username: string, password: string): Promise<string> {
+  let result: string = '';
+  await runtimeAuth.login(username, password, (r: SessionInfo) => {
+    result = r.authToken;
+  });
+  return result;
 }
