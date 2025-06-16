@@ -33,7 +33,7 @@ workflow FindUser {
 }
 
 workflow FindUserByEmail {
-  {User {email? FindUser.email}} as [user];
+  {User {email? FindUserByEmail.email}} as [user];
   user
 }
 

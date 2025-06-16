@@ -91,7 +91,7 @@ export class DbContext {
 }
 
 function mkDbName(): string {
-  return `db-${Date.now()}`;
+  return process.env.AGENTLANG_DB_NAME || `db-${Date.now()}`;
 }
 
 export async function initDefaultDatabase() {

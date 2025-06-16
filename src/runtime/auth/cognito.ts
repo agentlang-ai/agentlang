@@ -28,6 +28,7 @@ import {
 } from 'amazon-cognito-identity-js';
 import { logger } from '../logger.js';
 import { sleepMilliseconds } from '../util.js';
+import { Instance } from '../module.js';
 
 const defaultConfig = new Map<string, string | undefined>()
   .set('UserPoolId', process.env.COGNITO_USER_POOL_ID)
@@ -115,10 +116,11 @@ export class CognitoAuth implements AgentlangAuth {
       await sleepMilliseconds(100);
     }
     if (result) {
-      const localSess = await ensureUserSession(localUser.id);
+      const userid = localUser.lookup('id');
+      const localSess: Instance = await ensureUserSession(userid);
       const sessInfo: SessionInfo = {
-        sessionId: localSess.id,
-        userId: localUser.id,
+        sessionId: localSess.lookup('id'),
+        userId: userid,
         authToken: result.getIdToken().getJwtToken(),
         systemSesionInfo: result,
       };
