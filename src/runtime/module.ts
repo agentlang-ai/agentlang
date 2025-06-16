@@ -19,6 +19,7 @@ import {
   isFqName,
   makeFqName,
   DefaultModuleName,
+  joinStatements,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 
@@ -660,42 +661,63 @@ export class Workflow extends ModuleEntry {
     this.statements = patterns;
   }
 
-  statementsToStrings(): string[] {
-    const ss: Array<string> = [];
-    this.statements.forEach((stmt: Statement) => {
-      if (stmt.$cstNode) {
-        ss.push(`    ${stmt.$cstNode.text.trimStart()}`);
-      }
-    });
-    return ss;
-  }
-
-  override toString() {
-    let s: string = `workflow ${normalizeWorkflowName(this.name)} {\n`;
-    const ss = this.statementsToStrings();
-    s = s.concat(ss.join(';\n'));
-    return s.concat('\n}');
-  }
-
-  async addStatement(stmt: string): Promise<Workflow> {
-    const result: Statement = await parseStatement(stmt);
+  async addStatement(stmtCode: string): Promise<Workflow> {
+    const result: Statement = await parseStatement(stmtCode);
     this.statements.push(result);
     return this;
   }
 
-  async setStatementAt(stmt: string, index: number): Promise<Workflow> {
-    const result: Statement = await parseStatement(stmt);
-    this.statements[index] = result;
+  async setStatementAtHelper(
+    statements: Statement[],
+    newStmt: Statement,
+    index: number[]
+  ): Promise<Workflow> {
+    let stmt = statements[index[0]];
+    const isFe = stmt.pattern.forEach;
+    const isIf = stmt.pattern.if;
+    if (isFe || isIf) {
+      for (let i = 1; i < index.length; ++i) {
+        const add = i == index.length - 1;
+        const idx = index[i];
+        if (stmt.pattern.forEach) {
+          if (add) stmt.pattern.forEach.statements[idx] = newStmt;
+          else stmt = stmt.pattern.forEach.statements[idx];
+        } else if (stmt.pattern.if) {
+          if (add) stmt.pattern.if.statements[idx] = newStmt;
+          else stmt = stmt.pattern.if.statements[idx];
+        } else {
+          throw new Error('Cannot dig further into statements');
+        }
+      }
+    }
     return this;
   }
 
-  removeStatemtAt(index: number | number[]): Workflow {
+  async setStatementAt(stmtCode: string, index: number | number[]): Promise<Workflow> {
+    const result: Statement = await parseStatement(stmtCode);
     if (index instanceof Array) {
       if (index.length == 1) {
-        return this.removeStatemtAt(index[0]);
+        this.statements[index[0]] = result;
+        return this;
+      } else {
+        return this.setStatementAtHelper(this.statements, result, index);
+      }
+    } else {
+      this.statements[index] = result;
+    }
+    return this;
+  }
+
+  removePatternAt(index: number | number[]): Workflow {
+    if (index instanceof Array) {
+      if (index.length == 1) {
+        this.statements.splice(index[0], 1);
+        return this;
       }
       let stmt = this.statements[index[0]];
-      if (stmt.pattern.forEach || stmt.pattern.if) {
+      const isFe = stmt.pattern.forEach;
+      const isIf = stmt.pattern.if;
+      if (isFe || isIf) {
         for (let i = 1; i < index.length; ++i) {
           const remove = i == index.length - 1;
           const idx = index[i];
@@ -713,8 +735,43 @@ export class Workflow extends ModuleEntry {
       return this;
     } else {
       this.statements.splice(index, 1);
-      return this;
     }
+    return this;
+  }
+
+  statementsToStrings(statements: Statement[]): string[] {
+    const ss: Array<string> = [];
+    statements.forEach((stmt: Statement) => {
+      if (stmt.pattern.forEach) {
+        ss.push(`   for ${stmt.pattern.forEach.var} in ${stmt.pattern.forEach.src.$cstNode?.text} {
+        ${joinStatements(this.statementsToStrings(stmt.pattern.forEach.statements))}
+    }`);
+      } else if (stmt.pattern.if) {
+        ss.push(`   if (${stmt.pattern.if.cond.$cstNode?.text}) {
+        ${joinStatements(this.statementsToStrings(stmt.pattern.if.statements))}
+    }`);
+        if (stmt.pattern.if.elseif) {
+          ss.push(` else if (${stmt.pattern.if.elseif.cond.$cstNode?.text}) {
+            ${joinStatements(this.statementsToStrings(stmt.pattern.if.elseif.statements))}
+    }`);
+        }
+        if (stmt.pattern.if.else) {
+          ss.push(` else {
+            ${joinStatements(this.statementsToStrings(stmt.pattern.if.else.statements))}
+    }`);
+        }
+      } else if (stmt.$cstNode) {
+        ss.push(`    ${stmt.$cstNode.text.trimStart()}`);
+      }
+    });
+    return ss;
+  }
+
+  override toString() {
+    let s: string = `workflow ${normalizeWorkflowName(this.name)} {\n`;
+    const ss = this.statementsToStrings(this.statements);
+    s = s.concat(joinStatements(ss));
+    return s.concat('\n}');
   }
 }
 

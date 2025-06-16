@@ -347,14 +347,28 @@ export class ForEachPattern extends BasePattern {
     this.body = [];
   }
 
-  addPattern(p: BasePattern) {
+  addPattern(p: BasePattern): ForEachPattern {
     this.body.push(p);
     return this;
   }
 
-  removePattern(index: number) {
+  removePattern(index: number): ForEachPattern {
     this.body.splice(index, 1);
     return this;
+  }
+
+  setPatternAt(p: BasePattern, index: number): ForEachPattern {
+    this.body[index] = p;
+    return this;
+  }
+
+  removePatternAt(index: number): ForEachPattern {
+    this.body.splice(index, 1);
+    return this;
+  }
+
+  getPatternAt(index: number): BasePattern {
+    return this.body[index];
   }
 
   setVariable(s: string): ForEachPattern {
@@ -395,14 +409,28 @@ export class IfPattern extends BasePattern {
     this.body = [];
   }
 
-  addPattern(p: BasePattern) {
+  addPattern(p: BasePattern): IfPattern {
     this.body.push(p);
     return this;
   }
 
-  removePattern(index: number) {
+  removePattern(index: number): IfPattern {
     this.body.splice(index, 1);
     return this;
+  }
+
+  setPatternAt(p: BasePattern, index: number): IfPattern {
+    this.body[index] = p;
+    return this;
+  }
+
+  removePatternAt(index: number): IfPattern {
+    this.body.splice(index, 1);
+    return this;
+  }
+
+  getPatternAt(index: number): BasePattern {
+    return this.body[index];
   }
 
   setConditionPattern(p: BasePattern): IfPattern {
@@ -490,10 +518,10 @@ export function newDeletePattern(recName: string): DeletePattern {
   return new DeletePattern(qp);
 }
 
-function patternsToString(body: BasePattern[], sep = ';'): string {
-  const pats: Array<string> = [];
-  body.forEach((p: BasePattern) => {
-    pats.push(p.toString());
-  });
-  return pats.join(sep);
+function patternsToString(body: BasePattern[], sep = ';\n'): string {
+  return body
+    .map((p: BasePattern) => {
+      return p.toString();
+    })
+    .join(sep);
 }

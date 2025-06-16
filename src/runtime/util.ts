@@ -215,3 +215,11 @@ export function escapeQueryName(s: string): string {
     return s;
   }
 }
+
+export function joinStatements(stmts: string[]): string {
+  return stmts
+    .filter((s: string) => {
+      return s.trim().length > 0;
+    })
+    .join(';\n');
+}
