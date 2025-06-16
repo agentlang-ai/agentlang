@@ -248,13 +248,19 @@ export class CrudPattern extends BasePattern {
     super();
     this.recordName = recordName;
     this.attributes = [];
+    if (recordName.endsWith('?')) {
+      this.isQuery = true;
+    } else {
+      this.isCreate = true;
+    }
   }
 
   addAttribute(n: string, p: BasePattern, op?: string) {
     this.attributes.push({ name: n, op: op, value: p });
-    if (this.isQuery && this.recordName.endsWith('?')) {
+    if (this.recordName.endsWith('?')) {
       this.recordName = this.recordName.substring(0, this.recordName.length - 1);
     }
+    this.flagType();
     return this;
   }
 
@@ -265,7 +271,26 @@ export class CrudPattern extends BasePattern {
     if (idx >= 0) {
       this.attributes.splice(idx, 1);
     }
+    this.flagType();
     return this;
+  }
+
+  private flagType() {
+    let hasq = false;
+    let hasc = false;
+    for (let i = 0; i < this.attributes.length; ++i) {
+      if (hasq && hasc) break;
+      const ap = this.attributes[i];
+      hasq = ap.name.endsWith('?');
+      if (!hasc) hasc = !hasq;
+    }
+    if (hasq && hasc) {
+      this.isQueryUpdate = true;
+    } else if (hasc) {
+      this.isCreate = true;
+    } else {
+      this.isQuery = hasq;
+    }
   }
 
   addRelationship(n: string, p: CrudPattern[] | CrudPattern) {
