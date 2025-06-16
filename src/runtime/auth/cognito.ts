@@ -22,6 +22,8 @@ import {
   findUserSession,
   removeSession,
 } from '../modules/auth.js';
+import { CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
+import { fromEnv } from '@aws-sdk/credential-providers';
 /*import { fromEnv } from "@aws-sdk/credential-providers";
 import { AdminGetUserCommand, CognitoIdentityProviderClient } from "@aws-sdk/client-cognito-identity-provider";*/
 
@@ -55,10 +57,19 @@ export class CognitoAuth implements AgentlangAuth {
     userData: Map<string, string>,
     cb: SignUpCallback
   ): Promise<void> {
-    const attributeList = userDataAsCognitoAttributes(userData.set('email', username));
+    const client = new CognitoIdentityProviderClient({ region: "us-west-2", credentials: fromEnv() });
+  const input = { // AdminGetUserRequest
+    UserPoolId: "us-west-2_Piy14iUPZ", // required
+    Username: "vijay@fractl.io", // required
+  };
+  const command = new AdminGetUserCommand(input);
+  const response = await client.send(command);
+  console.log(response)
+    /*const attributeList = userDataAsCognitoAttributes(userData.set('email', username)
+      .set('name.formatted', username));
     let cognitoUser: CognitoUser | undefined;
     const userPool: CognitoUserPool = this.fetchUserPool();
-    await userPool.signUp(
+    userPool.signUp(
       username,
       password,
       attributeList,
@@ -88,8 +99,8 @@ export class CognitoAuth implements AgentlangAuth {
       };
       cb(userInfo);
     } else {
-      throw new Error(`Failed to signup ${username}`);
-    }
+      console.log(`Failed to signup ${username}`);
+    }*/
   }
 
   async login(username: string, password: string, cb: LoginCallback): Promise<void> {
