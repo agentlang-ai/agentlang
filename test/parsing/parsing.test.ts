@@ -1,9 +1,11 @@
-import { beforeAll, describe, expect, test } from 'vitest';
+import { assert, beforeAll, describe, expect, test } from 'vitest';
 import { EmptyFileSystem, type LangiumDocument } from 'langium';
 import { expandToString as s } from 'langium/generate';
 import { parseHelper } from 'langium/test';
 import { createAgentlangServices } from '../../src/language/agentlang-module.js';
 import { Definition, isModuleDefinition, ModuleDefinition } from '../../src/language/generated/ast.js';
+import { parseAndIntern } from '../../src/runtime/loader.js';
+import { fetchModule } from '../../src/runtime/module.js';
 
 let services: ReturnType<typeof createAgentlangServices>;
 let parse: ReturnType<typeof parseHelper<ModuleDefinition>>;
@@ -43,9 +45,9 @@ describe('Parsing tests', () => {
       // prior to the tagged template expression we check for validity of the parsed document object
       //  by means of the reusable function 'checkDocumentValid()' to sort out (critical) typos first;
       checkDocumentValid(model) ||
-        model.parseResult.value.defs.map((v: Definition) => {
-          return v.name;
-        })
+      model.parseResult.value.defs.map((v: Definition) => {
+        return v.name;
+      })
     ).toStrictEqual(['Person', 'UpdatePersonEmail']);
   });
 });
@@ -63,3 +65,33 @@ function checkDocumentValid(document: LangiumDocument): string | undefined {
     undefined
   );
 }
+
+describe('Workflow update tests', () => {
+  test('check setting and removing statements in workflows', async () => {
+    await parseAndIntern(`module WfUpdateTest
+      workflow Test {}
+      `)
+    const wf = fetchModule('WfUpdateTest').getWorkflowForEvent('Test')
+    await wf.addStatement('{Acme/User {salary?> 1500}} as users')
+    await wf.setStatementAt('for u in users { }', 1)
+    await wf.setStatementAt('{Acme/Profile {email u.email}}', [1, 0])
+    await wf.setStatementAt('{Acme/Account {email u.email}}', [1, 1])
+    await wf.addStatement('users')
+    assert(wf.toString() == `workflow Test {
+    {Acme/User {salary?> 1500}} as users;
+   for u in users {
+            {Acme/Profile {email u.email}};
+    {Acme/Account {email u.email}}
+    };
+    users
+}`, 'Failed to set statements by index')
+    wf.removePatternAt([1, 1])
+    assert(wf.toString() == `workflow Test {
+    {Acme/User {salary?> 1500}} as users;
+   for u in users {
+            {Acme/Profile {email u.email}}
+    };
+    users
+}`, 'Failed to remove statement by index')
+  })
+})
