@@ -4,8 +4,8 @@ import { expandToString as s } from 'langium/generate';
 import { parseHelper } from 'langium/test';
 import { createAgentlangServices } from '../../src/language/agentlang-module.js';
 import { Definition, isModuleDefinition, ModuleDefinition } from '../../src/language/generated/ast.js';
-import { BasePattern, MutableWorkflow } from '../../src/language/syntax.js';
-import { introspect } from '../../src/language/parser.js';
+import { parseAndIntern } from '../../src/runtime/loader.js';
+import { fetchModule } from '../../src/runtime/module.js';
 
 let services: ReturnType<typeof createAgentlangServices>;
 let parse: ReturnType<typeof parseHelper<ModuleDefinition>>;
@@ -68,25 +68,30 @@ function checkDocumentValid(document: LangiumDocument): string | undefined {
 
 describe('Workflow update tests', () => {
   test('check setting and removing statements in workflows', async () => {
-    const wf = new MutableWorkflow('Test/Acme')
-    let bps: BasePattern[] =
-      await introspect('{Acme/User {salary?> 1500}} as users')
-    await wf.addPattern(bps[0])
-    bps = await introspect('for u in users { }')
-    wf.setPatternAt(bps[0], 1)
-    bps = await introspect('{Acme/Profile {email u.email}}')
-    wf.setPatternAt(bps[0], [1, 0])
-    bps = await introspect('{Acme/Account {email u.email}}')
-    wf.setPatternAt(bps[0], [1, 1])
-    bps = await introspect('user')
-    wf.addPattern(bps[0])
-    assert(wf.toString() == `workflow Test/Acme {{Acme/User {salary?> 1500}} as users;
-for u in users{{Acme/Profile {email u.email}};
-{Acme/Account {email u.email}}};
-user}`, 'Failed to add workflow patterns')
+    await parseAndIntern(`module WfUpdateTest
+      workflow Test {}
+      `)
+    const wf = fetchModule('WfUpdateTest').getWorkflowForEvent('Test')
+    await wf.addStatement('{Acme/User {salary?> 1500}} as users')
+    await wf.setStatementAt('for u in users { }', 1)
+    await wf.setStatementAt('{Acme/Profile {email u.email}}', [1, 0])
+    await wf.setStatementAt('{Acme/Account {email u.email}}', [1, 1])
+    await wf.addStatement('users')
+    assert(wf.toString() == `workflow Test {
+    {Acme/User {salary?> 1500}} as users;
+   for u in users {
+            {Acme/Profile {email u.email}};
+    {Acme/Account {email u.email}}
+    };
+    users
+}`, 'Failed to set statements by index')
     wf.removePatternAt([1, 1])
-    assert(wf.toString() == `workflow Test/Acme {{Acme/User {salary?> 1500}} as users;
-for u in users{{Acme/Profile {email u.email}}};
-user}`, 'Failed to remove pattern')
+    assert(wf.toString() == `workflow Test {
+    {Acme/User {salary?> 1500}} as users;
+   for u in users {
+            {Acme/Profile {email u.email}}
+    };
+    users
+}`, 'Failed to remove statement by index')
   })
 })
