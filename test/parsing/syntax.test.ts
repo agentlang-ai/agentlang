@@ -197,5 +197,10 @@ describe('Pattern introspection', () => {
     qup = pats[0] as CrudPattern
     assert(qup.isQueryUpdate, "Failed to detect query-update pattern")
     assert(qup.toString() == '{User {Name?like "Th%", Status 3}}', 'Failed to regenereate query-update pattern')
+
+    const emptyIf = new IfPattern()
+    assert(emptyIf.toString() == 'if(true) {}')
+    const emptyIfWithElse = new IfPattern().setElse()
+    assert(emptyIfWithElse.toString() == 'if(true) {} else {}')
   });
 });
