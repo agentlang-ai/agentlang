@@ -326,11 +326,10 @@ export function isGroup(item: unknown): item is Group {
 }
 
 export interface If extends langium.AstNode {
-    readonly $container: If | Pattern;
+    readonly $container: Pattern;
     readonly $type: 'If';
     cond: LogicalExpression;
     else?: Else;
-    elseif?: If;
     statements: Array<Statement>;
 }
 
@@ -955,7 +954,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'cond' },
                         { name: 'else' },
-                        { name: 'elseif' },
                         { name: 'statements', defaultValue: [] }
                     ]
                 };

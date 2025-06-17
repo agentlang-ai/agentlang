@@ -55,6 +55,10 @@ export function isNumber(x: any): boolean {
   return typeof x === 'number';
 }
 
+export function isMinusZero(value: number): boolean {
+  return 1 / value === -Infinity;
+}
+
 export function isBoolean(x: any): boolean {
   return typeof x === 'boolean';
 }

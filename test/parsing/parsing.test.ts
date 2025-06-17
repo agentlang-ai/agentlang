@@ -85,7 +85,7 @@ describe('Workflow update tests', () => {
     };
     users
 }`, 'Failed to set statements by index')
-    wf.removePatternAt([1, 1])
+    wf.removeStatementAt([1, 1])
     assert(wf.toString() == `workflow Test {
     {Acme/User {salary?> 1500}} as users;
    for u in users {
@@ -93,5 +93,35 @@ describe('Workflow update tests', () => {
     };
     users
 }`, 'Failed to remove statement by index')
+    await wf.setStatementAt('if (u.age < 20) {} else {}', [1, 1])
+    await wf.setStatementAt('{Acme/Account {email u.email, type "A"}}', [1, 1, 0])
+    await wf.setStatementAt('{Acme/Account {email u.email, type "B"}}', [1, 1, -0])
+    assert(wf.toString() == `workflow Test {
+    {Acme/User {salary?> 1500}} as users;
+   for u in users {
+            {Acme/Profile {email u.email}};
+   if (u.age < 20) {
+            {Acme/Account {email u.email, type "A"}}
+    };
+ else {
+                {Acme/Account {email u.email, type "B"}}
+    }
+    };
+    users
+}`)
+    wf.removeStatementAt([1, 1, -0])
+    assert(wf.toString() == `workflow Test {
+    {Acme/User {salary?> 1500}} as users;
+   for u in users {
+            {Acme/Profile {email u.email}};
+   if (u.age < 20) {
+            {Acme/Account {email u.email, type "A"}}
+    };
+ else {
+            
+    }
+    };
+    users
+}`)
   })
 })

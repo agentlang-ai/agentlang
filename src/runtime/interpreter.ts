@@ -693,8 +693,6 @@ async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
   await evaluateLogicalExpression(ifStmt.cond, env);
   if (env.getLastResult()) {
     await evaluateStatements(ifStmt.statements, env);
-  } else if (ifStmt.elseif != undefined) {
-    await evaluateIf(ifStmt.elseif, env);
   } else if (ifStmt.else != undefined) {
     await evaluateStatements(ifStmt.else.statements, env);
   }
