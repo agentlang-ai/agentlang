@@ -91,7 +91,7 @@ export class DbContext {
 }
 
 function mkDbName(): string {
-  return `db-${Date.now()}`;
+  return process.env.AGENTLANG_DB_NAME || `db-${Date.now()}`;
 }
 
 export async function initDefaultDatabase() {
@@ -110,8 +110,15 @@ function ownersTable(tableName: string): string {
   return tableName + `_owners`;
 }
 
-async function insertRowsHelper(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
-  await getDatasourceForTransaction(ctx.txnId).getRepository(tableName).save(rows);
+async function insertRowsHelper(
+  tableName: string,
+  rows: object[],
+  ctx: DbContext,
+  doUpsert: boolean
+): Promise<void> {
+  const repo = getDatasourceForTransaction(ctx.txnId).getRepository(tableName);
+  if (doUpsert) await repo.save(rows);
+  else await repo.insert(rows);
 }
 
 async function checkUserPerm(
@@ -158,14 +165,19 @@ async function checkCreatePermission(ctx: DbContext, inst: Instance): Promise<bo
   );
 }
 
-export async function insertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
+export async function insertRows(
+  tableName: string,
+  rows: object[],
+  ctx: DbContext,
+  doUpsert: boolean = false
+): Promise<void> {
   let hasPerm = ctx.isPermitted();
   if (!hasPerm) {
     hasPerm = await checkUserPerm(RbacPermissionFlag.CREATE, ctx, rows[0]);
   }
   if (hasPerm) {
-    await insertRowsHelper(tableName, rows, ctx);
-    if (!ctx.isInKernelMode()) {
+    await insertRowsHelper(tableName, rows, ctx, doUpsert);
+    if (!ctx.isInKernelMode() && !doUpsert) {
       await createOwnership(tableName, rows, ctx);
     }
   } else {
@@ -173,10 +185,15 @@ export async function insertRows(tableName: string, rows: object[], ctx: DbConte
   }
 }
 
-export async function insertRow(tableName: string, row: object, ctx: DbContext): Promise<void> {
+export async function insertRow(
+  tableName: string,
+  row: object,
+  ctx: DbContext,
+  doUpsert: boolean
+): Promise<void> {
   const rows: Array<object> = new Array<object>();
   rows.push(row);
-  await insertRows(tableName, rows, ctx);
+  await insertRows(tableName, rows, ctx, doUpsert);
 }
 
 export async function insertBetweenRow(
@@ -203,7 +220,7 @@ export async function insertBetweenRow(
       attrs.set(relEntry.joinNodesAttributeName(), `${p1}_${p2}`);
     }
     const row = attributesAsColumns(attrs);
-    await insertRow(n, row, ctx.clone().setNeedAuthCheck(false));
+    await insertRow(n, row, ctx.clone().setNeedAuthCheck(false), false);
   } else {
     throw new UnauthorisedError({ opr: 'insert', entity: n });
   }
@@ -221,7 +238,7 @@ async function createOwnership(tableName: string, rows: object[], ctx: DbContext
     });
   });
   const tname = ownersTable(tableName);
-  await insertRowsHelper(tname, ownerRows, ctx);
+  await insertRowsHelper(tname, ownerRows, ctx, false);
 }
 
 async function isOwnerOfParent(path: string, ctx: DbContext): Promise<boolean> {
@@ -278,36 +295,7 @@ async function isOwner(tableName: string, instPath: string, ctx: DbContext): Pro
 }
 
 export async function upsertRows(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
-  // This is the right way to do an upsert in TypeORM, but `orUpdate` does not seem to work
-  // without a (TypeORM) entity definition.
-
-  /*const rowsForUpsert: Array<string> = Object.keys(rows[0]);
-  const idx = rowsForUpsert.findIndex((s: string) => {
-    return s == PathAttributeName;
-  });
-  if (idx >= 0) {
-    rowsForUpsert.splice(idx, 1);
-  }
-  await getDatasourceForTransaction(txnId)
-    .createQueryBuilder()
-    .insert()
-    .into(tableName)
-    .values(rows)
-    .orUpdate(rowsForUpsert, PathAttributeName)
-    .execute();*/
-  let hasPerm = ctx.isPermitted();
-  if (!hasPerm) {
-    hasPerm = await checkUserPerm(RbacPermissionFlag.UPDATE, ctx, rows[0]);
-  }
-  if (hasPerm) {
-    for (let i = 0; i < rows.length; ++i) {
-      const r: object = rows[i];
-      await hardDeleteRow(tableName, [[PathAttributeName, r[PathKey]]], ctx);
-    }
-    await insertRows(tableName, rows, ctx);
-  } else {
-    throw new UnauthorisedError({ opr: 'upsert', entity: tableName });
-  }
+  await insertRows(tableName, rows, ctx, true);
 }
 
 export async function upsertRow(tableName: string, row: object, ctx: DbContext): Promise<void> {

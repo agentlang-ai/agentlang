@@ -98,10 +98,7 @@ export class SqlDbResolver extends Resolver {
       }
       const n: string = asTableName(inst.moduleName, inst.name);
       const rowObj: object = inst.attributesAsObject();
-      /*if (orUpdate) {
-        f = upsertRow;
-      }*/
-      await insertRow(n, rowObj, this.getDbContext(inst.getFqName()));
+      await insertRow(n, rowObj, this.getDbContext(inst.getFqName()), orUpdate);
       return inst;
     }
   }
@@ -164,15 +161,16 @@ export class SqlDbResolver extends Resolver {
   );
 
   public override async deleteInstance(
-    target: Instance | Instance[]
+    target: Instance | Instance[],
+    purge: boolean
   ): Promise<Instance[] | Instance> {
     if (target != null) {
       if (target instanceof Array) {
         for (let i = 0; i < target.length; ++i) {
-          await this.deleteInstanceHelper(target[i]);
+          await this.deleteInstanceHelper(target[i], purge);
         }
       } else {
-        await this.deleteInstanceHelper(target);
+        await this.deleteInstanceHelper(target, purge);
       }
     }
     return target;
@@ -227,18 +225,24 @@ export class SqlDbResolver extends Resolver {
     }
   }
 
-  private async deleteInstanceHelper(target: Instance) {
+  private async deleteInstanceHelper(target: Instance, purge: boolean) {
     target.addQuery(PathAttributeName);
     const queryVals: object = Object.fromEntries(
       newInstanceAttributes().set(PathAttributeName, target.attributes.get(PathAttributeName))
     );
-    await updateRow(
-      asTableName(target.moduleName, target.name),
-      target.queryAttributesAsObject(),
-      queryVals,
-      SqlDbResolver.MarkDeletedObject,
-      this.getDbContext(target.getFqName())
-    );
+    const tableName = asTableName(target.moduleName, target.name);
+    const ctx = this.getDbContext(target.getFqName());
+    if (purge) {
+      await hardDeleteRow(tableName, [[PathAttributeName, target.lookup(PathAttributeName)]], ctx);
+    } else {
+      await updateRow(
+        tableName,
+        target.queryAttributesAsObject(),
+        queryVals,
+        SqlDbResolver.MarkDeletedObject,
+        ctx
+      );
+    }
   }
 
   public override async connectInstances(

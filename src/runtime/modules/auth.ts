@@ -3,11 +3,15 @@ import { logger } from '../logger.js';
 import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
+import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
+import { CognitoAuth } from '../auth/cognito.js';
+import { ActiveSessionInfo, AdminSession, AdminUserId } from '../auth/defs.js';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
-export const AdminUserId = '00000000-0000-0000-0000-000000000000';
 
 const moduleDef = `module ${CoreAuthModuleName}
+
+import "./modules/auth.js" as Auth
 
 entity User {
     id UUID @id @default(uuid()),
@@ -21,6 +25,16 @@ workflow CreateUser {
          email CreateUser.email,
          firstName CreateUser.firstName,
          lastName CreateUser.lastName}}
+}
+
+workflow FindUser {
+  {User {id? FindUser.id}} as [user];
+  user
+}
+
+workflow FindUserByEmail {
+  {User {email? FindUserByEmail.email}} as [user];
+  user
 }
 
 entity Role {
@@ -40,12 +54,6 @@ entity Permission {
 
 relationship RolePermission between(Role, Permission)
 
-workflow CreateUser {
-    {User {email CreateUser.email,
-           firstName CreateUser.firstName,
-           lastName CreateUser.lastName}}
-}
-
 workflow CreateRole {
     upsert {Role {name CreateRole.name}}
 }
@@ -58,6 +66,12 @@ workflow FindRole {
 workflow AssignUserToRole {
     {User {id? AssignUserToRole.userId}} as [user];
     {Role {name? AssignUserToRole.roleName}} as [role];
+    upsert {UserRole {User user, Role role}}
+}
+
+workflow AssignUserToRoleByEmail {
+    {User {email? AssignUserToRoleByEmail.email}} as [user];
+    {Role {name? AssignUserToRoleByEmail.roleName}} as [role];
     upsert {UserRole {User user, Role role}}
 }
 
@@ -86,6 +100,40 @@ workflow FindRolePermissions {
     {Role {name? FindRolePermissions.role},
      RolePermission {Permission? {}}}
 }
+
+entity Session {
+  id UUID @id,
+  userId UUID @indexed,
+  authToken String @optional,
+  isActive Boolean
+}
+
+workflow CreateSession {
+  {Session {id CreateSession.id, userId CreateSession.userId,
+            authToken CreateSession.authToken, isActive true}}
+}
+
+workflow FindSession {
+  {Session {id? FindSession.id}} as [session];
+  session
+}
+
+workflow FindUserSession {
+  {Session {userId? FindUserSession.id}} as [session];
+  session
+}
+
+workflow RemoveSession {
+  purge {Session {id? RemoveSession.id}}
+}
+
+workflow signup {
+  await Auth.signUpUser(SignUp.email, SignUp.password, SignUp.userData)
+}
+
+workflow login {
+  await Auth.loginUser(login.email, login.password)
+}
 `;
 
 export default moduleDef;
@@ -95,7 +143,10 @@ async function evalEvent(
   attrs: Array<any> | object,
   env: Environment
 ): Promise<Result> {
-  return await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, AdminUserId, env, true);
+  if (!env) {
+    env = new Environment();
+  }
+  return await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, AdminSession, env, true);
 }
 
 export async function createUser(
@@ -117,13 +168,101 @@ export async function createUser(
   );
 }
 
+export async function findUser(id: string, env: Environment): Promise<Result> {
+  return await evalEvent(
+    'FindUser',
+    {
+      id: id,
+    },
+    env
+  );
+}
+
+export async function findUserByEmail(email: string, env: Environment): Promise<Result> {
+  return await evalEvent(
+    'FindUserByEmail',
+    {
+      email: email,
+    },
+    env
+  );
+}
+
+export async function ensureUser(
+  email: string,
+  firstName: string,
+  lastName: string,
+  env: Environment
+) {
+  const user = await findUserByEmail(email, env);
+  if (user) {
+    return user;
+  }
+  return await createUser(crypto.randomUUID(), email, firstName, lastName, env);
+}
+
+export async function ensureUserSession(userId: string, token: string, env: Environment) {
+  const sess: Instance = await findUserSession(userId, env);
+  if (sess) {
+    await removeSession(sess.lookup('id'), env);
+  }
+  return await createSession(crypto.randomUUID(), userId, token, env);
+}
+
+export async function createSession(
+  id: string,
+  userId: string,
+  token: string,
+  env: Environment
+): Promise<Result> {
+  return await evalEvent(
+    'CreateSession',
+    {
+      id: id,
+      userId: userId,
+      authToken: token,
+    },
+    env
+  );
+}
+
+export async function findSession(id: string, env: Environment): Promise<Result> {
+  return await evalEvent(
+    'FindSession',
+    {
+      id: id,
+    },
+    env
+  );
+}
+
+export async function findUserSession(userId: string, env: Environment): Promise<Result> {
+  return await evalEvent(
+    'FindUserSession',
+    {
+      userId: userId,
+    },
+    env
+  );
+}
+
+export async function removeSession(id: string, env: Environment): Promise<Result> {
+  return await evalEvent(
+    'RemoveSession',
+    {
+      id: id,
+    },
+    env
+  );
+}
+
 export async function findRole(name: string, env: Environment): Promise<Result> {
   return await evalEvent('FindRole', { name: name }, env);
 }
 
 export async function createRole(name: string, env: Environment) {
   await evalEvent('CreateRole', { name: name }, env).catch((reason: any) => {
-    logger.error(`Failed to create role ${name} - ${reason}`);
+    logger.error(`Failed to create role '${name}' - ${reason}`);
   });
 }
 
@@ -308,4 +447,63 @@ export class UnauthorisedError extends Error {
       options
     );
   }
+}
+
+const runtimeAuth: AgentlangAuth = new CognitoAuth();
+
+export async function signUpUser(
+  username: string,
+  password: string,
+  userData: object,
+  env: Environment
+): Promise<UserInfo> {
+  let result: any;
+  await runtimeAuth.signUp(
+    username,
+    password,
+    new Map(Object.entries(userData)),
+    env,
+    (userInfo: UserInfo) => {
+      result = userInfo;
+    }
+  );
+  return result as UserInfo;
+}
+
+export async function loginUser(
+  username: string,
+  password: string,
+  env: Environment
+): Promise<string> {
+  let result: string = '';
+  await runtimeAuth.login(username, password, env, (r: SessionInfo) => {
+    result = `${r.userId}/${r.sessionId}`;
+  });
+  return result;
+}
+
+export async function verifySession(token: string, env?: Environment): Promise<ActiveSessionInfo> {
+  const parts = token.split('/');
+  const sessId = parts[1];
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    const sess: Instance = await findSession(sessId, env);
+    if (sess != undefined) {
+      await runtimeAuth.verifyToken(sess.lookup('authToken'), env);
+      return { sessionId: sessId, userId: parts[0] };
+    } else {
+      throw new Error(`No active session for user '${parts[0]}'`);
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
+export function requireAuth(moduleName: string, eventName: string): boolean {
+  const f = moduleName == CoreAuthModuleName && (eventName == 'login' || eventName == 'signup');
+  return !f;
 }

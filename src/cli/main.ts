@@ -2,7 +2,13 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 import { AgentlangLanguageMetaData } from '../language/generated/module.js';
 import { createAgentlangServices } from '../language/agentlang-module.js';
-import { ApplicationSpec, internModule, load, loadCoreModules } from '../runtime/loader.js';
+import {
+  ApplicationSpec,
+  internModule,
+  load,
+  loadCoreModules,
+  runStandaloneStatements,
+} from '../runtime/loader.js';
 import { NodeFileSystem } from 'langium/node';
 import { extractDocument } from '../runtime/loader.js';
 import * as url from 'node:url';
@@ -83,6 +89,7 @@ export async function runPreInitTasks(): Promise<boolean> {
 export async function runPostInitTasks(appSpec?: ApplicationSpec) {
   await initDefaultDatabase();
   await runInitFunctions();
+  await runStandaloneStatements();
   if (appSpec) startServer(appSpec, 8080);
 }
 

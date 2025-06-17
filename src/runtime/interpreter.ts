@@ -17,6 +17,7 @@ import {
   LogicalExpression,
   OrAnd,
   Pattern,
+  Purge,
   RelationshipPattern,
   SetAttribute,
   Statement,
@@ -53,8 +54,8 @@ import {
   splitRefs,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
-import { AdminUserId } from './modules/auth.js';
 import { parseStatement } from '../language/parser.js';
+import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 
 export type Result = any;
 
@@ -86,6 +87,7 @@ export class Environment extends Instance {
   private activeModule: string;
   private activeEventInstance: Instance | undefined;
   private activeUser: string = AdminUserId;
+  private activeUserSet: boolean = false;
   private lastResult: Result;
   private parentPath: string | undefined;
   private betweenRelInfo: BetweenRelInfo | undefined;
@@ -106,6 +108,7 @@ export class Environment extends Instance {
       this.parent = parent;
       this.activeModule = parent.activeModule;
       this.activeUser = parent.activeUser;
+      this.activeUserSet = parent.activeUserSet;
       this.setActiveEvent(parent.getActiveEventInstance());
       this.lastResult = parent.lastResult;
       this.activeTransactions = parent.activeTransactions;
@@ -149,6 +152,10 @@ export class Environment extends Instance {
       this.bindInstance(eventInst);
       this.activeModule = eventInst.moduleName;
       this.activeEventInstance = eventInst;
+      if (!this.activeUserSet) {
+        this.activeUser = eventInst.getAuthContextUserId();
+        this.activeUserSet = true;
+      }
     }
     return this;
   }
@@ -159,6 +166,7 @@ export class Environment extends Instance {
 
   setActiveUser(userId: string): Environment {
     this.activeUser = userId;
+    this.activeUserSet = true;
     return this;
   }
 
@@ -359,21 +367,25 @@ export async function evaluateAsEvent(
   moduleName: string,
   eventName: string,
   attrs: Array<any> | object,
-  activeUserId?: string,
+  activeSession?: ActiveSessionInfo,
   env?: Environment,
   kernelCall?: boolean
 ): Promise<Result> {
   const finalAttrs: Map<string, any> =
     attrs instanceof Array ? new Map(attrs) : new Map(Object.entries(attrs));
   const eventInst: Instance = makeInstance(moduleName, eventName, finalAttrs).setAuthContext(
-    activeUserId || AdminUserId
+    activeSession || AdminSession
   );
   let result: any;
   await evaluate(eventInst, (r: any) => (result = r), env, kernelCall);
   return result;
 }
 
-async function evaluateStatements(stmts: Statement[], env: Environment, continuation?: Function) {
+export async function evaluateStatements(
+  stmts: Statement[],
+  env: Environment,
+  continuation?: Function
+) {
   for (let i = 0; i < stmts.length; ++i) {
     await evaluateStatement(stmts[i], env);
   }
@@ -452,6 +464,8 @@ async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
     await evaluateIf(pat.if, env);
   } else if (pat.delete != undefined) {
     await evaluateDelete(pat.delete, env);
+  } else if (pat.purge != undefined) {
+    await evaluatePurge(pat.purge, env);
   } else if (pat.upsert != undefined) {
     await evaluateUpsert(pat.upsert, env);
   }
@@ -460,7 +474,8 @@ async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
 async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
   if (lit.id != undefined) env.setLastResult(env.lookup(lit.id));
   else if (lit.ref != undefined) env.setLastResult(followReference(env, lit.ref));
-  else if (lit.fnCall != undefined) await applyFn(lit.fnCall, env);
+  else if (lit.fnCall != undefined) await applyFn(lit.fnCall, env, false);
+  else if (lit.asyncFnCall != undefined) await applyFn(lit.asyncFnCall.fnCall, env, true);
   else if (lit.array != undefined) await realizeArray(lit.array, env);
   else if (lit.num != undefined) env.setLastResult(lit.num);
   else if (lit.str != undefined) env.setLastResult(lit.str);
@@ -698,9 +713,13 @@ async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
   }
 }
 
-async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> {
+async function evaluateDeleteHelper(
+  pattern: Pattern,
+  purge: boolean,
+  env: Environment
+): Promise<void> {
   const newEnv = Environment.from(env).setInDeleteMode(true);
-  await evaluatePattern(delStmt.pattern, newEnv);
+  await evaluatePattern(pattern, newEnv);
   const inst: Instance[] | Instance = newEnv.getLastResult();
   let resolver: Resolver = Resolver.Default;
   if (inst instanceof Array) {
@@ -708,7 +727,7 @@ async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> 
       resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, newEnv);
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
-        const r: any = await resolver.deleteInstance(inst[i]);
+        const r: any = await resolver.deleteInstance(inst[i], purge);
         finalResult.push(r);
       }
       newEnv.setLastResult(finalResult);
@@ -717,9 +736,18 @@ async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> 
     }
   } else {
     resolver = await getResolverForPath(inst.name, inst.moduleName, newEnv);
-    const r: Instance | null = await resolver.deleteInstance(inst);
+    const r: Instance | null = await resolver.deleteInstance(inst, purge);
     newEnv.setLastResult(r);
   }
+  env.setLastResult(newEnv.getLastResult());
+}
+
+async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> {
+  await evaluateDeleteHelper(delStmt.pattern, false, env);
+}
+
+async function evaluatePurge(purgeStmt: Purge, env: Environment): Promise<void> {
+  await evaluateDeleteHelper(purgeStmt.pattern, true, env);
 }
 
 async function evaluateLogicalExpression(
@@ -863,7 +891,7 @@ function followReference(env: Environment, s: string): Result {
   return result;
 }
 
-async function applyFn(fnCall: FnCall, env: Environment): Promise<void> {
+async function applyFn(fnCall: FnCall, env: Environment, isAsync: boolean): Promise<void> {
   const fnName: string | undefined = fnCall.name;
   if (fnName != undefined) {
     let args: Array<Result> | null = null;
@@ -873,8 +901,9 @@ async function applyFn(fnCall: FnCall, env: Environment): Promise<void> {
         await evaluateLiteral(fnCall.args[i], env);
         args.push(env.getLastResult());
       }
+      args.push(env);
     }
-    const r: Result = invokeModuleFn(fnName, args);
+    const r: Result = await invokeModuleFn(fnName, args, isAsync);
     env.setLastResult(r);
   }
 }

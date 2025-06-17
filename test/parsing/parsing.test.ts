@@ -3,7 +3,7 @@ import { EmptyFileSystem, type LangiumDocument } from 'langium';
 import { expandToString as s } from 'langium/generate';
 import { parseHelper } from 'langium/test';
 import { createAgentlangServices } from '../../src/language/agentlang-module.js';
-import { Definition, isModuleDefinition, ModuleDefinition } from '../../src/language/generated/ast.js';
+import { Definition, isModuleDefinition, isStandaloneStatement, ModuleDefinition } from '../../src/language/generated/ast.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
 import { fetchModule } from '../../src/runtime/module.js';
 
@@ -46,7 +46,8 @@ describe('Parsing tests', () => {
       //  by means of the reusable function 'checkDocumentValid()' to sort out (critical) typos first;
       checkDocumentValid(model) ||
       model.parseResult.value.defs.map((v: Definition) => {
-        return v.name;
+        if (isStandaloneStatement(v)) return 'standalone-statement'
+        else return v.name;
       })
     ).toStrictEqual(['Person', 'UpdatePersonEmail']);
   });

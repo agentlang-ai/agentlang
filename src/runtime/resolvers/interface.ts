@@ -101,8 +101,8 @@ export class Resolver {
   /**
    * @param {Instance} inst - an Instance with query attributes
    */
-  public async deleteInstance(inst: Instance | Instance[]): Promise<any> {
-    return this.notImpl(`deleteInstance(${inst})`);
+  public async deleteInstance(inst: Instance | Instance[], purge: boolean): Promise<any> {
+    return this.notImpl(`deleteInstance(${inst}, ${purge})`);
   }
 
   /**

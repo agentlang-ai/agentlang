@@ -18,6 +18,8 @@ import {
   RelationshipDefinition,
   WorkflowDefinition,
   RbacSpecDefinition,
+  Statement,
+  isStandaloneStatement,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -49,7 +51,7 @@ import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules } from './modules/core.js';
 import { parse, parseModule } from '../language/parser.js';
 import { logger } from './logger.js';
-import { Environment } from './interpreter.js';
+import { Environment, evaluateStatements } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
 
 export async function extractDocument(
@@ -305,7 +307,7 @@ async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
       await createRole(r, env);
       if (rbacSpec.hasPermissions() && rbacSpec.hasResource()) {
         await createPermission(
-          `${r}_permission`,
+          `${r}_permission_${rbacSpec.resource}`,
           r,
           rbacSpec.resource,
           rbacSpec.hasCreatePermission(),
@@ -347,12 +349,25 @@ export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string):
   return addWorkflow(def.name, moduleName, def.statements);
 }
 
+const StandaloneStatements = new Array<Statement>();
+
+export async function runStandaloneStatements() {
+  if (StandaloneStatements.length > 0) {
+    const env = new Environment();
+    await env.callInTransaction(async () => {
+      await evaluateStatements(StandaloneStatements, env);
+      logger.info(`Init eval result: ${env.getLastResult().toString()}`);
+    });
+  }
+}
+
 export function addFromDef(def: Definition, moduleName: string) {
   if (isEntityDefinition(def)) addEntityFromDef(def, moduleName);
   else if (isEventDefinition(def)) addEventFromDef(def, moduleName);
   else if (isRecordDefinition(def)) addRecordFromDef(def, moduleName);
   else if (isRelationshipDefinition(def)) addRelationshipFromDef(def, moduleName);
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
+  else if (isStandaloneStatement(def)) StandaloneStatements.push(def.stmt);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {

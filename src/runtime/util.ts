@@ -1,5 +1,6 @@
 import { isNodeEnv } from '../utils/runtime.js';
 import { ExtendsClause } from '../language/generated/ast.js';
+import { promisify } from 'node:util';
 
 export const QuerySuffix = '?';
 
@@ -27,22 +28,36 @@ export function moduleImported(moduleName: string): boolean {
   return importedModules.has(moduleName);
 }
 
-export function invokeModuleFn(fqFnName: string, args: Array<any> | null): any {
+export async function invokeModuleFn(
+  fqFnName: string,
+  args: Array<any> | null,
+  isAsync: boolean = false
+): Promise<any> {
   const refs: string[] = splitRefs(fqFnName);
   if (refs.length == 2) {
     const m = importedModules.get(refs[0]);
     if (m != undefined) {
       const f = m[refs[1]];
       if (f != undefined) {
-        if (args == null) return f();
-        else return f(...args);
+        if (args == null)
+          if (isAsync) {
+            return await f();
+          } else return f();
+        else if (isAsync) {
+          return await f(...args);
+        } else return f(...args);
       } else throw new Error(`Function not found - ${fqFnName}`);
     } else throw new Error(`JavaScript module ${refs[0]} not found`);
   } else if (refs.length == 1) {
     const f = eval(fqFnName);
     if (f instanceof Function) {
-      if (args == null) return f();
-      else return f(...args);
+      if (args == null)
+        if (isAsync) {
+          return await f();
+        } else return f();
+      else if (isAsync) {
+        return await f(...args);
+      } else return f(...args);
     } else {
       throw new Error('Not a function: ' + fqFnName);
     }
@@ -227,3 +242,7 @@ export function joinStatements(stmts: string[]): string {
     })
     .join(';\n');
 }
+
+export const sleepMilliseconds = isNodeEnv
+  ? promisify(setTimeout)
+  : (m: any) => new Promise(r => setTimeout(r, m));

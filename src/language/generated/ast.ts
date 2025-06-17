@@ -42,6 +42,7 @@ export type AgentlangKeywordNames =
     | "allow"
     | "and"
     | "as"
+    | "await"
     | "between"
     | "contains"
     | "create"
@@ -60,6 +61,7 @@ export type AgentlangKeywordNames =
     | "module"
     | "not_found"
     | "or"
+    | "purge"
     | "read"
     | "record"
     | "relationship"
@@ -95,7 +97,7 @@ export function isDecimal(item: unknown): item is Decimal {
     return typeof item === 'number';
 }
 
-export type Definition = RelationshipDefinition | SchemaDef | WorkflowDefinition;
+export type Definition = RelationshipDefinition | SchemaDef | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = 'Definition';
 
@@ -163,6 +165,18 @@ export const ArrayLiteral = 'ArrayLiteral';
 
 export function isArrayLiteral(item: unknown): item is ArrayLiteral {
     return reflection.isInstance(item, ArrayLiteral);
+}
+
+export interface AsyncFnCall extends langium.AstNode {
+    readonly $container: Literal;
+    readonly $type: 'AsyncFnCall';
+    fnCall: FnCall;
+}
+
+export const AsyncFnCall = 'AsyncFnCall';
+
+export function isAsyncFnCall(item: unknown): item is AsyncFnCall {
+    return reflection.isInstance(item, AsyncFnCall);
 }
 
 export interface AttributeDefinition extends langium.AstNode {
@@ -287,7 +301,7 @@ export function isExtendsClause(item: unknown): item is ExtendsClause {
 }
 
 export interface FnCall extends langium.AstNode {
-    readonly $container: Literal;
+    readonly $container: AsyncFnCall | Literal;
     readonly $type: 'FnCall';
     args: Array<Literal>;
     name: Ref | string;
@@ -381,6 +395,7 @@ export interface Literal extends langium.AstNode {
     readonly $container: BinExpr | ComparisonExpression | FnCall | Group | KvPair | LogicalExpression | NegExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
+    asyncFnCall?: AsyncFnCall;
     bool?: Boolean;
     fnCall?: FnCall;
     id?: string;
@@ -459,13 +474,14 @@ export function isOrAnd(item: unknown): item is OrAnd {
 }
 
 export interface Pattern extends langium.AstNode {
-    readonly $container: Delete | ForEach | RelationshipPattern | Statement;
+    readonly $container: Delete | ForEach | Purge | RelationshipPattern | Statement;
     readonly $type: 'Pattern';
     crudMap?: CrudMap;
     delete?: Delete;
     forEach?: ForEach;
     if?: If;
     literal?: Literal;
+    purge?: Purge;
     upsert?: Upsert;
 }
 
@@ -486,6 +502,18 @@ export const PropertyDefinition = 'PropertyDefinition';
 
 export function isPropertyDefinition(item: unknown): item is PropertyDefinition {
     return reflection.isInstance(item, PropertyDefinition);
+}
+
+export interface Purge extends langium.AstNode {
+    readonly $container: Pattern;
+    readonly $type: 'Purge';
+    pattern: Pattern;
+}
+
+export const Purge = 'Purge';
+
+export function isPurge(item: unknown): item is Purge {
+    return reflection.isInstance(item, Purge);
 }
 
 export interface RbacAllowSpec extends langium.AstNode {
@@ -658,8 +686,20 @@ export function isSetAttribute(item: unknown): item is SetAttribute {
     return reflection.isInstance(item, SetAttribute);
 }
 
+export interface StandaloneStatement extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'StandaloneStatement';
+    stmt: Statement;
+}
+
+export const StandaloneStatement = 'StandaloneStatement';
+
+export function isStandaloneStatement(item: unknown): item is StandaloneStatement {
+    return reflection.isInstance(item, StandaloneStatement);
+}
+
 export interface Statement extends langium.AstNode {
-    readonly $container: ArrayLiteral | Else | ForEach | If | Throws | WorkflowDefinition;
+    readonly $container: ArrayLiteral | Else | ForEach | If | StandaloneStatement | Throws | WorkflowDefinition;
     readonly $type: 'Statement';
     alias?: string;
     aliases: Array<string>;
@@ -724,6 +764,7 @@ export function isQueryAllPattern(item: unknown): item is QueryAllPattern {
 
 export type AgentlangAstType = {
     ArrayLiteral: ArrayLiteral
+    AsyncFnCall: AsyncFnCall
     AttributeDefinition: AttributeDefinition
     AttributeValueExpression: AttributeValueExpression
     BinExpr: BinExpr
@@ -753,6 +794,7 @@ export type AgentlangAstType = {
     Pattern: Pattern
     PrimExpr: PrimExpr
     PropertyDefinition: PropertyDefinition
+    Purge: Purge
     QueryAllPattern: QueryAllPattern
     RbacAllowSpec: RbacAllowSpec
     RbacExpressionSpec: RbacExpressionSpec
@@ -768,6 +810,7 @@ export type AgentlangAstType = {
     RelationshipPattern: RelationshipPattern
     SchemaDef: SchemaDef
     SetAttribute: SetAttribute
+    StandaloneStatement: StandaloneStatement
     Statement: Statement
     Throws: Throws
     Upsert: Upsert
@@ -777,7 +820,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, ModuleDefinition, NegExpr, NodeDefinition, OrAnd, Pattern, PrimExpr, PropertyDefinition, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, Statement, Throws, Upsert, WorkflowDefinition];
+        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, ModuleDefinition, NegExpr, NodeDefinition, OrAnd, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -804,6 +847,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             }
             case RelationshipDefinition:
             case SchemaDef:
+            case StandaloneStatement:
             case WorkflowDefinition: {
                 return this.isSubtype(Definition, supertype);
             }
@@ -832,6 +876,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: ArrayLiteral,
                     properties: [
                         { name: 'vals', defaultValue: [] }
+                    ]
+                };
+            }
+            case AsyncFnCall: {
+                return {
+                    name: AsyncFnCall,
+                    properties: [
+                        { name: 'fnCall' }
                     ]
                 };
             }
@@ -989,6 +1041,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Literal,
                     properties: [
                         { name: 'array' },
+                        { name: 'asyncFnCall' },
                         { name: 'bool' },
                         { name: 'fnCall' },
                         { name: 'id' },
@@ -1051,6 +1104,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'forEach' },
                         { name: 'if' },
                         { name: 'literal' },
+                        { name: 'purge' },
                         { name: 'upsert' }
                     ]
                 };
@@ -1061,6 +1115,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'name' },
                         { name: 'value' }
+                    ]
+                };
+            }
+            case Purge: {
+                return {
+                    name: Purge,
+                    properties: [
+                        { name: 'pattern' }
                     ]
                 };
             }
@@ -1179,6 +1241,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'name' },
                         { name: 'op' },
                         { name: 'value' }
+                    ]
+                };
+            }
+            case StandaloneStatement: {
+                return {
+                    name: StandaloneStatement,
+                    properties: [
+                        { name: 'stmt' }
                     ]
                 };
             }

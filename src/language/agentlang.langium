@@ -4,7 +4,10 @@ entry ModuleDefinition: 'module' name=ID (imports+=Import)* (defs+=Definition)*;
 
 Import: 'import' path=STRING 'as' name=ID;
 
-Definition: SchemaDef | RelationshipDefinition | WorkflowDefinition;
+Definition: SchemaDef | RelationshipDefinition | WorkflowDefinition | StandaloneStatement;
+
+StandaloneStatement: stmt=Statement;
+
 SchemaDef: EntityDefinition | EventDefinition | RecordDefinition;
 
 PropertyDefinition: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
@@ -48,13 +51,15 @@ ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 
 FnCall: name=(ID | Ref) (('(' ')') | ('(' (args+=Literal (',' args+=Literal)*)+ ')'));
 
-Literal: (id=ID | num=Decimal | str=STRING | ref=Ref | bool=Boolean | fnCall=FnCall | array=ArrayLiteral);
+AsyncFnCall: 'await' fnCall=FnCall;
+
+Literal: (id=ID | num=Decimal | str=STRING | ref=Ref | bool=Boolean | fnCall=FnCall | asyncFnCall=AsyncFnCall | array=ArrayLiteral);
 
 fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*)+ '}' | '{' statements+=Statement ';'+ '}' | statements+=Statement;
 
 WorkflowDefinition: 'workflow' name=ID Body;
 
-Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | upsert=Upsert;
+Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | upsert=Upsert;
 
 Statement: pattern=Pattern ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*)+ ']'))? throws=Throws?;
 
@@ -76,6 +81,8 @@ Else: 'else' Body;
 ForEach: 'for' var=ID 'in' src=Pattern Body;
 
 Delete: 'delete' pattern=Pattern;
+
+Purge: 'purge' pattern=Pattern;
 
 Upsert: 'upsert' pattern=CrudMap;
 
