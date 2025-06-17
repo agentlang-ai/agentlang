@@ -69,6 +69,12 @@ workflow AssignUserToRole {
     upsert {UserRole {User user, Role role}}
 }
 
+workflow AssignUserToRoleByEmail {
+    {User {email? AssignUserToRoleByEmail.email}} as [user];
+    {Role {name? AssignUserToRoleByEmail.roleName}} as [role];
+    upsert {UserRole {User user, Role role}}
+}
+
 workflow FindUserRoles {
   {User {id? FindUserRoles.userId},
    UserRole {Role? {}}}
@@ -121,7 +127,7 @@ workflow RemoveSession {
   purge {Session {id? RemoveSession.id}}
 }
 
-workflow SignUp {
+workflow signup {
   await Auth.signUpUser(SignUp.email, SignUp.password, SignUp.userData)
 }
 
@@ -256,7 +262,7 @@ export async function findRole(name: string, env: Environment): Promise<Result> 
 
 export async function createRole(name: string, env: Environment) {
   await evalEvent('CreateRole', { name: name }, env).catch((reason: any) => {
-    logger.error(`Failed to create role ${name} - ${reason}`);
+    logger.error(`Failed to create role '${name}' - ${reason}`);
   });
 }
 
@@ -479,12 +485,25 @@ export async function loginUser(
 export async function verifySession(token: string, env?: Environment): Promise<ActiveSessionInfo> {
   const parts = token.split('/');
   const sessId = parts[1];
+  const needCommit = env ? false : true;
   env = env ? env : new Environment();
-  const sess: Instance = await findSession(sessId, env);
-  if (sess) {
-    await runtimeAuth.verifyToken(sess.lookup('id'), env);
-    return { sessionId: sessId, userId: parts[0] };
+  const f = async () => {
+    const sess: Instance = await findSession(sessId, env);
+    if (sess != undefined) {
+      await runtimeAuth.verifyToken(sess.lookup('authToken'), env);
+      return { sessionId: sessId, userId: parts[0] };
+    } else {
+      throw new Error(`No active session for user '${parts[0]}'`);
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
   } else {
-    throw new Error(`No active session for ${token}`);
+    return await f();
   }
+}
+
+export function requireAuth(moduleName: string, eventName: string): boolean {
+  const f = moduleName == CoreAuthModuleName && (eventName == 'login' || eventName == 'signup');
+  return !f;
 }

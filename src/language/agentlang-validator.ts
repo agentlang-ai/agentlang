@@ -1,5 +1,10 @@
 import type { ValidationAcceptor, ValidationChecks } from 'langium';
-import { AgentlangAstType, ModuleDefinition, SchemaDef } from './generated/ast.js';
+import {
+  AgentlangAstType,
+  isStandaloneStatement,
+  ModuleDefinition,
+  SchemaDef,
+} from './generated/ast.js';
 import type { AgentlangServices } from './agentlang-module.js';
 
 /**
@@ -25,13 +30,15 @@ export class AgentlangValidator {
     // and report an error when we see one we've already seen
     const reported = new Set();
     module.defs.forEach(d => {
-      if (d.$type != 'WorkflowDefinition' && reported.has(d.name)) {
-        accept('error', `Definition has non-unique name '${d.name}'.`, {
-          node: d,
-          property: 'name',
-        });
+      if (!isStandaloneStatement(d)) {
+        if (d.$type != 'WorkflowDefinition' && reported.has(d.name)) {
+          accept('error', `Definition has non-unique name '${d.name}'.`, {
+            node: d,
+            property: 'name',
+          });
+        }
+        reported.add(d.name);
       }
-      reported.add(d.name);
     });
   }
 

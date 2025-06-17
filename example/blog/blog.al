@@ -7,7 +7,8 @@ entity Profile {
     address String @optional,
     email Email,
     photo URL @optional,
-    DOB DateTime @optional
+    DOB DateTime @optional,
+    @rbac [(roles: [manager], allow: [create])]
 }
 
 entity User {
@@ -28,7 +29,8 @@ relationship UserPost contains (User, Post) @one_many
 
 entity Category {
     id UUID @id @default(uuid()),
-    description String
+    description String,
+    @rbac [(roles: [manager], allow: [create])]
 }
 
 // many-many
@@ -84,3 +86,6 @@ workflow FindUserProfile {
 workflow UpdateUserName {
     {User {id? UpdateUserName.userId, name UpdateUserName.newName}}
 }
+
+//upsert {agentlang_auth/User {email "abc@cc.com", firstName "A", lastName "BC"}}
+//{agentlang_auth/AssignUserToRoleByEmail {email "abc@cc.com", roleName "manager"}}

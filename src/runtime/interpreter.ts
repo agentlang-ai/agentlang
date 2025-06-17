@@ -381,7 +381,11 @@ export async function evaluateAsEvent(
   return result;
 }
 
-async function evaluateStatements(stmts: Statement[], env: Environment, continuation?: Function) {
+export async function evaluateStatements(
+  stmts: Statement[],
+  env: Environment,
+  continuation?: Function
+) {
   for (let i = 0; i < stmts.length; ++i) {
     await evaluateStatement(stmts[i], env);
   }

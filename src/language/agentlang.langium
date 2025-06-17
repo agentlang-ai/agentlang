@@ -4,7 +4,10 @@ entry ModuleDefinition: 'module' name=ID (imports+=Import)* (defs+=Definition)*;
 
 Import: 'import' path=STRING 'as' name=ID;
 
-Definition: SchemaDef | RelationshipDefinition | WorkflowDefinition;
+Definition: SchemaDef | RelationshipDefinition | WorkflowDefinition | StandaloneStatement;
+
+StandaloneStatement: stmt=Statement;
+
 SchemaDef: EntityDefinition | EventDefinition | RecordDefinition;
 
 PropertyDefinition: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;

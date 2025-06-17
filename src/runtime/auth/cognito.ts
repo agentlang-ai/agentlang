@@ -195,7 +195,7 @@ export class CognitoAuth implements AgentlangAuth {
       });
 
       const payload = await verifier.verify(token);
-      console.log('Decoded JWT:', payload);
+      logger.debug(`Decoded JWT for ${payload.email}`);
     } catch (err) {
       throw new Error(`Failed to verify token - ${err}`);
     }

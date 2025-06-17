@@ -98,10 +98,7 @@ export class SqlDbResolver extends Resolver {
       }
       const n: string = asTableName(inst.moduleName, inst.name);
       const rowObj: object = inst.attributesAsObject();
-      /*if (orUpdate) {
-        f = upsertRow;
-      }*/
-      await insertRow(n, rowObj, this.getDbContext(inst.getFqName()));
+      await insertRow(n, rowObj, this.getDbContext(inst.getFqName()), orUpdate);
       return inst;
     }
   }

@@ -9,8 +9,8 @@ import {
 import { evaluate, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
-import { verifySession } from '../runtime/modules/auth.js';
-import { ActiveSessionInfo, AdminSession } from '../runtime/auth/defs.js';
+import { requireAuth, verifySession } from '../runtime/modules/auth.js';
+import { ActiveSessionInfo, BypassSession, isNoSession, NoSession } from '../runtime/auth/defs.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number) {
   const app = express();
@@ -47,29 +47,45 @@ async function handleEventPost(
   req: Request,
   res: Response
 ): Promise<void> {
-  const sessionInfo = await verifyAuth(req.headers.authorization);
-  const inst: Instance = makeInstance(
-    moduleName,
-    eventName,
-    objectAsInstanceAttributes(req.body)
-  ).setAuthContext(sessionInfo);
-  evaluate(inst, (value: Result) => {
-    const result: Result = normalizedResult(value);
-    res.contentType('application/json');
-    res.send(JSON.stringify(result));
-  }).catch((reason: any) => {
-    logger.error(reason);
-    res.status(500).send(reason);
-  });
+  try {
+    const sessionInfo = await verifyAuth(moduleName, eventName, req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const inst: Instance = makeInstance(
+      moduleName,
+      eventName,
+      objectAsInstanceAttributes(req.body)
+    ).setAuthContext(sessionInfo);
+    evaluate(inst, (value: Result) => {
+      const result: Result = normalizedResult(value);
+      res.contentType('application/json');
+      res.send(JSON.stringify(result));
+    }).catch((reason: any) => {
+      logger.error(reason);
+      res.status(500).send(reason);
+    });
+  } catch (err: any) {
+    logger.error(`Error in handing request: ${err}`);
+    res.status(500).send(err.toString());
+  }
 }
 
-async function verifyAuth(authValue: string | undefined): Promise<ActiveSessionInfo> {
-  if (authValue) {
-    const token = authValue.substring(authValue.indexOf(' ')).trim();
-    return await verifySession(token);
-  } else {
-    return AdminSession;
+async function verifyAuth(
+  moduleName: string,
+  eventName: string,
+  authValue: string | undefined
+): Promise<ActiveSessionInfo> {
+  if (requireAuth(moduleName, eventName)) {
+    if (authValue) {
+      const token = authValue.substring(authValue.indexOf(' ')).trim();
+      return await verifySession(token);
+    } else {
+      return NoSession;
+    }
   }
+  return BypassSession;
 }
 
 function normalizedResult(r: Result): Result {

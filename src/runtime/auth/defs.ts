@@ -9,3 +9,14 @@ export const AdminSession: ActiveSessionInfo = {
   sessionId: crypto.randomUUID(),
   userId: AdminUserId,
 };
+
+export const BypassSession = AdminSession;
+
+export const NoSession: ActiveSessionInfo = {
+  sessionId: 'nil',
+  userId: 'nil',
+};
+
+export function isNoSession(sess: ActiveSessionInfo): boolean {
+  return sess == NoSession;
+}
