@@ -54,8 +54,8 @@ import {
   splitRefs,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
-import { AdminUserId } from './modules/auth.js';
 import { parseStatement } from '../language/parser.js';
+import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 
 export type Result = any;
 
@@ -87,6 +87,7 @@ export class Environment extends Instance {
   private activeModule: string;
   private activeEventInstance: Instance | undefined;
   private activeUser: string = AdminUserId;
+  private activeUserSet: boolean = false;
   private lastResult: Result;
   private parentPath: string | undefined;
   private betweenRelInfo: BetweenRelInfo | undefined;
@@ -107,6 +108,7 @@ export class Environment extends Instance {
       this.parent = parent;
       this.activeModule = parent.activeModule;
       this.activeUser = parent.activeUser;
+      this.activeUserSet = parent.activeUserSet;
       this.setActiveEvent(parent.getActiveEventInstance());
       this.lastResult = parent.lastResult;
       this.activeTransactions = parent.activeTransactions;
@@ -150,6 +152,10 @@ export class Environment extends Instance {
       this.bindInstance(eventInst);
       this.activeModule = eventInst.moduleName;
       this.activeEventInstance = eventInst;
+      if (!this.activeUserSet) {
+        this.activeUser = eventInst.getAuthContextUserId();
+        this.activeUserSet = true;
+      }
     }
     return this;
   }
@@ -160,6 +166,7 @@ export class Environment extends Instance {
 
   setActiveUser(userId: string): Environment {
     this.activeUser = userId;
+    this.activeUserSet = true;
     return this;
   }
 
@@ -360,14 +367,14 @@ export async function evaluateAsEvent(
   moduleName: string,
   eventName: string,
   attrs: Array<any> | object,
-  activeUserId?: string,
+  activeSession?: ActiveSessionInfo,
   env?: Environment,
   kernelCall?: boolean
 ): Promise<Result> {
   const finalAttrs: Map<string, any> =
     attrs instanceof Array ? new Map(attrs) : new Map(Object.entries(attrs));
   const eventInst: Instance = makeInstance(moduleName, eventName, finalAttrs).setAuthContext(
-    activeUserId || AdminUserId
+    activeSession || AdminSession
   );
   let result: any;
   await evaluate(eventInst, (r: any) => (result = r), env, kernelCall);

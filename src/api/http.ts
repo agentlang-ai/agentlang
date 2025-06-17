@@ -9,7 +9,8 @@ import {
 import { evaluate, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
-import { AdminUserId } from '../runtime/modules/auth.js';
+import { verifySession } from '../runtime/modules/auth.js';
+import { ActiveSessionInfo, AdminSession } from '../runtime/auth/defs.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number) {
   const app = express();
@@ -40,12 +41,18 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
   });
 }
 
-function handleEventPost(moduleName: string, eventName: string, req: Request, res: Response): void {
+async function handleEventPost(
+  moduleName: string,
+  eventName: string,
+  req: Request,
+  res: Response
+): Promise<void> {
+  const sessionInfo = await verifyAuth(req.headers.authorization);
   const inst: Instance = makeInstance(
     moduleName,
     eventName,
     objectAsInstanceAttributes(req.body)
-  ).setAuthContext(AdminUserId);
+  ).setAuthContext(sessionInfo);
   evaluate(inst, (value: Result) => {
     const result: Result = normalizedResult(value);
     res.contentType('application/json');
@@ -54,6 +61,15 @@ function handleEventPost(moduleName: string, eventName: string, req: Request, re
     logger.error(reason);
     res.status(500).send(reason);
   });
+}
+
+async function verifyAuth(authValue: string | undefined): Promise<ActiveSessionInfo> {
+  if (authValue) {
+    const token = authValue.substring(authValue.indexOf(' ')).trim();
+    return await verifySession(token);
+  } else {
+    return AdminSession;
+  }
 }
 
 function normalizedResult(r: Result): Result {

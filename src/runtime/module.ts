@@ -23,6 +23,7 @@ import {
   isMinusZero,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
+import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
 
 export class ModuleEntry {
   name: string;
@@ -1490,7 +1491,7 @@ export class Instance {
   queryAttributes: InstanceAttributes | undefined;
   queryAttributeValues: InstanceAttributes | undefined;
   relatedInstances: Map<string, Instance[]> | undefined;
-  contextData: Map<string, any> | undefined;
+  private contextData: Map<string, any> | undefined;
 
   constructor(
     record: Record,
@@ -1634,12 +1635,16 @@ export class Instance {
     return notFoundValue;
   }
 
-  setAuthContext(userId: string): Instance {
-    return this.addContextData('UserId', userId);
+  setAuthContext(sesssionInfo: ActiveSessionInfo): Instance {
+    return this.addContextData('sessionInfo', sesssionInfo);
   }
 
   getAuthContextUserId(): string {
-    return this.getContextData('UserId') || '?';
+    const sessInfo: ActiveSessionInfo = this.getContextData(
+      'sessionInfo',
+      AdminSession
+    ) as ActiveSessionInfo;
+    return sessInfo.userId;
   }
 
   cast<T>(): T {

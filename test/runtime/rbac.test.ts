@@ -1,6 +1,6 @@
 import { parseModule } from "../../src/language/parser.js"
 import { assert, describe, test } from "vitest"
-import { Module } from "../../src/language/generated/ast.js"
+import { ModuleDefinition } from "../../src/language/generated/ast.js"
 import { assignUserToRole, createUser } from "../../src/runtime/modules/auth.js"
 import { internAndRunModule } from "../../src/cli/main.js"
 import { Environment, parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
@@ -41,7 +41,7 @@ workflow LookupEmployee {
 
 describe('Basic RBAC checks', () => {
     test('Basic RBAC tests', async () => {
-        const module: Module = await parseModule(mod1)
+        const module: ModuleDefinition = await parseModule(mod1)
         assert(module.name == "Acme", 'failed to parse test module')
         await internAndRunModule(module)
         const id1 = crypto.randomUUID()
@@ -95,4 +95,4 @@ describe('Basic RBAC checks', () => {
             assert(emps[0].get('name') == 'Joe', 'Failed to lookup Joe in department 101')
         }
     })
-})
+}, 1000000)

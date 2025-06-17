@@ -5,9 +5,9 @@ import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
 import { CognitoAuth } from '../auth/cognito.js';
+import { ActiveSessionInfo, AdminSession, AdminUserId } from '../auth/defs.js';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
-export const AdminUserId = '00000000-0000-0000-0000-000000000000';
 
 const moduleDef = `module ${CoreAuthModuleName}
 
@@ -140,7 +140,7 @@ async function evalEvent(
   if (!env) {
     env = new Environment();
   }
-  return await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, AdminUserId, env, true);
+  return await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, AdminSession, env, true);
 }
 
 export async function createUser(
@@ -476,12 +476,15 @@ export async function loginUser(
   return result;
 }
 
-export async function verifySession(cookieData: string, env: Environment) {
-  const sessId = cookieData.split('/')[1];
+export async function verifySession(token: string, env?: Environment): Promise<ActiveSessionInfo> {
+  const parts = token.split('/');
+  const sessId = parts[1];
+  env = env ? env : new Environment();
   const sess: Instance = await findSession(sessId, env);
   if (sess) {
     await runtimeAuth.verifyToken(sess.lookup('id'), env);
+    return { sessionId: sessId, userId: parts[0] };
   } else {
-    throw new Error(`No active session for ${cookieData}`);
+    throw new Error(`No active session for ${token}`);
   }
 }
