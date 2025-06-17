@@ -462,12 +462,12 @@ export class IfPattern extends BasePattern {
     return this;
   }
 
-  setElse(elseBody: BasePattern[]) {
-    this.elseBody = elseBody;
+  setElse(elseBody?: BasePattern[]): IfPattern {
+    this.elseBody = elseBody ? elseBody : new Array<BasePattern>();
     return this;
   }
 
-  removeElse() {
+  removeElse(): IfPattern {
     this.elseBody = undefined;
     return this;
   }
