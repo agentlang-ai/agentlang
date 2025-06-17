@@ -423,7 +423,6 @@ export function isForEachPattern(p: BasePattern): boolean {
 export class IfPattern extends BasePattern {
   condition: BasePattern;
   body: BasePattern[];
-  elseIf: BasePattern | undefined;
   elseBody: BasePattern[] | undefined;
 
   private static True = new LiteralPattern(LiteralPatternType.BOOLEAN, true);
@@ -463,22 +462,12 @@ export class IfPattern extends BasePattern {
     return this;
   }
 
-  setElseIf(p: IfPattern) {
-    this.elseIf = p;
-    return this;
-  }
-
-  setElseBody(elseBody: BasePattern[]) {
+  setElse(elseBody: BasePattern[]) {
     this.elseBody = elseBody;
     return this;
   }
 
-  removeElseIf() {
-    this.elseIf = undefined;
-    return this;
-  }
-
-  removeElseBody() {
+  removeElse() {
     this.elseBody = undefined;
     return this;
   }
@@ -486,11 +475,12 @@ export class IfPattern extends BasePattern {
   override toString(): string {
     let s = `if(${this.condition.toString()}) {`;
     s = s.concat(patternsToString(this.body), '}');
-    if (this.elseIf) {
-      s = s.concat(` else ${this.elseIf.toString()}`);
-    }
     if (this.elseBody) {
-      s = s.concat(` else {${patternsToString(this.elseBody)}}`);
+      if (this.elseBody.length == 1 && this.elseBody[0] instanceof IfPattern) {
+        s = s.concat(` else ${this.elseBody[0].toString()}`);
+      } else {
+        s = s.concat(` else {${patternsToString(this.elseBody)}}`);
+      }
     }
     return s.concat(this.aliasAsString());
   }
