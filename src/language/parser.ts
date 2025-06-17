@@ -264,11 +264,8 @@ function introspectIf(ifpat: If): IfPattern {
   ifpat.statements.forEach((stmt: Statement) => {
     ifp.addPattern(introspectStatement(stmt));
   });
-  if (ifpat.elseif) {
-    ifp.setElseIf(introspectIf(ifpat.elseif));
-  }
   if (ifpat.else) {
-    ifp.setElseBody(
+    ifp.setElse(
       ifpat.else.statements.map((stmt: Statement) => {
         return introspectStatement(stmt);
       })

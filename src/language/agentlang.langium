@@ -71,9 +71,7 @@ Throws: 'throws' '{' (handlers+=Handler)+ '}';
 
 Handler: ('not_found' | 'error') Statement;
 
-If: 'if' '(' cond=LogicalExpression ')' Body (elseif=ElseIf | else=Else)?;
-
-ElseIf infers If: 'else' 'if' '(' cond=LogicalExpression ')' Body;
+If: 'if' '(' cond=LogicalExpression ')' Body else=Else?;
 
 Else: 'else' Body;
 

@@ -73,12 +73,11 @@ describe('Pattern generation using the syntax API', () => {
     assert(emptyfe.toString() == 'for X in []{}', 'Failed to generate empty for-each')
     const ifp: IfPattern = new IfPattern(new ExpressionPattern('emp.salary > 1000'))
       .addPattern(new LiteralPattern(LiteralPatternType.STRING, '+1000'))
-      .setElseIf(
-        new IfPattern(new ExpressionPattern('emp.salary < 500')).addPattern(
+      .setElse(
+        [new IfPattern(new ExpressionPattern('emp.salary < 500')).addPattern(
           new LiteralPattern(LiteralPatternType.STRING, '-500')
-        )
+        ).setElse([new LiteralPattern(LiteralPatternType.STRING, 'ok')])]
       )
-      .setElseBody([new LiteralPattern(LiteralPatternType.STRING, 'ok')]);
     const stmt5 = `if(emp.salary > 1000) {"+1000"} else if(emp.salary < 500) {"-500"} else {"ok"}`;
     assert(ifp.toString() == stmt5, 'Failed to generate if pattern');
     const qp: CrudPattern = new CrudPattern('Blog/User');

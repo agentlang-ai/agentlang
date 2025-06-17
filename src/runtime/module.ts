@@ -20,6 +20,7 @@ import {
   makeFqName,
   DefaultModuleName,
   joinStatements,
+  isMinusZero,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 
@@ -667,24 +668,49 @@ export class Workflow extends ModuleEntry {
     return this;
   }
 
-  async setStatementAtHelper(
+  setStatementAtHelper(
     statements: Statement[],
-    newStmt: Statement,
+    newStmt: Statement | undefined,
     index: number[]
-  ): Promise<Workflow> {
+  ): Workflow {
     let stmt = statements[index[0]];
     const isFe = stmt.pattern.forEach;
     const isIf = stmt.pattern.if;
     if (isFe || isIf) {
       for (let i = 1; i < index.length; ++i) {
-        const add = i == index.length - 1;
-        const idx = index[i];
+        const found = i == index.length - 1;
+        let idx = index[i];
         if (stmt.pattern.forEach) {
-          if (add) stmt.pattern.forEach.statements[idx] = newStmt;
-          else stmt = stmt.pattern.forEach.statements[idx];
+          if (found) {
+            if (!newStmt) {
+              stmt.pattern.forEach.statements.splice(idx, 1);
+            } else {
+              stmt.pattern.forEach.statements[idx] = newStmt;
+            }
+          } else stmt = stmt.pattern.forEach.statements[idx];
         } else if (stmt.pattern.if) {
-          if (add) stmt.pattern.if.statements[idx] = newStmt;
-          else stmt = stmt.pattern.if.statements[idx];
+          if (idx < 0 || isMinusZero(idx)) {
+            if (stmt.pattern.if.else) {
+              idx *= -1;
+              if (found) {
+                if (!newStmt) {
+                  stmt.pattern.if.else.statements.splice(idx, 1);
+                } else {
+                  stmt.pattern.if.else.statements[idx] = newStmt;
+                }
+              } else stmt = stmt.pattern.if.else.statements[idx];
+            } else {
+              throw new Error('No else part in if');
+            }
+          } else {
+            if (found) {
+              if (!newStmt) {
+                stmt.pattern.if.statements.splice(idx, 1);
+              } else {
+                stmt.pattern.if.statements[idx] = newStmt;
+              }
+            } else stmt = stmt.pattern.if.statements[idx];
+          }
         } else {
           throw new Error('Cannot dig further into statements');
         }
@@ -708,31 +734,14 @@ export class Workflow extends ModuleEntry {
     return this;
   }
 
-  removePatternAt(index: number | number[]): Workflow {
+  removeStatementAt(index: number | number[]): Workflow {
     if (index instanceof Array) {
       if (index.length == 1) {
         this.statements.splice(index[0], 1);
         return this;
+      } else {
+        return this.setStatementAtHelper(this.statements, undefined, index);
       }
-      let stmt = this.statements[index[0]];
-      const isFe = stmt.pattern.forEach;
-      const isIf = stmt.pattern.if;
-      if (isFe || isIf) {
-        for (let i = 1; i < index.length; ++i) {
-          const remove = i == index.length - 1;
-          const idx = index[i];
-          if (stmt.pattern.forEach) {
-            if (remove) stmt.pattern.forEach.statements.splice(idx, 1);
-            else stmt = stmt.pattern.forEach.statements[idx];
-          } else if (stmt.pattern.if) {
-            if (remove) stmt.pattern.if.statements.splice(idx, 1);
-            else stmt = stmt.pattern.if.statements[idx];
-          } else {
-            throw new Error('Cannot dig further into statements');
-          }
-        }
-      }
-      return this;
     } else {
       this.statements.splice(index, 1);
     }
@@ -750,11 +759,6 @@ export class Workflow extends ModuleEntry {
         ss.push(`   if (${stmt.pattern.if.cond.$cstNode?.text}) {
         ${joinStatements(this.statementsToStringsHelper(stmt.pattern.if.statements))}
     }`);
-        if (stmt.pattern.if.elseif) {
-          ss.push(` else if (${stmt.pattern.if.elseif.cond.$cstNode?.text}) {
-            ${joinStatements(this.statementsToStringsHelper(stmt.pattern.if.elseif.statements))}
-    }`);
-        }
         if (stmt.pattern.if.else) {
           ss.push(` else {
             ${joinStatements(this.statementsToStringsHelper(stmt.pattern.if.else.statements))}
