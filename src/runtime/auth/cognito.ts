@@ -7,11 +7,6 @@ import {
   UserInfo,
 } from './interface.js';
 import {
-  CognitoIdentityProviderClient,
-  SignUpCommand,
-  SignUpCommandOutput,
-} from '@aws-sdk/client-cognito-identity-provider';
-import {
   ensureUser,
   ensureUserSession,
   findUser,
@@ -19,12 +14,6 @@ import {
   findUserSession,
   removeSession,
 } from '../modules/auth.js';
-import {
-  AuthenticationDetails,
-  CognitoUser,
-  CognitoUserPool,
-  CognitoUserSession,
-} from 'amazon-cognito-identity-js';
 import { logger } from '../logger.js';
 import { sleepMilliseconds } from '../util.js';
 import { Instance } from '../module.js';
@@ -33,9 +22,24 @@ import { Environment } from '../interpreter.js';
 import { isNodeEnv } from '../../utils/runtime.js';
 
 let fromEnv: any = undefined;
+let CognitoIdentityProviderClient: any = undefined;
+let SignUpCommand: any = undefined;
+let AuthenticationDetails: any = undefined;
+let CognitoUser: any = undefined;
+let CognitoUserPool: any = undefined;
+
 if (isNodeEnv) {
   const cp = await import('@aws-sdk/credential-providers');
   fromEnv = cp.fromEnv;
+
+  const cip = await import('@aws-sdk/client-cognito-identity-provider');
+  CognitoIdentityProviderClient = cip.CognitoIdentityProviderClient;
+  SignUpCommand = cip.SignUpCommand;
+
+  const ci = await import('amazon-cognito-identity-js');
+  AuthenticationDetails = ci.AuthenticationDetails;
+  CognitoUser = ci.CognitoUser;
+  CognitoUserPool = ci.CognitoUserPool;
 }
 
 const defaultConfig = new Map<string, string | undefined>()
@@ -44,7 +48,7 @@ const defaultConfig = new Map<string, string | undefined>()
 
 export class CognitoAuth implements AgentlangAuth {
   config: Map<string, string | undefined>;
-  userPool: CognitoUserPool | undefined;
+  userPool: any;
   constructor(config?: Map<string, string>) {
     this.config = config ? config : defaultConfig;
     const upid = this.config.get('UserPoolId');
@@ -105,7 +109,7 @@ export class CognitoAuth implements AgentlangAuth {
       ValidationData: userAttrs,
     };
     const command = new SignUpCommand(input);
-    const response: SignUpCommandOutput = await client.send(command);
+    const response = await client.send(command);
     if (response.$metadata.httpStatusCode == 200) {
       const user = await ensureUser(username, '', '', env);
       const userInfo: UserInfo = {
@@ -138,12 +142,12 @@ export class CognitoAuth implements AgentlangAuth {
       Username: username,
       Password: password,
     });
-    let result: CognitoUserSession | undefined;
+    let result: any;
     user.authenticateUser(authDetails, {
-      onSuccess: session => {
+      onSuccess: (session: any) => {
         result = session;
       },
-      onFailure: err => {
+      onFailure: (err: any) => {
         throw new Error(`Authentication failed for ${username} - ${err}`);
       },
     });
@@ -190,7 +194,7 @@ export class CognitoAuth implements AgentlangAuth {
     if (cb) cb(true);
   }
 
-  private fetchUserPool(): CognitoUserPool {
+  private fetchUserPool() {
     if (this.userPool) {
       return this.userPool;
     }

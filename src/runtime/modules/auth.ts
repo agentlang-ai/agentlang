@@ -4,8 +4,9 @@ import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
-import { CognitoAuth } from '../auth/cognito.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from '../auth/defs.js';
+import { isNodeEnv } from '../../utils/runtime.js';
+import { CognitoAuth } from '../auth/cognito.js';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
 
@@ -449,8 +450,19 @@ export class UnauthorisedError extends Error {
   }
 }
 
-const runtimeAuth: AgentlangAuth = new CognitoAuth();
+let runtimeAuth: AgentlangAuth | undefined;
 
+if (isNodeEnv) {
+  runtimeAuth = new CognitoAuth();
+}
+
+function fetchAuthImpl(): AgentlangAuth {
+  if (runtimeAuth) {
+    return runtimeAuth;
+  } else {
+    throw new Error('Auth not initialized');
+  }
+}
 export async function signUpUser(
   username: string,
   password: string,
@@ -458,7 +470,7 @@ export async function signUpUser(
   env: Environment
 ): Promise<UserInfo> {
   let result: any;
-  await runtimeAuth.signUp(
+  await fetchAuthImpl().signUp(
     username,
     password,
     userData ? new Map(Object.entries(userData)) : undefined,
@@ -476,7 +488,7 @@ export async function loginUser(
   env: Environment
 ): Promise<string> {
   let result: string = '';
-  await runtimeAuth.login(username, password, env, (r: SessionInfo) => {
+  await fetchAuthImpl().login(username, password, env, (r: SessionInfo) => {
     result = `${r.userId}/${r.sessionId}`;
   });
   return result;
@@ -490,7 +502,7 @@ export async function verifySession(token: string, env?: Environment): Promise<A
   const f = async () => {
     const sess: Instance = await findSession(sessId, env);
     if (sess != undefined) {
-      await runtimeAuth.verifyToken(sess.lookup('authToken'), env);
+      await fetchAuthImpl().verifyToken(sess.lookup('authToken'), env);
       return { sessionId: sessId, userId: parts[0] };
     } else {
       throw new Error(`No active session for user '${parts[0]}'`);
