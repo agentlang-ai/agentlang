@@ -42,9 +42,11 @@ if (isNodeEnv) {
   CognitoUserPool = ci.CognitoUserPool;
 }
 
-const defaultConfig = new Map<string, string | undefined>()
-  .set('UserPoolId', process.env.COGNITO_USER_POOL_ID)
-  .set('ClientId', process.env.COGNITO_CLIENT_ID);
+const defaultConfig = isNodeEnv
+  ? new Map<string, string | undefined>()
+      .set('UserPoolId', process.env.COGNITO_USER_POOL_ID)
+      .set('ClientId', process.env.COGNITO_CLIENT_ID)
+  : new Map();
 
 export class CognitoAuth implements AgentlangAuth {
   config: Map<string, string | undefined>;

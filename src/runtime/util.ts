@@ -1,15 +1,18 @@
 import { isNodeEnv } from '../utils/runtime.js';
 import { ExtendsClause } from '../language/generated/ast.js';
-import { promisify } from 'node:util';
 
 export const QuerySuffix = '?';
 
 // Conditionally import Node.js specific modules
 let exec: any = undefined;
+let promisify: any = undefined;
 if (isNodeEnv) {
   // Dynamic import for node:child_process to avoid browser compatibility issues
   const childProcess = await import('node:child_process');
   exec = childProcess.exec;
+
+  const nu = await import('node:util');
+  promisify = nu.promisify;
 }
 
 const importedModules = new Map<string, any>();
