@@ -242,5 +242,13 @@ describe('Array tests', () => {
       .then((result: Instance) => {
         assert(isInstanceOfType(result, 'ArrayTest/E'))
       })
+    await parseAndEvaluateStatement(`{ArrayTest/E {id? 1}}`)
+    .then((result: Instance[]) => {
+      assert(result.length == 1)
+      const vals = result[0].lookup('vals')
+      assert(vals instanceof Array)
+      assert(vals.length == 2)
+      assert(vals[1] == 'b')
+    })
   })
 })

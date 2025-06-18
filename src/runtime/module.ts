@@ -1470,8 +1470,18 @@ function getAttributeSpec(attrsSpec: RecordSchema, attrName: string): AttributeS
 function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec) {
   const predic = builtInChecks.get(attrSpec.type);
   if (predic != undefined) {
-    if (!predic(attrValue)) {
-      throw new Error(`Invalid value ${attrValue} specified for ${attrName}`);
+    if (isArrayAttribute(attrSpec)) {
+      if (!(attrValue instanceof Array)) {
+        throw new Error(`${attrName} expects an array of values`);
+      } else {
+        if (!attrValue.every(predic)) {
+          throw new Error(`Invalid value in the array passed to ${attrName}`);
+        }
+      }
+    } else {
+      if (!predic(attrValue)) {
+        throw new Error(`Invalid value ${attrValue} specified for ${attrName}`);
+      }
     }
   }
 }
@@ -1516,7 +1526,24 @@ export class Instance {
   }
 
   static newWithAttributes(inst: Instance, newAttrs: InstanceAttributes): Instance {
-    return new Instance(inst.record, inst.moduleName, inst.name, newAttrs);
+    return new Instance(
+      inst.record,
+      inst.moduleName,
+      inst.name,
+      inst.normalizeAttributes(newAttrs)
+    );
+  }
+
+  normalizeAttributes(attrs: InstanceAttributes): InstanceAttributes {
+    attrs.forEach((v: any, k: string) => {
+      const attrSpec = this.record.schema.get(k);
+      if (attrSpec) {
+        if (isArrayAttribute(attrSpec) && isString(v)) {
+          attrs.set(k, JSON.parse(v));
+        }
+      }
+    });
+    return attrs;
   }
 
   lookup(k: string): any | undefined {
@@ -1531,9 +1558,15 @@ export class Instance {
 
   attributesAsObject(stringifyObjects: boolean = true): object {
     if (stringifyObjects) {
+      this.attributes.forEach((v: any, k: string) => {
+        if (v instanceof Array) {
+          this.attributes.set(k, JSON.stringify(v));
+        }
+      });
       return attributesAsColumns(this.attributes, this.record.schema);
+    } else {
+      return Object.fromEntries(this.attributes);
     }
-    return Object.fromEntries(this.attributes);
   }
 
   queryAttributesAsObject(): object {
