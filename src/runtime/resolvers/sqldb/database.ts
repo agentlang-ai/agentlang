@@ -106,6 +106,13 @@ export async function initDefaultDatabase() {
   }
 }
 
+export async function resetDefaultDatabase() {
+  if (defaultDataSource) {
+    await defaultDataSource.destroy();
+    defaultDataSource = undefined;
+  }
+}
+
 function ownersTable(tableName: string): string {
   return tableName + `_owners`;
 }

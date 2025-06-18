@@ -95,8 +95,7 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: Record, hasOwnPk?:
       default: d,
       unique: isuq,
       primary: ispk,
-      nullable: isOptionalAttribute(attrSpec),
-      array: isArrayAttribute(attrSpec)
+      nullable: isOptionalAttribute(attrSpec)
     };
     if (ispk) {
       needPath = false

@@ -134,8 +134,15 @@ export class Record extends ModuleEntry {
     if (attributes != undefined) {
       attributes.forEach((a: AttributeDefinition) => {
         const isArrayType: boolean = a.arrayType ? true : false;
-        const t: string | undefined = isArrayType ? a.arrayType : a.type;
-        if (t == undefined) throw new Error(`Attribute ${a.name} requires a type`);
+        let t: string | undefined = isArrayType ? a.arrayType : a.type;
+        const oneOfValues: string[] | undefined = a.oneOfSpec ? a.oneOfSpec.values : undefined;
+        if (!t) {
+          if (oneOfValues) {
+            t = 'String';
+          } else {
+            throw new Error(`Attribute ${a.name} requires a type`);
+          }
+        }
         let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
         const isObjectType: boolean = !isBuiltInType(t);
         if (isArrayType || isObjectType) {
@@ -144,6 +151,7 @@ export class Record extends ModuleEntry {
           }
           if (isArrayType) props.set('array', true);
           if (isObjectType) props.set('object', true);
+          if (oneOfValues) props.set('one-of', new Set(oneOfValues));
         }
         this.schema.set(a.name, { type: t, properties: props });
       });
@@ -1097,7 +1105,7 @@ function validateProperties(props: PropertyDefinition[] | undefined): void {
 }
 
 function verifyAttribute(attr: AttributeDefinition): void {
-  checkType(attr.type || attr.arrayType);
+  if (!attr.oneOfSpec) checkType(attr.type || attr.arrayType);
   validateProperties(attr.properties);
 }
 
@@ -1162,6 +1170,10 @@ export function isArrayAttribute(attrSpec: AttributeSpec): boolean {
 
 export function isObjectAttribute(attrSpec: AttributeSpec): boolean {
   return getBooleanProperty('object', attrSpec);
+}
+
+export function getOneOfValues(attrSpec: AttributeSpec): Set<string> | undefined {
+  return getAnyProperty('one-of', attrSpec);
 }
 
 export function getAttributeDefaultValue(attrSpec: AttributeSpec): any | undefined {
@@ -1467,12 +1479,37 @@ function getAttributeSpec(attrsSpec: RecordSchema, attrName: string): AttributeS
   return spec;
 }
 
+function checkOneOfValue(attrSpec: AttributeSpec, attrName: string, attrValue: any): boolean {
+  const vals: Set<string> | undefined = getOneOfValues(attrSpec);
+  if (vals) {
+    if (!vals.has(attrValue as string)) {
+      throw new Error(`Value of ${attrName} must be one-of ${vals}`);
+    }
+    return true;
+  }
+  return false;
+}
+
 function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec) {
   const predic = builtInChecks.get(attrSpec.type);
   if (predic != undefined) {
-    if (!predic(attrValue)) {
-      throw new Error(`Invalid value ${attrValue} specified for ${attrName}`);
+    if (isArrayAttribute(attrSpec)) {
+      if (!(attrValue instanceof Array)) {
+        throw new Error(`${attrName} expects an array of values`);
+      } else {
+        if (!attrValue.every(predic)) {
+          throw new Error(`Invalid value in the array passed to ${attrName}`);
+        }
+      }
+    } else {
+      if (!checkOneOfValue(attrSpec, attrName, attrValue)) {
+        if (!predic(attrValue)) {
+          throw new Error(`Invalid value ${attrValue} specified for ${attrName}`);
+        }
+      }
     }
+  } else {
+    checkOneOfValue(attrSpec, attrName, attrValue);
   }
 }
 
@@ -1516,7 +1553,24 @@ export class Instance {
   }
 
   static newWithAttributes(inst: Instance, newAttrs: InstanceAttributes): Instance {
-    return new Instance(inst.record, inst.moduleName, inst.name, newAttrs);
+    return new Instance(
+      inst.record,
+      inst.moduleName,
+      inst.name,
+      inst.normalizeAttributes(newAttrs)
+    );
+  }
+
+  normalizeAttributes(attrs: InstanceAttributes): InstanceAttributes {
+    attrs.forEach((v: any, k: string) => {
+      const attrSpec = this.record.schema.get(k);
+      if (attrSpec) {
+        if ((isArrayAttribute(attrSpec) || isObjectAttribute(attrSpec)) && isString(v)) {
+          attrs.set(k, JSON.parse(v));
+        }
+      }
+    });
+    return attrs;
   }
 
   lookup(k: string): any | undefined {
@@ -1531,9 +1585,15 @@ export class Instance {
 
   attributesAsObject(stringifyObjects: boolean = true): object {
     if (stringifyObjects) {
+      this.attributes.forEach((v: any, k: string) => {
+        if (v instanceof Object) {
+          this.attributes.set(k, JSON.stringify(v instanceof Map ? Object.fromEntries(v) : v));
+        }
+      });
       return attributesAsColumns(this.attributes, this.record.schema);
+    } else {
+      return Object.fromEntries(this.attributes);
     }
-    return Object.fromEntries(this.attributes);
   }
 
   queryAttributesAsObject(): object {

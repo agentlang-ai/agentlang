@@ -36,6 +36,7 @@ export type AgentlangKeywordNames =
     | ">="
     | "?"
     | "@"
+    | "@oneof"
     | "@rbac"
     | "["
     | "]"
@@ -184,6 +185,7 @@ export interface AttributeDefinition extends langium.AstNode {
     readonly $type: 'AttributeDefinition';
     arrayType?: string;
     name: string;
+    oneOfSpec?: OneOfSpec;
     properties: Array<PropertyDefinition>;
     type?: string;
 }
@@ -458,6 +460,18 @@ export const NodeDefinition = 'NodeDefinition';
 
 export function isNodeDefinition(item: unknown): item is NodeDefinition {
     return reflection.isInstance(item, NodeDefinition);
+}
+
+export interface OneOfSpec extends langium.AstNode {
+    readonly $container: AttributeDefinition;
+    readonly $type: 'OneOfSpec';
+    values: Array<string>;
+}
+
+export const OneOfSpec = 'OneOfSpec';
+
+export function isOneOfSpec(item: unknown): item is OneOfSpec {
+    return reflection.isInstance(item, OneOfSpec);
 }
 
 export interface OrAnd extends langium.AstNode {
@@ -790,6 +804,7 @@ export type AgentlangAstType = {
     ModuleDefinition: ModuleDefinition
     NegExpr: NegExpr
     NodeDefinition: NodeDefinition
+    OneOfSpec: OneOfSpec
     OrAnd: OrAnd
     Pattern: Pattern
     PrimExpr: PrimExpr
@@ -820,7 +835,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, ModuleDefinition, NegExpr, NodeDefinition, OrAnd, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
+        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, ModuleDefinition, NegExpr, NodeDefinition, OneOfSpec, OrAnd, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -893,6 +908,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'arrayType' },
                         { name: 'name' },
+                        { name: 'oneOfSpec' },
                         { name: 'properties', defaultValue: [] },
                         { name: 'type' }
                     ]
@@ -1083,6 +1099,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'alias' },
                         { name: 'name' }
+                    ]
+                };
+            }
+            case OneOfSpec: {
+                return {
+                    name: OneOfSpec,
+                    properties: [
+                        { name: 'values', defaultValue: [] }
                     ]
                 };
             }

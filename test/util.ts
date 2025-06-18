@@ -1,6 +1,7 @@
 import { runPostInitTasks, runPreInitTasks } from "../src/cli/main.js";
 import { parseAndIntern } from "../src/runtime/loader.js";
 import { logger } from "../src/runtime/logger.js";
+import { resetDefaultDatabase } from "../src/runtime/resolvers/sqldb/database.js";
 
 let CoreModulesInited = false
 
@@ -12,6 +13,7 @@ export async function doPreInit() {
 }
 
 export async function doInternModule(code: string) {
+    await resetDefaultDatabase()
     await doPreInit()
     await parseAndIntern(code)
     await runPostInitTasks()
