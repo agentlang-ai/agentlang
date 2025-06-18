@@ -229,3 +229,17 @@ describe('Basic CRUD tests', () => {
     await withPosts(pat, email, [1, 2])
   })
 })
+/*
+describe('Array tests', () => {
+  test('Check array attribute type', async () => {
+    await doInternModule(`module Blogger
+      entity User {
+        email Email @id,
+        name String
+      }
+      entity Post {
+        id Int @id,
+        title String
+      }
+      relationship UserPost between(User, Post) @one_many
+      `)*/
