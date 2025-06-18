@@ -31,7 +31,9 @@ NodeDefinition: name=ID | name=ID 'as' alias=ID;
 
 RelNodes: '(' node1=NodeDefinition ',' node2=NodeDefinition ')';
 
-AttributeDefinition: name=ID (type=ID | arrayType=ID '['']') properties+=PropertyDefinition*;
+AttributeDefinition: name=ID (type=ID | arrayType=ID '['']' | oneOfSpec=OneOfSpec) properties+=PropertyDefinition*;
+
+OneOfSpec: '@oneof' '(' values+=STRING (',' values+=STRING)* ')';
 
 RbacSpecDefinition: '@rbac' '[' (specEntries+=RbacSpecEntries (',' specEntries+=RbacSpecEntries)*)+ ']';
 

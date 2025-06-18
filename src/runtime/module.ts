@@ -134,8 +134,15 @@ export class Record extends ModuleEntry {
     if (attributes != undefined) {
       attributes.forEach((a: AttributeDefinition) => {
         const isArrayType: boolean = a.arrayType ? true : false;
-        const t: string | undefined = isArrayType ? a.arrayType : a.type;
-        if (t == undefined) throw new Error(`Attribute ${a.name} requires a type`);
+        let t: string | undefined = isArrayType ? a.arrayType : a.type;
+        const oneOfValues: string[] | undefined = a.oneOfSpec ? a.oneOfSpec.values : undefined;
+        if (!t) {
+          if (oneOfValues) {
+            t = 'String';
+          } else {
+            throw new Error(`Attribute ${a.name} requires a type`);
+          }
+        }
         let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
         const isObjectType: boolean = !isBuiltInType(t);
         if (isArrayType || isObjectType) {
@@ -144,6 +151,7 @@ export class Record extends ModuleEntry {
           }
           if (isArrayType) props.set('array', true);
           if (isObjectType) props.set('object', true);
+          if (oneOfValues) props.set('one-of', new Set(oneOfValues));
         }
         this.schema.set(a.name, { type: t, properties: props });
       });
@@ -1097,7 +1105,7 @@ function validateProperties(props: PropertyDefinition[] | undefined): void {
 }
 
 function verifyAttribute(attr: AttributeDefinition): void {
-  checkType(attr.type || attr.arrayType);
+  if (!attr.oneOfSpec) checkType(attr.type || attr.arrayType);
   validateProperties(attr.properties);
 }
 
@@ -1162,6 +1170,10 @@ export function isArrayAttribute(attrSpec: AttributeSpec): boolean {
 
 export function isObjectAttribute(attrSpec: AttributeSpec): boolean {
   return getBooleanProperty('object', attrSpec);
+}
+
+export function getOneOfValues(attrSpec: AttributeSpec): Set<string> | undefined {
+  return getAnyProperty('one-of', attrSpec);
 }
 
 export function getAttributeDefaultValue(attrSpec: AttributeSpec): any | undefined {
@@ -1467,6 +1479,17 @@ function getAttributeSpec(attrsSpec: RecordSchema, attrName: string): AttributeS
   return spec;
 }
 
+function checkOneOfValue(attrSpec: AttributeSpec, attrName: string, attrValue: any): boolean {
+  const vals: Set<string> | undefined = getOneOfValues(attrSpec);
+  if (vals) {
+    if (!vals.has(attrValue as string)) {
+      throw new Error(`Value of ${attrName} must be one-of ${vals}`);
+    }
+    return true;
+  }
+  return false;
+}
+
 function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec) {
   const predic = builtInChecks.get(attrSpec.type);
   if (predic != undefined) {
@@ -1479,10 +1502,14 @@ function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec)
         }
       }
     } else {
-      if (!predic(attrValue)) {
-        throw new Error(`Invalid value ${attrValue} specified for ${attrName}`);
+      if (!checkOneOfValue(attrSpec, attrName, attrValue)) {
+        if (!predic(attrValue)) {
+          throw new Error(`Invalid value ${attrValue} specified for ${attrName}`);
+        }
       }
     }
+  } else {
+    checkOneOfValue(attrSpec, attrName, attrValue);
   }
 }
 

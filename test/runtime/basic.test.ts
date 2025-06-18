@@ -230,15 +230,16 @@ describe('Basic CRUD tests', () => {
   })
 })
 
-describe('Array tests', () => {
-  test('Check array attribute type', async () => {
+describe('Array and one-of tests', () => {
+  test('Check array and one-of attribute types', async () => {
     await doInternModule(`module ArrayTest
       entity E {
         id Int @id,
-        vals String[]
+        vals String[],
+        x @oneof("123", "456")
       }`)
     assert(isModule('ArrayTest'))
-    await parseAndEvaluateStatement(`{ArrayTest/E {id 1, vals ["a", "b"]}}`)
+    await parseAndEvaluateStatement(`{ArrayTest/E {id 1, vals ["a", "b"], x "123"}}`)
       .then((result: Instance) => {
         assert(isInstanceOfType(result, 'ArrayTest/E'))
       })
@@ -249,6 +250,11 @@ describe('Array tests', () => {
       assert(vals instanceof Array)
       assert(vals.length == 2)
       assert(vals[1] == 'b')
+      assert(result[0].lookup('x') == '123')
     })
+    let err = false
+    await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "678"}}`)
+      .catch(() => err = true)
+    assert(err == false, 'Failed to enforce one-of check')
   })
 })
