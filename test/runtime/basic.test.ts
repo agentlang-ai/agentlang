@@ -229,17 +229,18 @@ describe('Basic CRUD tests', () => {
     await withPosts(pat, email, [1, 2])
   })
 })
-/*
+
 describe('Array tests', () => {
   test('Check array attribute type', async () => {
-    await doInternModule(`module Blogger
-      entity User {
-        email Email @id,
-        name String
-      }
-      entity Post {
+    await doInternModule(`module ArrayTest
+      entity E {
         id Int @id,
-        title String
-      }
-      relationship UserPost between(User, Post) @one_many
-      `)*/
+        vals String[]
+      }`)
+    assert(isModule('ArrayTest'))
+    await parseAndEvaluateStatement(`{ArrayTest/E {id 1, vals ["a", "b"]}}`)
+      .then((result: Instance) => {
+        assert(isInstanceOfType(result, 'ArrayTest/E'))
+      })
+  })
+})
