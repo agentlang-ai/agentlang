@@ -34,69 +34,79 @@ export type GenerateOptions = {
 
 // Config validation schema
 const ConfigSchema = z.object({
-  service: z.object({
-    port: z.number()
-  }).default({
-    port: 8080
-  }),
-  store: z.discriminatedUnion('type', [
-    z.object({
-      type: z.literal('postgres'),
-      host: z.string().default('localhost'),
-      username: z.string().default('postgres'),
-      password: z.string().default('postgres'),
-      dbname: z.string().default('postgres'),
-      port: z.number().default(5432)
-    }),
-    z.object({
-      type: z.literal('mysql'),
-      host: z.string().default('localhost'),
-      username: z.string().default('mysql'),
-      password: z.string().default('mysql'), 
-      dbname: z.string().default('mysql'),
-      port: z.number().default(3306)
-    }),
-    z.object({
-      type: z.literal('sqlite'),
-      dbname: z.string().optional(),
+  service: z
+    .object({
+      port: z.number(),
     })
-  ]).optional(),
-  graphql: z.object({
-    enabled: z.boolean().default(false)
-  }).optional(),
+    .default({
+      port: 8080,
+    }),
+  store: z
+    .discriminatedUnion('type', [
+      z.object({
+        type: z.literal('postgres'),
+        host: z.string().default('localhost'),
+        username: z.string().default('postgres'),
+        password: z.string().default('postgres'),
+        dbname: z.string().default('postgres'),
+        port: z.number().default(5432),
+      }),
+      z.object({
+        type: z.literal('mysql'),
+        host: z.string().default('localhost'),
+        username: z.string().default('mysql'),
+        password: z.string().default('mysql'),
+        dbname: z.string().default('mysql'),
+        port: z.number().default(3306),
+      }),
+      z.object({
+        type: z.literal('sqlite'),
+        dbname: z.string().optional(),
+      }),
+    ])
+    .optional(),
+  graphql: z
+    .object({
+      enabled: z.boolean().default(false),
+    })
+    .optional(),
   rbacEnabled: z.boolean().optional(),
-  auditTrail: z.object({
-    enabled: z.boolean().default(false)
-  }).optional(),
-  authentication: z.discriminatedUnion('service', [
-    z.object({
-      service: z.literal('okta'),
-      superuserEmail: z.string(),
-      domain: z.string(),
-      cookieDomain: z.string().optional(),
-      authServer: z.string().default('default'),
-      clientSecret: z.string(),
-      apiToken: z.string(),
-      scope: z.string().default('openid offline_access'),
-      cookieTtlMs: z.number().default(1209600000),
-      introspect: z.boolean().default(true),
-      authorizeRedirectUrl: z.string(),
-      clientUrl: z.string(),
-      roleClaim: z.string().default('roles'),
-      defaultRole: z.string().default('user'),
-      clientId: z.string()
-    }),
-    z.object({
-      service: z.literal('cognito'), 
-      superuserEmail: z.string(),
-      superuserPassword: z.string().optional(),
-      isIdentityStore: z.boolean().default(false),
-      userPoolId: z.string(),
-      clientId: z.string(),
-      whitelistEnabled: z.boolean().default(false),
-      disableUserSessions: z.boolean().default(false)
+  auditTrail: z
+    .object({
+      enabled: z.boolean().default(false),
     })
-  ]).optional()
+    .optional(),
+  authentication: z
+    .discriminatedUnion('service', [
+      z.object({
+        service: z.literal('okta'),
+        superuserEmail: z.string(),
+        domain: z.string(),
+        cookieDomain: z.string().optional(),
+        authServer: z.string().default('default'),
+        clientSecret: z.string(),
+        apiToken: z.string(),
+        scope: z.string().default('openid offline_access'),
+        cookieTtlMs: z.number().default(1209600000),
+        introspect: z.boolean().default(true),
+        authorizeRedirectUrl: z.string(),
+        clientUrl: z.string(),
+        roleClaim: z.string().default('roles'),
+        defaultRole: z.string().default('user'),
+        clientId: z.string(),
+      }),
+      z.object({
+        service: z.literal('cognito'),
+        superuserEmail: z.string(),
+        superuserPassword: z.string().optional(),
+        isIdentityStore: z.boolean().default(false),
+        userPoolId: z.string(),
+        clientId: z.string(),
+        whitelistEnabled: z.boolean().default(false),
+        disableUserSessions: z.boolean().default(false),
+      }),
+    ])
+    .optional(),
 });
 
 type Config = z.infer<typeof ConfigSchema>;
@@ -166,22 +176,22 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
 }
 
 export const runModule = async (fileName: string, options?: { config?: string }): Promise<void> => {
-  const configDir = path.dirname(fileName) === '.' 
-    ? process.cwd() 
-    : path.resolve(process.cwd(), path.dirname(fileName));
-  
+  const configDir =
+    path.dirname(fileName) === '.'
+      ? process.cwd()
+      : path.resolve(process.cwd(), path.dirname(fileName));
+
   let config: Config | undefined;
-  
+
   try {
     const { config: rawConfig } = await loadConfig({
       cwd: configDir,
       name: 'config',
       configFile: options?.config || 'app.config',
-      dotenv: true
+      dotenv: true,
     });
-    
-    config = ConfigSchema.parse(rawConfig);
 
+    config = ConfigSchema.parse(rawConfig);
   } catch (err) {
     if (err instanceof z.ZodError) {
       console.log(chalk.red('Config validation failed:'));
