@@ -1565,7 +1565,7 @@ export class Instance {
     attrs.forEach((v: any, k: string) => {
       const attrSpec = this.record.schema.get(k);
       if (attrSpec) {
-        if (isArrayAttribute(attrSpec) && isString(v)) {
+        if ((isArrayAttribute(attrSpec) || isObjectAttribute(attrSpec)) && isString(v)) {
           attrs.set(k, JSON.parse(v));
         }
       }
@@ -1586,8 +1586,8 @@ export class Instance {
   attributesAsObject(stringifyObjects: boolean = true): object {
     if (stringifyObjects) {
       this.attributes.forEach((v: any, k: string) => {
-        if (v instanceof Array) {
-          this.attributes.set(k, JSON.stringify(v));
+        if (v instanceof Object) {
+          this.attributes.set(k, JSON.stringify(v instanceof Map ? Object.fromEntries(v) : v));
         }
       });
       return attributesAsColumns(this.attributes, this.record.schema);
