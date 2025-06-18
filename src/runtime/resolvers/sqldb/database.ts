@@ -11,7 +11,6 @@ import {
 } from '../../modules/auth.js';
 import { Environment } from '../../interpreter.js';
 import {
-  attributesAsColumns,
   Instance,
   InstanceAttributes,
   newInstanceAttributes,
@@ -168,7 +167,7 @@ async function checkCreatePermission(ctx: DbContext, inst: Instance): Promise<bo
   return await checkUserPerm(
     RbacPermissionFlag.CREATE,
     tmpCtx,
-    attributesAsColumns(inst.attributes)
+    Object.fromEntries(inst.attributes)
   );
 }
 
@@ -226,7 +225,7 @@ export async function insertBetweenRow(
     if (relEntry.isOneToMany()) {
       attrs.set(relEntry.joinNodesAttributeName(), `${p1}_${p2}`);
     }
-    const row = attributesAsColumns(attrs);
+    const row = Object.fromEntries(attrs);
     await insertRow(n, row, ctx.clone().setNeedAuthCheck(false), false);
   } else {
     throw new UnauthorisedError({ opr: 'insert', entity: n });

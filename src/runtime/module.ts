@@ -145,7 +145,7 @@ export class Record extends ModuleEntry {
           }
         }
         let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
-        const isObjectType: boolean = !isBuiltInType(t);
+        const isObjectType: boolean = t == 'Map' || !isBuiltInType(t);
         if (isArrayType || isObjectType) {
           if (props == undefined) {
             props = new Map<string, any>();
@@ -1062,6 +1062,12 @@ const builtInChecks = new Map([
   ['Boolean', isBoolean],
   ['UUID', isString],
   ['URL', isString],
+  [
+    'Map',
+    (obj: any) => {
+      return obj instanceof Map;
+    },
+  ],
 ]);
 
 export const builtInTypes = new Set(Array.from(builtInChecks.keys()));
@@ -1567,7 +1573,11 @@ export class Instance {
       const attrSpec = this.record.schema.get(k);
       if (attrSpec) {
         if ((isArrayAttribute(attrSpec) || isObjectAttribute(attrSpec)) && isString(v)) {
-          attrs.set(k, JSON.parse(v));
+          let obj: any = JSON.parse(v);
+          if (attrSpec.type == 'Map') {
+            obj = new Map(Object.entries(obj));
+          }
+          attrs.set(k, obj);
         }
       }
     });
@@ -1591,10 +1601,8 @@ export class Instance {
           this.attributes.set(k, JSON.stringify(v instanceof Map ? Object.fromEntries(v) : v));
         }
       });
-      return attributesAsColumns(this.attributes, this.record.schema);
-    } else {
-      return Object.fromEntries(this.attributes);
     }
+    return Object.fromEntries(this.attributes);
   }
 
   queryAttributesAsObject(): object {
@@ -1716,21 +1724,6 @@ export class Instance {
   get(k: string): any {
     return this.attributes.get(k);
   }
-}
-
-export function attributesAsColumns(attrs: InstanceAttributes, schema?: RecordSchema): object {
-  if (schema != undefined) {
-    const objAttrNames: Array<string> | undefined = objectAttributes(schema);
-    if (objAttrNames != undefined) {
-      objAttrNames.forEach((n: string) => {
-        const v: any | undefined = attrs.get(n);
-        if (v != undefined) {
-          attrs.set(n, JSON.stringify(v));
-        }
-      });
-    }
-  }
-  return Object.fromEntries(attrs);
 }
 
 export function objectAsInstanceAttributes(obj: object): InstanceAttributes {
