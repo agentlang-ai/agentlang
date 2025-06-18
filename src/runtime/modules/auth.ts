@@ -128,7 +128,7 @@ workflow RemoveSession {
 }
 
 workflow signup {
-  await Auth.signUpUser(SignUp.email, SignUp.password, SignUp.userData)
+  await Auth.signUpUser(signup.email, signup.password, signup.userData)
 }
 
 workflow login {
@@ -461,7 +461,7 @@ export async function signUpUser(
   await runtimeAuth.signUp(
     username,
     password,
-    new Map(Object.entries(userData)),
+    userData ? new Map(Object.entries(userData)) : undefined,
     env,
     (userInfo: UserInfo) => {
       result = userInfo;

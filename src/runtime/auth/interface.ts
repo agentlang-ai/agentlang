@@ -21,7 +21,7 @@ export interface AgentlangAuth {
   signUp(
     username: string,
     password: string,
-    userData: Map<string, any>,
+    userData: Map<string, any> | undefined,
     env: Environment,
     cb: SignUpCallback
   ): any;
