@@ -244,17 +244,39 @@ describe('Array and one-of tests', () => {
         assert(isInstanceOfType(result, 'ArrayTest/E'))
       })
     await parseAndEvaluateStatement(`{ArrayTest/E {id? 1}}`)
-    .then((result: Instance[]) => {
-      assert(result.length == 1)
-      const vals = result[0].lookup('vals')
-      assert(vals instanceof Array)
-      assert(vals.length == 2)
-      assert(vals[1] == 'b')
-      assert(result[0].lookup('x') == '123')
-    })
+      .then((result: Instance[]) => {
+        assert(result.length == 1)
+        const vals = result[0].lookup('vals')
+        assert(vals instanceof Array)
+        assert(vals.length == 2)
+        assert(vals[1] == 'b')
+        assert(result[0].lookup('x') == '123')
+      })
     let err = false
     await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "678"}}`)
       .catch(() => err = true)
     assert(err == false, 'Failed to enforce one-of check')
+  })
+})
+
+describe('Default date-time test', () => {
+  test('Check date-time', async () => {
+    await doInternModule(`module DtTest
+      entity E {
+        id Int @id,
+        dt DateTime @default(now())
+      }`)
+    assert(isModule('DtTest'))
+    let dt = ''
+    await parseAndEvaluateStatement(`{DtTest/E {id 1}}`)
+      .then((result: Instance) => {
+        assert(isInstanceOfType(result, 'DtTest/E'))
+        dt = result.lookup('dt')
+        assert(dt.indexOf('T') > 0 && dt.endsWith('Z'))
+      })
+    await parseAndEvaluateStatement(`{DtTest/E {id? 1}}`)
+      .then((result: Instance[]) => {
+        result[0].lookup('dt') == '2025-06-18T10:51:31.633Z'
+      })
   })
 })

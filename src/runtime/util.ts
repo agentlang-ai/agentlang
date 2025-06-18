@@ -249,3 +249,7 @@ export function joinStatements(stmts: string[]): string {
 export const sleepMilliseconds = isNodeEnv
   ? promisify(setTimeout)
   : (m: any) => new Promise(r => setTimeout(r, m));
+
+export function now(): string {
+  return new Date().toISOString();
+}
