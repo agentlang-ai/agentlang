@@ -211,7 +211,7 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
 }
 
 export function asSqlType(type: string): ColumnType {
-  if (type == 'String' || type == 'Email' || type == 'URL') return 'varchar';
+  if (type == 'String' || type == 'DateTime' || type == 'Email' || type == 'URL') return 'varchar';
   else if (type == 'Int') return 'integer';
   else if (!isBuiltInType(type)) return 'varchar';
   else return type.toLowerCase() as ColumnType;

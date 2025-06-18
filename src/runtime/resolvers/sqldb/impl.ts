@@ -31,16 +31,9 @@ import {
 } from './database.js';
 import { Environment } from '../../interpreter.js';
 
-function addDefaultIdAttribute(inst: Instance): string | undefined {
+function maybeFindIdAttributeName(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
-  const attributes: InstanceAttributes = inst.attributes;
   if (attrEntry != undefined) {
-    if (attrEntry.spec.properties != undefined && !attributes.has(attrEntry.name)) {
-      const d: any | undefined = attrEntry.spec.properties.get('default');
-      if (d != undefined && d == 'uuid()') {
-        attributes.set(attrEntry.name, crypto.randomUUID());
-      }
-    }
     return attrEntry.name;
   }
   return undefined;
@@ -84,7 +77,7 @@ export class SqlDbResolver extends Resolver {
       await this.connectInstances(nodeVals.node1, nodeVals.node2, nodeVals.entry, orUpdate);
       return inst;
     } else {
-      const idAttrName: string | undefined = addDefaultIdAttribute(inst);
+      const idAttrName: string | undefined = maybeFindIdAttributeName(inst);
       ensureOneToOneAttributes(inst);
       const attrs: InstanceAttributes = inst.attributes;
       if (idAttrName != undefined) {

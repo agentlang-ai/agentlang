@@ -21,6 +21,7 @@ import {
   DefaultModuleName,
   joinStatements,
   isMinusZero,
+  now,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -1759,6 +1760,26 @@ export function findIdAttribute(inst: Instance): AttributeEntry | undefined {
   return undefined;
 }
 
+function maybeSetDefaultAttributeValues(
+  schema: RecordSchema,
+  attributes: InstanceAttributes
+): InstanceAttributes {
+  const defAttrs = defaultAttributes(schema);
+  defAttrs.forEach((v: any, k: string) => {
+    if (!attributes.has(k)) {
+      if (isString(v)) {
+        if (v == 'uuid()') {
+          v = crypto.randomUUID();
+        } else if (v == 'now()') {
+          v = now();
+        }
+      }
+      attributes.set(k, v);
+    }
+  });
+  return attributes;
+}
+
 export function makeInstance(
   moduleName: string,
   entryName: string,
@@ -1768,6 +1789,7 @@ export function makeInstance(
 ): Instance {
   const module: Module = fetchModule(moduleName);
   const record: Record = module.getRecord(entryName);
+
   const schema: RecordSchema = record.schema;
   if (schema.size > 0) {
     attributes.forEach((value: any, key: string) => {
@@ -1777,6 +1799,9 @@ export function makeInstance(
       const spec: AttributeSpec = getAttributeSpec(schema, key);
       validateType(key, value, spec);
     });
+  }
+  if (!queryAttributes) {
+    attributes = maybeSetDefaultAttributeValues(schema, attributes);
   }
   return new Instance(
     record,
