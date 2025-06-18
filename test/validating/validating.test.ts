@@ -4,15 +4,15 @@ import { expandToString as s } from 'langium/generate';
 import { parseHelper } from 'langium/test';
 import type { Diagnostic } from 'vscode-languageserver-types';
 import { createAgentlangServices } from '../../src/language/agentlang-module.js';
-import { Module, isModule } from '../../src/language/generated/ast.js';
+import { isModuleDefinition, ModuleDefinition } from '../../src/language/generated/ast.js';
 
 let services: ReturnType<typeof createAgentlangServices>;
-let parse: ReturnType<typeof parseHelper<Module>>;
-let document: LangiumDocument<Module> | undefined;
+let parse: ReturnType<typeof parseHelper<ModuleDefinition>>;
+let document: LangiumDocument<ModuleDefinition> | undefined;
 
 beforeAll(async () => {
   services = createAgentlangServices(EmptyFileSystem);
-  const doParse = parseHelper<Module>(services.Agentlang);
+  const doParse = parseHelper<ModuleDefinition>(services.Agentlang);
   parse = (input: string) => doParse(input, { validation: true });
 
   // activate the following if your linking test requires elements from a built-in library, for example
@@ -43,8 +43,8 @@ function checkDocumentValid(document: LangiumDocument): string | undefined {
           ${document.parseResult.parserErrors.map(e => e.message).join('\n  ')}
     `) ||
     (document.parseResult.value === undefined && `ParseResult is 'undefined'.`) ||
-    (!isModule(document.parseResult.value) &&
-      `Root AST object is a ${document.parseResult.value.$type}, expected a '${Module}'.`) ||
+    (!isModuleDefinition(document.parseResult.value) &&
+      `Root AST object is a ${document.parseResult.value.$type}, expected a '${ModuleDefinition}'.`) ||
     undefined
   );
 }

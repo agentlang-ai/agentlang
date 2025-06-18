@@ -103,8 +103,7 @@ describe('Workflow update tests', () => {
             {Acme/Profile {email u.email}};
    if (u.age < 20) {
             {Acme/Account {email u.email, type "A"}}
-    };
- else {
+    } else {
                 {Acme/Account {email u.email, type "B"}}
     }
     };
@@ -117,8 +116,7 @@ describe('Workflow update tests', () => {
             {Acme/Profile {email u.email}};
    if (u.age < 20) {
             {Acme/Account {email u.email, type "A"}}
-    };
- else {
+    } else {
             
     }
     };

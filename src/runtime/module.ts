@@ -757,14 +757,15 @@ export class Workflow extends ModuleEntry {
         ${joinStatements(this.statementsToStringsHelper(stmt.pattern.forEach.statements))}
     }`);
       } else if (stmt.pattern.if) {
-        ss.push(`   if (${stmt.pattern.if.cond.$cstNode?.text}) {
+        let s = `   if (${stmt.pattern.if.cond.$cstNode?.text}) {
         ${joinStatements(this.statementsToStringsHelper(stmt.pattern.if.statements))}
-    }`);
+    }`;
         if (stmt.pattern.if.else) {
-          ss.push(` else {
+          s = s.concat(` else {
             ${joinStatements(this.statementsToStringsHelper(stmt.pattern.if.else.statements))}
     }`);
         }
+        ss.push(s);
       } else if (stmt.$cstNode) {
         ss.push(`    ${stmt.$cstNode.text.trimStart()}`);
       }
