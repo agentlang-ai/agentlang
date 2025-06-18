@@ -20,6 +20,8 @@ import { logger } from '../runtime/logger.js';
 import { runInitFunctions } from '../runtime/util.js';
 import { Module } from '../runtime/module.js';
 import { ModuleDefinition } from '../language/generated/ast.js';
+import { z } from 'zod';
+import { loadConfig } from 'c12';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -29,6 +31,75 @@ const packageContent = await fs.readFile(packagePath, 'utf-8');
 export type GenerateOptions = {
   destination?: string;
 };
+
+// Config validation schema
+const ConfigSchema = z.object({
+  service: z.object({
+    port: z.number()
+  }).default({
+    port: 8080
+  }),
+  store: z.discriminatedUnion('type', [
+    z.object({
+      type: z.literal('postgres'),
+      host: z.string().default('localhost'),
+      username: z.string().default('postgres'),
+      password: z.string().default('postgres'),
+      dbname: z.string().default('postgres'),
+      port: z.number().default(5432)
+    }),
+    z.object({
+      type: z.literal('mysql'),
+      host: z.string().default('localhost'),
+      username: z.string().default('mysql'),
+      password: z.string().default('mysql'), 
+      dbname: z.string().default('mysql'),
+      port: z.number().default(3306)
+    }),
+    z.object({
+      type: z.literal('sqlite'),
+      dbname: z.string().optional(),
+    })
+  ]).optional(),
+  graphql: z.object({
+    enabled: z.boolean().default(false)
+  }).optional(),
+  rbacEnabled: z.boolean().optional(),
+  auditTrail: z.object({
+    enabled: z.boolean().default(false)
+  }).optional(),
+  authentication: z.discriminatedUnion('service', [
+    z.object({
+      service: z.literal('okta'),
+      superuserEmail: z.string(),
+      domain: z.string(),
+      cookieDomain: z.string().optional(),
+      authServer: z.string().default('default'),
+      clientSecret: z.string(),
+      apiToken: z.string(),
+      scope: z.string().default('openid offline_access'),
+      cookieTtlMs: z.number().default(1209600000),
+      introspect: z.boolean().default(true),
+      authorizeRedirectUrl: z.string(),
+      clientUrl: z.string(),
+      roleClaim: z.string().default('roles'),
+      defaultRole: z.string().default('user'),
+      clientId: z.string()
+    }),
+    z.object({
+      service: z.literal('cognito'), 
+      superuserEmail: z.string(),
+      superuserPassword: z.string().optional(),
+      isIdentityStore: z.boolean().default(false),
+      userPoolId: z.string(),
+      clientId: z.string(),
+      whitelistEnabled: z.boolean().default(false),
+      disableUserSessions: z.boolean().default(false)
+    })
+  ]).optional()
+});
+
+type Config = z.infer<typeof ConfigSchema>;
 
 export default function (): void {
   const program = new Command();
@@ -40,6 +111,7 @@ export default function (): void {
   program
     .command('run')
     .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+    .option('-c, --config <config>', 'configuration file')
     .description('Loads and runs an agentlang module')
     .action(runModule);
 
@@ -86,20 +158,47 @@ export async function runPreInitTasks(): Promise<boolean> {
   return result;
 }
 
-export async function runPostInitTasks(appSpec?: ApplicationSpec) {
+export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
   await initDefaultDatabase();
   await runInitFunctions();
   await runStandaloneStatements();
-  if (appSpec) startServer(appSpec, 8080);
+  if (appSpec) startServer(appSpec, config?.service?.port || 8080);
 }
 
-export const runModule = async (fileName: string): Promise<void> => {
+export const runModule = async (fileName: string, options?: { config?: string }): Promise<void> => {
+  const configDir = path.dirname(fileName) === '.' 
+    ? process.cwd() 
+    : path.resolve(process.cwd(), path.dirname(fileName));
+  
+  let config: Config | undefined;
+  
+  try {
+    const { config: rawConfig } = await loadConfig({
+      cwd: configDir,
+      name: 'config',
+      configFile: options?.config || 'app.config',
+      dotenv: true
+    });
+    
+    config = ConfigSchema.parse(rawConfig);
+
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      console.log(chalk.red('Config validation failed:'));
+      err.errors.forEach((error, index) => {
+        console.log(chalk.red(`  ${index + 1}. ${error.path.join('.')}: ${error.message}`));
+      });
+    } else {
+      console.log(`Config loading failed: ${err}`);
+    }
+  }
+
   const r: boolean = await runPreInitTasks();
   if (!r) {
     throw new Error('Failed to initialize runtime');
   }
   const appSpec: ApplicationSpec = await load(fileName);
-  await runPostInitTasks(appSpec);
+  await runPostInitTasks(appSpec, config);
 };
 
 export async function internAndRunModule(
