@@ -280,3 +280,23 @@ describe('Default date-time test', () => {
       })
   })
 })
+
+describe('Map attribute tests', () => {
+  test('Check Map attributes', async () => {
+    await doInternModule(`module MapTest
+      entity E {
+        id Int @id,
+        v Map
+      }`)
+    assert(isModule('MapTest'))
+    await parseAndEvaluateStatement(`{MapTest/E {id 1, v #{"a": 1, "b": 2}}}`)
+      .then((result: Instance) => {
+        assert(isInstanceOfType(result, 'MapTest/E'))
+      })
+    await parseAndEvaluateStatement(`{MapTest/E {id? 1}}`)
+      .then((result: Instance[]) => {
+        const v = result[0].lookup('v')
+        assert(v.get('a') == 1)
+      })
+  })
+})

@@ -4,9 +4,9 @@ export default {
         '@oneof','@rbac','allow','and','as','await','between','contains','create','delete','else','entity','error','event','extends','false','for','if','import','in','like','module','not_found','or','purge','read','record','relationship','roles','throws','true','update','upsert','where','workflow'
     ],
     operators: [
-        '*','+',',','-','.','/',':',';','<','<=','<>','=','>','>=','?','@'
+        '#','*','+',',','-','.','/',':',';','<','<=','<>','=','>','>=','?','@'
     ],
-    symbols: /\(|\)|\*|\+|,|-|\.|\/|:|;|<|<=|<>|=|>|>=|\?|@|\[|\]|\{|\}/,
+    symbols: /#|\(|\)|\*|\+|,|-|\.|\/|:|;|<|<=|<>|=|>|>=|\?|@|\[|\]|\{|\}/,
 
     tokenizer: {
         initial: [
