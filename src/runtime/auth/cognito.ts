@@ -31,6 +31,7 @@ import { sleepMilliseconds } from '../util.js';
 import { Instance } from '../module.js';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { Environment } from '../interpreter.js';
+import { isNodeEnv } from '../../utils/runtime.js';
 
 const defaultConfig = new Map<string, string | undefined>()
   .set('UserPoolId', process.env.COGNITO_USER_POOL_ID)
@@ -72,39 +73,43 @@ export class CognitoAuth implements AgentlangAuth {
     env: Environment,
     cb: SignUpCallback
   ): Promise<void> {
-    const client = new CognitoIdentityProviderClient({
-      region: 'us-west-2',
-      credentials: fromEnv(),
-    });
-    const userAttrs = [
-      {
-        Name: 'email',
-        Value: username,
-      },
-      {
-        Name: 'name',
-        Value: username,
-      },
-    ];
-    const input = {
-      ClientId: this.config.get('ClientId'),
-      Username: username,
-      Password: password,
-      UserAttributes: userAttrs,
-      ValidationData: userAttrs,
-    };
-    const command = new SignUpCommand(input);
-    const response: SignUpCommandOutput = await client.send(command);
-    if (response.$metadata.httpStatusCode == 200) {
-      const user = await ensureUser(username, '', '', env);
-      const userInfo: UserInfo = {
-        username: username,
-        id: user.id,
-        systemUserInfo: response.UserSub,
+    if (isNodeEnv) {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+        credentials: fromEnv(),
+      });
+      const userAttrs = [
+        {
+          Name: 'email',
+          Value: username,
+        },
+        {
+          Name: 'name',
+          Value: username,
+        },
+      ];
+      const input = {
+        ClientId: this.config.get('ClientId'),
+        Username: username,
+        Password: password,
+        UserAttributes: userAttrs,
+        ValidationData: userAttrs,
       };
-      cb(userInfo);
+      const command = new SignUpCommand(input);
+      const response: SignUpCommandOutput = await client.send(command);
+      if (response.$metadata.httpStatusCode == 200) {
+        const user = await ensureUser(username, '', '', env);
+        const userInfo: UserInfo = {
+          username: username,
+          id: user.id,
+          systemUserInfo: response.UserSub,
+        };
+        cb(userInfo);
+      } else {
+        throw new Error(`Signup failed with status ${response.$metadata.httpStatusCode}`);
+      }
     } else {
-      throw new Error(`Signup failed with status ${response.$metadata.httpStatusCode}`);
+      throw new Error('Signup not supported in this runtime')
     }
   }
 
