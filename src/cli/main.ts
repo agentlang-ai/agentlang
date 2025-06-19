@@ -179,7 +179,7 @@ export const runModule = async (fileName: string, options?: { config?: string })
   const configDir =
     path.dirname(fileName) === '.'
       ? process.cwd()
-      : path.resolve(process.cwd(), path.dirname(fileName));
+      : path.resolve(process.cwd(), fileName);
 
   let config: Config | undefined;
 
