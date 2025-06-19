@@ -34,6 +34,7 @@ import {
   isEmptyWorkflow,
   isEntityInstance,
   isEventInstance,
+  isInstanceOfType,
   makeInstance,
   newInstanceAttributes,
   PlaceholderRecordEntry,
@@ -57,6 +58,8 @@ import {
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
+import { provider } from './agents/registry.js';
+import { AgentFqName } from './modules/ai.js';
 
 export type Result = any;
 
@@ -132,7 +135,11 @@ export class Environment extends Instance {
     if (v == undefined) {
       if (this.parent != undefined) {
         return this.parent.lookup(k);
-      } else return EmptyResult;
+      } else if (this == GlobalEnvironment) {
+        return EmptyResult;
+      } else {
+        return GlobalEnvironment.lookup(k);
+      }
     } else return v;
   }
 
@@ -145,6 +152,15 @@ export class Environment extends Instance {
     const n: string = inst.name;
     this.attributes.set(n, inst);
     return this;
+  }
+
+  maybeLookupAgentInstance(entryName: string): Instance | undefined {
+    const v = this.lookup(entryName);
+    if (v && isInstanceOfType(v, AgentFqName)) {
+      return v as Instance;
+    } else {
+      return undefined;
+    }
   }
 
   setActiveEvent(eventInst: Instance | undefined): Environment {
@@ -327,6 +343,8 @@ export class Environment extends Instance {
     return this.inKernelMode;
   }
 }
+
+export const GlobalEnvironment = new Environment();
 
 export async function evaluate(
   eventInstance: Instance,
@@ -525,6 +543,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   let moduleName: string = env.getActiveModuleName();
   let entryName: string = crud.name;
   const isQueryAll: boolean = entryName.endsWith(QuerySuffix);
+  const anAgent = env.maybeLookupAgentInstance(entryName);
   if (isQueryAll) {
     entryName = entryName.slice(0, entryName.length - 1);
   }
@@ -550,6 +569,9 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     const p: Path = splitFqName(entryName);
     if (p.hasModule()) moduleName = p.getModuleName();
     if (p.hasEntry()) entryName = p.getEntryName();
+  }
+  if (anAgent) {
+    return await handleAgentInvocation(crud.name, attrs, env);
   }
   const inst: Instance = makeInstance(moduleName, entryName, attrs, qattrs, qattrVals);
   if (isEntityInstance(inst) || isBetweenRelationship(inst.name, inst.moduleName)) {
@@ -675,10 +697,32 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
     }
   } else if (isEventInstance(inst)) {
-    await evaluate(inst, (result: Result) => env.setLastResult(result), env);
+    if (entryName == 'agent') {
+      env.setLastResult(handleAgentDefinition(inst));
+    } else {
+      await evaluate(inst, (result: Result) => env.setLastResult(result), env);
+    }
   } else {
     env.setLastResult(inst);
   }
+}
+
+const DefaultProviderConfig = new Map().set('service', 'openai');
+
+function handleAgentDefinition(inst: Instance): Instance {
+  const providerConfig: Map<string, any> = inst.lookup('providerConfig', DefaultProviderConfig);
+  const pclass = provider(inst.lookup(providerConfig.get('service')));
+  inst.attributes.set('provider', new pclass(providerConfig));
+  return inst;
+}
+
+async function handleAgentInvocation(
+  agentInstName: string,
+  attrs: InstanceAttributes,
+  env: Environment
+): Promise<void> {
+  // TODO: implement
+  throw new Error(`handleAgentInvocation(${agentInstName}, ${attrs}, ${env})`);
 }
 
 async function evaluateUpsert(upsert: Upsert, env: Environment): Promise<void> {

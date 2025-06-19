@@ -52,7 +52,7 @@ import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules } from './modules/core.js';
 import { parse, parseModule } from '../language/parser.js';
 import { logger } from './logger.js';
-import { Environment, evaluateStatements } from './interpreter.js';
+import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
 
 export async function extractDocument(
@@ -358,10 +358,9 @@ const StandaloneStatements = new Array<Statement>();
 
 export async function runStandaloneStatements() {
   if (StandaloneStatements.length > 0) {
-    const env = new Environment();
-    await env.callInTransaction(async () => {
-      await evaluateStatements(StandaloneStatements, env);
-      logger.info(`Init eval result: ${env.getLastResult().toString()}`);
+    await GlobalEnvironment.callInTransaction(async () => {
+      await evaluateStatements(StandaloneStatements, GlobalEnvironment);
+      logger.info(`Init eval result: ${GlobalEnvironment.getLastResult().toString()}`);
     });
   }
 }

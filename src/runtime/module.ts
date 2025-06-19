@@ -25,6 +25,7 @@ import {
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
+import { CoreAIModuleName } from './modules/ai.js';
 
 export class ModuleEntry {
   name: string;
@@ -812,6 +813,7 @@ export class Module {
   }
 
   addEntry(entry: ModuleEntry): ModuleEntry {
+    checkForReservedEntryNames(this.name, entry.name);
     this.entries.push(entry);
     if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
     return entry;
@@ -990,6 +992,12 @@ export class Module {
   }
 }
 
+function checkForReservedEntryNames(moduleName: string, entryName: string) {
+  if (entryName == 'agent' && moduleName != CoreAIModuleName) {
+    throw new Error(`Cannot add entry to module ${moduleName}, 'agent' is a reserved name`);
+  }
+}
+
 const moduleDb = new Map<string, Module>();
 let activeModule: string = '';
 
@@ -1068,6 +1076,12 @@ const builtInChecks = new Map([
       return obj instanceof Map;
     },
   ],
+  [
+    'Any',
+    (_: any) => {
+      return true;
+    },
+  ],
 ]);
 
 export const builtInTypes = new Set(Array.from(builtInChecks.keys()));
@@ -1081,6 +1095,7 @@ export const propertyNames = new Set([
   '@array',
   '@object',
   '@ref',
+  '@readonly',
 ]);
 
 export function isBuiltInType(type: string): boolean {
@@ -1584,8 +1599,8 @@ export class Instance {
     return attrs;
   }
 
-  lookup(k: string): any | undefined {
-    return this.attributes.get(k);
+  lookup(k: string, notFoundValue?: any): any | undefined {
+    return this.attributes.get(k) || notFoundValue;
   }
 
   asObject(): object {

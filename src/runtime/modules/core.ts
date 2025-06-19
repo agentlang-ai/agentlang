@@ -1,9 +1,12 @@
 import { default as auth } from './auth.js';
+import { default as ai } from './ai.js';
 
 export const CoreModules: string[] = [];
 
-export function registerCoreModule(moduleDef: string) {
-  CoreModules.push(moduleDef);
+function registerCoreModules(moduleDefs: string[]) {
+  moduleDefs.forEach((mdef: string) => {
+    CoreModules.push(mdef);
+  });
 }
 
-registerCoreModule(auth);
+registerCoreModules([auth, ai]);

@@ -5,8 +5,11 @@ import { BaseMessage } from '@langchain/core/messages';
 export class OpenAIProvider implements AgentServiceProvider {
   private model: ChatOpenAI;
 
-  constructor(modelName?: string) {
-    modelName = modelName ? modelName : 'gpt-4';
+  constructor(config?: Map<string, any>) {
+    let modelName = 'gpt-4';
+    if (config) {
+      modelName = config.get('model') || modelName;
+    }
     this.model = new ChatOpenAI({ model: modelName });
   }
 
