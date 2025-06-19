@@ -177,9 +177,7 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
 
 export const runModule = async (fileName: string, options?: { config?: string }): Promise<void> => {
   const configDir =
-    path.dirname(fileName) === '.'
-      ? process.cwd()
-      : path.resolve(process.cwd(), fileName);
+    path.dirname(fileName) === '.' ? process.cwd() : path.resolve(process.cwd(), fileName);
 
   let config: Config | undefined;
 
