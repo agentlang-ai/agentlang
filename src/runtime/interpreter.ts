@@ -710,7 +710,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
 const DefaultProviderConfig = new Map().set('service', 'openai');
 
 function handleAgentDefinition(inst: Instance): Instance {
-  const providerConfig: Map<string, any> = inst.lookup('providerConfig', DefaultProviderConfig);
+  const providerConfig: Map<string, any> = inst.lookup('providerConfig') || DefaultProviderConfig;
   const pclass = provider(inst.lookup(providerConfig.get('service')));
   inst.attributes.set('provider', new pclass(providerConfig));
   return inst;

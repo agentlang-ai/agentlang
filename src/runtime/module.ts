@@ -1599,8 +1599,8 @@ export class Instance {
     return attrs;
   }
 
-  lookup(k: string, notFoundValue?: any): any | undefined {
-    return this.attributes.get(k) || notFoundValue;
+  lookup(k: string): any | undefined {
+    return this.attributes.get(k);
   }
 
   asObject(): object {
