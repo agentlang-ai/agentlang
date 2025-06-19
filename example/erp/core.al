@@ -6,7 +6,7 @@ entity Employee {
     email Email @id,
     firstName String @indexed,
     lastName String @optional,
-    salary Number @default(4500.0) @indexed
+    salary Int @default(4500.0) @indexed
 }
 
 event SendMail {
@@ -33,4 +33,3 @@ workflow CreateEmployee {
 workflow SendMail {
     testMod.sendMail(SendMail.email, SendMail.body)
 }
-

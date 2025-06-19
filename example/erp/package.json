@@ -2,6 +2,6 @@
     "name": "Erp",
     "version": "0.0.1",
     "dependencies": {
-        "hello-world-npm": "1.1.1"
+        "hello-world-npm": "^1.1.1"
     }
 }

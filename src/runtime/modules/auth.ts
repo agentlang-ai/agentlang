@@ -4,7 +4,13 @@ import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
-import { ActiveSessionInfo, AdminSession, AdminUserId } from '../auth/defs.js';
+import {
+  ActiveSessionInfo,
+  AdminSession,
+  AdminUserId,
+  AuthEnabled,
+  BypassSession,
+} from '../auth/defs.js';
 import { isNodeEnv } from '../../utils/runtime.js';
 import { CognitoAuth } from '../auth/cognito.js';
 
@@ -495,6 +501,7 @@ export async function loginUser(
 }
 
 export async function verifySession(token: string, env?: Environment): Promise<ActiveSessionInfo> {
+  if (!AuthEnabled) return BypassSession;
   const parts = token.split('/');
   const sessId = parts[1];
   const needCommit = env ? false : true;
