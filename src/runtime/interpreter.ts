@@ -15,6 +15,7 @@ import {
   isOrAnd,
   Literal,
   LogicalExpression,
+  MapLiteral,
   OrAnd,
   Pattern,
   Purge,
@@ -477,6 +478,7 @@ async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
   else if (lit.fnCall != undefined) await applyFn(lit.fnCall, env, false);
   else if (lit.asyncFnCall != undefined) await applyFn(lit.asyncFnCall.fnCall, env, true);
   else if (lit.array != undefined) await realizeArray(lit.array, env);
+  else if (lit.map != undefined) await realizeMap(lit.map, env);
   else if (lit.num != undefined) env.setLastResult(lit.num);
   else if (lit.str != undefined) env.setLastResult(lit.str);
   else if (lit.bool != undefined) env.setLastResult(lit.bool == 'true' ? true : false);
@@ -913,6 +915,16 @@ async function realizeArray(array: ArrayLiteral, env: Environment): Promise<void
   for (let i = 0; i < array.vals.length; ++i) {
     await evaluateStatement(array.vals[i], env);
     result.push(env.getLastResult());
+  }
+  env.setLastResult(result);
+}
+
+async function realizeMap(mapLiteral: MapLiteral, env: Environment): Promise<void> {
+  const result: Map<string, Result> = new Map();
+  for (let i = 0; i < mapLiteral.entries.length; ++i) {
+    const entry = mapLiteral.entries[i];
+    await evaluateLiteral(entry.value, env);
+    result.set(entry.key, env.getLastResult());
   }
   env.setLastResult(result);
 }

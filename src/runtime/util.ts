@@ -164,27 +164,27 @@ export function splitRefs(s: string): string[] {
   }
 }
 
-export function runShellCommand(cmd: string, continuation: Function) {
+export function runShellCommand(cmd: string, options?: any, continuation?: Function) {
   if (!isNodeEnv) {
     console.warn('Shell commands cannot be executed in non-Node.js environments');
     // Call continuation to allow the program flow to continue
-    continuation();
+    if (continuation) continuation();
     return;
   }
 
   if (!exec) {
     console.error('Node.js child_process not available');
-    continuation();
+    if (continuation) continuation();
     return;
   }
 
-  exec(cmd, (err: any, stdout: string, stderr: string) => {
+  exec(cmd, options, (err: any, stdout: string, stderr: string) => {
     if (err) {
       throw new Error(`Failed to execute ${cmd} - ${err.message}`);
     }
     if (stdout.length > 0) {
       console.log(stdout);
-      continuation();
+      if (continuation) continuation();
     }
     if (stderr.length > 0) console.log(stderr);
   });
@@ -249,3 +249,7 @@ export function joinStatements(stmts: string[]): string {
 export const sleepMilliseconds = isNodeEnv
   ? promisify(setTimeout)
   : (m: any) => new Promise(r => setTimeout(r, m));
+
+export function now(): string {
+  return new Date().toISOString();
+}

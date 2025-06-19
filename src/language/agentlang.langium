@@ -31,7 +31,9 @@ NodeDefinition: name=ID | name=ID 'as' alias=ID;
 
 RelNodes: '(' node1=NodeDefinition ',' node2=NodeDefinition ')';
 
-AttributeDefinition: name=ID (type=ID | arrayType=ID '['']') properties+=PropertyDefinition*;
+AttributeDefinition: name=ID (type=ID | arrayType=ID '['']' | oneOfSpec=OneOfSpec) properties+=PropertyDefinition*;
+
+OneOfSpec: '@oneof' '(' values+=STRING (',' values+=STRING)* ')';
 
 RbacSpecDefinition: '@rbac' '[' (specEntries+=RbacSpecEntries (',' specEntries+=RbacSpecEntries)*)+ ']';
 
@@ -49,11 +51,15 @@ RbacExpressionSpec: 'where' ':' lhs=Ref '=' rhs=Ref;
 
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 
+MapLiteral: '#' '{' entries+=MapEntry (',' entries+=MapEntry)* '}';
+
+MapEntry: key=STRING ':' value=Literal;
+
 FnCall: name=(ID | Ref) (('(' ')') | ('(' (args+=Literal (',' args+=Literal)*)+ ')'));
 
 AsyncFnCall: 'await' fnCall=FnCall;
 
-Literal: (id=ID | num=Decimal | str=STRING | ref=Ref | bool=Boolean | fnCall=FnCall | asyncFnCall=AsyncFnCall | array=ArrayLiteral);
+Literal: (id=ID | num=Decimal | str=STRING | ref=Ref | bool=Boolean | fnCall=FnCall | asyncFnCall=AsyncFnCall | array=ArrayLiteral | map=MapLiteral);
 
 fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*)+ '}' | '{' statements+=Statement ';'+ '}' | statements+=Statement;
 

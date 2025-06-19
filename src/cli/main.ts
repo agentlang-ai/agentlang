@@ -207,8 +207,9 @@ export const runModule = async (fileName: string, options?: { config?: string })
   if (!r) {
     throw new Error('Failed to initialize runtime');
   }
-  const appSpec: ApplicationSpec = await load(fileName);
-  await runPostInitTasks(appSpec, config);
+  await load(fileName, undefined, async (appSpec?: ApplicationSpec) => {
+    await runPostInitTasks(appSpec, config);
+  });
 };
 
 export async function internAndRunModule(

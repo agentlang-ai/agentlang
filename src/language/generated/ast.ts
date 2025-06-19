@@ -18,6 +18,7 @@ export const AgentlangTerminals = {
 export type AgentlangTerminalNames = keyof typeof AgentlangTerminals;
 
 export type AgentlangKeywordNames =
+    | "#"
     | "("
     | ")"
     | "*"
@@ -36,6 +37,7 @@ export type AgentlangKeywordNames =
     | ">="
     | "?"
     | "@"
+    | "@oneof"
     | "@rbac"
     | "["
     | "]"
@@ -184,6 +186,7 @@ export interface AttributeDefinition extends langium.AstNode {
     readonly $type: 'AttributeDefinition';
     arrayType?: string;
     name: string;
+    oneOfSpec?: OneOfSpec;
     properties: Array<PropertyDefinition>;
     type?: string;
 }
@@ -392,13 +395,14 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: BinExpr | ComparisonExpression | FnCall | Group | KvPair | LogicalExpression | NegExpr | Pattern | SetAttribute;
+    readonly $container: BinExpr | ComparisonExpression | FnCall | Group | KvPair | LogicalExpression | MapEntry | NegExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
     bool?: Boolean;
     fnCall?: FnCall;
     id?: string;
+    map?: MapLiteral;
     num?: Decimal;
     ref?: Ref;
     str?: string;
@@ -420,6 +424,31 @@ export const LogicalExpression = 'LogicalExpression';
 
 export function isLogicalExpression(item: unknown): item is LogicalExpression {
     return reflection.isInstance(item, LogicalExpression);
+}
+
+export interface MapEntry extends langium.AstNode {
+    readonly $container: MapLiteral;
+    readonly $type: 'MapEntry';
+    key: string;
+    value: Literal;
+}
+
+export const MapEntry = 'MapEntry';
+
+export function isMapEntry(item: unknown): item is MapEntry {
+    return reflection.isInstance(item, MapEntry);
+}
+
+export interface MapLiteral extends langium.AstNode {
+    readonly $container: Literal;
+    readonly $type: 'MapLiteral';
+    entries: Array<MapEntry>;
+}
+
+export const MapLiteral = 'MapLiteral';
+
+export function isMapLiteral(item: unknown): item is MapLiteral {
+    return reflection.isInstance(item, MapLiteral);
 }
 
 export interface ModuleDefinition extends langium.AstNode {
@@ -458,6 +487,18 @@ export const NodeDefinition = 'NodeDefinition';
 
 export function isNodeDefinition(item: unknown): item is NodeDefinition {
     return reflection.isInstance(item, NodeDefinition);
+}
+
+export interface OneOfSpec extends langium.AstNode {
+    readonly $container: AttributeDefinition;
+    readonly $type: 'OneOfSpec';
+    values: Array<string>;
+}
+
+export const OneOfSpec = 'OneOfSpec';
+
+export function isOneOfSpec(item: unknown): item is OneOfSpec {
+    return reflection.isInstance(item, OneOfSpec);
 }
 
 export interface OrAnd extends langium.AstNode {
@@ -787,9 +828,12 @@ export type AgentlangAstType = {
     KvPairs: KvPairs
     Literal: Literal
     LogicalExpression: LogicalExpression
+    MapEntry: MapEntry
+    MapLiteral: MapLiteral
     ModuleDefinition: ModuleDefinition
     NegExpr: NegExpr
     NodeDefinition: NodeDefinition
+    OneOfSpec: OneOfSpec
     OrAnd: OrAnd
     Pattern: Pattern
     PrimExpr: PrimExpr
@@ -820,7 +864,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, ModuleDefinition, NegExpr, NodeDefinition, OrAnd, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
+        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, MapEntry, MapLiteral, ModuleDefinition, NegExpr, NodeDefinition, OneOfSpec, OrAnd, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -893,6 +937,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'arrayType' },
                         { name: 'name' },
+                        { name: 'oneOfSpec' },
                         { name: 'properties', defaultValue: [] },
                         { name: 'type' }
                     ]
@@ -1045,6 +1090,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'bool' },
                         { name: 'fnCall' },
                         { name: 'id' },
+                        { name: 'map' },
                         { name: 'num' },
                         { name: 'ref' },
                         { name: 'str' }
@@ -1056,6 +1102,23 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: LogicalExpression,
                     properties: [
                         { name: 'expr' }
+                    ]
+                };
+            }
+            case MapEntry: {
+                return {
+                    name: MapEntry,
+                    properties: [
+                        { name: 'key' },
+                        { name: 'value' }
+                    ]
+                };
+            }
+            case MapLiteral: {
+                return {
+                    name: MapLiteral,
+                    properties: [
+                        { name: 'entries', defaultValue: [] }
                     ]
                 };
             }
@@ -1083,6 +1146,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'alias' },
                         { name: 'name' }
+                    ]
+                };
+            }
+            case OneOfSpec: {
+                return {
+                    name: OneOfSpec,
+                    properties: [
+                        { name: 'values', defaultValue: [] }
                     ]
                 };
             }

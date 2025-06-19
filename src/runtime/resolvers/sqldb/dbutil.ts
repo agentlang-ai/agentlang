@@ -95,8 +95,7 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: Record, hasOwnPk?:
       default: d,
       unique: isuq,
       primary: ispk,
-      nullable: isOptionalAttribute(attrSpec),
-      array: isArrayAttribute(attrSpec)
+      nullable: isOptionalAttribute(attrSpec)
     };
     if (ispk) {
       needPath = false
@@ -212,7 +211,7 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
 }
 
 export function asSqlType(type: string): ColumnType {
-  if (type == 'String' || type == 'Email' || type == 'URL') return 'varchar';
+  if (type == 'String' || type == 'DateTime' || type == 'Email' || type == 'URL' || type == 'Map') return 'varchar';
   else if (type == 'Int') return 'integer';
   else if (!isBuiltInType(type)) return 'varchar';
   else return type.toLowerCase() as ColumnType;
