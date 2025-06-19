@@ -13,6 +13,8 @@ export default [
       // Config files not included in tsconfig
       'vite.config.ts',
       'vitest.config.ts',
+      // Ignore all config.ts files (configuration files)
+      '**/*.config.ts',
     ],
   },
   // Apply typescript-eslint recommended configs
