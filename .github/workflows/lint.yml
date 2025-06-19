@@ -43,7 +43,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm ci --no-audit --prefer-offline
+          npm ci --no-audit
           
       - name: Run ESLint
         run: npm run lint
