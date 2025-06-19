@@ -98,8 +98,9 @@ export const runModule = async (fileName: string): Promise<void> => {
   if (!r) {
     throw new Error('Failed to initialize runtime');
   }
-  const appSpec: ApplicationSpec = await load(fileName);
-  await runPostInitTasks(appSpec);
+  await load(fileName, undefined, async (appSpec?: ApplicationSpec) => {
+    await runPostInitTasks(appSpec);
+  });
 };
 
 export async function internAndRunModule(

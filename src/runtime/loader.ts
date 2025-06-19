@@ -43,6 +43,7 @@ import {
   maybeExtends,
   registerInitFunction,
   runShellCommand,
+  //runShellCommand,
 } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
@@ -136,46 +137,43 @@ export async function extractAstNode<T extends AstNode>(
   return (await extractDocument(fileName, services)).parseResult?.value as T;
 }
 
-export type ApplicationSpec = {
-  name: string;
-  version: string;
-  dependencies?: object | undefined;
-};
+export type ApplicationSpec = any;
 
 export const DefaultAppSpec: ApplicationSpec = {
   name: 'agentlang-app',
   version: '0.0.1',
 };
 
-async function loadApp(appJsonFile: string, fsOptions?: any): Promise<string> {
+async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Promise<string> {
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
 
+  const appJsonFile = `${appDir}${path.sep}package.json`;
   const s: string = await fs.readFile(appJsonFile);
   const appSpec: ApplicationSpec = JSON.parse(s);
-  const dir: string = path.dirname(appJsonFile);
   const alFiles: Array<string> = new Array<string>();
-  const directoryContents = await fs.readdir(dir);
+  const directoryContents = await fs.readdir(appDir);
   let lastModuleLoaded: string = '';
   async function cont2() {
     if (!directoryContents) {
-      console.error(chalk.red(`Directory ${dir} does not exist or is empty.`));
+      console.error(chalk.red(`Directory ${appDir} does not exist or is empty.`));
       return;
     }
     directoryContents.forEach(file => {
       if (path.extname(file) == '.al') {
-        alFiles.push(dir + path.sep + file);
+        alFiles.push(appDir + path.sep + file);
       }
     });
     for (let i = 0; i < alFiles.length; ++i) {
       lastModuleLoaded = (await loadModule(alFiles[i], fsOptions)).name;
     }
+    if (callback) await callback(appSpec);
   }
   if (appSpec.dependencies != undefined) {
     if (isNodeEnv) {
       // Only run shell commands in Node.js environment
       for (const [depName, depVer] of Object.entries(appSpec.dependencies)) {
-        runShellCommand(`npm install ${depName}@${depVer}`, cont2);
+        runShellCommand(`npm install ${depName}@${depVer}`, undefined, cont2);
       }
     } else {
       // In non-Node environments, log a warning and continue
@@ -194,12 +192,16 @@ async function loadApp(appJsonFile: string, fsOptions?: any): Promise<string> {
  * @param fsOptions Optional configuration for the filesystem
  * @returns Promise that resolves when the module is loaded
  */
-export async function load(fileName: string, fsOptions?: any): Promise<ApplicationSpec> {
+export async function load(
+  fileName: string,
+  fsOptions?: any,
+  callback?: Function
+): Promise<ApplicationSpec> {
   let result: string = '';
-  if (path.basename(fileName) == 'app.json') {
-    result = await loadApp(fileName, fsOptions);
+  if (path.basename(fileName).endsWith('.al')) {
+    result = (await loadModule(fileName, fsOptions, callback)).name;
   } else {
-    result = (await loadModule(fileName, fsOptions)).name;
+    result = await loadApp(fileName, fsOptions, callback);
   }
   return { name: result, version: '0.0.1' };
 }
@@ -210,7 +212,7 @@ export async function loadCoreModules() {
   }
 }
 
-async function loadModule(fileName: string, fsOptions?: any): Promise<Module> {
+async function loadModule(fileName: string, fsOptions?: any, callback?: Function): Promise<Module> {
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
 
@@ -226,6 +228,9 @@ async function loadModule(fileName: string, fsOptions?: any): Promise<Module> {
   const result: Module = internModule(module);
   console.log(chalk.green(`Module ${chalk.bold(result.name)} loaded`));
   logger.info(`Module ${result.name} loaded`);
+  if (callback) {
+    await callback();
+  }
   return result;
 }
 
