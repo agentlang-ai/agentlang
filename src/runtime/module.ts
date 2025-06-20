@@ -22,10 +22,10 @@ import {
   joinStatements,
   isMinusZero,
   now,
+  makeCoreModuleName,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
-import { CoreAIModuleName } from './modules/ai.js';
 
 export class ModuleEntry {
   name: string;
@@ -163,6 +163,10 @@ export class Record extends ModuleEntry {
 
   addMeta(k: string, v: string): void {
     this.meta.set(k, v);
+  }
+
+  getMeta(k: string): string | undefined {
+    return this.meta.get(k);
   }
 
   addAttribute(n: string, attrSpec: AttributeSpec): Record {
@@ -992,9 +996,12 @@ export class Module {
   }
 }
 
+const ReservedEntryNames = new Set(['agent', 'llm']);
+export const CoreAIModuleName = makeCoreModuleName('ai');
+
 function checkForReservedEntryNames(moduleName: string, entryName: string) {
-  if (entryName == 'agent' && moduleName != CoreAIModuleName) {
-    throw new Error(`Cannot add entry to module ${moduleName}, 'agent' is a reserved name`);
+  if (ReservedEntryNames.has(entryName) && moduleName != CoreAIModuleName) {
+    throw new Error(`Cannot add entry to module ${moduleName}, ${entryName} is a reserved name`);
   }
 }
 
@@ -1896,4 +1903,25 @@ export function assertInstance(obj: any) {
   } else if (!(obj instanceof Instance)) {
     throw new Error(`${obj} is not an Instance`);
   }
+}
+
+const IsAgentEventMeta = 'is-agent-event';
+const EventAgentName = 'event-agent-name';
+
+export function defineAgentEvent(moduleName: string, agentName: string) {
+  const module = fetchModule(moduleName);
+  const event: Record = new Event(agentName, moduleName);
+  event.addAttribute('message', { type: 'String' });
+  event.addMeta(IsAgentEventMeta, 'y');
+  event.addMeta(EventAgentName, agentName);
+  module.addEntry(event);
+}
+
+export function isAgentEvent(eventInst: Instance): boolean {
+  const flag = eventInst.record.getMeta(IsAgentEventMeta);
+  return flag != undefined && flag == 'y';
+}
+
+export function eventAgentName(eventInst: Instance): string | undefined {
+  return eventInst.record.getMeta(EventAgentName);
 }

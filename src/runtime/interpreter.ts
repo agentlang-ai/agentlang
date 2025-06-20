@@ -25,10 +25,12 @@ import {
   Upsert,
 } from '../language/generated/ast.js';
 import {
+  defineAgentEvent,
   getRelationship,
   getWorkflow,
   Instance,
   InstanceAttributes,
+  isAgentEvent,
   isBetweenRelationship,
   isContainsRelationship,
   isEmptyWorkflow,
@@ -58,7 +60,6 @@ import {
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
-import { provider } from './agents/registry.js';
 import { AgentFqName } from './modules/ai.js';
 
 export type Result = any;
@@ -543,7 +544,6 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   let moduleName: string = env.getActiveModuleName();
   let entryName: string = crud.name;
   const isQueryAll: boolean = entryName.endsWith(QuerySuffix);
-  const anAgent = env.maybeLookupAgentInstance(entryName);
   if (isQueryAll) {
     entryName = entryName.slice(0, entryName.length - 1);
   }
@@ -570,22 +570,22 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (p.hasModule()) moduleName = p.getModuleName();
     if (p.hasEntry()) entryName = p.getEntryName();
   }
-  if (anAgent) {
-    return await handleAgentInvocation(crud.name, attrs, env);
-  }
   const inst: Instance = makeInstance(moduleName, entryName, attrs, qattrs, qattrVals);
   if (isEntityInstance(inst) || isBetweenRelationship(inst.name, inst.moduleName)) {
     if (qattrs == undefined && !isQueryAll) {
       const parentPath: string | undefined = env.getParentPath();
       if (parentPath) inst.attributes.set(PathAttributeName, parentPath);
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
+      let r: Instance | undefined;
       if (env.isInUpsertMode()) {
-        const r: Instance = await res.upsertInstance(inst);
-        env.setLastResult(r);
+        r = await res.upsertInstance(inst);
       } else {
-        const r: Instance = await res.createInstance(inst);
-        env.setLastResult(r);
+        r = await res.createInstance(inst);
       }
+      if (r && entryName == 'agent') {
+        defineAgentEvent(moduleName, r.lookup('name'));
+      }
+      env.setLastResult(r);
       const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
       if (betRelInfo) {
         await res.connectInstances(
@@ -697,32 +697,16 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
     }
   } else if (isEventInstance(inst)) {
-    if (entryName == 'agent') {
-      env.setLastResult(handleAgentDefinition(inst));
-    } else {
-      await evaluate(inst, (result: Result) => env.setLastResult(result), env);
-    }
+    if (isAgentEvent(inst)) await handleAgentInvocation(inst, env);
+    else await evaluate(inst, (result: Result) => env.setLastResult(result), env);
   } else {
     env.setLastResult(inst);
   }
 }
 
-const DefaultProviderConfig = new Map().set('service', 'openai');
-
-function handleAgentDefinition(inst: Instance): Instance {
-  const providerConfig: Map<string, any> = inst.lookup('providerConfig') || DefaultProviderConfig;
-  const pclass = provider(inst.lookup(providerConfig.get('service')));
-  inst.attributes.set('provider', new pclass(providerConfig));
-  return inst;
-}
-
-async function handleAgentInvocation(
-  agentInstName: string,
-  attrs: InstanceAttributes,
-  env: Environment
-): Promise<void> {
+async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
   // TODO: implement
-  throw new Error(`handleAgentInvocation(${agentInstName}, ${attrs}, ${env})`);
+  throw new Error(`handleAgentInvocation(${agentEventInst}, ${env})`);
 }
 
 async function evaluateUpsert(upsert: Upsert, env: Environment): Promise<void> {
