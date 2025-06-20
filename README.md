@@ -98,11 +98,8 @@ Test with sample app.json files:
 # Parse and validate an AgentLang file
 node ./bin/cli.js parseAndValidate example/blog/blog.al
 
-# Run a specific app.json
-node ./bin/cli.js run example/blog/app.json
-
-# Run another app configuration
-node ./bin/cli.js run example/erp/app.json
+# Run a specific app
+node ./bin/cli.js run example/blog
 ```
 
 ## Linting and Code Style
