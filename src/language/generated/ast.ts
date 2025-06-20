@@ -46,6 +46,7 @@ export type AgentlangKeywordNames =
     | "as"
     | "await"
     | "between"
+    | "component"
     | "contains"
     | "create"
     | "delete"
@@ -143,7 +144,7 @@ export function isRef(item: unknown): item is Ref {
     return typeof item === 'string';
 }
 
-export type SchemaDef = EntityDefinition | EventDefinition | RecordDefinition;
+export type SchemaDef = ComponentDefinition | EntityDefinition | EventDefinition | RecordDefinition;
 
 export const SchemaDef = 'SchemaDef';
 
@@ -223,6 +224,44 @@ export const ComparisonExpression = 'ComparisonExpression';
 
 export function isComparisonExpression(item: unknown): item is ComparisonExpression {
     return reflection.isInstance(item, ComparisonExpression);
+}
+
+export interface ComponentDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'ComponentDefinition';
+    name: string;
+    schema: ComponentSpec;
+}
+
+export const ComponentDefinition = 'ComponentDefinition';
+
+export function isComponentDefinition(item: unknown): item is ComponentDefinition {
+    return reflection.isInstance(item, ComponentDefinition);
+}
+
+export interface ComponentSpec extends langium.AstNode {
+    readonly $container: ComponentDefinition;
+    readonly $type: 'ComponentSpec';
+    entries: Array<ComponentSpecEntry>;
+}
+
+export const ComponentSpec = 'ComponentSpec';
+
+export function isComponentSpec(item: unknown): item is ComponentSpec {
+    return reflection.isInstance(item, ComponentSpec);
+}
+
+export interface ComponentSpecEntry extends langium.AstNode {
+    readonly $container: ComponentSpec;
+    readonly $type: 'ComponentSpecEntry';
+    name: string;
+    value: Literal;
+}
+
+export const ComponentSpecEntry = 'ComponentSpecEntry';
+
+export function isComponentSpecEntry(item: unknown): item is ComponentSpecEntry {
+    return reflection.isInstance(item, ComponentSpecEntry);
 }
 
 export interface CrudMap extends langium.AstNode {
@@ -395,7 +434,7 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: BinExpr | ComparisonExpression | FnCall | Group | KvPair | LogicalExpression | MapEntry | NegExpr | Pattern | SetAttribute;
+    readonly $container: BinExpr | ComparisonExpression | ComponentSpecEntry | FnCall | Group | KvPair | LogicalExpression | MapEntry | NegExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
@@ -810,6 +849,9 @@ export type AgentlangAstType = {
     AttributeValueExpression: AttributeValueExpression
     BinExpr: BinExpr
     ComparisonExpression: ComparisonExpression
+    ComponentDefinition: ComponentDefinition
+    ComponentSpec: ComponentSpec
+    ComponentSpecEntry: ComponentSpecEntry
     CrudMap: CrudMap
     Definition: Definition
     Delete: Delete
@@ -864,7 +906,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, MapEntry, MapLiteral, ModuleDefinition, NegExpr, NodeDefinition, OneOfSpec, OrAnd, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
+        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, ComponentDefinition, ComponentSpec, ComponentSpecEntry, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, MapEntry, MapLiteral, ModuleDefinition, NegExpr, NodeDefinition, OneOfSpec, OrAnd, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -873,6 +915,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case PrimExpr: {
                 return this.isSubtype(Expr, supertype);
             }
+            case ComponentDefinition:
             case EntityDefinition:
             case EventDefinition:
             case RecordDefinition: {
@@ -960,6 +1003,32 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'e1' },
                         { name: 'e2' },
                         { name: 'op' }
+                    ]
+                };
+            }
+            case ComponentDefinition: {
+                return {
+                    name: ComponentDefinition,
+                    properties: [
+                        { name: 'name' },
+                        { name: 'schema' }
+                    ]
+                };
+            }
+            case ComponentSpec: {
+                return {
+                    name: ComponentSpec,
+                    properties: [
+                        { name: 'entries', defaultValue: [] }
+                    ]
+                };
+            }
+            case ComponentSpecEntry: {
+                return {
+                    name: ComponentSpecEntry,
+                    properties: [
+                        { name: 'name' },
+                        { name: 'value' }
                     ]
                 };
             }
