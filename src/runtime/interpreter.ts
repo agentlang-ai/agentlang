@@ -60,7 +60,8 @@ import {
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
-import { AgentFqName } from './modules/ai.js';
+import { AgentFqName, findProviderForLLM } from './modules/ai.js';
+import { AIResponse, humanMessage, systemMessage } from './agents/provider.js';
 
 export type Result = any;
 
@@ -203,6 +204,12 @@ export class Environment extends Instance {
 
   getActiveModuleName(): string {
     return this.activeModule;
+  }
+
+  switchActiveModuleName(newModuleName: string): string {
+    const oldModuleName = this.activeModule;
+    this.activeModule = newModuleName;
+    return oldModuleName;
   }
 
   setParentPath(path: string): Environment {
@@ -583,7 +590,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         r = await res.createInstance(inst);
       }
       if (r && entryName == 'agent') {
-        defineAgentEvent(moduleName, r.lookup('name'));
+        defineAgentEvent(env.getActiveModuleName(), r.lookup('name'));
       }
       env.setLastResult(r);
       const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
@@ -705,8 +712,23 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
 }
 
 async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
-  // TODO: implement
-  throw new Error(`handleAgentInvocation(${agentEventInst}, ${env})`);
+  await parseAndEvaluateStatement(
+    `{agentlang_ai/agent {name? "${agentEventInst.name}"}}`,
+    undefined,
+    env
+  );
+  const result = env.getLastResult();
+  if (result instanceof Array && result.length > 0) {
+    const agentInstance: Instance = result[0];
+    const p = await findProviderForLLM(agentInstance.lookup('llm'), env);
+    const response: AIResponse = await p.invoke([
+      systemMessage(agentInstance.lookup('instruction')),
+      humanMessage(agentEventInst.lookup('message')),
+    ]);
+    env.setLastResult(response.content);
+  } else {
+    throw new Error(`Failed to lookup agent ${agentEventInst.name}`);
+  }
 }
 
 async function evaluateUpsert(upsert: Upsert, env: Environment): Promise<void> {

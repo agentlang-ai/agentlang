@@ -362,12 +362,32 @@ export function addComponentFromDef(def: ComponentDefinition, moduleName: string
   return addComponent(def.name, moduleName, def.schema);
 }
 
-const StandaloneStatements = new Array<Statement>();
+const StandaloneStatements = new Map<string, Statement[]>();
+
+function addStandaloneStatement(stmt: Statement, moduleName: string) {
+  let stmts: Array<Statement> | undefined = StandaloneStatements.get(moduleName);
+  if (stmts == undefined) {
+    stmts = new Array<Statement>();
+  }
+  stmts.push(stmt);
+  if (!StandaloneStatements.has(moduleName)) {
+    StandaloneStatements.set(moduleName, stmts);
+  }
+}
 
 export async function runStandaloneStatements() {
-  if (StandaloneStatements.length > 0) {
+  if (StandaloneStatements.size > 0) {
     await GlobalEnvironment.callInTransaction(async () => {
-      await evaluateStatements(StandaloneStatements, GlobalEnvironment);
+      const ks = [...StandaloneStatements.keys()];
+      for (let i = 0; i < ks.length; ++i) {
+        const moduleName = ks[i];
+        const stmts: Statement[] | undefined = StandaloneStatements.get(moduleName);
+        if (stmts) {
+          const oldModule = GlobalEnvironment.switchActiveModuleName(moduleName);
+          await evaluateStatements(stmts, GlobalEnvironment);
+          GlobalEnvironment.switchActiveModuleName(oldModule);
+        }
+      }
       logger.info(`Init eval result: ${GlobalEnvironment.getLastResult().toString()}`);
     });
   }
@@ -379,7 +399,7 @@ export function addFromDef(def: Definition, moduleName: string) {
   else if (isRecordDefinition(def)) addRecordFromDef(def, moduleName);
   else if (isRelationshipDefinition(def)) addRelationshipFromDef(def, moduleName);
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
-  else if (isStandaloneStatement(def)) StandaloneStatements.push(def.stmt);
+  else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
   else if (isComponentDefinition(def)) addComponentFromDef(def, moduleName);
 }
 

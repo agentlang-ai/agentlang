@@ -26,7 +26,6 @@ import {
   joinStatements,
   isMinusZero,
   now,
-  makeCoreModuleName,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -846,7 +845,6 @@ export class Component extends ModuleEntry {
 }
 
 function normalizeLiteral(literal: Literal): any {
-  ``;
   const v = literal.str || literal.num || literal.id || literal.bool;
   if (v != undefined) return v;
   if (literal.array) {
@@ -878,7 +876,6 @@ export class Module {
   }
 
   addEntry(entry: ModuleEntry): ModuleEntry {
-    checkForReservedEntryNames(this.name, entry.name);
     this.entries.push(entry);
     if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
     return entry;
@@ -1065,15 +1062,6 @@ export class Module {
       ss.push(me.toString());
     });
     return `module ${this.name}\n\n${ss.join('\n')}`;
-  }
-}
-
-const ReservedEntryNames = new Set(['agent', 'llm']);
-export const CoreAIModuleName = makeCoreModuleName('ai');
-
-function checkForReservedEntryNames(moduleName: string, entryName: string) {
-  if (ReservedEntryNames.has(entryName) && moduleName != CoreAIModuleName) {
-    throw new Error(`Cannot add entry to module ${moduleName}, ${entryName} is a reserved name`);
   }
 }
 

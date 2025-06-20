@@ -1,8 +1,10 @@
-import { makeFqName } from '../util.js';
+import { makeCoreModuleName, makeFqName } from '../util.js';
 import { Environment, parseAndEvaluateStatement } from '../interpreter.js';
-import { CoreAIModuleName, Instance } from '../module.js';
+import { Instance } from '../module.js';
 import { provider } from '../agents/registry.js';
 import { AgentServiceProvider } from '../agents/provider.js';
+
+export const CoreAIModuleName = makeCoreModuleName('ai');
 
 export default `module ${CoreAIModuleName}
 
@@ -32,7 +34,7 @@ export async function findProviderForLLM(
   let p: AgentServiceProvider | undefined = ProviderDb.get(llmName);
   if (p == undefined) {
     const result: Instance[] = await parseAndEvaluateStatement(
-      `{${CoreAIModuleName}/llm {name? ${llmName}}}`,
+      `{${CoreAIModuleName}/llm {name? "${llmName}"}}`,
       undefined,
       env
     );
