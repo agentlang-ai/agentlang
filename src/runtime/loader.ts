@@ -20,6 +20,8 @@ import {
   RbacSpecDefinition,
   Statement,
   isStandaloneStatement,
+  isComponentDefinition,
+  ComponentDefinition,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -36,6 +38,8 @@ import {
   Module,
   Workflow,
   isModule,
+  Component,
+  addComponent,
 } from './module.js';
 import {
   importModule,
@@ -354,6 +358,10 @@ export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string):
   return addWorkflow(def.name, moduleName, def.statements);
 }
 
+export function addComponentFromDef(def: ComponentDefinition, moduleName: string): Component {
+  return addComponent(def.name, moduleName, def.schema);
+}
+
 const StandaloneStatements = new Array<Statement>();
 
 export async function runStandaloneStatements() {
@@ -372,6 +380,7 @@ export function addFromDef(def: Definition, moduleName: string) {
   else if (isRelationshipDefinition(def)) addRelationshipFromDef(def, moduleName);
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
   else if (isStandaloneStatement(def)) StandaloneStatements.push(def.stmt);
+  else if (isComponentDefinition(def)) addComponentFromDef(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {

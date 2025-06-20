@@ -9,6 +9,10 @@ import {
   AttributeDefinition,
   PropertyDefinition,
   NodeDefinition,
+  ComponentSpec,
+  ComponentSpecEntry,
+  isLiteral,
+  MapEntry,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -805,6 +809,63 @@ export function isEmptyWorkflow(wf: Workflow): boolean {
   return wf == EmptyWorkflow;
 }
 
+export class Component extends ModuleEntry {
+  specification: Map<string, any>;
+
+  constructor(name: string, moduleName: string, specification: ComponentSpec) {
+    super(name, moduleName);
+    this.specification = new Map();
+    specification.entries.forEach((entry: ComponentSpecEntry) => {
+      this.specification.set(entry.name, normalizeLiteral(entry.value));
+    });
+  }
+
+  lookup(k: string, onNotFound?: any): any {
+    const v = this.specification.get(k);
+    if (v != undefined) {
+      return v;
+    } else {
+      return onNotFound;
+    }
+  }
+
+  set(k: string, v: any): Component {
+    this.specification.set(k, v);
+    return this;
+  }
+
+  override toString(): string {
+    const arr = new Array<string>();
+    this.specification.forEach((v: any, k: string) => {
+      arr.push(`${k} ${JSON.stringify(v)}`);
+    });
+    return `component ${this.name} {
+      ${arr.join(',\n')}
+    }`;
+  }
+}
+
+function normalizeLiteral(literal: Literal): any {
+  ``;
+  const v = literal.str || literal.num || literal.id || literal.bool;
+  if (v != undefined) return v;
+  if (literal.array) {
+    return literal.array.vals.map((value: Statement) => {
+      if (isLiteral(value.pattern)) {
+        return normalizeLiteral(value.pattern);
+      } else {
+        return value.pattern.$cstNode?.text;
+      }
+    });
+  } else if (literal.map) {
+    const v = new Map<string, any>();
+    literal.map.entries.forEach((value: MapEntry) => {
+      v.set(value.key, normalizeLiteral(value.value));
+    });
+    return v;
+  }
+}
+
 export class Module {
   name: string;
   entries: ModuleEntry[];
@@ -913,6 +974,17 @@ export class Module {
 
   getWorkflowForEvent(eventName: string): Workflow {
     return this.getEntry(asWorkflowName(eventName)) as Workflow;
+  }
+
+  getComponent(entityName: string): Component | undefined {
+    const r = this.entries.find((entry: ModuleEntry) => {
+      return entry instanceof Component && entry.name == entityName;
+    });
+    if (r != undefined) {
+      return r as Component;
+    } else {
+      return r;
+    }
   }
 
   isEntryOfType(t: RecordType, name: string): boolean {
@@ -1293,6 +1365,13 @@ export function addContainsRelationship(
   nodes: RelationshipNode[]
 ): Relationship {
   return addRelationship(name, 'contains', nodes, moduleName);
+}
+
+export function addComponent(name: string, moduleName: string, spec: ComponentSpec): Component {
+  const module: Module = fetchModule(moduleName);
+  const c = new Component(name, moduleName, spec);
+  module.addEntry(c);
+  return c;
 }
 
 function asWorkflowName(n: string): string {
