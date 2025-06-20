@@ -48,6 +48,8 @@ export enum LiteralPatternType {
   BOOLEAN,
   STRING,
   REFERENCE,
+  MAP,
+  ARRAY,
 }
 
 export class LiteralPattern extends BasePattern {
@@ -60,8 +62,65 @@ export class LiteralPattern extends BasePattern {
     this.value = value;
   }
 
+  static Id(value: string): LiteralPattern {
+    return new LiteralPattern(LiteralPatternType.ID, value);
+  }
+
+  static Number(value: number): LiteralPattern {
+    return new LiteralPattern(LiteralPatternType.NUMBER, value);
+  }
+
+  static Boolean(value: boolean): LiteralPattern {
+    return new LiteralPattern(LiteralPatternType.BOOLEAN, value);
+  }
+
+  static String(value: string): LiteralPattern {
+    return new LiteralPattern(LiteralPatternType.STRING, value);
+  }
+
+  static Reference(value: string): LiteralPattern {
+    if (value.indexOf('.') < 0) {
+      throw new Error(`${value} does not look like a reference`);
+    }
+    return new LiteralPattern(LiteralPatternType.REFERENCE, value);
+  }
+
+  static Map(value: Map<string, BasePattern>): LiteralPattern {
+    return new LiteralPattern(LiteralPatternType.MAP, value);
+  }
+
+  static Array(value: Array<BasePattern>): LiteralPattern {
+    return new LiteralPattern(LiteralPatternType.ARRAY, value);
+  }
+
   override toString(): string {
-    const s = this.type == LiteralPatternType.STRING ? `"${this.value}"` : this.value.toString();
+    let s = '';
+    switch (this.type) {
+      case LiteralPatternType.ARRAY: {
+        const a = this.value as Array<BasePattern>;
+        s = `[${a
+          .map((v: BasePattern) => {
+            return v.toString();
+          })
+          .join(', ')}]`;
+        break;
+      }
+      case LiteralPatternType.MAP: {
+        const m = this.value as Map<string, BasePattern>;
+        const arr = new Array<string>();
+        m.forEach((v: BasePattern, k: string) => {
+          arr.push(`${k}: ${v.toString()}`);
+        });
+        s = `{${arr.join(', ')}}`;
+        break;
+      }
+      case LiteralPatternType.STRING: {
+        s = `"${this.value}"`;
+        break;
+      }
+      default:
+        s = this.value.toString();
+    }
     return s.concat(this.aliasAsString());
   }
 }
@@ -96,6 +155,14 @@ export function isBooleanLiteral(p: LiteralPattern): boolean {
 
 export function isIdentifierLiteral(p: LiteralPattern): boolean {
   return p.type == LiteralPatternType.ID;
+}
+
+export function isArrayLiteral(p: LiteralPattern): boolean {
+  return p.type == LiteralPatternType.ARRAY;
+}
+
+export function isMapLiteral(p: LiteralPattern): boolean {
+  return p.type == LiteralPatternType.MAP;
 }
 
 export class ArrayPattern extends BasePattern {

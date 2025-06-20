@@ -11,7 +11,6 @@ import {
   isQueryPattern,
   isQueryUpdatePattern,
   LiteralPattern,
-  LiteralPatternType,
   ReferencePattern,
 } from '../../src/language/syntax.js';
 import { introspect } from '../../src/language/parser.js';
@@ -21,10 +20,10 @@ describe('Pattern generation using the syntax API', () => {
     const crud0: CrudPattern = new CrudPattern('User?');
     assert(crud0.toString() == '{User? {}}')
     assert(isQueryPattern(crud0))
-    crud0.addAttribute('email', new LiteralPattern(LiteralPatternType.STRING, "joe@acme.com"))
+    crud0.addAttribute('email', LiteralPattern.String("joe@acme.com"))
     assert(crud0.toString() == '{User {email "joe@acme.com"}}')
     assert(isCreatePattern(crud0))
-    crud0.addAttribute('age?', new LiteralPattern(LiteralPatternType.NUMBER, 18), '>')
+    crud0.addAttribute('age?', LiteralPattern.Number(18), '>')
     assert(crud0.toString() == '{User {email "joe@acme.com", age?> 18}}')
     assert(isQueryUpdatePattern(crud0))
     const crud1: CrudPattern = new CrudPattern('Acme/Employee');
@@ -37,7 +36,7 @@ describe('Pattern generation using the syntax API', () => {
     const stmt1 = `{Acme/Employee {firstName CreateEmployee.firstName, lastName CreateEmployee.lastName, email CreateEmployee.email, salary CreateEmployee.salary * 0.5}} as emp`;
     assert(crud1.toString() == stmt1, 'Failed to generate employee-create pattern');
     const crud2: CrudPattern = new CrudPattern('Acme/Employee')
-      .addAttribute('salary?>=', new LiteralPattern(LiteralPatternType.NUMBER, 1500))
+      .addAttribute('salary?>=', LiteralPattern.Number(1500))
       .setAlias('employees');
     const stmt2 = '{Acme/Employee {salary?>= 1500}} as employees';
     assert(crud2.toString() == stmt2, 'Failed to generate employee query pattern');
@@ -51,10 +50,10 @@ describe('Pattern generation using the syntax API', () => {
         )
       );
     const crud4 = new CrudPattern('Erp/User')
-    const age1 = new LiteralPattern(LiteralPatternType.NUMBER, 20)
-    const age2 = new LiteralPattern(LiteralPatternType.NUMBER, 40)
+    const age1 = LiteralPattern.Number(20)
+    const age2 = LiteralPattern.Number(40)
     crud4.addAttribute('age?', new ArrayPattern().addValue(age1).addValue(age2), 'between')
-    .addAttribute('status', new LiteralPattern(LiteralPatternType.STRING, 'ok'))
+      .addAttribute('status', LiteralPattern.String('ok'))
     assert(crud4.toString() == '{Erp/User {age?between [20, 40], status "ok"}}', 'Failed to generate query-update')
     const stmt3 =
       '{Blog/User {name CreateUser.name},UserProfile {Profile {email CreateUser.email}}}';
@@ -72,16 +71,16 @@ describe('Pattern generation using the syntax API', () => {
     const emptyfe = new ForEachPattern()
     assert(emptyfe.toString() == 'for X in []{}', 'Failed to generate empty for-each')
     const ifp: IfPattern = new IfPattern(new ExpressionPattern('emp.salary > 1000'))
-      .addPattern(new LiteralPattern(LiteralPatternType.STRING, '+1000'))
+      .addPattern(LiteralPattern.String('+1000'))
       .setElse(
         [new IfPattern(new ExpressionPattern('emp.salary < 500')).addPattern(
-          new LiteralPattern(LiteralPatternType.STRING, '-500')
-        ).setElse([new LiteralPattern(LiteralPatternType.STRING, 'ok')])]
+          LiteralPattern.String('-500')
+        ).setElse([LiteralPattern.String('ok')])]
       )
     const stmt5 = `if(emp.salary > 1000) {"+1000"} else if(emp.salary < 500) {"-500"} else {"ok"}`;
     assert(ifp.toString() == stmt5, 'Failed to generate if pattern');
     const qp: CrudPattern = new CrudPattern('Blog/User');
-    qp.addAttribute('salary?', new LiteralPattern(LiteralPatternType.NUMBER, 1500), '>');
+    qp.addAttribute('salary?', LiteralPattern.Number(1500), '>');
     const dfp: DeletePattern = new DeletePattern(qp);
     assert(
       dfp.toString() == 'delete {Blog/User {salary?> 1500}}',
@@ -202,5 +201,14 @@ describe('Pattern introspection', () => {
     assert(emptyIf.toString() == 'if(true) {}')
     const emptyIfWithElse = new IfPattern().setElse()
     assert(emptyIfWithElse.toString() == 'if(true) {} else {}')
+
+    const subArray = LiteralPattern.Array([LiteralPattern.Id("a"), LiteralPattern.Reference("a.b")])
+    const arrayPat = LiteralPattern.Array([LiteralPattern.Number(100), LiteralPattern.String("hi"), subArray])
+    assert(arrayPat.toString() == '[100, "hi", [a, a.b]]')
+
+    const mapPat = LiteralPattern.Map(new Map()
+      .set('a', LiteralPattern.Number(1))
+      .set('b', arrayPat))
+    assert(mapPat.toString() == '{a: 1, b: [100, "hi", [a, a.b]]}')
   });
 });
