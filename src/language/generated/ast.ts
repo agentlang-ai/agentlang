@@ -213,7 +213,7 @@ export function isBinExpr(item: unknown): item is BinExpr {
 }
 
 export interface ComparisonExpression extends langium.AstNode {
-    readonly $container: LogicalExpression;
+    readonly $container: LogicalExpression | OrAnd;
     readonly $type: 'ComparisonExpression';
     e1: Expr;
     e2: Expr;
@@ -454,9 +454,9 @@ export function isLiteral(item: unknown): item is Literal {
 }
 
 export interface LogicalExpression extends langium.AstNode {
-    readonly $container: If | LogicalExpression | OrAnd;
+    readonly $container: If | OrAnd;
     readonly $type: 'LogicalExpression';
-    expr: ComparisonExpression | Expr | Literal | LogicalExpression | OrAnd;
+    expr: ComparisonExpression | Expr | Literal | OrAnd;
 }
 
 export const LogicalExpression = 'LogicalExpression';
@@ -543,7 +543,8 @@ export function isOneOfSpec(item: unknown): item is OneOfSpec {
 export interface OrAnd extends langium.AstNode {
     readonly $container: LogicalExpression;
     readonly $type: 'OrAnd';
-    exprs: Array<LogicalExpression>;
+    e1: ComparisonExpression;
+    e2: LogicalExpression;
     op: 'and' | 'or';
 }
 
@@ -1230,7 +1231,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: OrAnd,
                     properties: [
-                        { name: 'exprs', defaultValue: [] },
+                        { name: 'e1' },
+                        { name: 'e2' },
                         { name: 'op' }
                     ]
                 };
