@@ -1,4 +1,4 @@
-import { evaluateAsEvent, Result, Environment, makeEventEvaluator } from '../interpreter.js';
+import { Result, Environment, makeEventEvaluator } from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
@@ -6,7 +6,6 @@ import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
 import {
   ActiveSessionInfo,
-  AdminSession,
   AdminUserId,
   AuthEnabled,
   BypassSession,

@@ -1,5 +1,6 @@
 import { isNodeEnv } from '../utils/runtime.js';
 import { ExtendsClause } from '../language/generated/ast.js';
+import { readFile } from '../utils/fs-utils.js';
 
 export const QuerySuffix = '?';
 
@@ -252,4 +253,9 @@ export const sleepMilliseconds = isNodeEnv
 
 export function now(): string {
   return new Date().toISOString();
+}
+
+export async function slurpJsonFile(fileName: string): Promise<any> {
+  const s = await readFile(fileName);
+  return JSON.parse(s);
 }

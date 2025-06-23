@@ -915,30 +915,38 @@ async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
 async function evaluateOrAnd(orAnd: OrAnd, env: Environment): Promise<void> {
   switch (orAnd.op) {
     case 'or':
-      await evaluateOr(orAnd.exprs, env);
+      await evaluateOr(orAnd.e1, orAnd.e2, env);
       break;
     case 'and':
-      await evaluateAnd(orAnd.exprs, env);
+      await evaluateAnd(orAnd.e1, orAnd.e2, env);
       break;
     default:
       throw new Error(`Invalid logical operator: ${orAnd.op}`);
   }
 }
 
-async function evaluateOr(exprs: LogicalExpression[], env: Environment): Promise<void> {
-  for (let i = 0; i < exprs.length; ++i) {
-    await evaluateLogicalExpression(exprs[i], env);
-    if (env.getLastResult()) return;
-  }
-  env.setLastResult(false);
+async function evaluateOr(
+  e1: ComparisonExpression,
+  e2: LogicalExpression,
+  env: Environment
+): Promise<void> {
+  await evaluateComparisonExpression(e1, env);
+  if (env.getLastResult()) return;
+  await evaluateLogicalExpression(e2, env);
 }
 
-async function evaluateAnd(exprs: LogicalExpression[], env: Environment): Promise<void> {
-  for (let i = 0; i < exprs.length; ++i) {
-    await evaluateLogicalExpression(exprs[i], env);
-    if (!env.getLastResult()) return;
+async function evaluateAnd(
+  e1: ComparisonExpression,
+  e2: LogicalExpression,
+  env: Environment
+): Promise<void> {
+  await evaluateComparisonExpression(e1, env);
+  const r = env.getLastResult();
+  if (r) {
+    await evaluateLogicalExpression(e2, env);
+  } else {
+    env.setLastResult(r);
   }
-  env.setLastResult(true);
 }
 
 function getRef(r: string, src: any): Result | undefined {
