@@ -209,5 +209,15 @@ describe('Pattern introspection', () => {
       .set('"a"', LiteralPattern.Number(1))
       .set('b', arrayPat))
     assert(mapPat.toString() == '{"a": 1, b: [100, "hi", [a, a.b]]}')
+
+    const e1 = await ExpressionPattern.Validated('(x < 4)')
+    assert(e1.toString() == '(x < 4)')
+    const e2 = await ExpressionPattern.Validated('((X - 2) + (2 / 5)) = 1')
+    assert(e2.toString() == '((X - 2) + (2 / 5)) = 1')
+    let exprErr = false
+    await ExpressionPattern.Validated('(X > 5').catch(() => exprErr = true)
+    assert(exprErr, 'Failed to validate expression')
+    const e3 = await ExpressionPattern.Validated('and((X < 5), or(Y > 100, Y=10))')
+    assert(e3.toString() == 'and((X < 5), or(Y > 100, Y=10))')
   });
 });

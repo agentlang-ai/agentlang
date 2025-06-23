@@ -1,4 +1,8 @@
+import { parseHelper } from 'langium/test';
 import { escapeQueryName } from '../runtime/util.js';
+import { ModuleDefinition } from './generated/ast.js';
+import { createAgentlangServices } from './agentlang-module.js';
+import { EmptyFileSystem } from 'langium';
 
 export class BasePattern {
   alias: string | undefined;
@@ -198,10 +202,28 @@ export function isFunctionCallPattern(p: BasePattern): boolean {
 
 export class ExpressionPattern extends BasePattern {
   expression: any;
+  private static services: ReturnType<typeof createAgentlangServices> =
+    createAgentlangServices(EmptyFileSystem);
+  private static doParse = parseHelper<ModuleDefinition>(this.services.Agentlang);
+  private static parse: ReturnType<typeof parseHelper<ModuleDefinition>> = (input: string) =>
+    this.doParse(input, { validation: true });
 
   constructor(expression: any) {
     super();
     this.expression = expression;
+  }
+
+  static async Validated(exprString: string): Promise<ExpressionPattern> {
+    const result = await ExpressionPattern.parse(
+      `module Temp workflow Test { if (${exprString}) {} }`
+    );
+    if (result.parseResult.lexerErrors.length > 0) {
+      throw new Error(result.parseResult.lexerErrors.join('\n'));
+    }
+    if (result.parseResult.parserErrors.length > 0) {
+      throw new Error(result.parseResult.parserErrors.join('\n'));
+    }
+    return new ExpressionPattern(exprString);
   }
 
   override toString(): string {
