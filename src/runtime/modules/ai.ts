@@ -27,15 +27,6 @@ entity agentChatSession {
     id String @id,
     messages String[]
 }
-
-worflow findAgentChatSession {
-  {agentChatSession {id? findAgentChatSession.id}} as [sess];
-  sess
-}
-
-worflow saveAgentChatSession {
-  upsert {agentChatSession {id saveAgentChatSession.id, messages saveAgentChatSession.messages}}
-}
 `;
 
 export const AgentFqName = makeFqName(CoreAIModuleName, 'agent');
@@ -70,16 +61,19 @@ export async function findProviderForLLM(
   }
 }
 
-const evalEvent = makeEventEvaluator(CoreAIModuleName)
+const evalEvent = makeEventEvaluator(CoreAIModuleName);
 
-export async function findAgentChatSession(chatId: string, env: Environment): Promise<Instance | undefined> {
-  const result: Instance | undefined = await evalEvent("findAgentChatSession", { id: chatId }, env);
+export async function findAgentChatSession(
+  chatId: string,
+  env: Environment
+): Promise<Instance | undefined> {
+  const result: Instance | undefined = await evalEvent('findAgentChatSession', { id: chatId }, env);
   if (result) {
-    result.attributes.set('messages', JSON.parse(result.lookup('messages')))
+    result.attributes.set('messages', JSON.parse(result.lookup('messages')));
   }
-  return result
+  return result;
 }
 
 export async function saveAgentChatSession(chatId: string, messages: any[], env: Environment) {
-  await evalEvent('saveAgentChatSession', { id: chatId, messages: JSON.stringify(messages) }, env)
+  await evalEvent('saveAgentChatSession', { id: chatId, messages: JSON.stringify(messages) }, env);
 }

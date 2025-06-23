@@ -95,4 +95,4 @@ describe('Basic RBAC checks', () => {
             assert(emps[0].get('name') == 'Joe', 'Failed to lookup Joe in department 101')
         }
     })
-}, 1000000)
+})

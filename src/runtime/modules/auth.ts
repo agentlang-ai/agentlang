@@ -4,12 +4,7 @@ import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
-import {
-  ActiveSessionInfo,
-  AdminUserId,
-  AuthEnabled,
-  BypassSession,
-} from '../auth/defs.js';
+import { ActiveSessionInfo, AdminUserId, AuthEnabled, BypassSession } from '../auth/defs.js';
 import { isNodeEnv } from '../../utils/runtime.js';
 import { CognitoAuth } from '../auth/cognito.js';
 
@@ -144,7 +139,7 @@ workflow login {
 
 export default moduleDef;
 
-const evalEvent = makeEventEvaluator(CoreAuthModuleName)
+const evalEvent = makeEventEvaluator(CoreAuthModuleName);
 
 export async function createUser(
   id: string,

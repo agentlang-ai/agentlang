@@ -410,7 +410,8 @@ export async function evaluateAsEvent(
 }
 
 export function makeEventEvaluator(moduleName: string): Function {
-  return async (eventName: string,
+  return async (
+    eventName: string,
     attrs: Array<any> | object,
     env: Environment,
     session?: ActiveSessionInfo,
@@ -420,7 +421,7 @@ export function makeEventEvaluator(moduleName: string): Function {
       env = new Environment();
     }
     return await evaluateAsEvent(moduleName, eventName, attrs, session, env, kernelCall);
-  }
+  };
 }
 
 export async function evaluateStatements(
