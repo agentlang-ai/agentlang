@@ -100,7 +100,7 @@ SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')
 
 AttributeValueExpression: Expr;
 
-LogicalExpression: expr=ComparisonExpression | expr=OrAnd | expr=Literal;
+LogicalExpression: expr=ComparisonExpression | expr=OrAnd | expr=Literal | '(' expr=LogicalExpression ')' | expr=Expr;
 OrAnd: op=('or' | 'and') '(' (exprs+=LogicalExpression (',' exprs+=LogicalExpression)*)*')';
 
 ComparisonExpression:

@@ -56,6 +56,8 @@ export class LiteralPattern extends BasePattern {
   type: LiteralPatternType;
   value: any;
 
+  static EmptyArray = new LiteralPattern(LiteralPatternType.ARRAY, []);
+
   constructor(type: LiteralPatternType, value: any) {
     super();
     this.type = type;
@@ -163,38 +165,6 @@ export function isArrayLiteral(p: LiteralPattern): boolean {
 
 export function isMapLiteral(p: LiteralPattern): boolean {
   return p.type == LiteralPatternType.MAP;
-}
-
-export class ArrayPattern extends BasePattern {
-  values: Array<BasePattern>;
-
-  static Empty: ArrayPattern = new ArrayPattern();
-
-  constructor(values?: Array<BasePattern>) {
-    super();
-    this.values = values ? values : [];
-  }
-
-  addValue(p: BasePattern): ArrayPattern {
-    this.values.push(p);
-    return this;
-  }
-
-  override toString(): string {
-    if (this.values.length > 0) {
-      const vs: Array<string> = [];
-      this.values.forEach((v: BasePattern) => {
-        vs.push(v.toString());
-      });
-      return `[${vs.join(', ')}]`;
-    } else {
-      return '[]';
-    }
-  }
-}
-
-export function isArrayPattern(p: BasePattern): boolean {
-  return p instanceof ArrayPattern;
 }
 
 export class FunctionCallPattern extends BasePattern {
@@ -435,7 +405,7 @@ export class ForEachPattern extends BasePattern {
   constructor(variable?: string, source?: BasePattern) {
     super();
     this.variable = variable ? variable : 'X';
-    this.source = source ? source : ArrayPattern.Empty;
+    this.source = source ? source : LiteralPattern.EmptyArray;
     this.body = [];
   }
 
