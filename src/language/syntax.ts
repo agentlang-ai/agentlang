@@ -1,4 +1,8 @@
+import { parseHelper } from 'langium/test';
 import { escapeQueryName } from '../runtime/util.js';
+import { ModuleDefinition } from './generated/ast.js';
+import { createAgentlangServices } from './agentlang-module.js';
+import { EmptyFileSystem } from 'langium';
 
 export class BasePattern {
   alias: string | undefined;
@@ -55,6 +59,8 @@ export enum LiteralPatternType {
 export class LiteralPattern extends BasePattern {
   type: LiteralPatternType;
   value: any;
+
+  static EmptyArray = new LiteralPattern(LiteralPatternType.ARRAY, []);
 
   constructor(type: LiteralPatternType, value: any) {
     super();
@@ -165,38 +171,6 @@ export function isMapLiteral(p: LiteralPattern): boolean {
   return p.type == LiteralPatternType.MAP;
 }
 
-export class ArrayPattern extends BasePattern {
-  values: Array<BasePattern>;
-
-  static Empty: ArrayPattern = new ArrayPattern();
-
-  constructor(values?: Array<BasePattern>) {
-    super();
-    this.values = values ? values : [];
-  }
-
-  addValue(p: BasePattern): ArrayPattern {
-    this.values.push(p);
-    return this;
-  }
-
-  override toString(): string {
-    if (this.values.length > 0) {
-      const vs: Array<string> = [];
-      this.values.forEach((v: BasePattern) => {
-        vs.push(v.toString());
-      });
-      return `[${vs.join(', ')}]`;
-    } else {
-      return '[]';
-    }
-  }
-}
-
-export function isArrayPattern(p: BasePattern): boolean {
-  return p instanceof ArrayPattern;
-}
-
 export class FunctionCallPattern extends BasePattern {
   fnName: string;
   arguments: BasePattern[];
@@ -228,10 +202,28 @@ export function isFunctionCallPattern(p: BasePattern): boolean {
 
 export class ExpressionPattern extends BasePattern {
   expression: any;
+  private static services: ReturnType<typeof createAgentlangServices> =
+    createAgentlangServices(EmptyFileSystem);
+  private static doParse = parseHelper<ModuleDefinition>(this.services.Agentlang);
+  private static parse: ReturnType<typeof parseHelper<ModuleDefinition>> = (input: string) =>
+    this.doParse(input, { validation: true });
 
   constructor(expression: any) {
     super();
     this.expression = expression;
+  }
+
+  static async Validated(exprString: string): Promise<ExpressionPattern> {
+    const result = await ExpressionPattern.parse(
+      `module Temp workflow Test { if (${exprString}) {} }`
+    );
+    if (result.parseResult.lexerErrors.length > 0) {
+      throw new Error(result.parseResult.lexerErrors.join('\n'));
+    }
+    if (result.parseResult.parserErrors.length > 0) {
+      throw new Error(result.parseResult.parserErrors.join('\n'));
+    }
+    return new ExpressionPattern(exprString);
   }
 
   override toString(): string {
@@ -435,7 +427,7 @@ export class ForEachPattern extends BasePattern {
   constructor(variable?: string, source?: BasePattern) {
     super();
     this.variable = variable ? variable : 'X';
-    this.source = source ? source : ArrayPattern.Empty;
+    this.source = source ? source : LiteralPattern.EmptyArray;
     this.body = [];
   }
 
