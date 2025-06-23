@@ -8,7 +8,7 @@ Definition: SchemaDef | RelationshipDefinition | WorkflowDefinition | Standalone
 
 StandaloneStatement: stmt=Statement;
 
-SchemaDef: EntityDefinition | EventDefinition | RecordDefinition | ComponentDefinition;
+SchemaDef: EntityDefinition | EventDefinition | RecordDefinition;
 
 PropertyDefinition: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 
@@ -21,10 +21,6 @@ fragment RecDef: name=ID extends=ExtendsClause? schema=RecAttrs;
 EntityDefinition: 'entity' RecDef;
 EventDefinition: 'event' RecDef;
 RecordDefinition: 'record' RecDef;
-
-ComponentDefinition: 'component' name=ID schema=ComponentSpec;
-ComponentSpec: '{''}' | '{' (entries+=ComponentSpecEntry (',' entries+=ComponentSpecEntry)*)+ '}';
-ComponentSpecEntry: name=ID value=Literal;
 
 ExtendsClause: 'extends' parentName=ID;
 
