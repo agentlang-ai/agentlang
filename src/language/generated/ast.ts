@@ -199,7 +199,7 @@ export function isAttributeDefinition(item: unknown): item is AttributeDefinitio
 }
 
 export interface BinExpr extends langium.AstNode {
-    readonly $container: BinExpr | ComparisonExpression | Group | NegExpr | SetAttribute;
+    readonly $container: BinExpr | ComparisonExpression | Group | LogicalExpression | NegExpr | SetAttribute;
     readonly $type: 'BinExpr';
     e1: Expr | PrimExpr;
     e2: Expr | PrimExpr;
@@ -370,7 +370,7 @@ export function isForEach(item: unknown): item is ForEach {
 }
 
 export interface Group extends langium.AstNode {
-    readonly $container: BinExpr | ComparisonExpression | Group | NegExpr | SetAttribute;
+    readonly $container: BinExpr | ComparisonExpression | Group | LogicalExpression | NegExpr | SetAttribute;
     readonly $type: 'Group';
     ge: Expr;
 }
@@ -454,9 +454,9 @@ export function isLiteral(item: unknown): item is Literal {
 }
 
 export interface LogicalExpression extends langium.AstNode {
-    readonly $container: If | OrAnd;
+    readonly $container: If | LogicalExpression | OrAnd;
     readonly $type: 'LogicalExpression';
-    expr: ComparisonExpression | Literal | OrAnd;
+    expr: ComparisonExpression | Expr | Literal | LogicalExpression | OrAnd;
 }
 
 export const LogicalExpression = 'LogicalExpression';
@@ -504,7 +504,7 @@ export function isModuleDefinition(item: unknown): item is ModuleDefinition {
 }
 
 export interface NegExpr extends langium.AstNode {
-    readonly $container: BinExpr | ComparisonExpression | Group | NegExpr | SetAttribute;
+    readonly $container: BinExpr | ComparisonExpression | Group | LogicalExpression | NegExpr | SetAttribute;
     readonly $type: 'NegExpr';
     ne: Expr;
 }

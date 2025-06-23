@@ -9,6 +9,7 @@ import {
   If,
   isBinExpr,
   isComparisonExpression,
+  isExpr,
   isGroup,
   isLiteral,
   isNegExpr,
@@ -762,6 +763,10 @@ async function evaluateLogicalExpression(
     await evaluateOrAnd(logExpr.expr, env);
   } else if (isLiteral(logExpr.expr)) {
     await evaluateLiteral(logExpr.expr, env);
+  } else if (isExpr(logExpr.expr)) {
+    await evaluateExpression(logExpr.expr, env);
+  } else {
+    throw new Error(`Invalid logical expression - ${logExpr}`);
   }
 }
 

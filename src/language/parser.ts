@@ -24,7 +24,6 @@ import {
 } from './generated/ast.js';
 import { QuerySuffix } from '../runtime/util.js';
 import {
-  ArrayPattern,
   BasePattern,
   CrudPattern,
   DeletePattern,
@@ -34,7 +33,6 @@ import {
   GroupExpressionPattern,
   IfPattern,
   LiteralPattern,
-  LiteralPatternType,
   NegExpressionPattern,
 } from './syntax.js';
 
@@ -224,15 +222,15 @@ function introspectCreatePattern(crudMap: CrudMap): CrudPattern {
 
 function introspectLiteral(lit: Literal): BasePattern {
   if (lit.id) {
-    return new LiteralPattern(LiteralPatternType.ID, lit.id);
+    return LiteralPattern.Id(lit.id);
   } else if (lit.num) {
-    return new LiteralPattern(LiteralPatternType.NUMBER, lit.num);
+    return LiteralPattern.Number(lit.num);
   } else if (lit.ref) {
-    return new LiteralPattern(LiteralPatternType.REFERENCE, lit.ref);
+    return LiteralPattern.Reference(lit.ref);
   } else if (lit.str) {
-    return new LiteralPattern(LiteralPatternType.STRING, lit.str);
+    return LiteralPattern.String(lit.str);
   } else if (lit.bool) {
-    return new LiteralPattern(LiteralPatternType.BOOLEAN, lit.bool);
+    return LiteralPattern.Boolean(lit.bool == 'true' ? true : false);
   } else if (lit.fnCall) {
     return new FunctionCallPattern(
       lit.fnCall.name,
@@ -241,7 +239,7 @@ function introspectLiteral(lit: Literal): BasePattern {
       })
     );
   } else if (lit.array) {
-    return new ArrayPattern(
+    return LiteralPattern.Array(
       lit.array.vals.map((stmt: Statement) => {
         return introspectStatement(stmt);
       })
