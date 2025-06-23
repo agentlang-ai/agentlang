@@ -1,16 +1,10 @@
-import { evaluateAsEvent, Result, Environment } from '../interpreter.js';
+import { Result, Environment, makeEventEvaluator } from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
-import {
-  ActiveSessionInfo,
-  AdminSession,
-  AdminUserId,
-  AuthEnabled,
-  BypassSession,
-} from '../auth/defs.js';
+import { ActiveSessionInfo, AdminUserId, AuthEnabled, BypassSession } from '../auth/defs.js';
 import { isNodeEnv } from '../../utils/runtime.js';
 import { CognitoAuth } from '../auth/cognito.js';
 
@@ -145,16 +139,7 @@ workflow login {
 
 export default moduleDef;
 
-async function evalEvent(
-  eventName: string,
-  attrs: Array<any> | object,
-  env: Environment
-): Promise<Result> {
-  if (!env) {
-    env = new Environment();
-  }
-  return await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, AdminSession, env, true);
-}
+const evalEvent = makeEventEvaluator(CoreAuthModuleName);
 
 export async function createUser(
   id: string,

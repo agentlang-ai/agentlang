@@ -26,15 +26,18 @@ import {
   Upsert,
 } from '../language/generated/ast.js';
 import {
+  defineAgentEvent,
   getRelationship,
   getWorkflow,
   Instance,
   InstanceAttributes,
+  isAgentEvent,
   isBetweenRelationship,
   isContainsRelationship,
   isEmptyWorkflow,
   isEntityInstance,
   isEventInstance,
+  isInstanceOfType,
   makeInstance,
   newInstanceAttributes,
   PlaceholderRecordEntry,
@@ -58,6 +61,14 @@ import {
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
+import {
+  AgentFqName,
+  findAgentChatSession,
+  findProviderForLLM,
+  saveAgentChatSession,
+} from './modules/ai.js';
+import { AIResponse, assistantMessage, humanMessage, systemMessage } from './agents/provider.js';
+import { BaseMessage } from '@langchain/core/messages';
 
 export type Result = any;
 
@@ -133,7 +144,11 @@ export class Environment extends Instance {
     if (v == undefined) {
       if (this.parent != undefined) {
         return this.parent.lookup(k);
-      } else return EmptyResult;
+      } else if (this == GlobalEnvironment) {
+        return EmptyResult;
+      } else {
+        return GlobalEnvironment.lookup(k);
+      }
     } else return v;
   }
 
@@ -146,6 +161,15 @@ export class Environment extends Instance {
     const n: string = inst.name;
     this.attributes.set(n, inst);
     return this;
+  }
+
+  maybeLookupAgentInstance(entryName: string): Instance | undefined {
+    const v = this.lookup(entryName);
+    if (v && isInstanceOfType(v, AgentFqName)) {
+      return v as Instance;
+    } else {
+      return undefined;
+    }
   }
 
   setActiveEvent(eventInst: Instance | undefined): Environment {
@@ -187,6 +211,12 @@ export class Environment extends Instance {
 
   getActiveModuleName(): string {
     return this.activeModule;
+  }
+
+  switchActiveModuleName(newModuleName: string): string {
+    const oldModuleName = this.activeModule;
+    this.activeModule = newModuleName;
+    return oldModuleName;
   }
 
   setParentPath(path: string): Environment {
@@ -329,6 +359,8 @@ export class Environment extends Instance {
   }
 }
 
+export const GlobalEnvironment = new Environment();
+
 export async function evaluate(
   eventInstance: Instance,
   continuation?: Function,
@@ -381,6 +413,21 @@ export async function evaluateAsEvent(
   let result: any;
   await evaluate(eventInst, (r: any) => (result = r), env, kernelCall);
   return result;
+}
+
+export function makeEventEvaluator(moduleName: string): Function {
+  return async (
+    eventName: string,
+    attrs: Array<any> | object,
+    env: Environment,
+    session?: ActiveSessionInfo,
+    kernelCall: boolean = true
+  ): Promise<Result> => {
+    if (!env) {
+      env = new Environment();
+    }
+    return await evaluateAsEvent(moduleName, eventName, attrs, session, env, kernelCall);
+  };
 }
 
 export async function evaluateStatements(
@@ -558,13 +605,16 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       const parentPath: string | undefined = env.getParentPath();
       if (parentPath) inst.attributes.set(PathAttributeName, parentPath);
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
+      let r: Instance | undefined;
       if (env.isInUpsertMode()) {
-        const r: Instance = await res.upsertInstance(inst);
-        env.setLastResult(r);
+        r = await res.upsertInstance(inst);
       } else {
-        const r: Instance = await res.createInstance(inst);
-        env.setLastResult(r);
+        r = await res.createInstance(inst);
       }
+      if (r && entryName == 'agent') {
+        defineAgentEvent(env.getActiveModuleName(), r.lookup('name'));
+      }
+      env.setLastResult(r);
       const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
       if (betRelInfo) {
         await res.connectInstances(
@@ -676,9 +726,43 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
     }
   } else if (isEventInstance(inst)) {
-    await evaluate(inst, (result: Result) => env.setLastResult(result), env);
+    if (isAgentEvent(inst)) await handleAgentInvocation(inst, env);
+    else await evaluate(inst, (result: Result) => env.setLastResult(result), env);
   } else {
     env.setLastResult(inst);
+  }
+}
+
+async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
+  await parseAndEvaluateStatement(
+    `{agentlang_ai/agent {name? "${agentEventInst.name}"}}`,
+    undefined,
+    env
+  );
+  const result = env.getLastResult();
+  if (result instanceof Array && result.length > 0) {
+    const agentInstance: Instance = result[0];
+    const p = await findProviderForLLM(agentInstance.lookup('llm'), env);
+    const agentName = agentInstance.lookup('name');
+    const chatId = agentEventInst.lookup('chatId') || agentName;
+    const sess: Instance | null = await findAgentChatSession(chatId, env);
+    let msgs: BaseMessage[] | undefined;
+    if (sess) {
+      msgs = sess.lookup('messages');
+    } else {
+      msgs = [systemMessage(agentInstance.lookup('instruction'))];
+    }
+    if (msgs) {
+      msgs.push(humanMessage(agentEventInst.lookup('message')));
+      const response: AIResponse = await p.invoke(msgs);
+      msgs.push(assistantMessage(response.content));
+      await saveAgentChatSession(chatId, msgs, env);
+      env.setLastResult(response.content);
+    } else {
+      throw new Error(`failed to initialize messages for agent ${agentName}`);
+    }
+  } else {
+    throw new Error(`Failed to lookup agent ${agentEventInst.name}`);
   }
 }
 

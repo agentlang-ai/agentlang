@@ -52,7 +52,7 @@ import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules } from './modules/core.js';
 import { parse, parseModule } from '../language/parser.js';
 import { logger } from './logger.js';
-import { Environment, evaluateStatements } from './interpreter.js';
+import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
 
 export async function extractDocument(
@@ -354,14 +354,33 @@ export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string):
   return addWorkflow(def.name, moduleName, def.statements);
 }
 
-const StandaloneStatements = new Array<Statement>();
+const StandaloneStatements = new Map<string, Statement[]>();
+
+function addStandaloneStatement(stmt: Statement, moduleName: string) {
+  let stmts: Array<Statement> | undefined = StandaloneStatements.get(moduleName);
+  if (stmts == undefined) {
+    stmts = new Array<Statement>();
+  }
+  stmts.push(stmt);
+  if (!StandaloneStatements.has(moduleName)) {
+    StandaloneStatements.set(moduleName, stmts);
+  }
+}
 
 export async function runStandaloneStatements() {
-  if (StandaloneStatements.length > 0) {
-    const env = new Environment();
-    await env.callInTransaction(async () => {
-      await evaluateStatements(StandaloneStatements, env);
-      logger.info(`Init eval result: ${env.getLastResult().toString()}`);
+  if (StandaloneStatements.size > 0) {
+    await GlobalEnvironment.callInTransaction(async () => {
+      const ks = [...StandaloneStatements.keys()];
+      for (let i = 0; i < ks.length; ++i) {
+        const moduleName = ks[i];
+        const stmts: Statement[] | undefined = StandaloneStatements.get(moduleName);
+        if (stmts) {
+          const oldModule = GlobalEnvironment.switchActiveModuleName(moduleName);
+          await evaluateStatements(stmts, GlobalEnvironment);
+          GlobalEnvironment.switchActiveModuleName(oldModule);
+        }
+      }
+      logger.info(`Init eval result: ${GlobalEnvironment.getLastResult().toString()}`);
     });
   }
 }
@@ -372,7 +391,7 @@ export function addFromDef(def: Definition, moduleName: string) {
   else if (isRecordDefinition(def)) addRecordFromDef(def, moduleName);
   else if (isRelationshipDefinition(def)) addRelationshipFromDef(def, moduleName);
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
-  else if (isStandaloneStatement(def)) StandaloneStatements.push(def.stmt);
+  else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {
