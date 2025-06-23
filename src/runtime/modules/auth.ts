@@ -1,4 +1,4 @@
-import { evaluateAsEvent, Result, Environment } from '../interpreter.js';
+import { evaluateAsEvent, Result, Environment, makeEventEvaluator } from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
@@ -145,16 +145,7 @@ workflow login {
 
 export default moduleDef;
 
-async function evalEvent(
-  eventName: string,
-  attrs: Array<any> | object,
-  env: Environment
-): Promise<Result> {
-  if (!env) {
-    env = new Environment();
-  }
-  return await evaluateAsEvent(CoreAuthModuleName, eventName, attrs, AdminSession, env, true);
-}
+const evalEvent = makeEventEvaluator(CoreAuthModuleName)
 
 export async function createUser(
   id: string,

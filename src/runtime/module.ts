@@ -1979,6 +1979,7 @@ export function defineAgentEvent(moduleName: string, agentName: string) {
   const module = fetchModule(moduleName);
   const event: Record = new Event(agentName, moduleName);
   event.addAttribute('message', { type: 'String' });
+  event.addAttribute('chatId', { type: 'String' });
   event.addMeta(IsAgentEventMeta, 'y');
   event.addMeta(EventAgentName, agentName);
   module.addEntry(event);

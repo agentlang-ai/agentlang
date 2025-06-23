@@ -409,6 +409,20 @@ export async function evaluateAsEvent(
   return result;
 }
 
+export function makeEventEvaluator(moduleName: string): Function {
+  return async (eventName: string,
+    attrs: Array<any> | object,
+    env: Environment,
+    session?: ActiveSessionInfo,
+    kernelCall: boolean = true
+  ): Promise<Result> => {
+    if (!env) {
+      env = new Environment();
+    }
+    return await evaluateAsEvent(moduleName, eventName, attrs, session, env, kernelCall);
+  }
+}
+
 export async function evaluateStatements(
   stmts: Statement[],
   env: Environment,
