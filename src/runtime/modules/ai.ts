@@ -2,7 +2,13 @@ import { makeCoreModuleName, makeFqName } from '../util.js';
 import { Environment, makeEventEvaluator, parseAndEvaluateStatement } from '../interpreter.js';
 import { Instance } from '../module.js';
 import { provider } from '../agents/registry.js';
-import { AgentServiceProvider } from '../agents/provider.js';
+import {
+  AgentServiceProvider,
+  assistantMessage,
+  humanMessage,
+  systemMessage,
+} from '../agents/provider.js';
+import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 
@@ -25,7 +31,16 @@ entity agent {
 
 entity agentChatSession {
     id String @id,
-    messages String[]
+    messages String
+}
+
+workflow findAgentChatSession {
+  {agentChatSession {id? findAgentChatSession.id}} as [sess];
+  sess
+}
+
+workflow saveAgentChatSession {
+  upsert {agentChatSession {id saveAgentChatSession.id, messages saveAgentChatSession.messages}}
 }
 `;
 
@@ -63,17 +78,54 @@ export async function findProviderForLLM(
 
 const evalEvent = makeEventEvaluator(CoreAIModuleName);
 
+type GenericMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+};
+
+function asBaseMessages(gms: GenericMessage[]): BaseMessage[] {
+  return gms.map((gm: GenericMessage): BaseMessage => {
+    switch (gm.role) {
+      case 'user': {
+        return humanMessage(gm.content);
+      }
+      case 'assistant': {
+        return assistantMessage(gm.content);
+      }
+      default: {
+        return systemMessage(gm.content);
+      }
+    }
+  });
+}
+
+function asGenericMessages(bms: BaseMessage[]): GenericMessage[] {
+  return bms.map((bm: BaseMessage): GenericMessage => {
+    if (bm instanceof HumanMessage) {
+      return { role: 'user', content: bm.text };
+    } else if (bm instanceof AIMessage) {
+      return { role: 'assistant', content: bm.text };
+    } else {
+      return { role: 'system', content: bm.text };
+    }
+  });
+}
+
 export async function findAgentChatSession(
   chatId: string,
   env: Environment
-): Promise<Instance | undefined> {
-  const result: Instance | undefined = await evalEvent('findAgentChatSession', { id: chatId }, env);
+): Promise<Instance | null> {
+  const result: Instance | null = await evalEvent('findAgentChatSession', { id: chatId }, env);
   if (result) {
-    result.attributes.set('messages', JSON.parse(result.lookup('messages')));
+    result.attributes.set('messages', asBaseMessages(JSON.parse(result.lookup('messages'))));
   }
   return result;
 }
 
 export async function saveAgentChatSession(chatId: string, messages: any[], env: Environment) {
-  await evalEvent('saveAgentChatSession', { id: chatId, messages: JSON.stringify(messages) }, env);
+  await evalEvent(
+    'saveAgentChatSession',
+    { id: chatId, messages: JSON.stringify(asGenericMessages(messages)) },
+    env
+  );
 }

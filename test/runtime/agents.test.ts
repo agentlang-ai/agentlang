@@ -26,12 +26,11 @@ if (process.env.AL_TEST) {
                               instruction "Is the following number odd? Answer YES or NO.",
                               llm "simpleChatLLM"}}
           workflow chat {
-            {simpleChatAgent {message "12"}}
+            {simpleChatAgent {message chat.N}}
           }
           `)
-      await parseAndEvaluateStatement(`{SimpleAIChat/chat {}}`).then((result: any) => {
-        assert(result == "NO")
-      })
+      assert("NO" == await parseAndEvaluateStatement(`{SimpleAIChat/chat {N "12"}}`))
+      assert("YES" == await parseAndEvaluateStatement(`{SimpleAIChat/chat {N "13"}}`))
     })
   })
 

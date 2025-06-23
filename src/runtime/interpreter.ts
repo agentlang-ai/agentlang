@@ -61,8 +61,14 @@ import {
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
-import { AgentFqName, findProviderForLLM } from './modules/ai.js';
-import { AIResponse, humanMessage, systemMessage } from './agents/provider.js';
+import {
+  AgentFqName,
+  findAgentChatSession,
+  findProviderForLLM,
+  saveAgentChatSession,
+} from './modules/ai.js';
+import { AIResponse, assistantMessage, humanMessage, systemMessage } from './agents/provider.js';
+import { BaseMessage } from '@langchain/core/messages';
 
 export type Result = any;
 
@@ -737,11 +743,24 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
   if (result instanceof Array && result.length > 0) {
     const agentInstance: Instance = result[0];
     const p = await findProviderForLLM(agentInstance.lookup('llm'), env);
-    const response: AIResponse = await p.invoke([
-      systemMessage(agentInstance.lookup('instruction')),
-      humanMessage(agentEventInst.lookup('message')),
-    ]);
-    env.setLastResult(response.content);
+    const agentName = agentInstance.lookup('name');
+    const chatId = agentEventInst.lookup('chatId') || agentName;
+    const sess: Instance | null = await findAgentChatSession(chatId, env);
+    let msgs: BaseMessage[] | undefined;
+    if (sess) {
+      msgs = sess.lookup('messages');
+    } else {
+      msgs = [systemMessage(agentInstance.lookup('instruction'))];
+    }
+    if (msgs) {
+      msgs.push(humanMessage(agentEventInst.lookup('message')));
+      const response: AIResponse = await p.invoke(msgs);
+      msgs.push(assistantMessage(response.content));
+      await saveAgentChatSession(chatId, msgs, env);
+      env.setLastResult(response.content);
+    } else {
+      throw new Error(`failed to initialize messages for agent ${agentName}`);
+    }
   } else {
     throw new Error(`Failed to lookup agent ${agentEventInst.name}`);
   }

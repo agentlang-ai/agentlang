@@ -14,6 +14,10 @@ export function humanMessage(msg: string): HumanMessage {
   return new HumanMessage(msg);
 }
 
+export function assistantMessage(msg: string): AIMessage {
+  return new AIMessage(msg);
+}
+
 function getContent(aiMsg: AIMessage): string {
   return aiMsg.content.toString();
 }
