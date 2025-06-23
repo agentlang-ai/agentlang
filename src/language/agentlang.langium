@@ -8,7 +8,7 @@ Definition: SchemaDef | RelationshipDefinition | WorkflowDefinition | Standalone
 
 StandaloneStatement: stmt=Statement;
 
-SchemaDef: EntityDefinition | EventDefinition | RecordDefinition | ComponentDefinition;
+SchemaDef: EntityDefinition | EventDefinition | RecordDefinition;
 
 PropertyDefinition: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 
@@ -21,10 +21,6 @@ fragment RecDef: name=ID extends=ExtendsClause? schema=RecAttrs;
 EntityDefinition: 'entity' RecDef;
 EventDefinition: 'event' RecDef;
 RecordDefinition: 'record' RecDef;
-
-ComponentDefinition: 'component' name=ID schema=ComponentSpec;
-ComponentSpec: '{''}' | '{' (entries+=ComponentSpecEntry (',' entries+=ComponentSpecEntry)*)+ '}';
-ComponentSpecEntry: name=ID value=Literal;
 
 ExtendsClause: 'extends' parentName=ID;
 
@@ -100,11 +96,11 @@ SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')
 
 AttributeValueExpression: Expr;
 
-LogicalExpression: expr=ComparisonExpression | expr=OrAnd | expr=Literal | '(' expr=LogicalExpression ')' | expr=Expr;
-OrAnd: op=('or' | 'and') '(' (exprs+=LogicalExpression (',' exprs+=LogicalExpression)*)*')';
+LogicalExpression: expr=ComparisonExpression | expr=OrAnd | expr=Literal | expr=Expr;
+OrAnd: e1=ComparisonExpression op=('or' | 'and') e2=LogicalExpression | '(' OrAnd ')';
 
 ComparisonExpression:
-    e1=Expr op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=Expr;
+    e1=Expr op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=Expr | '(' ComparisonExpression ')';
 
 Expr: Add;
 

@@ -165,11 +165,6 @@ describe('Basic CRUD tests', () => {
         email Email @id,
         name String
       }
-      component User {
-        title "User Information",
-        bgColor "dark-gray",
-        offset [120, 34]
-      }
       entity Post {
         id Int @id,
         title String
@@ -177,11 +172,6 @@ describe('Basic CRUD tests', () => {
       relationship UserPost between(User, Post) @one_many
       `)
     assert(isModule('Blogger'), 'Module `Blogger` not found')
-    const c = (fetchModule('Blogger').getComponent('User'))
-    assert(c, 'Failed to load User component')
-    if (c) {
-      assert(c.lookup('bgColor') == 'dark-gray')
-    }
     const isUser = (inst: Instance): boolean => {
       return isInstanceOfType(inst, 'Blogger/User')
     }

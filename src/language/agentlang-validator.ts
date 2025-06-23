@@ -1,7 +1,6 @@
 import type { ValidationAcceptor, ValidationChecks } from 'langium';
 import {
   AgentlangAstType,
-  isComponentDefinition,
   isStandaloneStatement,
   ModuleDefinition,
   SchemaDef,
@@ -31,7 +30,7 @@ export class AgentlangValidator {
     // and report an error when we see one we've already seen
     const reported = new Set();
     module.defs.forEach(d => {
-      if (!isStandaloneStatement(d) && !isComponentDefinition(d)) {
+      if (!isStandaloneStatement(d)) {
         if (d.$type != 'WorkflowDefinition' && reported.has(d.name)) {
           accept('error', `Definition has non-unique name '${d.name}'.`, {
             node: d,
@@ -47,16 +46,14 @@ export class AgentlangValidator {
     // create a set of visited functions
     // and report an error when we see one we've already seen
     const reported = new Set();
-    if (!isComponentDefinition(def)) {
-      def.schema.attributes.forEach(a => {
-        if (reported.has(a.name)) {
-          accept('error', `'${def.name} " - attribute has non-unique name '${a.name}'.`, {
-            node: a,
-            property: 'name',
-          });
-        }
-        reported.add(a.name);
-      });
-    }
+    def.schema.attributes.forEach(a => {
+      if (reported.has(a.name)) {
+        accept('error', `'${def.name} " - attribute has non-unique name '${a.name}'.`, {
+          node: a,
+          property: 'name',
+        });
+      }
+      reported.add(a.name);
+    });
   }
 }
