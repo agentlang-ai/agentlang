@@ -266,8 +266,25 @@ export class NegExpressionPattern extends BasePattern {
   }
 }
 
+export class NotExpressionPattern extends BasePattern {
+  expression: ExpressionPattern;
+
+  constructor(expr: ExpressionPattern) {
+    super();
+    this.expression = expr;
+  }
+
+  override toString(): string {
+    return `not(${this.expression.toString})`;
+  }
+}
+
 export function isNegExpressionPattern(p: BasePattern): boolean {
   return p instanceof NegExpressionPattern;
+}
+
+export function isNotExpressionPattern(p: BasePattern): boolean {
+  return p instanceof NotExpressionPattern;
 }
 
 export class ReferencePattern extends BasePattern {

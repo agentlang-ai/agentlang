@@ -10,16 +10,20 @@ import {
   If,
   isGroup,
   isLiteral,
+  isNegExpr,
+  isNotExpr,
   isPrimExpr,
   isWorkflowDefinition,
   Literal,
   ModuleDefinition,
   NegExpr,
+  NotExpr,
   Pattern,
   PrimExpr,
   RelationshipPattern,
   SetAttribute,
   Statement,
+  WorkflowDefinition,
 } from './generated/ast.js';
 import { QuerySuffix } from '../runtime/util.js';
 import {
@@ -33,6 +37,7 @@ import {
   IfPattern,
   LiteralPattern,
   NegExpressionPattern,
+  NotExpressionPattern,
 } from './syntax.js';
 
 const services = createAgentlangServices(EmptyFileSystem);
@@ -56,6 +61,15 @@ export async function parseStatement(stmt: string): Promise<Statement> {
     return result;
   } else {
     throw new Error('There was an error parsing the statement');
+  }
+}
+
+export async function parseWorkflow(workflowDef: string): Promise<WorkflowDefinition> {
+  const mod = await parseModule(`module Temp ${workflowDef}`);
+  if (isWorkflowDefinition(mod.defs[0])) {
+    return mod.defs[0] as WorkflowDefinition;
+  } else {
+    throw new Error(`Failed to generated workflow from ${workflowDef}`);
   }
 }
 
@@ -164,13 +178,21 @@ function introspectNegExpr(expr: NegExpr): NegExpressionPattern {
   return new NegExpressionPattern(introspectExpression(expr.ne) as ExpressionPattern);
 }
 
+function introspectNotExpr(expr: NotExpr): NotExpressionPattern {
+  return new NotExpressionPattern(introspectExpression(expr.ne) as ExpressionPattern);
+}
+
 function introspectPrimExpr(expr: PrimExpr): BasePattern {
   if (isLiteral(expr)) {
     return introspectLiteral(expr);
   } else if (isGroup(expr)) {
     return introspectGroup(expr);
-  } else {
+  } else if (isNegExpr(expr)) {
     return introspectNegExpr(expr);
+  } else if (isNotExpr(expr)) {
+    return introspectNotExpr(expr);
+  } else {
+    throw new Error(`Not a PrimExpr - ${expr}`);
   }
 }
 

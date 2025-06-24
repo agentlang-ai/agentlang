@@ -1,14 +1,16 @@
 import { makeCoreModuleName, makeFqName } from '../util.js';
 import { Environment, makeEventEvaluator, parseAndEvaluateStatement } from '../interpreter.js';
-import { Instance } from '../module.js';
+import { fetchModule, Instance, instanceToObject, isModule } from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
   AgentServiceProvider,
+  AIResponse,
   assistantMessage,
   humanMessage,
   systemMessage,
 } from '../agents/provider.js';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import { PlannerInstructions } from '../agents/common.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 
@@ -47,6 +49,84 @@ workflow saveAgentChatSession {
 export const AgentFqName = makeFqName(CoreAIModuleName, 'agent');
 
 const ProviderDb = new Map<string, AgentServiceProvider>();
+
+export class Agent {
+  llm: string = '';
+  name: string = '';
+  chatId: string | undefined;
+  instruction: string = '';
+  type: string = 'chat';
+  tools: string[] | undefined;
+
+  private constructor() {}
+
+  static FromInstance(agentInstance: Instance): Agent {
+    return instanceToObject<Agent>(agentInstance, new Agent());
+  }
+
+  isPlanner(): boolean {
+    return (this.tools && this.tools.length > 0) || this.type == 'planner';
+  }
+
+  async invoke(message: string, env: Environment) {
+    const p = await findProviderForLLM(this.llm, env);
+    const agentName = this.name;
+    const chatId = this.chatId || agentName;
+    const sess: Instance | null = await findAgentChatSession(chatId, env);
+    let msgs: BaseMessage[] | undefined;
+    const isplnr = this.isPlanner();
+    if (sess) {
+      msgs = sess.lookup('messages');
+    } else {
+      msgs = [systemMessage(this.instruction)];
+    }
+    if (msgs) {
+      const sysMsg = msgs[0];
+      if (isplnr) {
+        const newSysMsg = systemMessage(
+          `${PlannerInstructions}\n${this.toolsAsString()}\n${this.instruction}`
+        );
+        msgs[0] = newSysMsg;
+      }
+      msgs.push(humanMessage(message));
+      const response: AIResponse = await p.invoke(msgs);
+      msgs.push(assistantMessage(response.content));
+      if (isplnr) {
+        msgs[0] = sysMsg;
+      }
+      await saveAgentChatSession(chatId, msgs, env);
+      env.setLastResult(response.content);
+    } else {
+      throw new Error(`failed to initialize messages for agent ${agentName}`);
+    }
+  }
+
+  private toolsAsString(): string {
+    if (this.tools) {
+      return this.tools
+        .filter((s: string) => {
+          return isModule(s);
+        })
+        .map((moduleName: string) => {
+          return fetchModule(moduleName).toString();
+        })
+        .join('\n');
+    } else {
+      return '';
+    }
+  }
+}
+
+export async function findAgentByName(name: string, env: Environment): Promise<Agent> {
+  await parseAndEvaluateStatement(`{agentlang_ai/agent {name? "${name}"}}`, undefined, env);
+  const result = env.getLastResult();
+  if (result instanceof Array && result.length > 0) {
+    const agentInstance: Instance = result[0];
+    return Agent.FromInstance(agentInstance);
+  } else {
+    throw new Error(`Failed to fine agent ${name}`);
+  }
+}
 
 export async function findProviderForLLM(
   llmName: string,
@@ -128,4 +208,8 @@ export async function saveAgentChatSession(chatId: string, messages: any[], env:
     { id: chatId, messages: JSON.stringify(asGenericMessages(messages)) },
     env
   );
+}
+
+export function agentName(agentInstance: Instance): string {
+  return agentInstance.lookup('name');
 }

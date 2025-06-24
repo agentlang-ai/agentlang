@@ -1915,3 +1915,10 @@ export function isAgentEvent(eventInst: Instance): boolean {
 export function eventAgentName(eventInst: Instance): string | undefined {
   return eventInst.record.getMeta(EventAgentName);
 }
+
+export function instanceToObject<Type>(inst: Instance, obj: any): Type {
+  inst.attributes.forEach((v: any, k: string) => {
+    obj[k] = v;
+  });
+  return obj as Type;
+}
