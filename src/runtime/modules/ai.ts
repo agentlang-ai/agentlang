@@ -1,9 +1,10 @@
 import { makeCoreModuleName, makeFqName } from '../util.js';
 import { Environment, makeEventEvaluator, parseAndEvaluateStatement } from '../interpreter.js';
-import { Instance } from '../module.js';
+import { Instance, instanceToObject } from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
   AgentServiceProvider,
+  AIResponse,
   assistantMessage,
   humanMessage,
   systemMessage,
@@ -47,6 +48,46 @@ workflow saveAgentChatSession {
 export const AgentFqName = makeFqName(CoreAIModuleName, 'agent');
 
 const ProviderDb = new Map<string, AgentServiceProvider>();
+
+export class Agent {
+  llm: string = '';
+  name: string = '';
+  chatId: string | undefined;
+  instruction: string = '';
+
+  async invoke(message: string, env: Environment) {
+    const p = await findProviderForLLM(this.llm, env);
+    const agentName = this.name;
+    const chatId = this.chatId || agentName;
+    const sess: Instance | null = await findAgentChatSession(chatId, env);
+    let msgs: BaseMessage[] | undefined;
+    if (sess) {
+      msgs = sess.lookup('messages');
+    } else {
+      msgs = [systemMessage(this.instruction)];
+    }
+    if (msgs) {
+      msgs.push(humanMessage(message));
+      const response: AIResponse = await p.invoke(msgs);
+      msgs.push(assistantMessage(response.content));
+      await saveAgentChatSession(chatId, msgs, env);
+      env.setLastResult(response.content);
+    } else {
+      throw new Error(`failed to initialize messages for agent ${agentName}`);
+    }
+  }
+}
+
+export async function findAgentByName(name: string, env: Environment): Promise<Agent> {
+  await parseAndEvaluateStatement(`{agentlang_ai/agent {name? "${name}"}}`, undefined, env);
+  const result = env.getLastResult();
+  if (result instanceof Array && result.length > 0) {
+    const agentInstance: Instance = result[0];
+    return instanceToObject<Agent>(agentInstance, new Agent());
+  } else {
+    throw new Error(`Failed to fine agent ${name}`);
+  }
+}
 
 export async function findProviderForLLM(
   llmName: string,
@@ -128,4 +169,8 @@ export async function saveAgentChatSession(chatId: string, messages: any[], env:
     { id: chatId, messages: JSON.stringify(asGenericMessages(messages)) },
     env
   );
+}
+
+export function agentName(agentInstance: Instance): string {
+  return agentInstance.lookup('name');
 }
