@@ -110,12 +110,14 @@ Logical infers Expr:
 Comparison infers Expr:
     PrimExpr ({infer BinExpr.e1=current} op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=PrimExpr)*;
 
-PrimExpr: Literal | Group | NegExpr;
+PrimExpr: Literal | Group | NegExpr | NotExpr;
 
 // grouped expression with parentheses
 Group:      '(' ge=Expr ')';
 // negated expression
 NegExpr:    '-' ne=Expr;
+
+NotExpr: 'not' '(' ne=Expr ')';
 
 Boolean returns string: 'true' | 'false';
 

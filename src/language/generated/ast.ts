@@ -61,6 +61,7 @@ export type AgentlangKeywordNames =
     | "in"
     | "like"
     | "module"
+    | "not"
     | "not_found"
     | "or"
     | "purge"
@@ -123,7 +124,7 @@ export function isHandler(item: unknown): item is Handler {
     return reflection.isInstance(item, Handler);
 }
 
-export type PrimExpr = Group | Literal | NegExpr;
+export type PrimExpr = Group | Literal | NegExpr | NotExpr;
 
 export const PrimExpr = 'PrimExpr';
 
@@ -198,7 +199,7 @@ export function isAttributeDefinition(item: unknown): item is AttributeDefinitio
 }
 
 export interface BinExpr extends langium.AstNode {
-    readonly $container: BinExpr | Group | If | NegExpr | SetAttribute;
+    readonly $container: BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
     readonly $type: 'BinExpr';
     e1: Expr | PrimExpr;
     e2: Expr | PrimExpr;
@@ -317,7 +318,7 @@ export function isForEach(item: unknown): item is ForEach {
 }
 
 export interface Group extends langium.AstNode {
-    readonly $container: BinExpr | Group | If | NegExpr | SetAttribute;
+    readonly $container: BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
     readonly $type: 'Group';
     ge: Expr;
 }
@@ -381,7 +382,7 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: BinExpr | FnCall | Group | If | KvPair | MapEntry | NegExpr | Pattern | SetAttribute;
+    readonly $container: BinExpr | FnCall | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
@@ -439,7 +440,7 @@ export function isModuleDefinition(item: unknown): item is ModuleDefinition {
 }
 
 export interface NegExpr extends langium.AstNode {
-    readonly $container: BinExpr | Group | If | NegExpr | SetAttribute;
+    readonly $container: BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
     readonly $type: 'NegExpr';
     ne: Expr;
 }
@@ -461,6 +462,18 @@ export const NodeDefinition = 'NodeDefinition';
 
 export function isNodeDefinition(item: unknown): item is NodeDefinition {
     return reflection.isInstance(item, NodeDefinition);
+}
+
+export interface NotExpr extends langium.AstNode {
+    readonly $container: BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
+    readonly $type: 'NotExpr';
+    ne: Expr;
+}
+
+export const NotExpr = 'NotExpr';
+
+export function isNotExpr(item: unknown): item is NotExpr {
+    return reflection.isInstance(item, NotExpr);
 }
 
 export interface OneOfSpec extends langium.AstNode {
@@ -792,6 +805,7 @@ export type AgentlangAstType = {
     ModuleDefinition: ModuleDefinition
     NegExpr: NegExpr
     NodeDefinition: NodeDefinition
+    NotExpr: NotExpr
     OneOfSpec: OneOfSpec
     Pattern: Pattern
     PrimExpr: PrimExpr
@@ -822,7 +836,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, ModuleDefinition, NegExpr, NodeDefinition, OneOfSpec, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
+        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -841,7 +855,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             }
             case Group:
             case Literal:
-            case NegExpr: {
+            case NegExpr:
+            case NotExpr: {
                 return this.isSubtype(PrimExpr, supertype);
             }
             case QueryAllPattern: {
@@ -1086,6 +1101,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'alias' },
                         { name: 'name' }
+                    ]
+                };
+            }
+            case NotExpr: {
+                return {
+                    name: NotExpr,
+                    properties: [
+                        { name: 'ne' }
                     ]
                 };
             }

@@ -10,11 +10,14 @@ import {
   If,
   isGroup,
   isLiteral,
+  isNegExpr,
+  isNotExpr,
   isPrimExpr,
   isWorkflowDefinition,
   Literal,
   ModuleDefinition,
   NegExpr,
+  NotExpr,
   Pattern,
   PrimExpr,
   RelationshipPattern,
@@ -33,6 +36,7 @@ import {
   IfPattern,
   LiteralPattern,
   NegExpressionPattern,
+  NotExpressionPattern,
 } from './syntax.js';
 
 const services = createAgentlangServices(EmptyFileSystem);
@@ -164,13 +168,21 @@ function introspectNegExpr(expr: NegExpr): NegExpressionPattern {
   return new NegExpressionPattern(introspectExpression(expr.ne) as ExpressionPattern);
 }
 
+function introspectNotExpr(expr: NotExpr): NotExpressionPattern {
+  return new NotExpressionPattern(introspectExpression(expr.ne) as ExpressionPattern);
+}
+
 function introspectPrimExpr(expr: PrimExpr): BasePattern {
   if (isLiteral(expr)) {
     return introspectLiteral(expr);
   } else if (isGroup(expr)) {
     return introspectGroup(expr);
-  } else {
+  } else if (isNegExpr(expr)) {
     return introspectNegExpr(expr);
+  } else if (isNotExpr(expr)) {
+    return introspectNotExpr(expr);
+  } else {
+    throw new Error(`Not a PrimExpr - ${expr}`);
   }
 }
 

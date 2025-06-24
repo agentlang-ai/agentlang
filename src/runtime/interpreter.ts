@@ -10,6 +10,7 @@ import {
   isGroup,
   isLiteral,
   isNegExpr,
+  isNotExpr,
   Literal,
   MapLiteral,
   Pattern,
@@ -865,6 +866,9 @@ async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
   } else if (isLiteral(expr)) {
     await evaluateLiteral(expr, env);
     return;
+  } else if (isNotExpr(expr)) {
+    await evaluateExpression(expr.ne, env);
+    result = !env.getLastResult();
   }
   env.setLastResult(result);
 }
