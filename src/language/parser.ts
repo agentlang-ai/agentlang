@@ -23,6 +23,7 @@ import {
   RelationshipPattern,
   SetAttribute,
   Statement,
+  WorkflowDefinition,
 } from './generated/ast.js';
 import { QuerySuffix } from '../runtime/util.js';
 import {
@@ -60,6 +61,15 @@ export async function parseStatement(stmt: string): Promise<Statement> {
     return result;
   } else {
     throw new Error('There was an error parsing the statement');
+  }
+}
+
+export async function parseWorkflow(workflowDef: string): Promise<WorkflowDefinition> {
+  const mod = await parseModule(`module Temp ${workflowDef}`);
+  if (isWorkflowDefinition(mod.defs[0])) {
+    return mod.defs[0] as WorkflowDefinition;
+  } else {
+    throw new Error(`Failed to generated workflow from ${workflowDef}`);
   }
 }
 

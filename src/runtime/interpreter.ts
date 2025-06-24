@@ -54,7 +54,7 @@ import {
   splitRefs,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
-import { parseStatement } from '../language/parser.js';
+import { parseStatement, parseWorkflow } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 import { Agent, AgentFqName, findAgentByName } from './modules/ai.js';
 
@@ -724,6 +724,15 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
 async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
   const agent: Agent = await findAgentByName(agentEventInst.name, env);
   await agent.invoke(agentEventInst.lookup('message'), env);
+  const result: string = env.getLastResult();
+  if (agent.isPlanner()) {
+    if (result.trimStart().startsWith('workflow')) {
+      await parseWorkflow(result); // check for errors
+      return;
+    } else {
+      env.setLastResult(await parseAndEvaluateStatement(result, undefined, env));
+    }
+  }
 }
 
 async function evaluateUpsert(upsert: Upsert, env: Environment): Promise<void> {

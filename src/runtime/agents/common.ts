@@ -12,7 +12,8 @@ entity Employee {
 }
 
 The Empoyee entity is part of the "Erp" module and it has four attributes: employeeId, firstName, lastName, salary and email. The employeeId uniquely identifies an
-Employee and it's automatically filled-in by the system by calling the "uuid()" function.
+Employee and it's automatically filled-in by the system by calling the "uuid()" function. (In the place of the keyword 'entity', the keyword 'record' may also be used.
+The difference between an entity and a record is that, instances of an entity is persisted to the database, instances of records are not).
 Workflows contains JSON "patterns" that perform CRUD operations on entities. For example, here's is a workflow that creates a new instance of the Employee entity:
 
 workflow CreateEmployee {
@@ -26,7 +27,7 @@ The attribute-values of the new Employee are derived from the "event" that trigg
 An event need not have an explicit schema, because its attributes can always be inferred from the workflow definition. But a model may also contain
 explicit definitions of events, as follows,
 
-entity CreateEmployee {
+event CreateEmployee {
    firstName String,
    lastName String,
    salary Number,

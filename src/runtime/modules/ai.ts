@@ -64,13 +64,17 @@ export class Agent {
     return instanceToObject<Agent>(agentInstance, new Agent());
   }
 
+  isPlanner(): boolean {
+    return (this.tools && this.tools.length > 0) || this.type == 'planner';
+  }
+
   async invoke(message: string, env: Environment) {
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
     const chatId = this.chatId || agentName;
     const sess: Instance | null = await findAgentChatSession(chatId, env);
     let msgs: BaseMessage[] | undefined;
-    const isPlanner = (this.tools && this.tools.length > 0) || this.type == 'planner';
+    const isplnr = this.isPlanner();
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
@@ -78,7 +82,7 @@ export class Agent {
     }
     if (msgs) {
       const sysMsg = msgs[0];
-      if (isPlanner) {
+      if (isplnr) {
         const newSysMsg = systemMessage(
           `${PlannerInstructions}\n${this.toolsAsString()}\n${this.instruction}`
         );
@@ -87,7 +91,7 @@ export class Agent {
       msgs.push(humanMessage(message));
       const response: AIResponse = await p.invoke(msgs);
       msgs.push(assistantMessage(response.content));
-      if (isPlanner) {
+      if (isplnr) {
         msgs[0] = sysMsg;
       }
       await saveAgentChatSession(chatId, msgs, env);

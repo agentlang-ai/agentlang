@@ -4,6 +4,9 @@ import { AgentServiceProvider, AIResponse, humanMessage, systemMessage } from ".
 import { doInternModule } from "../util.js"
 import { parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
 import { Instance, isInstanceOfType } from "../../src/runtime/module.js"
+import { WorkflowDefinition } from "../../src/language/generated/ast.js"
+import { parseWorkflow } from "../../src/language/parser.js"
+import { addWorkflowFromDef } from "../../src/runtime/loader.js"
 
 if (process.env.AL_TEST) {
 
@@ -59,13 +62,25 @@ if (process.env.AL_TEST) {
         assert(inst.lookup('id') == p.id && inst.lookup('age') == p.age && inst.lookup('name') == p.name)
       }
       const p1: P = { id: 101, name: 'Joe', age: 23 }
-      chk(await parseAndEvaluateStatement(await cr(p1)), p1)
+      chk(await cr(p1), p1)
       const p2: P = { id: 102, name: 'Mat', age: 34 }
-      chk(await parseAndEvaluateStatement(await cr(p2)), p2)
-      const pat2 = await k('Lookup person by id 101')
-      const result2: Instance[] = await parseAndEvaluateStatement(pat2)
-      assert(result2.length == 1)
-      chk(result2[0], p1)
+      chk(await cr(p2), p2)
+      let r: Instance[] = await k('Lookup person by id 101')
+      assert(r.length == 1)
+      chk(r[0], p1)
+      const ins = "Generate a workflow for creating new Persons. All attributes must be receieved via the event. "
+        .concat("The event should have an extra boolean attribute called X. ")
+        .concat("If X is set create the Person with age incremented by one, otherwise use the age as specified in the event. ")
+        .concat("(Only define the workflow, no need to define the event).")
+      const wf: WorkflowDefinition = await parseWorkflow(await k(ins))
+      addWorkflowFromDef(wf, 'SPA')
+      let p = { id: 103, name: "Chole", age: 11 }
+      chk(await parseAndEvaluateStatement(`{SPA/${wf.name} {id 103, name "Chole", age 10, X true}}`), p)
+      p = { id: 104, name: "Dew", age: 10 }
+      chk(await parseAndEvaluateStatement(`{SPA/${wf.name} {id 104, name "Dew", age 10, X false}}`), p)
+      r = await k('Lookup person by id 104')
+      assert(r.length == 1)
+      chk(r[0], p)
     })
   })
 
