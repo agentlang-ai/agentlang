@@ -198,31 +198,17 @@ export function isAttributeDefinition(item: unknown): item is AttributeDefinitio
 }
 
 export interface BinExpr extends langium.AstNode {
-    readonly $container: BinExpr | ComparisonExpression | Group | LogicalExpression | NegExpr | SetAttribute;
+    readonly $container: BinExpr | Group | If | NegExpr | SetAttribute;
     readonly $type: 'BinExpr';
     e1: Expr | PrimExpr;
     e2: Expr | PrimExpr;
-    op: '*' | '+' | '-' | '/';
+    op: '*' | '+' | '-' | '/' | '<' | '<=' | '<>' | '=' | '>' | '>=' | 'and' | 'in' | 'like' | 'or';
 }
 
 export const BinExpr = 'BinExpr';
 
 export function isBinExpr(item: unknown): item is BinExpr {
     return reflection.isInstance(item, BinExpr);
-}
-
-export interface ComparisonExpression extends langium.AstNode {
-    readonly $container: LogicalExpression | OrAnd;
-    readonly $type: 'ComparisonExpression';
-    e1: Expr;
-    e2: Expr;
-    op: '<' | '<=' | '<>' | '=' | '>' | '>=' | 'in' | 'like';
-}
-
-export const ComparisonExpression = 'ComparisonExpression';
-
-export function isComparisonExpression(item: unknown): item is ComparisonExpression {
-    return reflection.isInstance(item, ComparisonExpression);
 }
 
 export interface CrudMap extends langium.AstNode {
@@ -331,7 +317,7 @@ export function isForEach(item: unknown): item is ForEach {
 }
 
 export interface Group extends langium.AstNode {
-    readonly $container: BinExpr | ComparisonExpression | Group | LogicalExpression | NegExpr | SetAttribute;
+    readonly $container: BinExpr | Group | If | NegExpr | SetAttribute;
     readonly $type: 'Group';
     ge: Expr;
 }
@@ -345,7 +331,7 @@ export function isGroup(item: unknown): item is Group {
 export interface If extends langium.AstNode {
     readonly $container: Pattern;
     readonly $type: 'If';
-    cond: LogicalExpression;
+    cond: Expr;
     else?: Else;
     statements: Array<Statement>;
 }
@@ -395,7 +381,7 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: BinExpr | ComparisonExpression | FnCall | Group | KvPair | LogicalExpression | MapEntry | NegExpr | Pattern | SetAttribute;
+    readonly $container: BinExpr | FnCall | Group | If | KvPair | MapEntry | NegExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
@@ -412,18 +398,6 @@ export const Literal = 'Literal';
 
 export function isLiteral(item: unknown): item is Literal {
     return reflection.isInstance(item, Literal);
-}
-
-export interface LogicalExpression extends langium.AstNode {
-    readonly $container: If | OrAnd;
-    readonly $type: 'LogicalExpression';
-    expr: ComparisonExpression | Expr | Literal | OrAnd;
-}
-
-export const LogicalExpression = 'LogicalExpression';
-
-export function isLogicalExpression(item: unknown): item is LogicalExpression {
-    return reflection.isInstance(item, LogicalExpression);
 }
 
 export interface MapEntry extends langium.AstNode {
@@ -465,7 +439,7 @@ export function isModuleDefinition(item: unknown): item is ModuleDefinition {
 }
 
 export interface NegExpr extends langium.AstNode {
-    readonly $container: BinExpr | ComparisonExpression | Group | LogicalExpression | NegExpr | SetAttribute;
+    readonly $container: BinExpr | Group | If | NegExpr | SetAttribute;
     readonly $type: 'NegExpr';
     ne: Expr;
 }
@@ -499,20 +473,6 @@ export const OneOfSpec = 'OneOfSpec';
 
 export function isOneOfSpec(item: unknown): item is OneOfSpec {
     return reflection.isInstance(item, OneOfSpec);
-}
-
-export interface OrAnd extends langium.AstNode {
-    readonly $container: LogicalExpression;
-    readonly $type: 'OrAnd';
-    e1: ComparisonExpression;
-    e2: LogicalExpression;
-    op: 'and' | 'or';
-}
-
-export const OrAnd = 'OrAnd';
-
-export function isOrAnd(item: unknown): item is OrAnd {
-    return reflection.isInstance(item, OrAnd);
 }
 
 export interface Pattern extends langium.AstNode {
@@ -810,7 +770,6 @@ export type AgentlangAstType = {
     AttributeDefinition: AttributeDefinition
     AttributeValueExpression: AttributeValueExpression
     BinExpr: BinExpr
-    ComparisonExpression: ComparisonExpression
     CrudMap: CrudMap
     Definition: Definition
     Delete: Delete
@@ -828,14 +787,12 @@ export type AgentlangAstType = {
     KvPair: KvPair
     KvPairs: KvPairs
     Literal: Literal
-    LogicalExpression: LogicalExpression
     MapEntry: MapEntry
     MapLiteral: MapLiteral
     ModuleDefinition: ModuleDefinition
     NegExpr: NegExpr
     NodeDefinition: NodeDefinition
     OneOfSpec: OneOfSpec
-    OrAnd: OrAnd
     Pattern: Pattern
     PrimExpr: PrimExpr
     PropertyDefinition: PropertyDefinition
@@ -865,7 +822,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, ComparisonExpression, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, LogicalExpression, MapEntry, MapLiteral, ModuleDefinition, NegExpr, NodeDefinition, OneOfSpec, OrAnd, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
+        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, ModuleDefinition, NegExpr, NodeDefinition, OneOfSpec, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -947,16 +904,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case BinExpr: {
                 return {
                     name: BinExpr,
-                    properties: [
-                        { name: 'e1' },
-                        { name: 'e2' },
-                        { name: 'op' }
-                    ]
-                };
-            }
-            case ComparisonExpression: {
-                return {
-                    name: ComparisonExpression,
                     properties: [
                         { name: 'e1' },
                         { name: 'e2' },
@@ -1098,14 +1045,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
-            case LogicalExpression: {
-                return {
-                    name: LogicalExpression,
-                    properties: [
-                        { name: 'expr' }
-                    ]
-                };
-            }
             case MapEntry: {
                 return {
                     name: MapEntry,
@@ -1155,16 +1094,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: OneOfSpec,
                     properties: [
                         { name: 'values', defaultValue: [] }
-                    ]
-                };
-            }
-            case OrAnd: {
-                return {
-                    name: OrAnd,
-                    properties: [
-                        { name: 'e1' },
-                        { name: 'e2' },
-                        { name: 'op' }
                     ]
                 };
             }
