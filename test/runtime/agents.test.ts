@@ -44,15 +44,28 @@ if (process.env.AL_TEST) {
                               instruction "Based on the user request, create appropriate patterns based on the SPA module.",
                               tools ["SPA"],
                               llm "planner01_llm"}}
-          workflow chat {
-            {planner01 {message chat.msg}}
+          workflow chat {{planner01 {message chat.msg}}
           }
           `)
-      const ins1 = "Create a new Person aged 23 with id 101 and name 'Joe'. Return only the pattern, no need to return a complete workflow."
-      const pat1 = await parseAndEvaluateStatement(`{SimplePlannerAgent/chat {msg "${ins1}"}}`)
-      const inst: Instance = await parseAndEvaluateStatement(pat1)
-      assert(isInstanceOfType(inst, 'SPA/Person'))
-      assert(inst.lookup('id') == 101 && inst.lookup('age') == 23 && inst.lookup('name') == 'Joe')
+      const k = async (ins: string) => {
+        return await parseAndEvaluateStatement(`{SimplePlannerAgent/chat {msg "${ins}"}}`)
+      }
+      type P = { id: number, name: string, age: number }
+      const cr = async (p: P) => {
+        return await k(`Create a new Person aged ${p.age} with id ${p.id} and name '${p.name}'. Return only the pattern, no need to return a complete workflow.`)
+      }
+      const chk = (inst: Instance, p: P) => {
+        assert(isInstanceOfType(inst, 'SPA/Person'))
+        assert(inst.lookup('id') == p.id && inst.lookup('age') == p.age && inst.lookup('name') == p.name)
+      }
+      const p1: P = { id: 101, name: 'Joe', age: 23 }
+      chk(await parseAndEvaluateStatement(await cr(p1)), p1)
+      const p2: P = { id: 102, name: 'Mat', age: 34 }
+      chk(await parseAndEvaluateStatement(await cr(p2)), p2)
+      const pat2 = await k('Lookup person by id 101')
+      const result2: Instance[] = await parseAndEvaluateStatement(pat2)
+      assert(result2.length == 1)
+      chk(result2[0], p1)
     })
   })
 

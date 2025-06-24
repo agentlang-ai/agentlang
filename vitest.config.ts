@@ -12,6 +12,7 @@ export default defineConfig({
         //     include: ['src'],
         //     exclude: ['**/generated'],
         // },
+        testTimeout: 0,
         deps: {
             interopDefault: true
         },
