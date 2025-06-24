@@ -1,6 +1,6 @@
 import { makeCoreModuleName, makeFqName } from '../util.js';
 import { Environment, makeEventEvaluator, parseAndEvaluateStatement } from '../interpreter.js';
-import { Instance, instanceToObject } from '../module.js';
+import { fetchModule, Instance, instanceToObject, isModule } from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
   AgentServiceProvider,
@@ -56,6 +56,7 @@ export class Agent {
   chatId: string | undefined;
   instruction: string = '';
   type: string = 'chat';
+  tools: string[] | undefined;
 
   private constructor() {}
 
@@ -69,21 +70,45 @@ export class Agent {
     const chatId = this.chatId || agentName;
     const sess: Instance | null = await findAgentChatSession(chatId, env);
     let msgs: BaseMessage[] | undefined;
+    const isPlanner = (this.tools && this.tools.length > 0) || this.type == 'planner';
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      const sysIns =
-        this.type == 'planner' ? `${PlannerInstructions}\n\n${this.instruction}` : this.instruction;
-      msgs = [systemMessage(sysIns)];
+      msgs = [systemMessage(this.instruction)];
     }
     if (msgs) {
+      const sysMsg = msgs[0];
+      if (isPlanner) {
+        const newSysMsg = systemMessage(
+          `${PlannerInstructions}\n${this.toolsAsString()}\n${this.instruction}`
+        );
+        msgs[0] = newSysMsg;
+      }
       msgs.push(humanMessage(message));
       const response: AIResponse = await p.invoke(msgs);
       msgs.push(assistantMessage(response.content));
+      if (isPlanner) {
+        msgs[0] = sysMsg;
+      }
       await saveAgentChatSession(chatId, msgs, env);
       env.setLastResult(response.content);
     } else {
       throw new Error(`failed to initialize messages for agent ${agentName}`);
+    }
+  }
+
+  private toolsAsString(): string {
+    if (this.tools) {
+      return this.tools
+        .filter((s: string) => {
+          return isModule(s);
+        })
+        .map((moduleName: string) => {
+          return fetchModule(moduleName).toString();
+        })
+        .join('\n');
+    } else {
+      return '';
     }
   }
 }
