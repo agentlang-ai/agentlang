@@ -10,6 +10,7 @@ import {
   systemMessage,
 } from '../agents/provider.js';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import { PlannerInstructions } from '../agents/common.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 
@@ -54,6 +55,13 @@ export class Agent {
   name: string = '';
   chatId: string | undefined;
   instruction: string = '';
+  type: string = 'chat';
+
+  private constructor() {}
+
+  static FromInstance(agentInstance: Instance): Agent {
+    return instanceToObject<Agent>(agentInstance, new Agent());
+  }
 
   async invoke(message: string, env: Environment) {
     const p = await findProviderForLLM(this.llm, env);
@@ -64,7 +72,9 @@ export class Agent {
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      msgs = [systemMessage(this.instruction)];
+      const sysIns =
+        this.type == 'planner' ? `${PlannerInstructions}\n\n${this.instruction}` : this.instruction;
+      msgs = [systemMessage(sysIns)];
     }
     if (msgs) {
       msgs.push(humanMessage(message));
@@ -83,7 +93,7 @@ export async function findAgentByName(name: string, env: Environment): Promise<A
   const result = env.getLastResult();
   if (result instanceof Array && result.length > 0) {
     const agentInstance: Instance = result[0];
-    return instanceToObject<Agent>(agentInstance, new Agent());
+    return Agent.FromInstance(agentInstance);
   } else {
     throw new Error(`Failed to fine agent ${name}`);
   }
