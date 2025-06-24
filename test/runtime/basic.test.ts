@@ -300,3 +300,26 @@ describe('Map attribute tests', () => {
       })
   })
 })
+
+describe('Expression tests', () => {
+  test('Check expression attributes', async () => {
+    await doInternModule(`module ExprTest
+      entity E {
+        id Int @id,
+        v Int
+      workflow CrE {
+          {E {id CrE.id, v CrE.v + 2 * 10}}
+      }
+      }`)
+    assert(isModule('ExprTest'))
+    await parseAndEvaluateStatement(`{ExprTest/CrE {id 1, v 10}}`)
+      .then((result: Instance) => {
+        assert(isInstanceOfType(result, 'ExprTest/E'))
+      })
+    await parseAndEvaluateStatement(`{ExprTest/E {id? 1}}`)
+      .then((result: Instance[]) => {
+        const v = result[0].lookup('v')
+        assert(v == 30, 'Invalid value for v')
+      })
+  })
+})
