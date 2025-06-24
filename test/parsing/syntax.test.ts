@@ -219,5 +219,9 @@ describe('Pattern introspection', () => {
     assert(exprErr, 'Failed to validate expression')
     const e3 = await ExpressionPattern.Validated('(X < 5 and (y = 10 or y < 3))')
     assert(e3.toString() == '(X < 5 and (y = 10 or y < 3))')
+    const e4 = await ExpressionPattern.Validated('(X + 6) or (Y > 5)')
+    assert(e4.toString() == '(X + 6) or (Y > 5)')
+    const e5 = await ExpressionPattern.Validated('((X + 6) or (Y > 5))')
+    assert(e5.toString() == '((X + 6) or (Y > 5))')
   });
 });

@@ -80,7 +80,7 @@ Throws: 'throws' '{' (handlers+=Handler)+ '}';
 
 Handler: ('not_found' | 'error') Statement;
 
-If: 'if' '(' cond=LogicalExpression ')' Body else=Else?;
+If: 'if' '(' cond=Expr ')' Body else=Else?;
 
 Else: 'else' Body;
 
@@ -96,19 +96,19 @@ SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')
 
 AttributeValueExpression: Expr;
 
-LogicalExpression: expr=ComparisonExpression | expr=OrAnd | expr=Literal | expr=Expr;
-OrAnd: e1=ComparisonExpression op=('or' | 'and') e2=LogicalExpression | '(' OrAnd ')';
-
-ComparisonExpression:
-    e1=Expr op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=Expr | '(' ComparisonExpression ')';
-
 Expr: Add;
 
 Add infers Expr:
     Mult ({infer BinExpr.e1=current} op=('+'|'-') e2=Mult)*;
 
 Mult infers Expr: 
-    PrimExpr ({infer BinExpr.e1=current} op=('*'|'/') e2=PrimExpr)*;
+    Logical ({infer BinExpr.e1=current} op=('*'|'/') e2=Logical)*;
+
+Logical infers Expr:
+    Comparison ({infer BinExpr.e1=current} op=('or'|'and') e2=Comparison)*;
+
+Comparison infers Expr:
+    PrimExpr ({infer BinExpr.e1=current} op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=PrimExpr)*;
 
 PrimExpr: Literal | Group | NegExpr;
 

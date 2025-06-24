@@ -1,6 +1,5 @@
 import {
   ArrayLiteral,
-  ComparisonExpression,
   CrudMap,
   Delete,
   Expr,
@@ -8,16 +7,11 @@ import {
   ForEach,
   If,
   isBinExpr,
-  isComparisonExpression,
-  isExpr,
   isGroup,
   isLiteral,
   isNegExpr,
-  isOrAnd,
   Literal,
-  LogicalExpression,
   MapLiteral,
-  OrAnd,
   Pattern,
   Purge,
   RelationshipPattern,
@@ -792,7 +786,7 @@ async function evaluateForEach(forEach: ForEach, env: Environment): Promise<void
 }
 
 async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
-  await evaluateLogicalExpression(ifStmt.cond, env);
+  await evaluateExpression(ifStmt.cond, env);
   if (env.getLastResult()) {
     await evaluateStatements(ifStmt.statements, env);
   } else if (ifStmt.else != undefined) {
@@ -837,73 +831,24 @@ async function evaluatePurge(purgeStmt: Purge, env: Environment): Promise<void> 
   await evaluateDeleteHelper(purgeStmt.pattern, true, env);
 }
 
-async function evaluateLogicalExpression(
-  logExpr: LogicalExpression,
-  env: Environment
-): Promise<void> {
-  if (isComparisonExpression(logExpr.expr)) {
-    await evaluateComparisonExpression(logExpr.expr, env);
-  } else if (isOrAnd(logExpr.expr)) {
-    await evaluateOrAnd(logExpr.expr, env);
-  } else if (isLiteral(logExpr.expr)) {
-    await evaluateLiteral(logExpr.expr, env);
-  } else if (isExpr(logExpr.expr)) {
-    await evaluateExpression(logExpr.expr, env);
-  } else {
-    throw new Error(`Invalid logical expression - ${logExpr}`);
-  }
-}
-
-async function evaluateComparisonExpression(
-  cmprExpr: ComparisonExpression,
-  env: Environment
-): Promise<void> {
-  await evaluateExpression(cmprExpr.e1, env);
-  const v1 = env.getLastResult();
-  await evaluateExpression(cmprExpr.e2, env);
-  const v2 = env.getLastResult();
-  let result: Result = EmptyResult;
-  switch (cmprExpr.op) {
-    case '=':
-      result = v1 == v2;
-      break;
-    case '<':
-      result = v1 < v2;
-      break;
-    case '>':
-      result = v1 > v2;
-      break;
-    case '<=':
-      result = v1 <= v2;
-      break;
-    case '>=':
-      result = v1 >= v2;
-      break;
-    case '<>':
-      result = v1 != v2;
-      break;
-    case 'like':
-      result = v1.startsWith(v2);
-      break;
-    case 'in':
-      result = v2.find((x: any) => {
-        x == v1;
-      });
-      break;
-    default:
-      throw new Error(`Invalid comparison operator ${cmprExpr.op}`);
-  }
-  env.setLastResult(result);
-}
-
 async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
   let result: Result = EmptyResult;
   if (isBinExpr(expr)) {
     await evaluateExpression(expr.e1, env);
     const v1 = env.getLastResult();
+    if (expr.op == 'or') {
+      if (v1) return;
+      await evaluateExpression(expr.e2, env);
+      return;
+    } else if (expr.op == 'and') {
+      if (!v1) return;
+      await evaluateExpression(expr.e2, env);
+      return;
+    }
     await evaluateExpression(expr.e2, env);
     const v2 = env.getLastResult();
     switch (expr.op) {
+      // arithmetic operators
       case '+':
         result = v1 + v2;
         break;
@@ -915,6 +860,33 @@ async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
         break;
       case '/':
         result = v1 / v2;
+        break;
+      // comparison operators
+      case '=':
+        result = v1 == v2;
+        break;
+      case '<':
+        result = v1 < v2;
+        break;
+      case '>':
+        result = v1 > v2;
+        break;
+      case '<=':
+        result = v1 <= v2;
+        break;
+      case '>=':
+        result = v1 >= v2;
+        break;
+      case '<>':
+        result = v1 != v2;
+        break;
+      case 'like':
+        result = v1.startsWith(v2);
+        break;
+      case 'in':
+        result = v2.find((x: any) => {
+          x == v1;
+        });
         break;
       default:
         throw new Error(`Unrecognized binary operator: ${expr.op}`);
@@ -930,43 +902,6 @@ async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
     return;
   }
   env.setLastResult(result);
-}
-
-async function evaluateOrAnd(orAnd: OrAnd, env: Environment): Promise<void> {
-  switch (orAnd.op) {
-    case 'or':
-      await evaluateOr(orAnd.e1, orAnd.e2, env);
-      break;
-    case 'and':
-      await evaluateAnd(orAnd.e1, orAnd.e2, env);
-      break;
-    default:
-      throw new Error(`Invalid logical operator: ${orAnd.op}`);
-  }
-}
-
-async function evaluateOr(
-  e1: ComparisonExpression,
-  e2: LogicalExpression,
-  env: Environment
-): Promise<void> {
-  await evaluateComparisonExpression(e1, env);
-  if (env.getLastResult()) return;
-  await evaluateLogicalExpression(e2, env);
-}
-
-async function evaluateAnd(
-  e1: ComparisonExpression,
-  e2: LogicalExpression,
-  env: Environment
-): Promise<void> {
-  await evaluateComparisonExpression(e1, env);
-  const r = env.getLastResult();
-  if (r) {
-    await evaluateLogicalExpression(e2, env);
-  } else {
-    env.setLastResult(r);
-  }
 }
 
 function getRef(r: string, src: any): Result | undefined {
