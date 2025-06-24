@@ -838,8 +838,12 @@ async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
     const v1 = env.getLastResult();
     if (expr.op == 'or') {
       if (v1) return;
+      await evaluateExpression(expr.e2, env);
+      return;
     } else if (expr.op == 'and') {
       if (!v1) return;
+      await evaluateExpression(expr.e2, env);
+      return;
     }
     await evaluateExpression(expr.e2, env);
     const v2 = env.getLastResult();
