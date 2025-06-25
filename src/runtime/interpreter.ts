@@ -57,6 +57,7 @@ import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 import { Agent, AgentFqName, findAgentByName } from './modules/ai.js';
+import { logger } from './logger.js';
 
 export type Result = any;
 
@@ -726,6 +727,7 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
   await agent.invoke(agentEventInst.lookup('message'), env);
   const result: string = env.getLastResult();
   if (agent.isPlanner()) {
+    logger.debug(`Agent ${agent.name} generated pattern: ${result}`);
     if (result.trimStart().startsWith('workflow')) {
       await parseWorkflow(result); // check for errors
       return;
