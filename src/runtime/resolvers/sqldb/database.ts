@@ -1,4 +1,4 @@
-import { DataSource, EntityManager, QueryRunner, SelectQueryBuilder } from 'typeorm';
+import { DataSource, EntityManager, EntitySchema, QueryRunner, SelectQueryBuilder } from 'typeorm';
 import { logger } from '../../logger.js';
 import { modulesAsOrmSchema } from './dbutil.js';
 import { ResolverAuthInfo } from '../interface.js';
@@ -93,15 +93,49 @@ function mkDbName(): string {
   return process.env.AGENTLANG_DB_NAME || `db-${Date.now()}`;
 }
 
+function makePostgresDataSource(entities: EntitySchema[], synchronize: boolean = true): DataSource {
+  return new DataSource({
+    type: "postgres",
+    host: process.env.POSTGRES_HOST || "localhost",
+    port: getPostgressPort() || 5432,
+    username: process.env.POSTGRES_USER || "postgres",
+    password: process.env.POSTGRES_PASSWORD || "postgres",
+    database: process.env.POSTGRES_DB || "postgres",
+    synchronize: synchronize,
+    entities: entities
+  })
+}
+
+function getPostgressPort(): number | undefined {
+  const s: string | undefined = process.env.POSTGRES_PORT
+  if (s) {
+    return Number(s)
+  } else {
+    return undefined
+  }
+}
+
+function makeSqliteDataSource(entities: EntitySchema[], synchronize: boolean = true): DataSource {
+  return new DataSource({
+    type: 'sqlite',
+    database: mkDbName(),
+    synchronize: synchronize,
+    entities: entities,
+  });
+}
+
+export let DbType = 'sqlite'
+const MakeDsFunctions: any = { sqlite: makeSqliteDataSource, postgres: makePostgresDataSource }
+
 export async function initDefaultDatabase() {
   if (defaultDataSource == undefined) {
-    defaultDataSource = new DataSource({
-      type: 'sqlite',
-      database: mkDbName(),
-      synchronize: true,
-      entities: modulesAsOrmSchema(),
-    });
-    await defaultDataSource.initialize();
+    const mkds = MakeDsFunctions[DbType]
+    if (mkds) {
+      defaultDataSource = mkds(modulesAsOrmSchema()) as DataSource
+      await defaultDataSource.initialize();
+    } else {
+      throw new Error(`Unsupported database type - ${DbType}`)
+    }
   }
 }
 
