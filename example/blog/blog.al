@@ -25,7 +25,7 @@ entity Post {
     title String
 }
 
-relationship UserPost contains (User, Post) @one_many
+relationship UserPost contains (User, Post)
 
 entity Category {
     id UUID @id @default(uuid()),

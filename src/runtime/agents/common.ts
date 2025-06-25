@@ -1,4 +1,5 @@
-export const PlannerInstructions = `The model of a business application consists of entity definitions and workflows defined in "modules". 
+export const PlannerInstructions = `Agentlang is a very-high-level declarative language that makes it easy to define business applications as 'models'.
+The model of a business application consists of entity definitions and workflows defined in "modules". 
 A module will be encoded in a syntax inspired by JavaScript and JSON. Example of a simple module definition is,
 
 module Erp
@@ -41,13 +42,13 @@ A workflow attached to an event is invoked by creating an instance of the event,
 This means a workflow can be invoked from another workflow, simply by adding the event-creation as a pattern.
 
 Other than the create-pattern for entities and events, some of the most useful patterns (related to entities) that can appear in a workflow are:
-1. Query - e.g: {Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"}}. The attributes by which the query happens must end with a '?' character.
-   To lookup all instances of an entity, use the syntax: {EntityName?: {}}.
-2. Update - e.g: {Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24", firstName "Joe"}}. This pattern updates the firstName of the employee
+1. Query - e.g: '{Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"}}'. The attributes by which the query happens must end with a '?' character.
+   To lookup all instances of an entity, use the syntax: '{EntityName?: {}}'.
+2. Update - e.g: '{Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24", firstName "Joe"}}'. This pattern updates the firstName of the employee
    with the given employeeId.
-3. Upsert - e.g: upsert {Erp/Employee {employeeId "56392e13-0d9a-42f7-b556-0d7cd9468a24", firstName "Joe"}}. The 'upsert' pattern will create a new
+3. Upsert - e.g: upsert '{Erp/Employee {employeeId "56392e13-0d9a-42f7-b556-0d7cd9468a24", firstName "Joe"}}'. The 'upsert' pattern will create a new
    instance, if the instance does not already exist.
-4. Delete - e.g: delete {Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"}}
+4. Delete - e.g: delete '{Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"}}'
 
 The default query operator is '=' (equals). So an expression like 'employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"' means,
 'where employeeId equals "56392e13-0d9a-42f7-b556-0d7cd9468a24"'. Other comparison operators has to be specified explicitly, as in
@@ -112,5 +113,65 @@ for emp in employees {
     {Erp/SendMail {email emp.email, body "You are selected for an increment!"}}
 } as emails
 
-Now consider the following module definition and generate appropriate patterns in response to the user instructions.
+Entities in a module can be connected together in relationships. There are two types of relationships - 'contains' and 'between'.
+'Contains' relationship is for hierarchical data, as in a Library entity containing Books. 'Between' relationship is for graph-like data,
+like two Profiles in a social media app is connected as friends. A 'between' relationship can be one of the following three types - 'one_one' (one-to-one),
+'one_many' (one-to-many) and 'many_many' (many-to-many), which is the default.
+
+The following example shows how additional profile data for an employee could be defined as a new entity and attached to the Employee entity as a between-relationship:
+
+entity Profile {
+    id UUID @id @default(uuid()),
+    address String @optional,
+    photo URL @optional,
+    dateOfBirth DateTime @optional
+}
+
+relationship EmployeeProfile between (Erp/Employee, Erp/Profile) @one_one
+
+The '@one_one' annotation means exactly one Employee and Profile can be related to each other via 'EmployeeProfile'.
+
+Here's the 'CreateEmployee' workflow updated to create the Employee with the his/her Profile attached:
+
+workflow CreateEmployee {
+    {Erp/Employee {firstName CreateEmployee.firstName,
+                   lastName CreateEmployee.lastName,
+                   salary CreateEmployee.salary,
+                   email CreateEmployee.email},
+     Erp/EmployeeProfile {Erp/Profile {address CreateEmployee.address,
+                                       photo CreateEmployee.photo,
+                                       dateOfBirth CreateEmployee.dateOfBirth}}}
+}
+
+The following pattern can be user to query an Employee along with his Profile:
+
+{Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"},
+ Erp/EmployeeProfile {Erp/Profile? {}}}
+
+As an example of 'contains' relaionships, consider modelling task-assignments for an Employee as folllows:
+
+entity TaskAssignment {
+    id UUID @id @default(uuid()),
+    description String,
+    assignmentDate DateTime @default(now())
+}
+
+relationship EmployeeTaskAssignment contains (Erp/Employee, Erp/TaskAssignment)
+
+The following workflow shows how to assign a new task to an Employee:
+
+workflow AssignNewTask {
+    {Erp/Employee {employeeId? AssignNewTask.employeeId},
+     Erp/EmployeeTaskAssignment {Erp/TaskAssignment {description AssignNewTask.description}}}
+}
+
+The following workflow queries an Employee along with all his tasks:
+
+workflow GetEmployeeTaskAssignments {
+    {Erp/Employee {employeeId? GetEmployeeTaskAssignments.employeeId},
+     Erp/EmployeeTaskAssignment {Erp/TaskAssignment? {}}}
+}
+
+Now consider the following module definition and generate appropriate patterns in response to the user instructions. You must return only valid patterns or workflows,
+no other descriptive text or comments are needed.
 `;
