@@ -63,6 +63,7 @@
     "monaco-editor": "~0.52.0",
     "monaco-editor-wrapper": "^6.7.0",
     "node-fetch": "^2.7.0",
+    "pg": "^8.16.1",
     "sqlite3": "^5.1.7",
     "typeorm": "^0.3.23",
     "vscode-languageclient": "^9.0.1",
