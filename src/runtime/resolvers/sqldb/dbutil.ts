@@ -29,7 +29,7 @@ export type TableSchema = {
 };
 
 export function asTableName(moduleName: string, entityName: string): string {
-  return `${moduleName}_${entityName}`;
+  return `${moduleName}_${entityName}`.toLowerCase();
 }
 
 export function modulesAsDbSchema(): TableSchema[] {

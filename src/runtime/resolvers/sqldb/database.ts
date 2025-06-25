@@ -95,23 +95,23 @@ function mkDbName(): string {
 
 function makePostgresDataSource(entities: EntitySchema[], synchronize: boolean = true): DataSource {
   return new DataSource({
-    type: "postgres",
-    host: process.env.POSTGRES_HOST || "localhost",
+    type: 'postgres',
+    host: process.env.POSTGRES_HOST || 'localhost',
     port: getPostgressPort() || 5432,
-    username: process.env.POSTGRES_USER || "postgres",
-    password: process.env.POSTGRES_PASSWORD || "postgres",
-    database: process.env.POSTGRES_DB || "postgres",
+    username: process.env.POSTGRES_USER || 'postgres',
+    password: process.env.POSTGRES_PASSWORD || 'postgres',
+    database: process.env.POSTGRES_DB || 'postgres',
     synchronize: synchronize,
-    entities: entities
-  })
+    entities: entities,
+  });
 }
 
 function getPostgressPort(): number | undefined {
-  const s: string | undefined = process.env.POSTGRES_PORT
+  const s: string | undefined = process.env.POSTGRES_PORT;
   if (s) {
-    return Number(s)
+    return Number(s);
   } else {
-    return undefined
+    return undefined;
   }
 }
 
@@ -124,17 +124,17 @@ function makeSqliteDataSource(entities: EntitySchema[], synchronize: boolean = t
   });
 }
 
-export let DbType = 'sqlite'
-const MakeDsFunctions: any = { sqlite: makeSqliteDataSource, postgres: makePostgresDataSource }
+export const DbType = 'sqlite';
+const MakeDsFunctions: any = { sqlite: makeSqliteDataSource, postgres: makePostgresDataSource };
 
 export async function initDefaultDatabase() {
   if (defaultDataSource == undefined) {
-    const mkds = MakeDsFunctions[DbType]
+    const mkds = MakeDsFunctions[process.env.AL_DB_TYPE || DbType];
     if (mkds) {
-      defaultDataSource = mkds(modulesAsOrmSchema()) as DataSource
+      defaultDataSource = mkds(modulesAsOrmSchema()) as DataSource;
       await defaultDataSource.initialize();
     } else {
-      throw new Error(`Unsupported database type - ${DbType}`)
+      throw new Error(`Unsupported database type - ${DbType}`);
     }
   }
 }
@@ -147,7 +147,7 @@ export async function resetDefaultDatabase() {
 }
 
 function ownersTable(tableName: string): string {
-  return tableName + `_owners`;
+  return (tableName + `_owners`).toLowerCase();
 }
 
 async function insertRowsHelper(
@@ -307,10 +307,10 @@ async function isOwnerOfParent(path: string, ctx: DbContext): Promise<boolean> {
   return false;
 }
 
-async function isOwner(tableName: string, instPath: string, ctx: DbContext): Promise<boolean> {
+async function isOwner(parentName: string, instPath: string, ctx: DbContext): Promise<boolean> {
   const userId = ctx.getUserId();
-  const tabName = ownersTable(tableName);
-  const alias = tabName.toLowerCase();
+  const tabName = ownersTable(parentName);
+  const alias = tabName;
   const query = [
     `${alias}.path = '${instPath}'`,
     `${alias}.user_id = '${userId}'`,
@@ -326,7 +326,7 @@ async function isOwner(tableName: string, instPath: string, ctx: DbContext): Pro
     .getRawMany()
     .then((r: any) => (result = r))
     .catch((reason: any) => {
-      logger.error(`Failed to check ownership on parent ${tableName} - ${reason}`);
+      logger.error(`Failed to check ownership on parent ${parentName} - ${reason}`);
     });
   if (result == undefined || result.length == 0) {
     return false;

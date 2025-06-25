@@ -382,6 +382,7 @@ export async function runStandaloneStatements() {
       }
       logger.info(`Init eval result: ${GlobalEnvironment.getLastResult().toString()}`);
     });
+    StandaloneStatements.clear();
   }
 }
 
