@@ -29,7 +29,6 @@ import {
   DbContext,
   insertBetweenRow,
   addRowForFullTextSearch,
-  fullTextSearch,
 } from './database.js';
 import { Environment } from '../../interpreter.js';
 
@@ -93,11 +92,10 @@ export class SqlDbResolver extends Resolver {
       }
       const n: string = asTableName(inst.moduleName, inst.name);
       const rowObj: object = inst.attributesAsObject();
-      const ctx = this.getDbContext(inst.getFqName())
+      const ctx = this.getDbContext(inst.getFqName());
       await insertRow(n, rowObj, ctx, orUpdate);
       if (inst.record.getFullTextSearchAttributes()) {
-        await addRowForFullTextSearch(n, rowObj, ctx)
-        console.log(await fullTextSearch(n, [1,1,1], ctx))
+        await addRowForFullTextSearch(n, rowObj, ctx);
       }
       return inst;
     }

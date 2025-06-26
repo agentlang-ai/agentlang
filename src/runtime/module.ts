@@ -120,31 +120,31 @@ export enum RecordType {
 
 function normalizeMetaValue(metaValue: any): any {
   if (!isLiteral(metaValue)) {
-    throw new Error(`Invalid entry ${metaValue} in meta specification - expected a literal`)
+    throw new Error(`Invalid entry ${metaValue} in meta specification - expected a literal`);
   }
-  const v: Literal = metaValue as Literal
+  const v: Literal = metaValue as Literal;
   if (v.array) {
     return v.array.vals.map((value: Statement) => {
-      return normalizeMetaValue(value.pattern.literal)
-    })
+      return normalizeMetaValue(value.pattern.literal);
+    });
   } else if (v.bool != undefined) {
-    return v.bool
+    return v.bool;
   } else if (v.id) {
-    return v.id
+    return v.id;
   } else if (v.map) {
-    const result = new Map<string, any>()
+    const result = new Map<string, any>();
     v.map.entries.forEach((value: MapEntry) => {
-      result.set(value.key, normalizeMetaValue(value.value))
-    })
-    return result
+      result.set(value.key, normalizeMetaValue(value.value));
+    });
+    return result;
   } else if (v.ref) {
-    return v.ref
+    return v.ref;
   } else if (v.num) {
-    return v.num
+    return v.num;
   } else if (v.str) {
-    return v.str
+    return v.str;
   } else {
-    throw new Error(`Invalid value ${metaValue} passed to meta specification`)
+    throw new Error(`Invalid value ${metaValue} passed to meta specification`);
   }
 }
 
@@ -165,10 +165,10 @@ export class Record extends ModuleEntry {
     this.schema = parentEntryName
       ? cloneParentSchema(parentEntryName, moduleName)
       : newRecordSchema();
-    const attributes: AttributeDefinition[] | undefined = scm ? scm.attributes : undefined
+    const attributes: AttributeDefinition[] | undefined = scm ? scm.attributes : undefined;
     if (attributes != undefined) {
       attributes.forEach((a: AttributeDefinition) => {
-        verifyAttribute(a)
+        verifyAttribute(a);
         const isArrayType: boolean = a.arrayType ? true : false;
         let t: string | undefined = isArrayType ? a.arrayType : a.type;
         const oneOfValues: string[] | undefined = a.oneOfSpec ? a.oneOfSpec.values : undefined;
@@ -194,14 +194,14 @@ export class Record extends ModuleEntry {
     }
     if (scm && scm.meta) {
       scm.meta.spec.entries.forEach((entry: MapEntry) => {
-        this.addMeta(entry.key, normalizeMetaValue(entry.value))
-      })
+        this.addMeta(entry.key, normalizeMetaValue(entry.value));
+      });
     }
   }
 
   addMeta(k: string, v: any): void {
     if (!this.meta) {
-      this.meta = newMeta()
+      this.meta = newMeta();
     }
     this.meta.set(k, v);
   }
@@ -210,22 +210,22 @@ export class Record extends ModuleEntry {
     if (this.meta) {
       return this.meta.get(k);
     } else {
-      return undefined
+      return undefined;
     }
   }
 
   getFullTextSearchAttributes(): string[] | undefined {
-    const fts: string[] | string | undefined = this.getMeta('fullTextSearch')
+    const fts: string[] | string | undefined = this.getMeta('fullTextSearch');
     if (fts) {
       if (fts instanceof Array) {
-        return fts as string[]
+        return fts as string[];
       } else if (fts == '*') {
-        return [...this.schema.keys()]
+        return [...this.schema.keys()];
       } else {
-        return undefined
+        return undefined;
       }
     } else {
-      return undefined
+      return undefined;
     }
   }
 
@@ -302,7 +302,7 @@ export class Record extends ModuleEntry {
   }
 
   override toString(): string {
-    if (this.type == RecordType.EVENT && (this.meta && this.meta.get(SystemDefinedEvent))) {
+    if (this.type == RecordType.EVENT && this.meta && this.meta.get(SystemDefinedEvent)) {
       return '';
     }
     let s: string = `${RecordType[this.type].toLowerCase()} ${this.name}`;
@@ -1274,7 +1274,7 @@ export function addEntity(
   ext?: string
 ): Entity {
   const module: Module = fetchModule(moduleName);
-  const attrs: AttributeDefinition[] | undefined = scm ? scm.attributes : undefined
+  const attrs: AttributeDefinition[] | undefined = scm ? scm.attributes : undefined;
   if (attrs) attrs.forEach(a => verifyAttribute(a));
   return module.addEntry(new Entity(name, moduleName, scm, ext)) as Entity;
 }

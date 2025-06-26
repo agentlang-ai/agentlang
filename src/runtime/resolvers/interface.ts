@@ -12,7 +12,7 @@ export class ResolverAuthInfo {
   }
 }
 
-const DefaultAuthInfo = new ResolverAuthInfo(
+export const DefaultAuthInfo = new ResolverAuthInfo(
   // This user-id is only for testing, per-session user-id needs to be set from
   // the HTTP layer.
   '9459a305-5ee6-415d-986d-caaf6d6e2828'

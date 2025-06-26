@@ -53,24 +53,30 @@ export function modulesAsDbSchema(): TableSchema[] {
   return result;
 }
 
-export function modulesAsOrmSchema(): EntitySchema[] {
-  const result: EntitySchema[] = new Array<EntitySchema>();
+export type OrmSchema = {
+  entities: EntitySchema[],
+  vectorEntities: EntitySchema[]
+}
+
+export function modulesAsOrmSchema(): OrmSchema {
+  const ents: EntitySchema[] = [];
+  const vects: EntitySchema[] = []
   getModuleNames().forEach((n: string) => {
     buildGraph(n);
     const mod: Module = fetchModule(n);
     const entities: Record[] = mod.getEntityEntries()
     const rels: Record[] = mod.getBetweenRelationshipEntriesThatNeedStore();
     entities.concat(rels).forEach((entry: Record) => {
-      result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, entry)))
+      ents.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, entry)))
       const ownerEntry = createOwnersEntity(entry)
-      result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, ownerEntry, true)))
+      ents.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, ownerEntry, true)))
       if (entry.getFullTextSearchAttributes()) {
         const vectorEntry = createVectorEntity(entry)
-        result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, vectorEntry, true)))
+        vects.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, vectorEntry, true)))
       }
     })
   })
-  return result
+  return {entities: ents, vectorEntities: vects}
 }
 
 function ormSchemaFromRecordSchema(moduleName: string, entry: Record, hasOwnPk?: boolean): EntitySchemaOptions<any> {

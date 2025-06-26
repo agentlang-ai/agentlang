@@ -1,7 +1,7 @@
 import { DataSource, EntityManager, EntitySchema, QueryRunner, SelectQueryBuilder } from 'typeorm';
 import { logger } from '../../logger.js';
 import { modulesAsOrmSchema, OwnersSuffix, VectorSuffix } from './dbutil.js';
-import { ResolverAuthInfo } from '../interface.js';
+import { DefaultAuthInfo, ResolverAuthInfo } from '../interface.js';
 import {
   canUserCreate,
   canUserDelete,
@@ -9,7 +9,7 @@ import {
   canUserUpdate,
   UnauthorisedError,
 } from '../../modules/auth.js';
-import { Environment } from '../../interpreter.js';
+import { Environment, GlobalEnvironment } from '../../interpreter.js';
 import {
   Instance,
   InstanceAttributes,
@@ -46,6 +46,20 @@ export class DbContext {
     if (inKernelMode != undefined) {
       this.inKernelMode = inKernelMode;
     }
+  }
+  private static GlobalDbContext: DbContext | undefined;
+
+  static getGlobalContext(): DbContext {
+    if (DbContext.GlobalDbContext == undefined) {
+      DbContext.GlobalDbContext = new DbContext(
+        '',
+        DefaultAuthInfo,
+        GlobalEnvironment,
+        undefined,
+        true
+      );
+    }
+    return DbContext.GlobalDbContext;
   }
 
   // Shallow clone
@@ -132,8 +146,15 @@ export async function initDefaultDatabase() {
   if (defaultDataSource == undefined) {
     const mkds = MakeDsFunctions[process.env.AL_DB_TYPE || DbType];
     if (mkds) {
-      defaultDataSource = mkds(modulesAsOrmSchema()) as DataSource;
+      const ormScm = modulesAsOrmSchema();
+      defaultDataSource = mkds(ormScm.entities) as DataSource;
       await defaultDataSource.initialize();
+      const vectEnts = ormScm.vectorEntities.map((es: EntitySchema) => {
+        return es.options.name;
+      });
+      if (vectEnts.length > 0) {
+        await initVectorStore(vectEnts, DbContext.getGlobalContext());
+      }
     } else {
       throw new Error(`Unsupported database type - ${DbType}`);
     }
@@ -163,30 +184,40 @@ async function insertRowsHelper(
 }
 
 export async function addRowForFullTextSearch(tableName: string, row: object, ctx: DbContext) {
-  const vecTableName = tableName + VectorSuffix
-  const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
-  await vecRepo.save({ id: crypto.randomUUID(), embedding: pgvector.toSql([1, 2, 3]) });
+  const vecTableName = tableName + VectorSuffix;
+  const qb = getDatasourceForTransaction(ctx.txnId).createQueryBuilder();
+  await qb
+    .insert()
+    .into(vecTableName)
+    .values([{ id: crypto.randomUUID(), embedding: pgvector.toSql([1, 2, 3]) }])
+    .execute();
 }
 
-export async function normalizeVectorStore(tableNames: string[], ctx: DbContext) {
-  tableNames.forEach(async (tableName: string) => {
-    const vecTableName = tableName + VectorSuffix
+export async function initVectorStore(tableNames: string[], ctx: DbContext) {
+  let notInited = true;
+  tableNames.forEach(async (vecTableName: string) => {
     const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
-    await vecRepo.query('CREATE EXTENSION IF NOT EXISTS vector');
-    await vecRepo.query(`DROP TABLE IF EXISTS ${vecTableName}`);
-    await vecRepo.query(`CREATE TABLE ${vecTableName} (id UUID PRIMARY KEY, embedding vector(3), __is_deleted__ boolean default false)`)
-  })
+    if (notInited) {
+      await vecRepo.query('CREATE EXTENSION IF NOT EXISTS vector');
+      notInited = false;
+    }
+    await vecRepo.query(
+      `CREATE TABLE IF NOT EXISTS ${vecTableName} (id UUID PRIMARY KEY, embedding vector(3), __is_deleted__ boolean default false)`
+    );
+  });
 }
 
-export async function fullTextSearch(tableName: string, searchVec: number[], ctx: DbContext): Promise<any> {
-  const vecTableName = tableName + VectorSuffix
-  const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
-  return await vecRepo
-    .createQueryBuilder(vecTableName)
-    .orderBy('embedding <-> :embedding')
-    .setParameters({ embedding: pgvector.toSql(searchVec) })
-    .limit(5)
-    .getMany();
+export async function fullTextSearch(
+  tableName: string,
+  searchVec: number[],
+  limit: number,
+  ctx: DbContext
+): Promise<any> {
+  const vecTableName = tableName + VectorSuffix;
+  const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
+  return await qb.query(`select * from ${vecTableName} order by embedding <-> $1 LIMIT ${limit}`, [
+    pgvector.toSql(searchVec),
+  ]);
 }
 
 async function checkUserPerm(

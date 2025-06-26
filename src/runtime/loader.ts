@@ -334,15 +334,15 @@ function addEntityFromDef(def: EntityDefinition, moduleName: string): Entity {
 }
 
 export function addSchemaFromDef(def: SchemaDefinition, moduleName: string): Record {
-  let result: Record | undefined
+  let result: Record | undefined;
   if (isEntityDefinition(def)) {
-    result = addEntityFromDef(def, moduleName)
+    result = addEntityFromDef(def, moduleName);
   } else if (isEventDefinition(def)) {
     result = addEvent(def.name, moduleName, def.schema, maybeExtends(def.extends));
   } else {
     result = addRecord(def.name, moduleName, def.schema, maybeExtends(def.extends));
   }
-  return result
+  return result;
 }
 
 export function addRelationshipFromDef(
