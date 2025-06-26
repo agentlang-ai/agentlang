@@ -64,6 +64,10 @@ export function modulesAsOrmSchema(): EntitySchema[] {
       result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, entry)))
       const ownerEntry = createOwnersEntity(entry)
       result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, ownerEntry, true)))
+      if (entry.getFullTextSearchAttributes()) {
+        const vectorEntry = createVectorEntity(entry)
+        result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, vectorEntry, true)))
+      }
     })
   })
   return result
@@ -131,8 +135,11 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: Record, hasOwnPk?:
   return result
 }
 
+export const OwnersSuffix = '_owners'
+export const VectorSuffix = '_vector'
+
 function createOwnersEntity(entry: Record): Record {
-  const ownersEntry = new Record(`${entry.name}_owners`, entry.moduleName)
+  const ownersEntry = new Record(`${entry.name}${OwnersSuffix}`, entry.moduleName)
   const permProps = new Map().set('default', true)
   return ownersEntry.addAttribute('id', { type: 'UUID', properties: new Map().set('id', true) })
     .addAttribute('user_id', { type: 'String' })
@@ -142,6 +149,12 @@ function createOwnersEntity(entry: Record): Record {
     .addAttribute('u', { type: 'Boolean', properties: permProps })
     .addAttribute('d', { type: 'Boolean', properties: permProps })
     .addAttribute('path', { type: 'String', properties: new Map().set('indexed', true) })
+}
+
+function createVectorEntity(entry: Record): Record {
+  const ownersEntry = new Record(`${entry.name}${VectorSuffix}`, entry.moduleName)
+  return ownersEntry.addAttribute('id', { type: 'String', properties: new Map().set('id', true) })
+    .addAttribute('embedding', { type: 'vector(3)' })
 }
 
 export type TableSpec = {

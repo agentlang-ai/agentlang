@@ -28,6 +28,8 @@ import {
   hardDeleteRow,
   DbContext,
   insertBetweenRow,
+  addRowForFullTextSearch,
+  fullTextSearch,
 } from './database.js';
 import { Environment } from '../../interpreter.js';
 
@@ -91,7 +93,12 @@ export class SqlDbResolver extends Resolver {
       }
       const n: string = asTableName(inst.moduleName, inst.name);
       const rowObj: object = inst.attributesAsObject();
-      await insertRow(n, rowObj, this.getDbContext(inst.getFqName()), orUpdate);
+      const ctx = this.getDbContext(inst.getFqName())
+      await insertRow(n, rowObj, ctx, orUpdate);
+      if (inst.record.getFullTextSearchAttributes()) {
+        await addRowForFullTextSearch(n, rowObj, ctx)
+        console.log(await fullTextSearch(n, [1,1,1], ctx))
+      }
       return inst;
     }
   }

@@ -4,19 +4,20 @@ entry ModuleDefinition: 'module' name=ID (imports+=Import)* (defs+=Definition)*;
 
 Import: 'import' path=STRING 'as' name=ID;
 
-Definition: SchemaDef | RelationshipDefinition | WorkflowDefinition | StandaloneStatement;
+Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement;
 
 StandaloneStatement: stmt=Statement;
 
-SchemaDef: EntityDefinition | EventDefinition | RecordDefinition;
+SchemaDefinition: EntityDefinition | EventDefinition | RecordDefinition;
 
 PropertyDefinition: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 
 KvPair: value=Literal | key=ID ':' value=Literal;
 KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 
-RecAttrs: '{''}' | '{' (attributes+=AttributeDefinition (',' attributes+=AttributeDefinition)*)+ (',' rbacSpec=RbacSpecDefinition?)? '}'?;
-fragment RecDef: name=ID extends=ExtendsClause? schema=RecAttrs;
+RecordSchemaDefintion: '{''}' | '{' (attributes+=AttributeDefinition (',' attributes+=AttributeDefinition)*)+
+          (',' rbacSpec=RbacSpecDefinition?)? (',' meta=MetaDefinition?)? '}'?;
+fragment RecDef: name=ID extends=ExtendsClause? schema=RecordSchemaDefintion;
 
 EntityDefinition: 'entity' RecDef;
 EventDefinition: 'event' RecDef;
@@ -25,7 +26,7 @@ RecordDefinition: 'record' RecDef;
 ExtendsClause: 'extends' parentName=ID;
 
 RelationshipDefinition: 'relationship' name=ID type=('contains' | 'between') nodes=RelNodes properties+=PropertyDefinition*
-('{' (attributes+=AttributeDefinition (',' attributes+=AttributeDefinition)*)+ '}')?;
+(schema=RecordSchemaDefintion)?;
 
 NodeDefinition: name=ID | name=ID 'as' alias=ID;
 
@@ -48,6 +49,8 @@ RbacAllowSpec: 'allow' ':' '[' (oprs+=RbacOpr (',' oprs+=RbacOpr)*)+ ']';
 RbacOpr: value=('create' | 'delete' | 'update' | 'read');
 
 RbacExpressionSpec: 'where' ':' lhs=Ref '=' rhs=Ref;
+
+MetaDefinition: '@meta' spec=MapLiteral;
 
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 

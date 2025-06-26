@@ -13,13 +13,12 @@ import {
   isRelationshipDefinition,
   isWorkflowDefinition,
   EntityDefinition,
-  EventDefinition,
-  RecordDefinition,
   RelationshipDefinition,
   WorkflowDefinition,
   RbacSpecDefinition,
   Statement,
   isStandaloneStatement,
+  SchemaDefinition,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -29,7 +28,6 @@ import {
   addRelationship,
   addWorkflow,
   Entity,
-  Event,
   RbacSpecification,
   Record,
   Relationship,
@@ -327,27 +325,31 @@ async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
   await env.callInTransaction(f);
 }
 
-export function addEntityFromDef(def: EntityDefinition, moduleName: string): Entity {
-  const entity = addEntity(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+function addEntityFromDef(def: EntityDefinition, moduleName: string): Entity {
+  const entity = addEntity(def.name, moduleName, def.schema, maybeExtends(def.extends));
   if (def.schema.rbacSpec) {
     setRbacForEntity(entity, def.schema.rbacSpec);
   }
   return entity;
 }
 
-export function addEventFromDef(def: EventDefinition, moduleName: string): Event {
-  return addEvent(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
-}
-
-export function addRecordFromDef(def: RecordDefinition, moduleName: string): Record {
-  return addRecord(def.name, moduleName, def.schema.attributes, maybeExtends(def.extends));
+export function addSchemaFromDef(def: SchemaDefinition, moduleName: string): Record {
+  let result: Record | undefined
+  if (isEntityDefinition(def)) {
+    result = addEntityFromDef(def, moduleName)
+  } else if (isEventDefinition(def)) {
+    result = addEvent(def.name, moduleName, def.schema, maybeExtends(def.extends));
+  } else {
+    result = addRecord(def.name, moduleName, def.schema, maybeExtends(def.extends));
+  }
+  return result
 }
 
 export function addRelationshipFromDef(
   def: RelationshipDefinition,
   moduleName: string
 ): Relationship {
-  return addRelationship(def.name, def.type, def.nodes, moduleName, def.attributes, def.properties);
+  return addRelationship(def.name, def.type, def.nodes, moduleName, def.schema, def.properties);
 }
 
 export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string): Workflow {
@@ -387,9 +389,9 @@ export async function runStandaloneStatements() {
 }
 
 export function addFromDef(def: Definition, moduleName: string) {
-  if (isEntityDefinition(def)) addEntityFromDef(def, moduleName);
-  else if (isEventDefinition(def)) addEventFromDef(def, moduleName);
-  else if (isRecordDefinition(def)) addRecordFromDef(def, moduleName);
+  if (isEntityDefinition(def)) addSchemaFromDef(def, moduleName);
+  else if (isEventDefinition(def)) addSchemaFromDef(def, moduleName);
+  else if (isRecordDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isRelationshipDefinition(def)) addRelationshipFromDef(def, moduleName);
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);

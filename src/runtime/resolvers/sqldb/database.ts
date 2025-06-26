@@ -1,6 +1,6 @@
 import { DataSource, EntityManager, EntitySchema, QueryRunner, SelectQueryBuilder } from 'typeorm';
 import { logger } from '../../logger.js';
-import { modulesAsOrmSchema } from './dbutil.js';
+import { modulesAsOrmSchema, OwnersSuffix, VectorSuffix } from './dbutil.js';
 import { ResolverAuthInfo } from '../interface.js';
 import {
   canUserCreate,
@@ -17,6 +17,7 @@ import {
   RbacPermissionFlag,
   Relationship,
 } from '../../module.js';
+import pgvector from 'pgvector';
 
 export let defaultDataSource: DataSource | undefined;
 
@@ -147,7 +148,7 @@ export async function resetDefaultDatabase() {
 }
 
 function ownersTable(tableName: string): string {
-  return (tableName + `_owners`).toLowerCase();
+  return (tableName + OwnersSuffix).toLowerCase();
 }
 
 async function insertRowsHelper(
@@ -159,6 +160,33 @@ async function insertRowsHelper(
   const repo = getDatasourceForTransaction(ctx.txnId).getRepository(tableName);
   if (doUpsert) await repo.save(rows);
   else await repo.insert(rows);
+}
+
+export async function addRowForFullTextSearch(tableName: string, row: object, ctx: DbContext) {
+  const vecTableName = tableName + VectorSuffix
+  const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
+  await vecRepo.save({ id: crypto.randomUUID(), embedding: pgvector.toSql([1, 2, 3]) });
+}
+
+export async function normalizeVectorStore(tableNames: string[], ctx: DbContext) {
+  tableNames.forEach(async (tableName: string) => {
+    const vecTableName = tableName + VectorSuffix
+    const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
+    await vecRepo.query('CREATE EXTENSION IF NOT EXISTS vector');
+    await vecRepo.query(`DROP TABLE IF EXISTS ${vecTableName}`);
+    await vecRepo.query(`CREATE TABLE ${vecTableName} (id UUID PRIMARY KEY, embedding vector(3), __is_deleted__ boolean default false)`)
+  })
+}
+
+export async function fullTextSearch(tableName: string, searchVec: number[], ctx: DbContext): Promise<any> {
+  const vecTableName = tableName + VectorSuffix
+  const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
+  return await vecRepo
+    .createQueryBuilder(vecTableName)
+    .orderBy('embedding <-> :embedding')
+    .setParameters({ embedding: pgvector.toSql(searchVec) })
+    .limit(5)
+    .getMany();
 }
 
 async function checkUserPerm(
