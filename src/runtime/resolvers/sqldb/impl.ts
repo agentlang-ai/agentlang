@@ -31,6 +31,8 @@ import {
   addRowForFullTextSearch,
 } from './database.js';
 import { Environment } from '../../interpreter.js';
+import { OpenAIEmbeddings } from '@langchain/openai';
+import { Embeddings } from '@langchain/core/embeddings';
 
 function maybeFindIdAttributeName(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
@@ -42,10 +44,12 @@ function maybeFindIdAttributeName(inst: Instance): string | undefined {
 
 export class SqlDbResolver extends Resolver {
   private txnId: string | undefined;
+  private embeddings: Embeddings;
 
   constructor(name: string) {
     super();
     this.name = name;
+    this.embeddings = new OpenAIEmbeddings();
   }
 
   public override getName(): string {
@@ -95,7 +99,8 @@ export class SqlDbResolver extends Resolver {
       const ctx = this.getDbContext(inst.getFqName());
       await insertRow(n, rowObj, ctx, orUpdate);
       if (inst.record.getFullTextSearchAttributes()) {
-        await addRowForFullTextSearch(n, rowObj, ctx);
+        const res = await this.embeddings.embedQuery(JSON.stringify(rowObj));
+        await addRowForFullTextSearch(n, res, ctx);
       }
       return inst;
     }

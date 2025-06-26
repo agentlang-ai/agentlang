@@ -183,13 +183,13 @@ async function insertRowsHelper(
   else await repo.insert(rows);
 }
 
-export async function addRowForFullTextSearch(tableName: string, row: object, ctx: DbContext) {
+export async function addRowForFullTextSearch(tableName: string, vect: number[], ctx: DbContext) {
   const vecTableName = tableName + VectorSuffix;
   const qb = getDatasourceForTransaction(ctx.txnId).createQueryBuilder();
   await qb
     .insert()
     .into(vecTableName)
-    .values([{ id: crypto.randomUUID(), embedding: pgvector.toSql([1, 2, 3]) }])
+    .values([{ id: crypto.randomUUID(), embedding: pgvector.toSql(vect) }])
     .execute();
 }
 
@@ -202,7 +202,7 @@ export async function initVectorStore(tableNames: string[], ctx: DbContext) {
       notInited = false;
     }
     await vecRepo.query(
-      `CREATE TABLE IF NOT EXISTS ${vecTableName} (id UUID PRIMARY KEY, embedding vector(3), __is_deleted__ boolean default false)`
+      `CREATE TABLE IF NOT EXISTS ${vecTableName} (id UUID PRIMARY KEY, embedding vector(1536), __is_deleted__ boolean default false)`
     );
   });
 }
