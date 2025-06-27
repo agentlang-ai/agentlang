@@ -322,6 +322,7 @@ export interface FullTextSearch extends langium.AstNode {
     readonly $container: Pattern;
     readonly $type: 'FullTextSearch';
     name: QueryId;
+    options?: MapLiteral;
     query: Literal;
 }
 
@@ -429,7 +430,7 @@ export function isMapEntry(item: unknown): item is MapEntry {
 }
 
 export interface MapLiteral extends langium.AstNode {
-    readonly $container: Literal | MetaDefinition;
+    readonly $container: FullTextSearch | Literal | MetaDefinition;
     readonly $type: 'MapLiteral';
     entries: Array<MapEntry>;
 }
@@ -1035,6 +1036,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: FullTextSearch,
                     properties: [
                         { name: 'name' },
+                        { name: 'options' },
                         { name: 'query' }
                     ]
                 };

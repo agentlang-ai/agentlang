@@ -77,7 +77,7 @@ CrudMap: QueryAllPattern | '{' name=ID '{' (attributes+=SetAttribute (',' attrib
 
 QueryAllPattern: '{' name=QueryId '{''}' (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';
 
-FullTextSearch: '{' name=QueryId query=Literal '}';
+FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
 RelationshipPattern: name=ID pattern=Pattern;
 

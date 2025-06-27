@@ -11,6 +11,7 @@ import {
 } from '../agents/provider.js';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
 import { PlannerInstructions } from '../agents/common.js';
+import { PathAttributeNameQuery } from '../resolvers/sqldb/database.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 
@@ -44,6 +45,12 @@ workflow findAgentChatSession {
 workflow saveAgentChatSession {
   upsert {agentChatSession {id saveAgentChatSession.id, messages saveAgentChatSession.messages}}
 }
+
+entity document {
+  title String @id,
+  content String,
+  @meta #{"fullTextSearch": "*"}
+}
 `;
 
 export const AgentFqName = makeFqName(CoreAIModuleName, 'agent');
@@ -57,6 +64,7 @@ export class Agent {
   instruction: string = '';
   type: string = 'chat';
   tools: string[] | undefined;
+  documents: string[] | undefined;
 
   private constructor() {}
 
@@ -88,7 +96,7 @@ export class Agent {
         );
         msgs[0] = newSysMsg;
       }
-      msgs.push(humanMessage(message));
+      msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
       const response: AIResponse = await p.invoke(msgs);
       msgs.push(assistantMessage(response.content));
       if (isplnr) {
@@ -99,6 +107,37 @@ export class Agent {
     } else {
       throw new Error(`failed to initialize messages for agent ${agentName}`);
     }
+  }
+
+  private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
+    if (this.documents && this.documents.length > 0) {
+      const s = `${message}. Relevant documents are: ${this.documents.join(',')}`;
+      const result: any[] = await parseHelper(`{agentlang_ai/document? "${s}"}`, env);
+      if (result && result.length > 0) {
+        const docs: Instance[] = [];
+        for (let i = 0; i < result.length; ++i) {
+          const v: any = result[i];
+          const r: Instance[] = await parseHelper(
+            `{agentlang_ai/document {${PathAttributeNameQuery} "${v.id}"}}`,
+            env
+          );
+          if (r && r.length > 0) {
+            docs.push(r[0]);
+          }
+        }
+        if (docs.length > 0) {
+          message = message.concat('\nUse the additional information given below:\n').concat(
+            docs
+              .map((v: Instance) => {
+                return v.lookup('content');
+              })
+              .join('\n')
+          );
+        }
+      }
+    }
+    console.log(message);
+    return message;
   }
 
   private toolsAsString(): string {
@@ -117,9 +156,13 @@ export class Agent {
   }
 }
 
+async function parseHelper(stmt: string, env: Environment): Promise<any> {
+  await parseAndEvaluateStatement(stmt, undefined, env);
+  return env.getLastResult();
+}
+
 export async function findAgentByName(name: string, env: Environment): Promise<Agent> {
-  await parseAndEvaluateStatement(`{agentlang_ai/agent {name? "${name}"}}`, undefined, env);
-  const result = env.getLastResult();
+  const result = await parseHelper(`{agentlang_ai/agent {name? "${name}"}}`, env);
   if (result instanceof Array && result.length > 0) {
     const agentInstance: Instance = result[0];
     return Agent.FromInstance(agentInstance);

@@ -533,7 +533,12 @@ async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Pr
   if (!isString(q)) {
     throw new Error(`Full text search query must be a string - ${q}`);
   }
-  env.setLastResult(await resolver.fullTextSearch(entryName, moduleName, q));
+  let options: Map<string, any> | undefined;
+  if (fts.options) {
+    await realizeMap(fts.options, env);
+    options = env.getLastResult();
+  }
+  env.setLastResult(await resolver.fullTextSearch(entryName, moduleName, q, options));
 }
 
 async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {

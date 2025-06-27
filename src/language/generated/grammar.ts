@@ -2593,6 +2593,19 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             }
           },
           {
+            "$type": "Assignment",
+            "feature": "options",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@28"
+              },
+              "arguments": []
+            },
+            "cardinality": "?"
+          },
+          {
             "$type": "Keyword",
             "value": "}"
           }
