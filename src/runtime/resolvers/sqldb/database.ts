@@ -195,16 +195,17 @@ export async function addRowForFullTextSearch(
   vect: number[],
   ctx: DbContext
 ) {
-  const vecTableName = tableName + VectorSuffix;
-  const qb = getDatasourceForTransaction(ctx.txnId).createQueryBuilder();
-  await qb
-    .insert()
-    .into(vecTableName)
-    .values([{ id: id, embedding: pgvector.toSql(vect) }])
-    .execute()
-    .catch((err: any) => {
-      logger.error(`Failed to add row to vector store - ${err}`);
-    });
+  try {
+    const vecTableName = tableName + VectorSuffix;
+    const qb = getDatasourceForTransaction(ctx.txnId).createQueryBuilder();
+    await qb
+      .insert()
+      .into(vecTableName)
+      .values([{ id: id, embedding: pgvector.toSql(vect) }])
+      .execute();
+  } catch (err: any) {
+    logger.error(`Failed to add row to vector store - ${err}`);
+  }
 }
 
 export async function initVectorStore(tableNames: string[], ctx: DbContext) {
@@ -213,10 +214,12 @@ export async function initVectorStore(tableNames: string[], ctx: DbContext) {
     const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
     if (notInited) {
       let failure = false;
-      await vecRepo.query('CREATE EXTENSION IF NOT EXISTS vector').catch((err: any) => {
+      try {
+        await vecRepo.query('CREATE EXTENSION IF NOT EXISTS vector');
+      } catch (err: any) {
         logger.error(`Failed to initialize vector store - ${err}`);
         failure = true;
-      });
+      }
       if (failure) return;
       notInited = false;
     }
@@ -236,15 +239,42 @@ export async function vectorStoreSearch(
   limit: number,
   ctx: DbContext
 ): Promise<any> {
-  const vecTableName = tableName + VectorSuffix;
-  const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
-  return await qb
-    .query(`select id from ${vecTableName} order by embedding <-> $1 LIMIT ${limit}`, [
-      pgvector.toSql(searchVec),
-    ])
-    .catch((err: any) => {
-      logger.error(`Vector store search failed - ${err}`);
-    });
+  try {
+    const vecTableName = tableName + VectorSuffix;
+    const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
+    return await qb.query(
+      `select id from ${vecTableName} order by embedding <-> $1 LIMIT ${limit}`,
+      [pgvector.toSql(searchVec)]
+    );
+  } catch (err: any) {
+    logger.error(`Vector store search failed - ${err}`);
+  }
+}
+
+export async function vectorStoreSearchEntryExists(
+  tableName: string,
+  id: string,
+  ctx: DbContext
+): Promise<boolean> {
+  try {
+    const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
+    const vecTableName = tableName + VectorSuffix;
+    const result: any[] = await qb.query(`select id from ${vecTableName} where id = $1`, [id]);
+    return result != null && result.length > 0;
+  } catch (err: any) {
+    logger.error(`Vector store search failed - ${err}`);
+  }
+  return false;
+}
+
+export async function deleteFullTextSearchEntry(tableName: string, id: string, ctx: DbContext) {
+  try {
+    const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
+    const vecTableName = tableName + VectorSuffix;
+    await qb.query(`delete from ${vecTableName} where id = $1`, [id]);
+  } catch (err: any) {
+    logger.error(`Vector store delete failed - ${err}`);
+  }
 }
 
 async function checkUserPerm(
@@ -408,12 +438,11 @@ async function isOwner(parentName: string, instPath: string, ctx: DbContext): Pr
     .select()
     .from(tabName, alias)
     .where(query.join(' AND '));
-  await sq
-    .getRawMany()
-    .then((r: any) => (result = r))
-    .catch((reason: any) => {
-      logger.error(`Failed to check ownership on parent ${parentName} - ${reason}`);
-    });
+  try {
+    await sq.getRawMany().then((r: any) => (result = r));
+  } catch (reason: any) {
+    logger.error(`Failed to check ownership on parent ${parentName} - ${reason}`);
+  }
   if (result == undefined || result.length == 0) {
     return false;
   }
@@ -631,7 +660,6 @@ async function endTransaction(txnId: string, commit: boolean): Promise<void> {
     try {
       if (commit)
         await qr.commitTransaction().catch((reason: any) => {
-          console.log(reason.type);
           logger.error(`failed to commit transaction ${txnId} - ${reason}`);
         });
       else

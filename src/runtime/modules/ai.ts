@@ -136,7 +136,6 @@ export class Agent {
         }
       }
     }
-    console.log(message);
     return message;
   }
 
