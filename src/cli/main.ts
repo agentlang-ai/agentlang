@@ -20,8 +20,9 @@ import { logger } from '../runtime/logger.js';
 import { runInitFunctions } from '../runtime/util.js';
 import { Module } from '../runtime/module.js';
 import { ModuleDefinition } from '../language/generated/ast.js';
-import { z } from 'zod';
 import { loadConfig } from 'c12';
+import { generateSwaggerDoc } from './docs.js';
+import { z } from 'zod';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -132,6 +133,12 @@ export default function (): void {
     .description('Parses and validates an Agentlang module')
     .action(parseAndValidate);
 
+  program
+    .command('doc')
+    .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+    .description('Generate swagger documentation')
+    .action(generateDoc);
+  
   program.parse(process.argv);
 }
 
@@ -207,6 +214,16 @@ export const runModule = async (fileName: string, options?: { config?: string })
   }
   await load(fileName, undefined, async (appSpec?: ApplicationSpec) => {
     await runPostInitTasks(appSpec, config);
+  });
+};
+
+export const generateDoc = async (fileName: string): Promise<void> => {
+  const r: boolean = await runPreInitTasks();
+  if (!r) {
+    throw new Error('Failed to initialize runtime');
+  }
+  await load(fileName, undefined, async (appSpec?: ApplicationSpec) => {
+    await generateSwaggerDoc(fileName);
   });
 };
 
