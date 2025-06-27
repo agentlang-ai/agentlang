@@ -30,6 +30,8 @@ import {
   insertBetweenRow,
   addRowForFullTextSearch,
   vectorStoreSearch,
+  vectorStoreSearchEntryExists,
+  deleteFullTextSearchEntry,
 } from './database.js';
 import { Environment } from '../../interpreter.js';
 import { OpenAIEmbeddings } from '@langchain/openai';
@@ -100,8 +102,11 @@ export class SqlDbResolver extends Resolver {
       const ctx = this.getDbContext(inst.getFqName());
       await insertRow(n, rowObj, ctx, orUpdate);
       if (inst.record.getFullTextSearchAttributes()) {
-        const res = await this.embeddings.embedQuery(JSON.stringify(rowObj));
-        await addRowForFullTextSearch(n, attrs.get(PathAttributeName), res, ctx);
+        const path = attrs.get(PathAttributeName);
+        if (!(await vectorStoreSearchEntryExists(n, path, ctx))) {
+          const res = await this.embeddings.embedQuery(JSON.stringify(rowObj));
+          await addRowForFullTextSearch(n, path, res, ctx);
+        }
       }
       return inst;
     }
@@ -246,6 +251,9 @@ export class SqlDbResolver extends Resolver {
         SqlDbResolver.MarkDeletedObject,
         ctx
       );
+    }
+    if (target.record.getFullTextSearchAttributes()) {
+      await deleteFullTextSearchEntry(tableName, target.lookup(PathAttributeName), ctx);
     }
   }
 
