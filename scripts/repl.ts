@@ -22,7 +22,7 @@ interface CommandResult {
 // Parse command line arguments
 const args = parseArgs(Deno.args, {
   string: ['app', 'module'],
-  boolean: ['watch', 'langium', 'help'],
+  boolean: ['watch', 'langium', 'help', 'no-watch'],
   alias: {
     w: 'watch',
     l: 'langium',
@@ -35,6 +35,11 @@ const args = parseArgs(Deno.args, {
     module: '',
   },
 });
+
+// Handle --no-watch flag to disable watch mode
+if (args['no-watch']) {
+  args.watch = false;
+}
 
 // Track current processes
 let _cliProcess: Deno.ChildProcess | null = null;
