@@ -23,6 +23,8 @@ import { buildGraph } from '../../relgraph.js';
 import { DeletedFlagAttributeName, PathAttributeName } from './database.js';
 import { makeFqName } from '../../util.js';
 
+export const DefaultVectorDimension = 1536
+
 export type TableSchema = {
   name: string;
   columns: TableSpec;
@@ -160,7 +162,7 @@ function createOwnersEntity(entry: Record): Record {
 function createVectorEntity(entry: Record): Record {
   const ownersEntry = new Record(`${entry.name}${VectorSuffix}`, entry.moduleName)
   return ownersEntry.addAttribute('id', { type: 'String', properties: new Map().set('id', true) })
-    .addAttribute('embedding', { type: 'vector(3)' })
+    .addAttribute('embedding', { type: `vector(${DefaultVectorDimension})` })
 }
 
 export type TableSpec = {

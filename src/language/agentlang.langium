@@ -68,7 +68,7 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 
 WorkflowDefinition: 'workflow' name=ID Body;
 
-Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | upsert=Upsert;
+Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | upsert=Upsert | fullTextSearch=FullTextSearch;
 
 Statement: pattern=Pattern ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*)+ ']'))? throws=Throws?;
 
@@ -76,6 +76,8 @@ CrudMap: QueryAllPattern | '{' name=ID '{' (attributes+=SetAttribute (',' attrib
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';
 
 QueryAllPattern: '{' name=QueryId '{''}' (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';
+
+FullTextSearch: '{' name=QueryId query=Literal '}';
 
 RelationshipPattern: name=ID pattern=Pattern;
 

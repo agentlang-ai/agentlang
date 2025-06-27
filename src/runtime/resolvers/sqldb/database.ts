@@ -1,6 +1,11 @@
 import { DataSource, EntityManager, EntitySchema, QueryRunner, SelectQueryBuilder } from 'typeorm';
 import { logger } from '../../logger.js';
-import { modulesAsOrmSchema, OwnersSuffix, VectorSuffix } from './dbutil.js';
+import {
+  DefaultVectorDimension,
+  modulesAsOrmSchema,
+  OwnersSuffix,
+  VectorSuffix,
+} from './dbutil.js';
 import { DefaultAuthInfo, ResolverAuthInfo } from '../interface.js';
 import {
   canUserCreate,
@@ -183,14 +188,22 @@ async function insertRowsHelper(
   else await repo.insert(rows);
 }
 
-export async function addRowForFullTextSearch(tableName: string, vect: number[], ctx: DbContext) {
+export async function addRowForFullTextSearch(
+  tableName: string,
+  id: string,
+  vect: number[],
+  ctx: DbContext
+) {
   const vecTableName = tableName + VectorSuffix;
   const qb = getDatasourceForTransaction(ctx.txnId).createQueryBuilder();
   await qb
     .insert()
     .into(vecTableName)
-    .values([{ id: crypto.randomUUID(), embedding: pgvector.toSql(vect) }])
-    .execute();
+    .values([{ id: id, embedding: pgvector.toSql(vect) }])
+    .execute()
+    .catch((err: any) => {
+      logger.error(`Failed to add row to vector store - ${err}`);
+    });
 }
 
 export async function initVectorStore(tableNames: string[], ctx: DbContext) {
@@ -198,16 +211,25 @@ export async function initVectorStore(tableNames: string[], ctx: DbContext) {
   tableNames.forEach(async (vecTableName: string) => {
     const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
     if (notInited) {
-      await vecRepo.query('CREATE EXTENSION IF NOT EXISTS vector');
+      let failure = false;
+      await vecRepo.query('CREATE EXTENSION IF NOT EXISTS vector').catch((err: any) => {
+        logger.error(`Failed to initialize vector store - ${err}`);
+        failure = true;
+      });
+      if (failure) return;
       notInited = false;
     }
     await vecRepo.query(
-      `CREATE TABLE IF NOT EXISTS ${vecTableName} (id UUID PRIMARY KEY, embedding vector(1536), __is_deleted__ boolean default false)`
+      `CREATE TABLE IF NOT EXISTS ${vecTableName} (
+          id varchar PRIMARY KEY,
+          embedding vector(${DefaultVectorDimension}),
+          __is_deleted__ boolean default false
+        )`
     );
   });
 }
 
-export async function fullTextSearch(
+export async function vectorStoreSearch(
   tableName: string,
   searchVec: number[],
   limit: number,
@@ -215,9 +237,13 @@ export async function fullTextSearch(
 ): Promise<any> {
   const vecTableName = tableName + VectorSuffix;
   const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
-  return await qb.query(`select * from ${vecTableName} order by embedding <-> $1 LIMIT ${limit}`, [
-    pgvector.toSql(searchVec),
-  ]);
+  return await qb
+    .query(`select id from ${vecTableName} order by embedding <-> $1 LIMIT ${limit}`, [
+      pgvector.toSql(searchVec),
+    ])
+    .catch((err: any) => {
+      logger.error(`Vector store search failed - ${err}`);
+    });
 }
 
 async function checkUserPerm(

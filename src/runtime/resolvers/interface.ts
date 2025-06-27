@@ -122,6 +122,10 @@ export class Resolver {
     );
   }
 
+  public async fullTextSearch(entryName: string, moduleName: string, query: string): Promise<any> {
+    return this.notImpl(`fullTextSearch(${entryName}, ${moduleName}, ${query})`);
+  }
+
   // Return a transactionId
   public async startTransaction(): Promise<any> {
     return this.notImpl('startTransaction()');

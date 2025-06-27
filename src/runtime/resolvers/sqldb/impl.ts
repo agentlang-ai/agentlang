@@ -12,7 +12,7 @@ import {
   newInstanceAttributes,
   Relationship,
 } from '../../module.js';
-import { escapeFqName } from '../../util.js';
+import { escapeFqName, makeFqName } from '../../util.js';
 import { Resolver } from '../interface.js';
 import { asTableName } from './dbutil.js';
 import {
@@ -29,6 +29,7 @@ import {
   DbContext,
   insertBetweenRow,
   addRowForFullTextSearch,
+  vectorStoreSearch,
 } from './database.js';
 import { Environment } from '../../interpreter.js';
 import { OpenAIEmbeddings } from '@langchain/openai';
@@ -100,7 +101,7 @@ export class SqlDbResolver extends Resolver {
       await insertRow(n, rowObj, ctx, orUpdate);
       if (inst.record.getFullTextSearchAttributes()) {
         const res = await this.embeddings.embedQuery(JSON.stringify(rowObj));
-        await addRowForFullTextSearch(n, res, ctx);
+        await addRowForFullTextSearch(n, attrs.get(PathAttributeName), res, ctx);
       }
       return inst;
     }
@@ -306,6 +307,21 @@ export class SqlDbResolver extends Resolver {
         this.getDbContext(relEntry.getFqName())
       );
     }
+  }
+
+  public override async fullTextSearch(
+    entryName: string,
+    moduleName: string,
+    query: string,
+    options?: Map<string, any>
+  ): Promise<any> {
+    const queryVec = await this.embeddings.embedQuery(query);
+    const ctx = this.getDbContext(makeFqName(moduleName, entryName));
+    let limit = 5;
+    if (options && options.has('limit')) {
+      limit = options.get('limit') as number;
+    }
+    return await vectorStoreSearch(asTableName(moduleName, entryName), queryVec, limit, ctx);
   }
 
   public override async startTransaction(): Promise<string> {

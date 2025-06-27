@@ -318,6 +318,19 @@ export function isForEach(item: unknown): item is ForEach {
     return reflection.isInstance(item, ForEach);
 }
 
+export interface FullTextSearch extends langium.AstNode {
+    readonly $container: Pattern;
+    readonly $type: 'FullTextSearch';
+    name: QueryId;
+    query: Literal;
+}
+
+export const FullTextSearch = 'FullTextSearch';
+
+export function isFullTextSearch(item: unknown): item is FullTextSearch {
+    return reflection.isInstance(item, FullTextSearch);
+}
+
 export interface Group extends langium.AstNode {
     readonly $container: BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
     readonly $type: 'Group';
@@ -383,7 +396,7 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: BinExpr | FnCall | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: BinExpr | FnCall | FullTextSearch | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
@@ -507,6 +520,7 @@ export interface Pattern extends langium.AstNode {
     crudMap?: CrudMap;
     delete?: Delete;
     forEach?: ForEach;
+    fullTextSearch?: FullTextSearch;
     if?: If;
     literal?: Literal;
     purge?: Purge;
@@ -807,6 +821,7 @@ export type AgentlangAstType = {
     ExtendsClause: ExtendsClause
     FnCall: FnCall
     ForEach: ForEach
+    FullTextSearch: FullTextSearch
     Group: Group
     Handler: Handler
     If: If
@@ -851,7 +866,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordSchemaDefintion, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDefinition, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
+        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordSchemaDefintion, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDefinition, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1015,6 +1030,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case FullTextSearch: {
+                return {
+                    name: FullTextSearch,
+                    properties: [
+                        { name: 'name' },
+                        { name: 'query' }
+                    ]
+                };
+            }
             case Group: {
                 return {
                     name: Group,
@@ -1150,6 +1174,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'crudMap' },
                         { name: 'delete' },
                         { name: 'forEach' },
+                        { name: 'fullTextSearch' },
                         { name: 'if' },
                         { name: 'literal' },
                         { name: 'purge' },

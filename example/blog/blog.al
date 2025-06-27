@@ -88,5 +88,9 @@ workflow UpdateUserName {
     {User {id? UpdateUserName.userId, name UpdateUserName.newName}}
 }
 
+workflow SearchUser {
+    {User? SearchUser.q}
+}
+
 //upsert {agentlang_auth/User {email "abc@cc.com", firstName "A", lastName "BC"}}
 //{agentlang_auth/AssignUserToRoleByEmail {email "abc@cc.com", roleName "manager"}}
