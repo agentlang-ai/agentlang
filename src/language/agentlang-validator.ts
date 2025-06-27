@@ -1,9 +1,10 @@
 import type { ValidationAcceptor, ValidationChecks } from 'langium';
 import {
   AgentlangAstType,
+  AttributeDefinition,
   isStandaloneStatement,
   ModuleDefinition,
-  SchemaDef,
+  SchemaDefinition,
 } from './generated/ast.js';
 import type { AgentlangServices } from './agentlang-module.js';
 
@@ -15,7 +16,7 @@ export function registerValidationChecks(services: AgentlangServices) {
   const validator = services.validation.AgentlangValidator;
   const checks: ValidationChecks<AgentlangAstType> = {
     ModuleDefinition: validator.checkUniqueDefs,
-    SchemaDef: validator.checkUniqueAttributes,
+    SchemaDefinition: validator.checkUniqueAttributes,
   };
   registry.register(checks, validator);
 }
@@ -42,11 +43,11 @@ export class AgentlangValidator {
     });
   }
 
-  checkUniqueAttributes(def: SchemaDef, accept: ValidationAcceptor): void {
+  checkUniqueAttributes(def: SchemaDefinition, accept: ValidationAcceptor): void {
     // create a set of visited functions
     // and report an error when we see one we've already seen
     const reported = new Set();
-    def.schema.attributes.forEach(a => {
+    def.schema.attributes.forEach((a: AttributeDefinition) => {
       if (reported.has(a.name)) {
         accept('error', `'${def.name} " - attribute has non-unique name '${a.name}'.`, {
           node: a,

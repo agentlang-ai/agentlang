@@ -15,7 +15,8 @@ entity User {
     id UUID @id @default(uuid()),
     name String @indexed,
     @rbac [(roles: [manager], allow: [create]),
-           (allow: [read], where: auth.user = this.id)]
+           (allow: [read], where: auth.user = this.id)],
+    @meta #{"fullTextSearch": "*"}
 }
 
 relationship UserProfile between (Blog/User, Blog/Profile) @one_one
@@ -85,6 +86,10 @@ workflow FindUserProfile {
 
 workflow UpdateUserName {
     {User {id? UpdateUserName.userId, name UpdateUserName.newName}}
+}
+
+workflow SearchUser {
+    {User? SearchUser.q}
 }
 
 //upsert {agentlang_auth/User {email "abc@cc.com", firstName "A", lastName "BC"}}

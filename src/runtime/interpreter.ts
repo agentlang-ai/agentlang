@@ -5,6 +5,7 @@ import {
   Expr,
   FnCall,
   ForEach,
+  FullTextSearch,
   If,
   isBinExpr,
   isGroup,
@@ -45,8 +46,10 @@ import { PathAttributeName } from './resolvers/sqldb/database.js';
 import {
   DefaultModuleName,
   escapeFqName,
+  escapeQueryName,
   invokeModuleFn,
   isFqName,
+  isString,
   makeFqName,
   Path,
   QuerySuffix,
@@ -175,7 +178,7 @@ export class Environment extends Instance {
     return this;
   }
 
-  protected getActiveEventInstance(): Instance | undefined {
+  getActiveEventInstance(): Instance | undefined {
     return this.activeEventInstance;
   }
 
@@ -492,21 +495,45 @@ export async function parseAndEvaluateStatement(
 }
 
 async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
-  if (pat.literal != undefined) {
+  if (pat.literal) {
     await evaluateLiteral(pat.literal, env);
-  } else if (pat.crudMap != undefined) {
+  } else if (pat.crudMap) {
     await evaluateCrudMap(pat.crudMap, env);
-  } else if (pat.forEach != undefined) {
+  } else if (pat.forEach) {
     await evaluateForEach(pat.forEach, env);
-  } else if (pat.if != undefined) {
+  } else if (pat.if) {
     await evaluateIf(pat.if, env);
-  } else if (pat.delete != undefined) {
+  } else if (pat.delete) {
     await evaluateDelete(pat.delete, env);
-  } else if (pat.purge != undefined) {
+  } else if (pat.purge) {
     await evaluatePurge(pat.purge, env);
-  } else if (pat.upsert != undefined) {
+  } else if (pat.upsert) {
     await evaluateUpsert(pat.upsert, env);
+  } else if (pat.fullTextSearch) {
+    await evaluateFullTextSearch(pat.fullTextSearch, env);
   }
+}
+
+async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Promise<void> {
+  let n = escapeQueryName(fts.name);
+  if (!isFqName(n)) {
+    const inst: Instance | undefined = env.getActiveEventInstance();
+    if (inst) {
+      n = makeFqName(inst.moduleName, n);
+    } else {
+      throw new Error(`Fully qualified name required for full-text-search in ${n}`);
+    }
+  }
+  const path = splitFqName(n);
+  const entryName = path.getEntryName();
+  const moduleName = path.getModuleName();
+  const resolver = await getResolverForPath(entryName, moduleName, env);
+  await evaluateLiteral(fts.query, env);
+  const q = env.getLastResult();
+  if (!isString(q)) {
+    throw new Error(`Full text search query must be a string - ${q}`);
+  }
+  env.setLastResult(await resolver.fullTextSearch(entryName, moduleName, q));
 }
 
 async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {

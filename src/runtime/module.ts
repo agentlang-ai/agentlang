@@ -9,6 +9,9 @@ import {
   AttributeDefinition,
   PropertyDefinition,
   NodeDefinition,
+  RecordSchemaDefintion,
+  MapEntry,
+  isLiteral,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -102,10 +105,10 @@ export function newRecordSchema(): RecordSchema {
   return new Map<string, AttributeSpec>();
 }
 
-type Meta = Map<string, string>;
+type Meta = Map<string, any>;
 
 export function newMeta(): Meta {
-  return new Map<string, string>();
+  return new Map<string, any>();
 }
 
 export enum RecordType {
@@ -115,16 +118,46 @@ export enum RecordType {
   RELATIONSHIP,
 }
 
+function normalizeMetaValue(metaValue: any): any {
+  if (!isLiteral(metaValue)) {
+    throw new Error(`Invalid entry ${metaValue} in meta specification - expected a literal`);
+  }
+  const v: Literal = metaValue as Literal;
+  if (v.array) {
+    return v.array.vals.map((value: Statement) => {
+      return normalizeMetaValue(value.pattern.literal);
+    });
+  } else if (v.bool != undefined) {
+    return v.bool;
+  } else if (v.id) {
+    return v.id;
+  } else if (v.map) {
+    const result = new Map<string, any>();
+    v.map.entries.forEach((value: MapEntry) => {
+      result.set(value.key, normalizeMetaValue(value.value));
+    });
+    return result;
+  } else if (v.ref) {
+    return v.ref;
+  } else if (v.num) {
+    return v.num;
+  } else if (v.str) {
+    return v.str;
+  } else {
+    throw new Error(`Invalid value ${metaValue} passed to meta specification`);
+  }
+}
+
 export class Record extends ModuleEntry {
   schema: RecordSchema;
-  meta: Meta;
+  meta: Meta | undefined;
   type: RecordType = RecordType.RECORD;
   parentEntryName: string | undefined;
 
   constructor(
     name: string,
     moduleName: string,
-    attributes?: AttributeDefinition[],
+    scm?: RecordSchemaDefintion,
     parentEntryName?: string
   ) {
     super(name, moduleName);
@@ -132,8 +165,10 @@ export class Record extends ModuleEntry {
     this.schema = parentEntryName
       ? cloneParentSchema(parentEntryName, moduleName)
       : newRecordSchema();
+    const attributes: AttributeDefinition[] | undefined = scm ? scm.attributes : undefined;
     if (attributes != undefined) {
       attributes.forEach((a: AttributeDefinition) => {
+        verifyAttribute(a);
         const isArrayType: boolean = a.arrayType ? true : false;
         let t: string | undefined = isArrayType ? a.arrayType : a.type;
         const oneOfValues: string[] | undefined = a.oneOfSpec ? a.oneOfSpec.values : undefined;
@@ -157,15 +192,41 @@ export class Record extends ModuleEntry {
         this.schema.set(a.name, { type: t, properties: props });
       });
     }
-    this.meta = newMeta();
+    if (scm && scm.meta) {
+      scm.meta.spec.entries.forEach((entry: MapEntry) => {
+        this.addMeta(entry.key, normalizeMetaValue(entry.value));
+      });
+    }
   }
 
-  addMeta(k: string, v: string): void {
+  addMeta(k: string, v: any): void {
+    if (!this.meta) {
+      this.meta = newMeta();
+    }
     this.meta.set(k, v);
   }
 
-  getMeta(k: string): string | undefined {
-    return this.meta.get(k);
+  getMeta(k: string): any {
+    if (this.meta) {
+      return this.meta.get(k);
+    } else {
+      return undefined;
+    }
+  }
+
+  getFullTextSearchAttributes(): string[] | undefined {
+    const fts: string[] | string | undefined = this.getMeta('fullTextSearch');
+    if (fts) {
+      if (fts instanceof Array) {
+        return fts as string[];
+      } else if (fts == '*') {
+        return [...this.schema.keys()];
+      } else {
+        return undefined;
+      }
+    } else {
+      return undefined;
+    }
   }
 
   addAttribute(n: string, attrSpec: AttributeSpec): Record {
@@ -241,7 +302,7 @@ export class Record extends ModuleEntry {
   }
 
   override toString(): string {
-    if (this.type == RecordType.EVENT && this.meta.get(SystemDefinedEvent)) {
+    if (this.type == RecordType.EVENT && this.meta && this.meta.get(SystemDefinedEvent)) {
       return '';
     }
     let s: string = `${RecordType[this.type].toLowerCase()} ${this.name}`;
@@ -537,10 +598,10 @@ export class Relationship extends Record {
     node1: RelationshipNode,
     node2: RelationshipNode,
     moduleName: string,
-    attributes?: AttributeDefinition[],
+    scm?: RecordSchemaDefintion,
     props?: Map<string, any>
   ) {
-    super(name, moduleName, attributes);
+    super(name, moduleName, scm);
     if (typ == 'between') this.relType = RelType.BETWEEN;
     this.node1 = node1;
     this.node2 = node2;
@@ -1017,7 +1078,7 @@ export function removeModule(name: string): boolean {
 }
 
 addModule(DefaultModuleName);
-addRecord('env', DefaultModuleName, new Array<AttributeDefinition>());
+addRecord('env', DefaultModuleName);
 
 export function getModuleNames(): string[] {
   const ks: Iterable<string> = moduleDb.keys();
@@ -1209,49 +1270,44 @@ export function getFkSpec(attrSpec: AttributeSpec): string | undefined {
 export function addEntity(
   name: string,
   moduleName = activeModule,
-  attrs?: AttributeDefinition[],
+  scm?: RecordSchemaDefintion,
   ext?: string
 ): Entity {
   const module: Module = fetchModule(moduleName);
+  const attrs: AttributeDefinition[] | undefined = scm ? scm.attributes : undefined;
   if (attrs) attrs.forEach(a => verifyAttribute(a));
-  return module.addEntry(new Entity(name, moduleName, attrs, ext)) as Entity;
+  return module.addEntry(new Entity(name, moduleName, scm, ext)) as Entity;
 }
 
 export function addEvent(
   name: string,
   moduleName = activeModule,
-  attrs?: AttributeDefinition[],
+  scm?: RecordSchemaDefintion,
   ext?: string
 ): Event {
   const module: Module = fetchModule(moduleName);
-  if (attrs) attrs.forEach(a => verifyAttribute(a));
-  return module.addEntry(new Event(name, moduleName, attrs, ext)) as Event;
+  return module.addEntry(new Event(name, moduleName, scm, ext)) as Event;
 }
 
 export function addRecord(
   name: string,
   moduleName = activeModule,
-  attrs?: AttributeDefinition[],
+  scm?: RecordSchemaDefintion,
   ext?: string
 ): Record {
   const module: Module = fetchModule(moduleName);
-  if (attrs) attrs.forEach(a => verifyAttribute(a));
-  return module.addEntry(new Record(name, moduleName, attrs, ext)) as Record;
+  return module.addEntry(new Record(name, moduleName, scm, ext)) as Record;
 }
-
-const DefaultRelAttrbutes: Array<AttributeDefinition> = [];
 
 export function addRelationship(
   name: string,
   type: 'contains' | 'between',
   nodes: RelNodes | RelationshipNode[],
   moduleName = activeModule,
-  attrs?: AttributeDefinition[] | undefined,
-  props?: PropertyDefinition[] | undefined
+  scm?: RecordSchemaDefintion,
+  props?: PropertyDefinition[]
 ): Relationship {
   const module: Module = fetchModule(moduleName);
-  if (attrs != undefined) attrs.forEach(a => verifyAttribute(a));
-  else attrs = DefaultRelAttrbutes;
   let n1: RelationshipNode | undefined;
   let n2: RelationshipNode | undefined;
   if (isRelNodes(nodes)) {
@@ -1264,7 +1320,7 @@ export function addRelationship(
   let propsMap: Map<string, any> | undefined;
   if (props != undefined) propsMap = asPropertiesMap(props);
   return module.addEntry(
-    new Relationship(name, type, n1, n2, moduleName, attrs, propsMap)
+    new Relationship(name, type, n1, n2, moduleName, scm, propsMap)
   ) as Relationship;
 }
 

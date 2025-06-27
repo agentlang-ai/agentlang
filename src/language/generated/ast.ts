@@ -37,6 +37,7 @@ export type AgentlangKeywordNames =
     | ">="
     | "?"
     | "@"
+    | "@meta"
     | "@oneof"
     | "@rbac"
     | "["
@@ -100,7 +101,7 @@ export function isDecimal(item: unknown): item is Decimal {
     return typeof item === 'number';
 }
 
-export type Definition = RelationshipDefinition | SchemaDef | StandaloneStatement | WorkflowDefinition;
+export type Definition = RelationshipDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = 'Definition';
 
@@ -144,12 +145,12 @@ export function isRef(item: unknown): item is Ref {
     return typeof item === 'string';
 }
 
-export type SchemaDef = EntityDefinition | EventDefinition | RecordDefinition;
+export type SchemaDefinition = EntityDefinition | EventDefinition | RecordDefinition;
 
-export const SchemaDef = 'SchemaDef';
+export const SchemaDefinition = 'SchemaDefinition';
 
-export function isSchemaDef(item: unknown): item is SchemaDef {
-    return reflection.isInstance(item, SchemaDef);
+export function isSchemaDefinition(item: unknown): item is SchemaDefinition {
+    return reflection.isInstance(item, SchemaDefinition);
 }
 
 export type TaggedId = string;
@@ -183,7 +184,7 @@ export function isAsyncFnCall(item: unknown): item is AsyncFnCall {
 }
 
 export interface AttributeDefinition extends langium.AstNode {
-    readonly $container: RecAttrs | RelationshipDefinition;
+    readonly $container: RecordSchemaDefintion;
     readonly $type: 'AttributeDefinition';
     arrayType?: string;
     name: string;
@@ -255,7 +256,7 @@ export interface EntityDefinition extends langium.AstNode {
     readonly $type: 'EntityDefinition';
     extends?: ExtendsClause;
     name: string;
-    schema: RecAttrs;
+    schema: RecordSchemaDefintion;
 }
 
 export const EntityDefinition = 'EntityDefinition';
@@ -269,7 +270,7 @@ export interface EventDefinition extends langium.AstNode {
     readonly $type: 'EventDefinition';
     extends?: ExtendsClause;
     name: string;
-    schema: RecAttrs;
+    schema: RecordSchemaDefintion;
 }
 
 export const EventDefinition = 'EventDefinition';
@@ -315,6 +316,19 @@ export const ForEach = 'ForEach';
 
 export function isForEach(item: unknown): item is ForEach {
     return reflection.isInstance(item, ForEach);
+}
+
+export interface FullTextSearch extends langium.AstNode {
+    readonly $container: Pattern;
+    readonly $type: 'FullTextSearch';
+    name: QueryId;
+    query: Literal;
+}
+
+export const FullTextSearch = 'FullTextSearch';
+
+export function isFullTextSearch(item: unknown): item is FullTextSearch {
+    return reflection.isInstance(item, FullTextSearch);
 }
 
 export interface Group extends langium.AstNode {
@@ -382,7 +396,7 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: BinExpr | FnCall | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: BinExpr | FnCall | FullTextSearch | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
@@ -415,7 +429,7 @@ export function isMapEntry(item: unknown): item is MapEntry {
 }
 
 export interface MapLiteral extends langium.AstNode {
-    readonly $container: Literal;
+    readonly $container: Literal | MetaDefinition;
     readonly $type: 'MapLiteral';
     entries: Array<MapEntry>;
 }
@@ -424,6 +438,18 @@ export const MapLiteral = 'MapLiteral';
 
 export function isMapLiteral(item: unknown): item is MapLiteral {
     return reflection.isInstance(item, MapLiteral);
+}
+
+export interface MetaDefinition extends langium.AstNode {
+    readonly $container: RecordSchemaDefintion;
+    readonly $type: 'MetaDefinition';
+    spec: MapLiteral;
+}
+
+export const MetaDefinition = 'MetaDefinition';
+
+export function isMetaDefinition(item: unknown): item is MetaDefinition {
+    return reflection.isInstance(item, MetaDefinition);
 }
 
 export interface ModuleDefinition extends langium.AstNode {
@@ -494,6 +520,7 @@ export interface Pattern extends langium.AstNode {
     crudMap?: CrudMap;
     delete?: Delete;
     forEach?: ForEach;
+    fullTextSearch?: FullTextSearch;
     if?: If;
     literal?: Literal;
     purge?: Purge;
@@ -581,7 +608,7 @@ export function isRbacRolesSpec(item: unknown): item is RbacRolesSpec {
 }
 
 export interface RbacSpecDefinition extends langium.AstNode {
-    readonly $container: RecAttrs;
+    readonly $container: RecordSchemaDefintion;
     readonly $type: 'RbacSpecDefinition';
     specEntries: Array<RbacSpecEntries>;
 }
@@ -618,25 +645,12 @@ export function isRbacSpecEntry(item: unknown): item is RbacSpecEntry {
     return reflection.isInstance(item, RbacSpecEntry);
 }
 
-export interface RecAttrs extends langium.AstNode {
-    readonly $container: EntityDefinition | EventDefinition | RecordDefinition;
-    readonly $type: 'RecAttrs';
-    attributes: Array<AttributeDefinition>;
-    rbacSpec?: RbacSpecDefinition;
-}
-
-export const RecAttrs = 'RecAttrs';
-
-export function isRecAttrs(item: unknown): item is RecAttrs {
-    return reflection.isInstance(item, RecAttrs);
-}
-
 export interface RecordDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'RecordDefinition';
     extends?: ExtendsClause;
     name: string;
-    schema: RecAttrs;
+    schema: RecordSchemaDefintion;
 }
 
 export const RecordDefinition = 'RecordDefinition';
@@ -645,13 +659,27 @@ export function isRecordDefinition(item: unknown): item is RecordDefinition {
     return reflection.isInstance(item, RecordDefinition);
 }
 
+export interface RecordSchemaDefintion extends langium.AstNode {
+    readonly $container: EntityDefinition | EventDefinition | RecordDefinition | RelationshipDefinition;
+    readonly $type: 'RecordSchemaDefintion';
+    attributes: Array<AttributeDefinition>;
+    meta?: MetaDefinition;
+    rbacSpec?: RbacSpecDefinition;
+}
+
+export const RecordSchemaDefintion = 'RecordSchemaDefintion';
+
+export function isRecordSchemaDefintion(item: unknown): item is RecordSchemaDefintion {
+    return reflection.isInstance(item, RecordSchemaDefintion);
+}
+
 export interface RelationshipDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'RelationshipDefinition';
-    attributes: Array<AttributeDefinition>;
     name: string;
     nodes: RelNodes;
     properties: Array<PropertyDefinition>;
+    schema?: RecordSchemaDefintion;
     type: 'between' | 'contains';
 }
 
@@ -793,6 +821,7 @@ export type AgentlangAstType = {
     ExtendsClause: ExtendsClause
     FnCall: FnCall
     ForEach: ForEach
+    FullTextSearch: FullTextSearch
     Group: Group
     Handler: Handler
     If: If
@@ -802,6 +831,7 @@ export type AgentlangAstType = {
     Literal: Literal
     MapEntry: MapEntry
     MapLiteral: MapLiteral
+    MetaDefinition: MetaDefinition
     ModuleDefinition: ModuleDefinition
     NegExpr: NegExpr
     NodeDefinition: NodeDefinition
@@ -819,12 +849,12 @@ export type AgentlangAstType = {
     RbacSpecDefinition: RbacSpecDefinition
     RbacSpecEntries: RbacSpecEntries
     RbacSpecEntry: RbacSpecEntry
-    RecAttrs: RecAttrs
     RecordDefinition: RecordDefinition
+    RecordSchemaDefintion: RecordSchemaDefintion
     RelNodes: RelNodes
     RelationshipDefinition: RelationshipDefinition
     RelationshipPattern: RelationshipPattern
-    SchemaDef: SchemaDef
+    SchemaDefinition: SchemaDefinition
     SetAttribute: SetAttribute
     StandaloneStatement: StandaloneStatement
     Statement: Statement
@@ -836,7 +866,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecAttrs, RecordDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDef, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
+        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordSchemaDefintion, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDefinition, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -848,7 +878,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case EntityDefinition:
             case EventDefinition:
             case RecordDefinition: {
-                return this.isSubtype(SchemaDef, supertype);
+                return this.isSubtype(SchemaDefinition, supertype);
             }
             case Expr: {
                 return this.isSubtype(AttributeValueExpression, supertype);
@@ -863,7 +893,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return this.isSubtype(CrudMap, supertype);
             }
             case RelationshipDefinition:
-            case SchemaDef:
+            case SchemaDefinition:
             case StandaloneStatement:
             case WorkflowDefinition: {
                 return this.isSubtype(Definition, supertype);
@@ -1000,6 +1030,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case FullTextSearch: {
+                return {
+                    name: FullTextSearch,
+                    properties: [
+                        { name: 'name' },
+                        { name: 'query' }
+                    ]
+                };
+            }
             case Group: {
                 return {
                     name: Group,
@@ -1077,6 +1116,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case MetaDefinition: {
+                return {
+                    name: MetaDefinition,
+                    properties: [
+                        { name: 'spec' }
+                    ]
+                };
+            }
             case ModuleDefinition: {
                 return {
                     name: ModuleDefinition,
@@ -1127,6 +1174,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'crudMap' },
                         { name: 'delete' },
                         { name: 'forEach' },
+                        { name: 'fullTextSearch' },
                         { name: 'if' },
                         { name: 'literal' },
                         { name: 'purge' },
@@ -1210,15 +1258,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
-            case RecAttrs: {
-                return {
-                    name: RecAttrs,
-                    properties: [
-                        { name: 'attributes', defaultValue: [] },
-                        { name: 'rbacSpec' }
-                    ]
-                };
-            }
             case RecordDefinition: {
                 return {
                     name: RecordDefinition,
@@ -1229,14 +1268,24 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case RecordSchemaDefintion: {
+                return {
+                    name: RecordSchemaDefintion,
+                    properties: [
+                        { name: 'attributes', defaultValue: [] },
+                        { name: 'meta' },
+                        { name: 'rbacSpec' }
+                    ]
+                };
+            }
             case RelationshipDefinition: {
                 return {
                     name: RelationshipDefinition,
                     properties: [
-                        { name: 'attributes', defaultValue: [] },
                         { name: 'name' },
                         { name: 'nodes' },
                         { name: 'properties', defaultValue: [] },
+                        { name: 'schema' },
                         { name: 'type' }
                     ]
                 };

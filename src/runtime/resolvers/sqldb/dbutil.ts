@@ -23,6 +23,8 @@ import { buildGraph } from '../../relgraph.js';
 import { DeletedFlagAttributeName, PathAttributeName } from './database.js';
 import { makeFqName } from '../../util.js';
 
+export const DefaultVectorDimension = 1536
+
 export type TableSchema = {
   name: string;
   columns: TableSpec;
@@ -53,20 +55,30 @@ export function modulesAsDbSchema(): TableSchema[] {
   return result;
 }
 
-export function modulesAsOrmSchema(): EntitySchema[] {
-  const result: EntitySchema[] = new Array<EntitySchema>();
+export type OrmSchema = {
+  entities: EntitySchema[],
+  vectorEntities: EntitySchema[]
+}
+
+export function modulesAsOrmSchema(): OrmSchema {
+  const ents: EntitySchema[] = [];
+  const vects: EntitySchema[] = []
   getModuleNames().forEach((n: string) => {
     buildGraph(n);
     const mod: Module = fetchModule(n);
     const entities: Record[] = mod.getEntityEntries()
     const rels: Record[] = mod.getBetweenRelationshipEntriesThatNeedStore();
     entities.concat(rels).forEach((entry: Record) => {
-      result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, entry)))
+      ents.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, entry)))
       const ownerEntry = createOwnersEntity(entry)
-      result.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, ownerEntry, true)))
+      ents.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, ownerEntry, true)))
+      if (entry.getFullTextSearchAttributes()) {
+        const vectorEntry = createVectorEntity(entry)
+        vects.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, vectorEntry, true)))
+      }
     })
   })
-  return result
+  return {entities: ents, vectorEntities: vects}
 }
 
 function ormSchemaFromRecordSchema(moduleName: string, entry: Record, hasOwnPk?: boolean): EntitySchemaOptions<any> {
@@ -131,8 +143,11 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: Record, hasOwnPk?:
   return result
 }
 
+export const OwnersSuffix = '_owners'
+export const VectorSuffix = '_vector'
+
 function createOwnersEntity(entry: Record): Record {
-  const ownersEntry = new Record(`${entry.name}_owners`, entry.moduleName)
+  const ownersEntry = new Record(`${entry.name}${OwnersSuffix}`, entry.moduleName)
   const permProps = new Map().set('default', true)
   return ownersEntry.addAttribute('id', { type: 'UUID', properties: new Map().set('id', true) })
     .addAttribute('user_id', { type: 'String' })
@@ -142,6 +157,12 @@ function createOwnersEntity(entry: Record): Record {
     .addAttribute('u', { type: 'Boolean', properties: permProps })
     .addAttribute('d', { type: 'Boolean', properties: permProps })
     .addAttribute('path', { type: 'String', properties: new Map().set('indexed', true) })
+}
+
+function createVectorEntity(entry: Record): Record {
+  const ownersEntry = new Record(`${entry.name}${VectorSuffix}`, entry.moduleName)
+  return ownersEntry.addAttribute('id', { type: 'String', properties: new Map().set('id', true) })
+    .addAttribute('embedding', { type: `vector(${DefaultVectorDimension})` })
 }
 
 export type TableSpec = {
