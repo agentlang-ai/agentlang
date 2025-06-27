@@ -9,7 +9,7 @@ import {
   AttributeDefinition,
   PropertyDefinition,
   NodeDefinition,
-  RecordSchemaDefintion,
+  RecordSchemaDefinition,
   MapEntry,
   isLiteral,
 } from '../language/generated/ast.js';
@@ -157,7 +157,7 @@ export class Record extends ModuleEntry {
   constructor(
     name: string,
     moduleName: string,
-    scm?: RecordSchemaDefintion,
+    scm?: RecordSchemaDefinition,
     parentEntryName?: string
   ) {
     super(name, moduleName);
@@ -598,7 +598,7 @@ export class Relationship extends Record {
     node1: RelationshipNode,
     node2: RelationshipNode,
     moduleName: string,
-    scm?: RecordSchemaDefintion,
+    scm?: RecordSchemaDefinition,
     props?: Map<string, any>
   ) {
     super(name, moduleName, scm);
@@ -1270,7 +1270,7 @@ export function getFkSpec(attrSpec: AttributeSpec): string | undefined {
 export function addEntity(
   name: string,
   moduleName = activeModule,
-  scm?: RecordSchemaDefintion,
+  scm?: RecordSchemaDefinition,
   ext?: string
 ): Entity {
   const module: Module = fetchModule(moduleName);
@@ -1282,7 +1282,7 @@ export function addEntity(
 export function addEvent(
   name: string,
   moduleName = activeModule,
-  scm?: RecordSchemaDefintion,
+  scm?: RecordSchemaDefinition,
   ext?: string
 ): Event {
   const module: Module = fetchModule(moduleName);
@@ -1292,7 +1292,7 @@ export function addEvent(
 export function addRecord(
   name: string,
   moduleName = activeModule,
-  scm?: RecordSchemaDefintion,
+  scm?: RecordSchemaDefinition,
   ext?: string
 ): Record {
   const module: Module = fetchModule(moduleName);
@@ -1304,7 +1304,7 @@ export function addRelationship(
   type: 'contains' | 'between',
   nodes: RelNodes | RelationshipNode[],
   moduleName = activeModule,
-  scm?: RecordSchemaDefintion,
+  scm?: RecordSchemaDefinition,
   props?: PropertyDefinition[]
 ): Relationship {
   const module: Module = fetchModule(moduleName);

@@ -15,9 +15,9 @@ PropertyDefinition: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 KvPair: value=Literal | key=ID ':' value=Literal;
 KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 
-RecordSchemaDefintion: '{''}' | '{' (attributes+=AttributeDefinition (',' attributes+=AttributeDefinition)*)+
+RecordSchemaDefinition: '{''}' | '{' (attributes+=AttributeDefinition (',' attributes+=AttributeDefinition)*)+
           (',' rbacSpec=RbacSpecDefinition?)? (',' meta=MetaDefinition?)? '}'?;
-fragment RecDef: name=ID extends=ExtendsClause? schema=RecordSchemaDefintion;
+fragment RecDef: name=ID extends=ExtendsClause? schema=RecordSchemaDefinition;
 
 EntityDefinition: 'entity' RecDef;
 EventDefinition: 'event' RecDef;
@@ -26,7 +26,7 @@ RecordDefinition: 'record' RecDef;
 ExtendsClause: 'extends' parentName=ID;
 
 RelationshipDefinition: 'relationship' name=ID type=('contains' | 'between') nodes=RelNodes properties+=PropertyDefinition*
-(schema=RecordSchemaDefintion)?;
+(schema=RecordSchemaDefinition)?;
 
 NodeDefinition: name=ID | name=ID 'as' alias=ID;
 

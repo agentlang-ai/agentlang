@@ -403,7 +403,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     },
     {
       "$type": "ParserRule",
-      "name": "RecordSchemaDefintion",
+      "name": "RecordSchemaDefinition",
       "definition": {
         "$type": "Alternatives",
         "elements": [
