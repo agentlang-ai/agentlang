@@ -23,11 +23,13 @@ import {
   Relationship,
 } from '../../module.js';
 import pgvector from 'pgvector';
+import { isString } from '../../util.js';
 
 export let defaultDataSource: DataSource | undefined;
 
 export const PathAttributeName: string = '__path__';
 export const PathAttributeNameQuery: string = '__path__?';
+export const ParentAttributeName: string = '__parent__';
 export const DeletedFlagAttributeName: string = '__is_deleted__';
 
 export class DbContext {
@@ -109,6 +111,27 @@ export class DbContext {
     return this.inKernelMode;
   }
 }
+
+export type JoinOn = {
+  attributeName: string;
+  operator: string;
+  attributeValue: any;
+};
+
+export function makeJoinOn(attrName: string, attrValue: any, opr: string = '='): JoinOn {
+  return {
+    attributeName: attrName,
+    attributeValue: attrValue,
+    operator: opr,
+  };
+}
+
+export type JoinClause = {
+  tableName: string;
+  queryObject?: object;
+  queryValues?: object;
+  joinOn: JoinOn | JoinOn[];
+};
 
 function mkDbName(): string {
   return process.env.AGENTLANG_DB_NAME || `db-${Date.now()}`;
@@ -509,11 +532,26 @@ function objectToWhereClause(queryObj: object, tableName?: string): string {
   return clauses.join(' AND ');
 }
 
+function objectToRawWhereClause(queryObj: object, queryVals: any, tableName?: string): string {
+  const clauses: Array<string> = new Array<string>();
+  Object.entries(queryObj).forEach((value: [string, any]) => {
+    const op: string = value[1] as string;
+    const k: string = value[0];
+    const ov: any = queryVals[k];
+    const v = isString(ov) ? `'${ov}'` : ov;
+    clauses.push(tableName ? `${tableName}.${k} ${op} ${v}` : `${k} ${op} ${v}`);
+  });
+  if (clauses.length > 0) {
+    return clauses.join(' AND ');
+  } else {
+    return '';
+  }
+}
+
 export async function getMany(
   tableName: string,
   queryObj: object | undefined,
   queryVals: object | undefined,
-  colNamesToSelect: string[],
   ctx: DbContext
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
@@ -552,11 +590,6 @@ export async function getMany(
       }
     }
   }
-  const selCols = new Array<string>();
-  colNamesToSelect.forEach((s: string) => {
-    selCols.push(`${alias}.${s}`);
-  });
-  selCols.push(`${alias}.${PathAttributeName}`);
 
   const qb: SelectQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
     .getRepository(tableName)
@@ -566,6 +599,73 @@ export async function getMany(
   }
   qb.where(queryStr, queryVals);
   return await qb.getMany();
+}
+
+export async function getManyByJoin(
+  tableName: string,
+  queryObj: object | undefined,
+  queryVals: object | undefined,
+  joinClauses: JoinClause[],
+  intoSpec: Map<string, string>,
+  ctx: DbContext
+): Promise<any> {
+  const alias: string = tableName.toLowerCase();
+  const queryStr: string = withNotDeletedClause(
+    alias,
+    queryObj != undefined ? objectToRawWhereClause(queryObj, queryVals, alias) : ''
+  );
+  let ot: string = '';
+  let otAlias: string = '';
+  if (!ctx.isPermitted()) {
+    const userId = ctx.getUserId();
+    const fqName = ctx.resourceFqName;
+    const env: Environment = ctx.activeEnv;
+    const hasGlobalPerms = await canUserRead(userId, fqName, env);
+    if (!hasGlobalPerms) {
+      ot = ownersTable(tableName);
+      otAlias = ot.toLowerCase();
+      joinClauses.push({
+        tableName: otAlias,
+        joinOn: [
+          makeJoinOn(`${otAlias}.path`, `${alias}.${PathAttributeName}`),
+          makeJoinOn(`${otAlias}.user_id`, `'${ctx.authInfo.userId}'`),
+          makeJoinOn(`${otAlias}.r`, true),
+        ],
+      });
+    }
+  }
+  const joinSql = new Array<string>();
+  joinClauses.forEach((jc: JoinClause) => {
+    joinSql.push(
+      `inner join ${jc.tableName} as ${jc.tableName} on ${joinOnAsSql(jc.joinOn)} AND ${jc.tableName}.${DeletedFlagAttributeName} = false`
+    );
+    if (jc.queryObject) {
+      const q = objectToRawWhereClause(jc.queryObject, jc.queryValues, jc.tableName);
+      if (q.length > 0) {
+        joinSql.push(` AND ${q}`);
+      }
+    }
+  });
+  const sql = `SELECT ${intoSpecToSql(intoSpec)} FROM ${tableName} ${joinSql.join('\n')} WHERE ${queryStr}`;
+  logger.debug(`Join Query: ${sql}`);
+  const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
+  return await qb.query(sql);
+}
+
+function intoSpecToSql(intoSpec: Map<string, string>): string {
+  const cols = new Array<string>();
+  intoSpec.forEach((v: string, k: string) => {
+    cols.push(`${v} AS ${k}`);
+  });
+  return cols.join(', ');
+}
+
+function joinOnAsSql(joinOn: JoinOn | JoinOn[]): string {
+  if (joinOn instanceof Array) {
+    return joinOn.map(joinOnAsSql).join(' AND ');
+  } else {
+    return `${joinOn.attributeName} ${joinOn.operator} ${joinOn.attributeValue}`;
+  }
 }
 
 function notDeletedClause(alias: string): string {

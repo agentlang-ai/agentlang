@@ -73,9 +73,14 @@ Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=De
 Statement: pattern=Pattern ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*)+ ']'))? throws=Throws?;
 
 CrudMap: QueryAllPattern | '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}'
-             (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';
+             (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? 
+             (',' into=SelectIntoSpec)? '}';
 
 QueryAllPattern: '{' name=QueryId '{''}' (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';
+
+SelectIntoSpec: 'into' '{' entries+=SelectIntoEntry (',' entries+=SelectIntoEntry)* '}';
+
+SelectIntoEntry: alias=ID attribute=Ref;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 

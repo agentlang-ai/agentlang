@@ -17,6 +17,8 @@ import {
   Pattern,
   Purge,
   RelationshipPattern,
+  SelectIntoEntry,
+  SelectIntoSpec,
   SetAttribute,
   Statement,
   Upsert,
@@ -40,9 +42,9 @@ import {
   Relationship,
   Workflow,
 } from './module.js';
-import { Resolver, ResolverAuthInfo } from './resolvers/interface.js';
+import { JoinInfo, Resolver, ResolverAuthInfo } from './resolvers/interface.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
-import { PathAttributeName } from './resolvers/sqldb/database.js';
+import { ParentAttributeName, PathAttributeName } from './resolvers/sqldb/database.js';
 import {
   DefaultModuleName,
   escapeFqName,
@@ -95,6 +97,7 @@ export class Environment extends Instance {
   private activeUserSet: boolean = false;
   private lastResult: Result;
   private parentPath: string | undefined;
+  private normalizedParentPath: string | undefined;
   private betweenRelInfo: BetweenRelInfo | undefined;
   private activeResolvers: Map<string, Resolver>;
   private activeTransactions: Map<string, string>;
@@ -218,6 +221,15 @@ export class Environment extends Instance {
 
   getParentPath(): string | undefined {
     return this.parentPath;
+  }
+
+  setNormalizedParentPath(path: string): Environment {
+    this.normalizedParentPath = path;
+    return this;
+  }
+
+  getNormalizedParentPath(): string | undefined {
+    return this.normalizedParentPath;
   }
 
   setBetweenRelInfo(info: BetweenRelInfo): Environment {
@@ -587,18 +599,20 @@ async function getResolverForPath(
   return res.setAuthInfo(authInfo);
 }
 
-async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
+async function patternToInstance(
+  entryName: string,
+  attributes: SetAttribute[],
+  env: Environment
+): Promise<Instance> {
   const attrs: InstanceAttributes = newInstanceAttributes();
   let qattrs: InstanceAttributes | undefined;
   let qattrVals: InstanceAttributes | undefined;
-  let moduleName: string = env.getActiveModuleName();
-  let entryName: string = crud.name;
   const isQueryAll: boolean = entryName.endsWith(QuerySuffix);
   if (isQueryAll) {
     entryName = entryName.slice(0, entryName.length - 1);
   }
-  for (let i = 0; i < crud.attributes.length; ++i) {
-    const a: SetAttribute = crud.attributes[i];
+  for (let i = 0; i < attributes.length; ++i) {
+    const a: SetAttribute = attributes[i];
     await evaluateExpression(a.value, env);
     const v: Result = env.getLastResult();
     let aname: string = a.name;
@@ -615,16 +629,41 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       attrs.set(aname, v);
     }
   }
+  let moduleName = env.getActiveModuleName();
   if (isFqName(entryName)) {
     const p: Path = splitFqName(entryName);
     if (p.hasModule()) moduleName = p.getModuleName();
     if (p.hasEntry()) entryName = p.getEntryName();
   }
-  const inst: Instance = makeInstance(moduleName, entryName, attrs, qattrs, qattrVals);
+  return makeInstance(moduleName, entryName, attrs, qattrs, qattrVals);
+}
+
+async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
+  const inst: Instance = await patternToInstance(crud.name, crud.attributes, env);
+  const entryName = inst.name;
+  const moduleName = inst.moduleName;
+  const attrs = inst.attributes;
+  const qattrs = inst.queryAttributes;
+  const isQueryAll = crud.name.endsWith(QuerySuffix);
+  if (crud.into) {
+    if (attrs.size > 0) {
+      throw new Error(
+        `Query pattern for ${entryName} with 'into' clause cannot be used to update attributes`
+      );
+    }
+    if (qattrs == undefined && !isQueryAll) {
+      throw new Error(`Pattern for ${entryName} with 'into' clause must be a query`);
+    }
+    await evaluateJoinQuery(crud.into, inst, crud.relationships, env);
+    return;
+  }
   if (isEntityInstance(inst) || isBetweenRelationship(inst.name, inst.moduleName)) {
     if (qattrs == undefined && !isQueryAll) {
       const parentPath: string | undefined = env.getParentPath();
-      if (parentPath) inst.attributes.set(PathAttributeName, parentPath);
+      if (parentPath) {
+        inst.attributes.set(PathAttributeName, parentPath);
+        inst.attributes.set(ParentAttributeName, env.getNormalizedParentPath() || '');
+      }
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
       let r: Instance | undefined;
       if (env.isInUpsertMode()) {
@@ -650,9 +689,9 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           const rel: RelationshipPattern = crud.relationships[i];
           const newEnv: Environment = Environment.from(env);
           if (isContainsRelationship(rel.name, moduleName)) {
-            newEnv.setParentPath(
-              `${inst.attributes.get(PathAttributeName)}/${escapeFqName(rel.name)}`
-            );
+            const ppath = inst.attributes.get(PathAttributeName);
+            newEnv.setParentPath(`${ppath}/${escapeFqName(rel.name)}`);
+            newEnv.setNormalizedParentPath(ppath);
             await evaluatePattern(rel.pattern, newEnv);
             const lastInst: Instance = env.getLastResult();
             lastInst.attachRelatedInstances(rel.name, newEnv.getLastResult());
@@ -709,7 +748,9 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           for (let j = 0; j < lastRes.length; ++j) {
             const newEnv: Environment = Environment.from(env);
             if (isContainsRelationship(rel.name, moduleName)) {
-              newEnv.setParentPath(lastRes[j].attributes.get(PathAttributeName) + '/' + rel.name);
+              const ppath = lastRes[j].attributes.get(PathAttributeName);
+              newEnv.setParentPath(ppath + '/' + rel.name);
+              newEnv.setNormalizedParentPath(ppath);
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             } else if (isBetweenRelationship(rel.name, moduleName)) {
@@ -752,6 +793,42 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   } else {
     env.setLastResult(inst);
   }
+}
+
+async function evaluateJoinQuery(
+  intoSpec: SelectIntoSpec,
+  inst: Instance,
+  relationships: RelationshipPattern[],
+  env: Environment
+): Promise<void> {
+  const normIntoSpec = new Map<string, string>();
+  intoSpec.entries.forEach((entry: SelectIntoEntry) => {
+    normIntoSpec.set(entry.alias, entry.attribute);
+  });
+  const moduleName = inst.moduleName;
+  const joinsSpec = new Array<JoinInfo>();
+  for (let i = 0; i < relationships.length; ++i) {
+    const rp: RelationshipPattern = relationships[i];
+    if (rp.pattern.crudMap) {
+      if (rp.pattern.crudMap.relationships && rp.pattern.crudMap.relationships.length > 0) {
+        throw new Error(`Nested relationships not supported in join-queries - ${inst.getFqName()}`);
+      }
+      const qInst = await patternToInstance(
+        rp.pattern.crudMap.name,
+        rp.pattern.crudMap.attributes,
+        env
+      );
+      joinsSpec.push({
+        relationship: getRelationship(rp.name, moduleName),
+        queryInstance: qInst,
+      });
+    } else {
+      throw new Error(`Expected a query for relationship ${rp.name}`);
+    }
+  }
+  const resolver = await getResolverForPath(inst.name, moduleName, env);
+  const result: Result = await resolver.queryByJoin(inst, joinsSpec, normIntoSpec);
+  env.setLastResult(result);
 }
 
 async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {

@@ -60,6 +60,7 @@ export type AgentlangKeywordNames =
     | "if"
     | "import"
     | "in"
+    | "into"
     | "like"
     | "module"
     | "not"
@@ -216,6 +217,7 @@ export function isBinExpr(item: unknown): item is BinExpr {
 export interface CrudMap extends langium.AstNode {
     readonly $type: 'CrudMap' | 'QueryAllPattern';
     attributes: Array<SetAttribute>;
+    into?: SelectIntoSpec;
     name: string;
     properties: Array<PropertyDefinition>;
     relationships: Array<RelationshipPattern>;
@@ -716,6 +718,31 @@ export function isRelNodes(item: unknown): item is RelNodes {
     return reflection.isInstance(item, RelNodes);
 }
 
+export interface SelectIntoEntry extends langium.AstNode {
+    readonly $container: SelectIntoSpec;
+    readonly $type: 'SelectIntoEntry';
+    alias: string;
+    attribute: Ref;
+}
+
+export const SelectIntoEntry = 'SelectIntoEntry';
+
+export function isSelectIntoEntry(item: unknown): item is SelectIntoEntry {
+    return reflection.isInstance(item, SelectIntoEntry);
+}
+
+export interface SelectIntoSpec extends langium.AstNode {
+    readonly $container: CrudMap;
+    readonly $type: 'SelectIntoSpec';
+    entries: Array<SelectIntoEntry>;
+}
+
+export const SelectIntoSpec = 'SelectIntoSpec';
+
+export function isSelectIntoSpec(item: unknown): item is SelectIntoSpec {
+    return reflection.isInstance(item, SelectIntoSpec);
+}
+
 export interface SetAttribute extends langium.AstNode {
     readonly $container: CrudMap;
     readonly $type: 'SetAttribute';
@@ -856,6 +883,8 @@ export type AgentlangAstType = {
     RelationshipDefinition: RelationshipDefinition
     RelationshipPattern: RelationshipPattern
     SchemaDefinition: SchemaDefinition
+    SelectIntoEntry: SelectIntoEntry
+    SelectIntoSpec: SelectIntoSpec
     SetAttribute: SetAttribute
     StandaloneStatement: StandaloneStatement
     Statement: Statement
@@ -867,7 +896,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDefinition, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
+        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -962,6 +991,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: CrudMap,
                     properties: [
                         { name: 'attributes', defaultValue: [] },
+                        { name: 'into' },
                         { name: 'name' },
                         { name: 'properties', defaultValue: [] },
                         { name: 'relationships', defaultValue: [] }
@@ -1310,6 +1340,23 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case SelectIntoEntry: {
+                return {
+                    name: SelectIntoEntry,
+                    properties: [
+                        { name: 'alias' },
+                        { name: 'attribute' }
+                    ]
+                };
+            }
+            case SelectIntoSpec: {
+                return {
+                    name: SelectIntoSpec,
+                    properties: [
+                        { name: 'entries', defaultValue: [] }
+                    ]
+                };
+            }
             case SetAttribute: {
                 return {
                     name: SetAttribute,
@@ -1369,6 +1416,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: QueryAllPattern,
                     properties: [
                         { name: 'attributes', defaultValue: [] },
+                        { name: 'into' },
                         { name: 'name' },
                         { name: 'properties', defaultValue: [] },
                         { name: 'relationships', defaultValue: [] }
