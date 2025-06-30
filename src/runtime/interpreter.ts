@@ -17,6 +17,8 @@ import {
   Pattern,
   Purge,
   RelationshipPattern,
+  SelectIntoEntry,
+  SelectIntoSpec,
   SetAttribute,
   Statement,
   Upsert,
@@ -587,18 +589,16 @@ async function getResolverForPath(
   return res.setAuthInfo(authInfo);
 }
 
-async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
+async function patternToInstance(entryName: string, attributes: SetAttribute[], env: Environment): Promise<Instance> {
   const attrs: InstanceAttributes = newInstanceAttributes();
   let qattrs: InstanceAttributes | undefined;
   let qattrVals: InstanceAttributes | undefined;
-  let moduleName: string = env.getActiveModuleName();
-  let entryName: string = crud.name;
   const isQueryAll: boolean = entryName.endsWith(QuerySuffix);
   if (isQueryAll) {
     entryName = entryName.slice(0, entryName.length - 1);
   }
-  for (let i = 0; i < crud.attributes.length; ++i) {
-    const a: SetAttribute = crud.attributes[i];
+  for (let i = 0; i < attributes.length; ++i) {
+    const a: SetAttribute = attributes[i];
     await evaluateExpression(a.value, env);
     const v: Result = env.getLastResult();
     let aname: string = a.name;
@@ -615,12 +615,32 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       attrs.set(aname, v);
     }
   }
+  let moduleName = env.getActiveModuleName()
   if (isFqName(entryName)) {
     const p: Path = splitFqName(entryName);
     if (p.hasModule()) moduleName = p.getModuleName();
     if (p.hasEntry()) entryName = p.getEntryName();
   }
-  const inst: Instance = makeInstance(moduleName, entryName, attrs, qattrs, qattrVals);
+  return makeInstance(moduleName, entryName, attrs, qattrs, qattrVals);
+}
+
+async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
+  const inst: Instance = await patternToInstance(crud.name, crud.attributes, env)
+  const entryName = inst.name
+  const moduleName = inst.moduleName
+  const attrs = inst.attributes
+  const qattrs = inst.queryAttributes
+  const isQueryAll = crud.name.endsWith(QuerySuffix);
+  if (crud.into) {
+    if (attrs.size > 0) {
+      throw new Error(`Query pattern for ${entryName} with 'into' clause cannot be used to update attributes`)
+    }
+    if (qattrs == undefined || !isQueryAll) {
+      throw new Error(`Pattern for ${entryName} with 'into' clause must be a query`)
+    }
+    await evaluateJoinQuery(crud.into, inst, crud.relationships, env)
+    return
+  }
   if (isEntityInstance(inst) || isBetweenRelationship(inst.name, inst.moduleName)) {
     if (qattrs == undefined && !isQueryAll) {
       const parentPath: string | undefined = env.getParentPath();
@@ -752,6 +772,19 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   } else {
     env.setLastResult(inst);
   }
+}
+
+async function evaluateJoinQuery(intoSpec: SelectIntoSpec, inst: Instance, relationships: RelationshipPattern[], env: Environment): Promise<void> {
+  const normIntoSpec = new Map<string, string>()
+  intoSpec.entries.forEach((entry: SelectIntoEntry) => {
+    normIntoSpec.set(entry.alias, entry.attribute)
+  })
+  relationships.forEach((rp: RelationshipPattern) => {
+
+  })
+  //const resolver = await getResolverForPath(inst.name, inst.moduleName, env)
+  const result: Result = [] //await resolver.queryByJoin(inst, intoSpec)
+  env.setLastResult(result)
 }
 
 async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
