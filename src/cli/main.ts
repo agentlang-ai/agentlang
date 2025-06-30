@@ -15,7 +15,7 @@ import * as url from 'node:url';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { startServer } from '../api/http.js';
-import { initDefaultDatabase } from '../runtime/resolvers/sqldb/database.js';
+import { initDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { logger } from '../runtime/logger.js';
 import { runInitFunctions } from '../runtime/util.js';
 import { Module } from '../runtime/module.js';
@@ -169,7 +169,7 @@ export async function runPreInitTasks(): Promise<boolean> {
 }
 
 export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
-  await initDefaultDatabase();
+  await initDatabase(config?.store);
   await runInitFunctions();
   await runStandaloneStatements();
   if (appSpec) startServer(appSpec, config?.service?.port || 8080);
