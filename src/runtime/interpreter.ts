@@ -44,7 +44,7 @@ import {
 } from './module.js';
 import { JoinInfo, Resolver, ResolverAuthInfo } from './resolvers/interface.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
-import { PathAttributeName } from './resolvers/sqldb/database.js';
+import { ParentAttributeName, PathAttributeName } from './resolvers/sqldb/database.js';
 import {
   DefaultModuleName,
   escapeFqName,
@@ -97,6 +97,7 @@ export class Environment extends Instance {
   private activeUserSet: boolean = false;
   private lastResult: Result;
   private parentPath: string | undefined;
+  private normalizedParentPath: string | undefined;
   private betweenRelInfo: BetweenRelInfo | undefined;
   private activeResolvers: Map<string, Resolver>;
   private activeTransactions: Map<string, string>;
@@ -220,6 +221,15 @@ export class Environment extends Instance {
 
   getParentPath(): string | undefined {
     return this.parentPath;
+  }
+
+  setNormalizedParentPath(path: string): Environment {
+    this.normalizedParentPath = path;
+    return this;
+  }
+
+  getNormalizedParentPath(): string | undefined {
+    return this.normalizedParentPath;
   }
 
   setBetweenRelInfo(info: BetweenRelInfo): Environment {
@@ -650,7 +660,10 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   if (isEntityInstance(inst) || isBetweenRelationship(inst.name, inst.moduleName)) {
     if (qattrs == undefined && !isQueryAll) {
       const parentPath: string | undefined = env.getParentPath();
-      if (parentPath) inst.attributes.set(PathAttributeName, parentPath);
+      if (parentPath) {
+        inst.attributes.set(PathAttributeName, parentPath);
+        inst.attributes.set(ParentAttributeName, env.getNormalizedParentPath() || '');
+      }
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
       let r: Instance | undefined;
       if (env.isInUpsertMode()) {
@@ -676,9 +689,9 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           const rel: RelationshipPattern = crud.relationships[i];
           const newEnv: Environment = Environment.from(env);
           if (isContainsRelationship(rel.name, moduleName)) {
-            newEnv.setParentPath(
-              `${inst.attributes.get(PathAttributeName)}/${escapeFqName(rel.name)}`
-            );
+            const ppath = inst.attributes.get(PathAttributeName);
+            newEnv.setParentPath(`${ppath}/${escapeFqName(rel.name)}`);
+            newEnv.setNormalizedParentPath(ppath);
             await evaluatePattern(rel.pattern, newEnv);
             const lastInst: Instance = env.getLastResult();
             lastInst.attachRelatedInstances(rel.name, newEnv.getLastResult());
@@ -735,7 +748,9 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           for (let j = 0; j < lastRes.length; ++j) {
             const newEnv: Environment = Environment.from(env);
             if (isContainsRelationship(rel.name, moduleName)) {
-              newEnv.setParentPath(lastRes[j].attributes.get(PathAttributeName) + '/' + rel.name);
+              const ppath = lastRes[j].attributes.get(PathAttributeName);
+              newEnv.setParentPath(ppath + '/' + rel.name);
+              newEnv.setNormalizedParentPath(ppath);
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             } else if (isBetweenRelationship(rel.name, moduleName)) {

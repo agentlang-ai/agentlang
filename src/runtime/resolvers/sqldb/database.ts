@@ -647,7 +647,7 @@ export async function getManyByJoin(
     }
   });
   const sql = `SELECT ${intoSpecToSql(intoSpec)} FROM ${tableName} ${joinSql.join('\n')} WHERE ${queryStr}`;
-  logger.debug(`Join Query: ${sql}`);
+  console.log(`Join Query: ${sql}`);
   const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
   return await qb.query(sql);
 }

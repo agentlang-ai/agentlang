@@ -251,31 +251,34 @@ export class SqlDbResolver extends Resolver {
       const pathRef = `${tableName}.${PathAttributeName}`;
       let joinOn: JoinOn | undefined;
       if (rel.isContains()) {
-        joinOn = makeJoinOn(ParentAttributeName, pathRef);
+        joinOn = makeJoinOn(`${joinTableName}.${ParentAttributeName}`, pathRef);
       } else {
         if (rel.isOneToOne()) {
-          joinOn = makeJoinOn(rel.getAliasForName(inst.getFqName()), pathRef);
+          joinOn = makeJoinOn(`${joinTableName}.${rel.getAliasForName(inst.getFqName())}`, pathRef);
         } else {
           const relTableName = asTableName(rel.moduleName, rel.name);
           const jPathRef = `${joinTableName}.${PathAttributeName}`;
           joinClauses.push({
             tableName: relTableName,
-            joinOn: [makeJoinOn(rel.node1.alias, pathRef), makeJoinOn(rel.node2.alias, jPathRef)],
+            joinOn: [
+              makeJoinOn(`${joinTableName}.${rel.node1.alias}`, pathRef),
+              makeJoinOn(`${joinTableName}.${rel.node2.alias}`, jPathRef),
+            ],
           });
           joinOn = makeJoinOn(jPathRef, `${relTableName}.${rel.node2.alias}`);
         }
-        if (joinOn) {
-          joinClauses.push({
-            tableName: joinTableName,
-            queryObject: ji.queryInstance.queryAttributesAsObject(),
-            queryValues: ji.queryInstance.queryAttributeValuesAsObject(),
-            joinOn: joinOn,
-          });
-        } else {
-          throw new Error(
-            `Relationship type for ${ji.relationship.name} not supported for join-queries`
-          );
-        }
+      }
+      if (joinOn) {
+        joinClauses.push({
+          tableName: joinTableName,
+          queryObject: ji.queryInstance.queryAttributesAsObject(),
+          queryValues: ji.queryInstance.queryAttributeValuesAsObject(),
+          joinOn: joinOn,
+        });
+      } else {
+        throw new Error(
+          `Relationship type for ${ji.relationship.name} not supported for join-queries`
+        );
       }
     });
     intoSpec.forEach((v: string, k: string) => {

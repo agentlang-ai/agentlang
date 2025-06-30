@@ -20,7 +20,7 @@ import {
   Module,
 } from '../../module.js';
 import { buildGraph } from '../../relgraph.js';
-import { DeletedFlagAttributeName, PathAttributeName } from './database.js';
+import { DeletedFlagAttributeName, ParentAttributeName, PathAttributeName } from './database.js';
 import { makeFqName } from '../../util.js';
 
 export const DefaultVectorDimension = 1536
@@ -120,7 +120,10 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: Record, hasOwnPk?:
     }
     cols.set(attrName, colDef)
   });
-  if (needPath) cols.set(PathAttributeName, { type: "varchar", primary: true })
+  if (needPath) {
+    cols.set(PathAttributeName, { type: "varchar", primary: true })
+    cols.set(ParentAttributeName, { type: "varchar", default: '', indexed: true })
+  }
   cols.set(DeletedFlagAttributeName, { type: "boolean", default: false })
   const allBetRels = getAllBetweenRelationships()
   const relsSpec = new Map()
