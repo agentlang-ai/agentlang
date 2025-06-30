@@ -219,7 +219,7 @@ describe('Basic CRUD tests', () => {
         }
       })
     }
-    const email = "j@b.com"
+    let email = "j@b.com"
     let pat = `{Blogger/User {email? "${email}"},
                 UserPost [{Blogger/Post {id 1, title "Post One"}}, 
                           {Blogger/Post {id 2, title "Post Two"}}]}`
@@ -227,6 +227,28 @@ describe('Basic CRUD tests', () => {
     pat = `{Blogger/User {email? "${email}"},
             UserPost {Blogger/Post? {}}}`
     await withPosts(pat, email, [1, 2])
+    email = 't@b.com'
+    pat = `{Blogger/User {email? "${email}"},
+            UserPost [{Blogger/Post {id 3, title "Post Three"}}]}`
+    await withPosts(pat, email, [3])
+    pat = `{Blogger/User {email? "${email}"},
+            UserPost {Blogger/Post? {}}}`
+    await withPosts(pat, email, [3])
+    const jq = async (email: string) => {
+      return await parseAndEvaluateStatement(`{Blogger/User {email? "${email}"}, 
+      Blogger/UserPost {Blogger/Post? {}}, 
+      into {e Blogger/User.email, t Blogger/Post.title}}`)
+    }
+    let jr: any[] = await jq(email)
+    assert(jr.length == 1)
+    assert(jr[0].e == email)
+    assert(jr[0].t == 'Post Three')
+    email = 'j@b.com'
+    jr = await jq(email)
+    assert(jr.length == 2)
+    assert(jr[0].e == jr[1].e)
+    assert(jr[0].e == email)
+    assert(jr[0].t == 'Post One' || jr[1].t == 'Post One')
   })
 })
 

@@ -12,8 +12,8 @@ import {
   newInstanceAttributes,
   Relationship,
 } from '../../module.js';
-import { escapeFqName, makeFqName } from '../../util.js';
-import { Resolver } from '../interface.js';
+import { escapeFqName, makeFqName, splitFqName } from '../../util.js';
+import { JoinInfo, Resolver } from '../interface.js';
 import { asTableName } from './dbutil.js';
 import {
   getMany,
@@ -32,6 +32,11 @@ import {
   vectorStoreSearch,
   vectorStoreSearchEntryExists,
   deleteFullTextSearchEntry,
+  ParentAttributeName,
+  JoinClause,
+  JoinOn,
+  makeJoinOn,
+  getManyByJoin,
 } from './database.js';
 import { Environment } from '../../interpreter.js';
 import { OpenAIEmbeddings } from '@langchain/openai';
@@ -151,7 +156,6 @@ export class SqlDbResolver extends Resolver {
       asTableName(inst.moduleName, inst.name),
       queryAll ? undefined : inst.queryAttributesAsObject(),
       queryAll ? undefined : inst.queryAttributeValuesAsObject(),
-      inst.getAllUserAttributeNames(),
       this.getDbContext(inst.getFqName())
     );
     if (rslt instanceof Array) {
@@ -232,6 +236,62 @@ export class SqlDbResolver extends Resolver {
       });
       return result;
     }
+  }
+
+  public override async queryByJoin(
+    inst: Instance,
+    joinsSpec: JoinInfo[],
+    intoSpec: Map<string, string>
+  ): Promise<any> {
+    const tableName = asTableName(inst.moduleName, inst.name);
+    const joinClauses: JoinClause[] = [];
+    joinsSpec.forEach((ji: JoinInfo) => {
+      const rel: Relationship = ji.relationship;
+      const joinTableName = asTableName(ji.queryInstance.moduleName, ji.queryInstance.name);
+      const pathRef = `${tableName}.${PathAttributeName}`;
+      let joinOn: JoinOn | undefined;
+      if (rel.isContains()) {
+        joinOn = makeJoinOn(ParentAttributeName, pathRef);
+      } else {
+        if (rel.isOneToOne()) {
+          joinOn = makeJoinOn(rel.getAliasForName(inst.getFqName()), pathRef);
+        } else {
+          const relTableName = asTableName(rel.moduleName, rel.name);
+          const jPathRef = `${joinTableName}.${PathAttributeName}`;
+          joinClauses.push({
+            tableName: relTableName,
+            joinOn: [makeJoinOn(rel.node1.alias, pathRef), makeJoinOn(rel.node2.alias, jPathRef)],
+          });
+          joinOn = makeJoinOn(jPathRef, `${relTableName}.${rel.node2.alias}`);
+        }
+        if (joinOn) {
+          joinClauses.push({
+            tableName: joinTableName,
+            queryObject: ji.queryInstance.queryAttributesAsObject(),
+            queryValues: ji.queryInstance.queryAttributeValuesAsObject(),
+            joinOn: joinOn,
+          });
+        } else {
+          throw new Error(
+            `Relationship type for ${ji.relationship.name} not supported for join-queries`
+          );
+        }
+      }
+    });
+    intoSpec.forEach((v: string, k: string) => {
+      const p = splitFqName(v);
+      const mn = p.hasModule() ? p.getModuleName() : inst.moduleName;
+      intoSpec.set(k, asTableName(mn, p.getEntryName()));
+    });
+    const rslt: any = await getManyByJoin(
+      tableName,
+      inst.queryAttributesAsObject(),
+      inst.queryAttributeValuesAsObject(),
+      joinClauses,
+      intoSpec,
+      this.getDbContext(inst.getFqName())
+    );
+    return rslt;
   }
 
   private async deleteInstanceHelper(target: Instance, purge: boolean) {

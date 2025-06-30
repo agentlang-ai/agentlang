@@ -42,7 +42,7 @@ import {
   Relationship,
   Workflow,
 } from './module.js';
-import { Resolver, ResolverAuthInfo } from './resolvers/interface.js';
+import { JoinInfo, Resolver, ResolverAuthInfo } from './resolvers/interface.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
 import { PathAttributeName } from './resolvers/sqldb/database.js';
 import {
@@ -589,7 +589,11 @@ async function getResolverForPath(
   return res.setAuthInfo(authInfo);
 }
 
-async function patternToInstance(entryName: string, attributes: SetAttribute[], env: Environment): Promise<Instance> {
+async function patternToInstance(
+  entryName: string,
+  attributes: SetAttribute[],
+  env: Environment
+): Promise<Instance> {
   const attrs: InstanceAttributes = newInstanceAttributes();
   let qattrs: InstanceAttributes | undefined;
   let qattrVals: InstanceAttributes | undefined;
@@ -615,7 +619,7 @@ async function patternToInstance(entryName: string, attributes: SetAttribute[], 
       attrs.set(aname, v);
     }
   }
-  let moduleName = env.getActiveModuleName()
+  let moduleName = env.getActiveModuleName();
   if (isFqName(entryName)) {
     const p: Path = splitFqName(entryName);
     if (p.hasModule()) moduleName = p.getModuleName();
@@ -625,21 +629,23 @@ async function patternToInstance(entryName: string, attributes: SetAttribute[], 
 }
 
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
-  const inst: Instance = await patternToInstance(crud.name, crud.attributes, env)
-  const entryName = inst.name
-  const moduleName = inst.moduleName
-  const attrs = inst.attributes
-  const qattrs = inst.queryAttributes
+  const inst: Instance = await patternToInstance(crud.name, crud.attributes, env);
+  const entryName = inst.name;
+  const moduleName = inst.moduleName;
+  const attrs = inst.attributes;
+  const qattrs = inst.queryAttributes;
   const isQueryAll = crud.name.endsWith(QuerySuffix);
   if (crud.into) {
     if (attrs.size > 0) {
-      throw new Error(`Query pattern for ${entryName} with 'into' clause cannot be used to update attributes`)
+      throw new Error(
+        `Query pattern for ${entryName} with 'into' clause cannot be used to update attributes`
+      );
     }
-    if (qattrs == undefined || !isQueryAll) {
-      throw new Error(`Pattern for ${entryName} with 'into' clause must be a query`)
+    if (qattrs == undefined && !isQueryAll) {
+      throw new Error(`Pattern for ${entryName} with 'into' clause must be a query`);
     }
-    await evaluateJoinQuery(crud.into, inst, crud.relationships, env)
-    return
+    await evaluateJoinQuery(crud.into, inst, crud.relationships, env);
+    return;
   }
   if (isEntityInstance(inst) || isBetweenRelationship(inst.name, inst.moduleName)) {
     if (qattrs == undefined && !isQueryAll) {
@@ -774,17 +780,37 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   }
 }
 
-async function evaluateJoinQuery(intoSpec: SelectIntoSpec, inst: Instance, relationships: RelationshipPattern[], env: Environment): Promise<void> {
-  const normIntoSpec = new Map<string, string>()
+async function evaluateJoinQuery(
+  intoSpec: SelectIntoSpec,
+  inst: Instance,
+  relationships: RelationshipPattern[],
+  env: Environment
+): Promise<void> {
+  const normIntoSpec = new Map<string, string>();
   intoSpec.entries.forEach((entry: SelectIntoEntry) => {
-    normIntoSpec.set(entry.alias, entry.attribute)
-  })
-  relationships.forEach((rp: RelationshipPattern) => {
-
-  })
-  //const resolver = await getResolverForPath(inst.name, inst.moduleName, env)
-  const result: Result = [] //await resolver.queryByJoin(inst, intoSpec)
-  env.setLastResult(result)
+    normIntoSpec.set(entry.alias, entry.attribute);
+  });
+  const moduleName = inst.moduleName;
+  const joinsSpec = new Array<JoinInfo>();
+  for (let i = 0; i < relationships.length; ++i) {
+    const rp: RelationshipPattern = relationships[i];
+    if (rp.pattern.crudMap) {
+      const qInst = await patternToInstance(
+        rp.pattern.crudMap.name,
+        rp.pattern.crudMap.attributes,
+        env
+      );
+      joinsSpec.push({
+        relationship: getRelationship(rp.name, moduleName),
+        queryInstance: qInst,
+      });
+    } else {
+      throw new Error(`Expected a query for relationship ${rp.name}`);
+    }
+  }
+  const resolver = await getResolverForPath(inst.name, moduleName, env);
+  const result: Result = await resolver.queryByJoin(inst, joinsSpec, normIntoSpec);
+  env.setLastResult(result);
 }
 
 async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {

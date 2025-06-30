@@ -18,6 +18,11 @@ export const DefaultAuthInfo = new ResolverAuthInfo(
   '9459a305-5ee6-415d-986d-caaf6d6e2828'
 );
 
+export type JoinInfo = {
+  relationship: Relationship;
+  queryInstance: Instance;
+};
+
 export class Resolver {
   protected authInfo: ResolverAuthInfo = DefaultAuthInfo;
   protected userData: any;
@@ -96,6 +101,14 @@ export class Resolver {
     inst: Instance
   ): Promise<any> {
     return this.notImpl(`queryConnectedInstances(${relationship}, ${connectedInstance}, ${inst})`);
+  }
+
+  public async queryByJoin(
+    inst: Instance,
+    joinsSpec: JoinInfo[],
+    intoSpec: Map<string, string>
+  ): Promise<any> {
+    return this.notImpl(`queryByJoin(${inst}, ${joinsSpec}, ${intoSpec})`);
   }
 
   /**
