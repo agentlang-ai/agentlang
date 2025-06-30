@@ -249,23 +249,26 @@ export class SqlDbResolver extends Resolver {
       const rel: Relationship = ji.relationship;
       const joinTableName = asTableName(ji.queryInstance.moduleName, ji.queryInstance.name);
       const pathRef = `${tableName}.${PathAttributeName}`;
-      let joinOn: JoinOn | undefined;
+      let joinOn: JoinOn | JoinOn[] | undefined;
       if (rel.isContains()) {
-        joinOn = makeJoinOn(`${joinTableName}.${ParentAttributeName}`, pathRef);
+        joinOn = makeJoinOn(`"${joinTableName}"."${ParentAttributeName}"`, pathRef);
       } else {
         if (rel.isOneToOne()) {
-          joinOn = makeJoinOn(`${joinTableName}.${rel.getAliasForName(inst.getFqName())}`, pathRef);
+          joinOn = makeJoinOn(
+            `"${joinTableName}"."${rel.getAliasForName(inst.getFqName())}"`,
+            pathRef
+          );
         } else {
           const relTableName = asTableName(rel.moduleName, rel.name);
-          const jPathRef = `${joinTableName}.${PathAttributeName}`;
+          const jPathRef = `"${joinTableName}"."${PathAttributeName}"`;
           joinClauses.push({
             tableName: relTableName,
-            joinOn: [
-              makeJoinOn(`${joinTableName}.${rel.node1.alias}`, pathRef),
-              makeJoinOn(`${joinTableName}.${rel.node2.alias}`, jPathRef),
-            ],
+            joinOn: makeJoinOn(`"${relTableName}"."${rel.node1.alias}"`, pathRef),
           });
-          joinOn = makeJoinOn(jPathRef, `${relTableName}.${rel.node2.alias}`);
+          joinOn = [
+            makeJoinOn(jPathRef, `"${relTableName}"."${rel.node2.alias}"`),
+            makeJoinOn(`"${relTableName}"."${rel.node2.alias}"`, jPathRef),
+          ];
         }
       }
       if (joinOn) {

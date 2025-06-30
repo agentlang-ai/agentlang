@@ -810,6 +810,9 @@ async function evaluateJoinQuery(
   for (let i = 0; i < relationships.length; ++i) {
     const rp: RelationshipPattern = relationships[i];
     if (rp.pattern.crudMap) {
+      if (rp.pattern.crudMap.relationships && rp.pattern.crudMap.relationships.length > 0) {
+        throw new Error(`Nested relationships not supported in join-queries - ${inst.getFqName()}`);
+      }
       const qInst = await patternToInstance(
         rp.pattern.crudMap.name,
         rp.pattern.crudMap.attributes,
