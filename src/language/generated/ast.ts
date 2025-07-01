@@ -38,6 +38,7 @@ export type AgentlangKeywordNames =
     | "?"
     | "@"
     | "@after"
+    | "@async"
     | "@before"
     | "@meta"
     | "@oneof"
@@ -863,8 +864,9 @@ export function isTriggerDefinition(item: unknown): item is TriggerDefinition {
 export interface TriggerEntry extends langium.AstNode {
     readonly $container: TriggerDefinition;
     readonly $type: 'TriggerEntry';
-    event?: string;
-    on?: 'create';
+    async?: '@async';
+    event: string;
+    on: 'create' | 'delete' | 'update';
 }
 
 export const TriggerEntry = 'TriggerEntry';
@@ -1523,6 +1525,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: TriggerEntry,
                     properties: [
+                        { name: 'async' },
                         { name: 'event' },
                         { name: 'on' }
                     ]

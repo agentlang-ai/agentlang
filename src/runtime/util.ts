@@ -2,6 +2,7 @@ import { isNodeEnv } from '../utils/runtime.js';
 import {
   ExtendsClause,
   MetaDefinition,
+  PrePostTriggerDefinition,
   RbacSpecDefinition,
   RecordExtraDefinition,
   RecordSchemaDefinition,
@@ -269,6 +270,7 @@ export async function slurpJsonFile(fileName: string): Promise<any> {
 const enum ExtraType {
   META,
   RBAC,
+  PRE_POST_TRIGGER,
 }
 
 function findExtraSchema(
@@ -282,6 +284,8 @@ function findExtraSchema(
           return ex.meta ? true : false;
         case ExtraType.RBAC:
           return ex.rbacSpec ? true : false;
+        case ExtraType.PRE_POST_TRIGGER:
+          return ex.prePost ? true : false;
       }
     });
   } else {
@@ -307,4 +311,39 @@ export function findRbacSchema(
     return ex.rbacSpec;
   }
   return undefined;
+}
+
+export function findAllPrePostTriggerSchema(
+  scm: RecordSchemaDefinition | undefined
+): PrePostTriggerDefinition[] | undefined {
+  if (scm && scm.extras) {
+    let result: PrePostTriggerDefinition[] | undefined;
+    for (let i = 0; i < scm.extras.length; ++i) {
+      const rex: RecordExtraDefinition = scm.extras[i];
+      if (rex.prePost) {
+        if (result == undefined) {
+          result = new Array<PrePostTriggerDefinition>();
+        }
+        result.push(rex.prePost);
+      }
+    }
+    return result;
+  }
+  return undefined;
+}
+
+export enum CrudType {
+  CREATE,
+  UPDATE,
+  DELETE,
+  READ,
+  UPSERT,
+}
+
+export function asCrudType(s: string): CrudType {
+  const r: CrudType | undefined = CrudType[s.toUpperCase() as keyof typeof CrudType];
+  if (r == undefined) {
+    throw new Error(`${s} does not represent a valid CrudType`);
+  }
+  return r;
 }

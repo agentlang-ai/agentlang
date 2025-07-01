@@ -61,7 +61,7 @@ AfterTriggerDefinition: '@after' triggers=TriggerDefinition;
 BeforeTriggerDefinition: '@before' triggers=TriggerDefinition;
 
 TriggerDefinition: '{' entries+=TriggerEntry (',' entries+=TriggerEntry)* '}';
-TriggerEntry: on='create' | 'delete' | 'update' event=ID;
+TriggerEntry: on=('create' | 'delete' | 'update') event=ID async='@async'?;
 
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 

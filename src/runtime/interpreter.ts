@@ -46,6 +46,7 @@ import { JoinInfo, Resolver, ResolverAuthInfo } from './resolvers/interface.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
 import { ParentAttributeName, PathAttributeName } from './resolvers/sqldb/database.js';
 import {
+  CrudType,
   DefaultModuleName,
   escapeFqName,
   escapeQueryName,
@@ -183,6 +184,13 @@ export class Environment extends Instance {
 
   getActiveEventInstance(): Instance | undefined {
     return this.activeEventInstance;
+  }
+
+  getActiveAuthContext(): ActiveSessionInfo | undefined {
+    if (this.activeEventInstance) {
+      return this.activeEventInstance.getAuthContext();
+    }
+    return undefined;
   }
 
   setActiveUser(userId: string): Environment {
@@ -667,9 +675,13 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
       let r: Instance | undefined;
       if (env.isInUpsertMode()) {
+        await runPreUpdateEvents(inst, env);
         r = await res.upsertInstance(inst);
+        await runPostUpdateEvents(inst, env);
       } else {
+        await runPreCreateEvents(inst, env);
         r = await res.createInstance(inst);
+        await runPostCreateEvents(inst, env);
       }
       if (r && entryName == 'agent') {
         defineAgentEvent(env.getActiveModuleName(), r.lookup('name'));
@@ -773,7 +785,9 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             );
             const res: Array<Instance> = new Array<Instance>();
             for (let i = 0; i < lastRes.length; ++i) {
+              await runPreUpdateEvents(lastRes[i], env);
               const finalInst: Instance = await resolver.updateInstance(lastRes[i], attrs);
+              await runPostUpdateEvents(finalInst, env);
               res.push(finalInst);
             }
             env.setLastResult(res);
@@ -782,7 +796,9 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           }
         } else {
           const res: Resolver = await getResolverForPath(lastRes.name, lastRes.moduleName, env);
+          await runPreUpdateEvents(lastRes, env);
           const finalInst: Instance = await res.updateInstance(lastRes, attrs);
+          await runPostUpdateEvents(finalInst, env);
           env.setLastResult(finalInst);
         }
       }
@@ -894,7 +910,9 @@ async function evaluateDeleteHelper(
       resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, newEnv);
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
+        await runPreDeleteEvents(inst[i], env);
         const r: any = await resolver.deleteInstance(inst[i], purge);
+        await runPostDeleteEvents(inst[i], env);
         finalResult.push(r);
       }
       newEnv.setLastResult(finalResult);
@@ -903,7 +921,9 @@ async function evaluateDeleteHelper(
     }
   } else {
     resolver = await getResolverForPath(inst.name, inst.moduleName, newEnv);
+    await runPreDeleteEvents(inst, env);
     const r: Instance | null = await resolver.deleteInstance(inst, purge);
+    await runPostDeleteEvents(inst, env);
     newEnv.setLastResult(r);
   }
   env.setLastResult(newEnv.getLastResult());
@@ -1048,4 +1068,62 @@ async function realizeMap(mapLiteral: MapLiteral, env: Environment): Promise<voi
     result.set(entry.key, env.getLastResult());
   }
   env.setLastResult(result);
+}
+
+async function runPrePostEvents(
+  crudType: CrudType,
+  pre: boolean,
+  inst: Instance,
+  env: Environment
+) {
+  const trigInfo = pre
+    ? inst.record.getPreTriggerInfo(crudType)
+    : inst.record.getPostTriggerInfo(crudType);
+  if (trigInfo) {
+    const p = splitFqName(trigInfo.eventName);
+    const moduleName = p.hasModule() ? p.getModuleName() : inst.record.moduleName;
+    const eventInst: Instance = makeInstance(
+      moduleName,
+      p.getEntryName(),
+      newInstanceAttributes().set(inst.record.name, inst)
+    );
+    const authContext = env.getActiveAuthContext();
+    if (authContext) eventInst.setAuthContext(authContext);
+    const prefix = `${pre ? 'Pre' : 'Post'}-${CrudType[crudType]} ${inst.record.getFqName()}`;
+    const f = async () =>
+      evaluate(eventInst, (value: Result) => {
+        logger.debug(`${prefix}: ${value}`);
+      }).catch((reason: any) => {
+        logger.error(`${prefix}: ${reason}`);
+      });
+    if (trigInfo.async) {
+      f();
+    } else {
+      await f();
+    }
+  }
+}
+
+async function runPreCreateEvents(inst: Instance, env: Environment) {
+  await runPrePostEvents(CrudType.CREATE, true, inst, env);
+}
+
+async function runPostCreateEvents(inst: Instance, env: Environment) {
+  await runPrePostEvents(CrudType.CREATE, false, inst, env);
+}
+
+async function runPreUpdateEvents(inst: Instance, env: Environment) {
+  await runPrePostEvents(CrudType.UPDATE, true, inst, env);
+}
+
+async function runPostUpdateEvents(inst: Instance, env: Environment) {
+  await runPrePostEvents(CrudType.UPDATE, false, inst, env);
+}
+
+async function runPreDeleteEvents(inst: Instance, env: Environment) {
+  await runPrePostEvents(CrudType.DELETE, true, inst, env);
+}
+
+async function runPostDeleteEvents(inst: Instance, env: Environment) {
+  await runPrePostEvents(CrudType.DELETE, false, inst, env);
 }

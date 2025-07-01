@@ -1694,41 +1694,51 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
       "$type": "ParserRule",
       "name": "TriggerEntry",
       "definition": {
-        "$type": "Alternatives",
+        "$type": "Group",
         "elements": [
           {
             "$type": "Assignment",
             "feature": "on",
             "operator": "=",
             "terminal": {
-              "$type": "Keyword",
-              "value": "create"
+              "$type": "Alternatives",
+              "elements": [
+                {
+                  "$type": "Keyword",
+                  "value": "create"
+                },
+                {
+                  "$type": "Keyword",
+                  "value": "delete"
+                },
+                {
+                  "$type": "Keyword",
+                  "value": "update"
+                }
+              ]
             }
           },
           {
-            "$type": "Keyword",
-            "value": "delete"
+            "$type": "Assignment",
+            "feature": "event",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@73"
+              },
+              "arguments": []
+            }
           },
           {
-            "$type": "Group",
-            "elements": [
-              {
-                "$type": "Keyword",
-                "value": "update"
-              },
-              {
-                "$type": "Assignment",
-                "feature": "event",
-                "operator": "=",
-                "terminal": {
-                  "$type": "RuleCall",
-                  "rule": {
-                    "$ref": "#/rules@73"
-                  },
-                  "arguments": []
-                }
-              }
-            ]
+            "$type": "Assignment",
+            "feature": "async",
+            "operator": "=",
+            "terminal": {
+              "$type": "Keyword",
+              "value": "@async"
+            },
+            "cardinality": "?"
           }
         ]
       },
