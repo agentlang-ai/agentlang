@@ -17,7 +17,7 @@ if (process.env.AL_TEST) {
         systemMessage("Is the following number odd? Answer YES or NO."),
         humanMessage("11")
       ]).then((result: AIResponse) => {
-        assert(result.content == "YES")
+        assert(result.content == "YES", `Expected YES, got ${result.content}`)
       })
     })
   })
@@ -33,8 +33,8 @@ if (process.env.AL_TEST) {
             {simpleChatAgent {message chat.N}}
           }
           `)
-      assert("NO" == await parseAndEvaluateStatement(`{SimpleAIChat/chat {N "12"}}`))
-      assert("YES" == await parseAndEvaluateStatement(`{SimpleAIChat/chat {N "13"}}`))
+      assert("NO" == await parseAndEvaluateStatement(`{SimpleAIChat/chat {N "12"}}`), 'Expected response was NO')
+      assert("YES" == await parseAndEvaluateStatement(`{SimpleAIChat/chat {N "13"}}`), 'Expected response was YES')
     })
   })
 

@@ -202,6 +202,10 @@ export function escapeFqName(n: string): string {
   return n.replace('/', '$');
 }
 
+export function restoreFqName(n: string): string {
+  return n.replace('$', '/');
+}
+
 export function arrayEquals(a: Array<any>, b: Array<any>) {
   if (a.length !== b.length) return false;
   else {
@@ -346,4 +350,25 @@ export function asCrudType(s: string): CrudType {
     throw new Error(`${s} does not represent a valid CrudType`);
   }
   return r;
+}
+
+export function isPath(obj: any): boolean {
+  if (isString(obj)) {
+    const s = obj as string;
+    return s.indexOf('/') > 0;
+  } else {
+    return false;
+  }
+}
+
+export function fqNameFromPath(path: string): string | undefined {
+  const parts = path.split('/');
+  const len = parts.length;
+  if (len > 1) {
+    const n = restoreFqName(parts[len - 2]);
+    if (n.indexOf('/') > 0) {
+      return n;
+    }
+  }
+  return undefined;
 }

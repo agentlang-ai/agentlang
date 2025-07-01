@@ -26,6 +26,7 @@ import {
 import { arrayEquals } from '../../src/runtime/util.js';
 import { assert, describe, test } from 'vitest';
 import { doInternModule, doPreInit } from '../util.js';
+import { PathAttributeName } from '../../src/runtime/resolvers/sqldb/database.js';
 
 function createTestModule(): Module | undefined {
   addModule('Acme');
@@ -394,6 +395,37 @@ describe('Pre-Post trigger tests', () => {
         assert(result.length == 1)
         assert(isInstanceOfType(result[0], 'PrePostEvents/F'))
         assert(result[0].lookup('w') == 200)
+      })
+  })
+})
+
+describe('Path reference tests', () => {
+  test('Check path references', async () => {
+    await doInternModule(`module PathRefs
+      entity E {
+        id Int @id,
+        f Path,
+        v Int
+      }
+      entity F {
+        id Int @id,
+        w Int
+      }
+      workflow CrE {
+        {E {id CrE.id, f CrE.f, v CrE.f.w * 10}}
+      }
+     `)
+    assert(isModule('PathRefs'))
+    let fpath = ''
+    await parseAndEvaluateStatement(`{PathRefs/F {id 1, w 2}}`)
+      .then((result: Instance) => {
+        assert(isInstanceOfType(result, 'PathRefs/F'))
+        fpath = result.lookup(PathAttributeName)
+      })
+    await parseAndEvaluateStatement(`{PathRefs/CrE {id 1, f "${fpath}"}}`)
+      .then((result: Instance) => {
+        assert(isInstanceOfType(result, 'PathRefs/E'))
+        assert(result.lookup('v') == 20)
       })
   })
 })

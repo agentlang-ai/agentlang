@@ -32,6 +32,7 @@ import {
   findAllPrePostTriggerSchema,
   CrudType,
   asCrudType,
+  isPath,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -1183,6 +1184,7 @@ const builtInChecks = new Map([
   ['Boolean', isBoolean],
   ['UUID', isString],
   ['URL', isString],
+  ['Path', isPath],
   [
     'Map',
     (obj: any) => {

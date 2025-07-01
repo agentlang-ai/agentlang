@@ -44,14 +44,20 @@ import {
 } from './module.js';
 import { JoinInfo, Resolver, ResolverAuthInfo } from './resolvers/interface.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
-import { ParentAttributeName, PathAttributeName } from './resolvers/sqldb/database.js';
+import {
+  ParentAttributeName,
+  PathAttributeName,
+  PathAttributeNameQuery,
+} from './resolvers/sqldb/database.js';
 import {
   CrudType,
   DefaultModuleName,
   escapeFqName,
   escapeQueryName,
+  fqNameFromPath,
   invokeModuleFn,
   isFqName,
+  isPath,
   isString,
   makeFqName,
   Path,
@@ -563,7 +569,7 @@ async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Pr
 
 async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
   if (lit.id != undefined) env.setLastResult(env.lookup(lit.id));
-  else if (lit.ref != undefined) env.setLastResult(followReference(env, lit.ref));
+  else if (lit.ref != undefined) env.setLastResult(await followReference(env, lit.ref));
   else if (lit.fnCall != undefined) await applyFn(lit.fnCall, env, false);
   else if (lit.asyncFnCall != undefined) await applyFn(lit.asyncFnCall.fnCall, env, true);
   else if (lit.array != undefined) await realizeArray(lit.array, env);
@@ -1013,25 +1019,44 @@ async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
   env.setLastResult(result);
 }
 
-function getRef(r: string, src: any): Result | undefined {
+async function getRef(r: string, src: any, env: Environment): Promise<Result> {
   if (src instanceof Instance) return src.lookup(r);
   else if (src instanceof Map) return src.get(r);
   else if (src instanceof Object) return src[r];
+  else if (isPath(src)) return await getRef(r, await dereferencePath(src, env), env);
   else return undefined;
 }
 
-function followReference(env: Environment, s: string): Result {
+async function followReference(env: Environment, s: string): Promise<Result> {
   const refs: string[] = splitRefs(s);
   let result: Result = EmptyResult;
   let src: any = env;
   for (let i = 0; i < refs.length; ++i) {
     const r: string = refs[i];
-    const v: Result | undefined = getRef(r, src);
+    const v: Result | undefined = await getRef(r, src, env);
     if (v == undefined) return EmptyResult;
     result = v;
-    src = v;
+    src = result;
   }
   return result;
+}
+
+async function dereferencePath(path: string, env: Environment): Promise<Result> {
+  const fqName = fqNameFromPath(path);
+  if (fqName == undefined) {
+    throw new Error(`Failed to deduce entry-name from path - ${path}`);
+  }
+  const newEnv = new Environment('path-deref', env);
+  await parseAndEvaluateStatement(
+    `{${fqName} {${PathAttributeNameQuery} "${path}"}}`,
+    env.getAuthContextUserId(),
+    newEnv
+  );
+  const result: Result = newEnv.getLastResult();
+  if (result && result instanceof Array && result.length > 0) {
+    return result[0];
+  }
+  return undefined;
 }
 
 async function applyFn(fnCall: FnCall, env: Environment, isAsync: boolean): Promise<void> {
