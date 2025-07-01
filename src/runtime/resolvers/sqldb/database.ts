@@ -133,24 +133,37 @@ export type JoinClause = {
   joinOn: JoinOn | JoinOn[];
 };
 
+export type DatabaseConfig = {
+  type: string;
+  host?: string;
+  username?: string;
+  password?: string;
+  dbname?: string;
+  port?: number;
+};
+
 function mkDbName(): string {
   return process.env.AGENTLANG_DB_NAME || `db-${Date.now()}`;
 }
 
-function makePostgresDataSource(entities: EntitySchema[], synchronize: boolean = true): DataSource {
+function makePostgresDataSource(
+  entities: EntitySchema[],
+  config: DatabaseConfig | undefined,
+  synchronize: boolean = true
+): DataSource {
   return new DataSource({
     type: 'postgres',
-    host: process.env.POSTGRES_HOST || 'localhost',
-    port: getPostgressPort() || 5432,
-    username: process.env.POSTGRES_USER || 'postgres',
-    password: process.env.POSTGRES_PASSWORD || 'postgres',
-    database: process.env.POSTGRES_DB || 'postgres',
+    host: process.env.POSTGRES_HOST || config?.host || 'localhost',
+    port: getPostgressEnvPort() || config?.port || 5432,
+    username: process.env.POSTGRES_USER || config?.username || 'postgres',
+    password: process.env.POSTGRES_PASSWORD || config?.password || 'postgres',
+    database: process.env.POSTGRES_DB || config?.dbname || 'postgres',
     synchronize: synchronize,
     entities: entities,
   });
 }
 
-function getPostgressPort(): number | undefined {
+function getPostgressEnvPort(): number | undefined {
   const s: string | undefined = process.env.POSTGRES_PORT;
   if (s) {
     return Number(s);
@@ -159,24 +172,44 @@ function getPostgressPort(): number | undefined {
   }
 }
 
-function makeSqliteDataSource(entities: EntitySchema[], synchronize: boolean = true): DataSource {
+function makeSqliteDataSource(
+  entities: EntitySchema[],
+  config: DatabaseConfig | undefined,
+  synchronize: boolean = true
+): DataSource {
   return new DataSource({
     type: 'sqlite',
-    database: mkDbName(),
+    database: config?.dbname || mkDbName(),
     synchronize: synchronize,
     entities: entities,
   });
 }
 
 export const DbType = 'sqlite';
-const MakeDsFunctions: any = { sqlite: makeSqliteDataSource, postgres: makePostgresDataSource };
 
-export async function initDefaultDatabase() {
+function getDsFunction(
+  config: DatabaseConfig | undefined
+): (
+  entities: EntitySchema<any>[],
+  config: DatabaseConfig | undefined,
+  synchronize?: boolean | undefined
+) => DataSource {
+  switch (process.env.AL_DB_TYPE || config?.type || DbType) {
+    case 'sqlite':
+      return makeSqliteDataSource;
+    case 'postgres':
+      return makePostgresDataSource;
+    default:
+      throw new Error(`Unsupported database type - ${config?.type}`);
+  }
+}
+
+export async function initDatabase(config: DatabaseConfig | undefined) {
   if (defaultDataSource == undefined) {
-    const mkds = MakeDsFunctions[process.env.AL_DB_TYPE || DbType];
+    const mkds = getDsFunction(config);
     if (mkds) {
       const ormScm = modulesAsOrmSchema();
-      defaultDataSource = mkds(ormScm.entities) as DataSource;
+      defaultDataSource = mkds(ormScm.entities, config) as DataSource;
       await defaultDataSource.initialize();
       const vectEnts = ormScm.vectorEntities.map((es: EntitySchema) => {
         return es.options.name;
