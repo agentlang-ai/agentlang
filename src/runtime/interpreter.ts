@@ -1090,16 +1090,16 @@ async function runPrePostEvents(
     const authContext = env.getActiveAuthContext();
     if (authContext) eventInst.setAuthContext(authContext);
     const prefix = `${pre ? 'Pre' : 'Post'}-${CrudType[crudType]} ${inst.record.getFqName()}`;
-    const f = async () =>
-      evaluate(eventInst, (value: Result) => {
-        logger.debug(`${prefix}: ${value}`);
-      }).catch((reason: any) => {
-        logger.error(`${prefix}: ${reason}`);
-      });
+    const callback = (value: Result) => {
+      logger.debug(`${prefix}: ${value}`);
+    };
+    const catchHandler = (reason: any) => {
+      logger.error(`${prefix}: ${reason}`);
+    };
     if (trigInfo.async) {
-      f();
+      evaluate(eventInst, callback).catch(catchHandler);
     } else {
-      await f();
+      await evaluate(eventInst, callback, env).catch(catchHandler);
     }
   }
 }

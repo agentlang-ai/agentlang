@@ -148,7 +148,7 @@ QueryId returns string: ID | ID '?';
 
 TaggedId returns string: '@' ID;
 
-Ref returns string: ID '.' ID;
+Ref returns string: ID '.' (Ref | ID);
 
 terminal ID returns string: NAME ('/' NAME)?;
 

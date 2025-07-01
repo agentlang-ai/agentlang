@@ -404,6 +404,12 @@ export async function parseAndIntern(code: string, moduleName?: string) {
     throw new Error(`Module not found - ${moduleName}`);
   }
   const r = await parse(moduleName ? `module ${moduleName} ${code}` : code);
+  if (r.parseResult.lexerErrors.length > 0) {
+    throw new Error(`Lexer errors: ${r.parseResult.lexerErrors.join('\n')}`);
+  }
+  if (r.parseResult.parserErrors.length > 0) {
+    throw new Error(`Parser errors: ${r.parseResult.parserErrors.join('\n')}`);
+  }
   if (moduleName == undefined) {
     moduleName = r.parseResult.value.name;
     addModule(moduleName);
