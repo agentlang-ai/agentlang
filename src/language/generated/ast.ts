@@ -37,6 +37,8 @@ export type AgentlangKeywordNames =
     | ">="
     | "?"
     | "@"
+    | "@after"
+    | "@before"
     | "@meta"
     | "@oneof"
     | "@rbac"
@@ -160,6 +162,18 @@ export function isTaggedId(item: unknown): item is TaggedId {
     return typeof item === 'string';
 }
 
+export interface AfterTriggerDefinition extends langium.AstNode {
+    readonly $container: PrePostTriggerDefinition;
+    readonly $type: 'AfterTriggerDefinition';
+    triggers: TriggerDefinition;
+}
+
+export const AfterTriggerDefinition = 'AfterTriggerDefinition';
+
+export function isAfterTriggerDefinition(item: unknown): item is AfterTriggerDefinition {
+    return reflection.isInstance(item, AfterTriggerDefinition);
+}
+
 export interface ArrayLiteral extends langium.AstNode {
     readonly $container: Literal;
     readonly $type: 'ArrayLiteral';
@@ -198,6 +212,18 @@ export const AttributeDefinition = 'AttributeDefinition';
 
 export function isAttributeDefinition(item: unknown): item is AttributeDefinition {
     return reflection.isInstance(item, AttributeDefinition);
+}
+
+export interface BeforeTriggerDefinition extends langium.AstNode {
+    readonly $container: PrePostTriggerDefinition;
+    readonly $type: 'BeforeTriggerDefinition';
+    triggers: TriggerDefinition;
+}
+
+export const BeforeTriggerDefinition = 'BeforeTriggerDefinition';
+
+export function isBeforeTriggerDefinition(item: unknown): item is BeforeTriggerDefinition {
+    return reflection.isInstance(item, BeforeTriggerDefinition);
 }
 
 export interface BinExpr extends langium.AstNode {
@@ -536,6 +562,19 @@ export function isPattern(item: unknown): item is Pattern {
     return reflection.isInstance(item, Pattern);
 }
 
+export interface PrePostTriggerDefinition extends langium.AstNode {
+    readonly $container: RecordExtraDefinition;
+    readonly $type: 'PrePostTriggerDefinition';
+    after?: AfterTriggerDefinition;
+    before?: BeforeTriggerDefinition;
+}
+
+export const PrePostTriggerDefinition = 'PrePostTriggerDefinition';
+
+export function isPrePostTriggerDefinition(item: unknown): item is PrePostTriggerDefinition {
+    return reflection.isInstance(item, PrePostTriggerDefinition);
+}
+
 export interface PropertyDefinition extends langium.AstNode {
     readonly $container: AttributeDefinition | CrudMap | RelationshipDefinition;
     readonly $type: 'PropertyDefinition';
@@ -666,6 +705,7 @@ export interface RecordExtraDefinition extends langium.AstNode {
     readonly $container: RecordSchemaDefinition;
     readonly $type: 'RecordExtraDefinition';
     meta?: MetaDefinition;
+    prePost?: PrePostTriggerDefinition;
     rbacSpec?: RbacSpecDefinition;
 }
 
@@ -808,6 +848,31 @@ export function isThrows(item: unknown): item is Throws {
     return reflection.isInstance(item, Throws);
 }
 
+export interface TriggerDefinition extends langium.AstNode {
+    readonly $container: AfterTriggerDefinition | BeforeTriggerDefinition;
+    readonly $type: 'TriggerDefinition';
+    entries: Array<TriggerEntry>;
+}
+
+export const TriggerDefinition = 'TriggerDefinition';
+
+export function isTriggerDefinition(item: unknown): item is TriggerDefinition {
+    return reflection.isInstance(item, TriggerDefinition);
+}
+
+export interface TriggerEntry extends langium.AstNode {
+    readonly $container: TriggerDefinition;
+    readonly $type: 'TriggerEntry';
+    event?: string;
+    on?: 'create';
+}
+
+export const TriggerEntry = 'TriggerEntry';
+
+export function isTriggerEntry(item: unknown): item is TriggerEntry {
+    return reflection.isInstance(item, TriggerEntry);
+}
+
 export interface Upsert extends langium.AstNode {
     readonly $container: Pattern;
     readonly $type: 'Upsert';
@@ -846,10 +911,12 @@ export function isQueryAllPattern(item: unknown): item is QueryAllPattern {
 }
 
 export type AgentlangAstType = {
+    AfterTriggerDefinition: AfterTriggerDefinition
     ArrayLiteral: ArrayLiteral
     AsyncFnCall: AsyncFnCall
     AttributeDefinition: AttributeDefinition
     AttributeValueExpression: AttributeValueExpression
+    BeforeTriggerDefinition: BeforeTriggerDefinition
     BinExpr: BinExpr
     CrudMap: CrudMap
     Definition: Definition
@@ -878,6 +945,7 @@ export type AgentlangAstType = {
     NotExpr: NotExpr
     OneOfSpec: OneOfSpec
     Pattern: Pattern
+    PrePostTriggerDefinition: PrePostTriggerDefinition
     PrimExpr: PrimExpr
     PropertyDefinition: PropertyDefinition
     Purge: Purge
@@ -902,6 +970,8 @@ export type AgentlangAstType = {
     StandaloneStatement: StandaloneStatement
     Statement: Statement
     Throws: Throws
+    TriggerDefinition: TriggerDefinition
+    TriggerEntry: TriggerEntry
     Upsert: Upsert
     WorkflowDefinition: WorkflowDefinition
 }
@@ -909,7 +979,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
+        return [AfterTriggerDefinition, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, Throws, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -961,6 +1031,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getTypeMetaData(type: string): langium.TypeMetaData {
         switch (type) {
+            case AfterTriggerDefinition: {
+                return {
+                    name: AfterTriggerDefinition,
+                    properties: [
+                        { name: 'triggers' }
+                    ]
+                };
+            }
             case ArrayLiteral: {
                 return {
                     name: ArrayLiteral,
@@ -986,6 +1064,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'oneOfSpec' },
                         { name: 'properties', defaultValue: [] },
                         { name: 'type' }
+                    ]
+                };
+            }
+            case BeforeTriggerDefinition: {
+                return {
+                    name: BeforeTriggerDefinition,
+                    properties: [
+                        { name: 'triggers' }
                     ]
                 };
             }
@@ -1227,6 +1313,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case PrePostTriggerDefinition: {
+                return {
+                    name: PrePostTriggerDefinition,
+                    properties: [
+                        { name: 'after' },
+                        { name: 'before' }
+                    ]
+                };
+            }
             case PropertyDefinition: {
                 return {
                     name: PropertyDefinition,
@@ -1318,6 +1413,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: RecordExtraDefinition,
                     properties: [
                         { name: 'meta' },
+                        { name: 'prePost' },
                         { name: 'rbacSpec' }
                     ]
                 };
@@ -1412,6 +1508,23 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Throws,
                     properties: [
                         { name: 'handlers', defaultValue: [] }
+                    ]
+                };
+            }
+            case TriggerDefinition: {
+                return {
+                    name: TriggerDefinition,
+                    properties: [
+                        { name: 'entries', defaultValue: [] }
+                    ]
+                };
+            }
+            case TriggerEntry: {
+                return {
+                    name: TriggerEntry,
+                    properties: [
+                        { name: 'event' },
+                        { name: 'on' }
                     ]
                 };
             }
