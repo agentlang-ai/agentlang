@@ -36,6 +36,7 @@ import {
   isModule,
 } from './module.js';
 import {
+  findRbacSchema,
   importModule,
   makeFqName,
   maybeExtends,
@@ -327,8 +328,9 @@ async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
 
 function addEntityFromDef(def: EntityDefinition, moduleName: string): Entity {
   const entity = addEntity(def.name, moduleName, def.schema, maybeExtends(def.extends));
-  if (def.schema.rbacSpec) {
-    setRbacForEntity(entity, def.schema.rbacSpec);
+  const rbacSpec = findRbacSchema(def.schema);
+  if (rbacSpec) {
+    setRbacForEntity(entity, rbacSpec);
   }
   return entity;
 }

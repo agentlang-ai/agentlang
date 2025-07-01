@@ -1,5 +1,11 @@
 import { isNodeEnv } from '../utils/runtime.js';
-import { ExtendsClause } from '../language/generated/ast.js';
+import {
+  ExtendsClause,
+  MetaDefinition,
+  RbacSpecDefinition,
+  RecordExtraDefinition,
+  RecordSchemaDefinition,
+} from '../language/generated/ast.js';
 import { readFile } from '../utils/fs-utils.js';
 
 export const QuerySuffix = '?';
@@ -258,4 +264,47 @@ export function now(): string {
 export async function slurpJsonFile(fileName: string): Promise<any> {
   const s = await readFile(fileName);
   return JSON.parse(s);
+}
+
+const enum ExtraType {
+  META,
+  RBAC,
+}
+
+function findExtraSchema(
+  type: ExtraType,
+  scm: RecordSchemaDefinition | undefined
+): RecordExtraDefinition | undefined {
+  if (scm && scm.extras) {
+    return scm.extras.find((ex: RecordExtraDefinition) => {
+      switch (type) {
+        case ExtraType.META:
+          return ex.meta ? true : false;
+        case ExtraType.RBAC:
+          return ex.rbacSpec ? true : false;
+      }
+    });
+  } else {
+    return undefined;
+  }
+}
+
+export function findMetaSchema(
+  scm: RecordSchemaDefinition | undefined
+): MetaDefinition | undefined {
+  const ex = findExtraSchema(ExtraType.META, scm);
+  if (ex) {
+    return ex.meta;
+  }
+  return undefined;
+}
+
+export function findRbacSchema(
+  scm: RecordSchemaDefinition | undefined
+): RbacSpecDefinition | undefined {
+  const ex = findExtraSchema(ExtraType.RBAC, scm);
+  if (ex) {
+    return ex.rbacSpec;
+  }
+  return undefined;
 }

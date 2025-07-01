@@ -16,7 +16,10 @@ KvPair: value=Literal | key=ID ':' value=Literal;
 KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 
 RecordSchemaDefinition: '{''}' | '{' (attributes+=AttributeDefinition (',' attributes+=AttributeDefinition)*)+
-          (',' rbacSpec=RbacSpecDefinition?)? (',' meta=MetaDefinition?)? '}'?;
+(',' extras+=RecordExtraDefinition (',' extras+=RecordExtraDefinition)*)? '}';
+
+RecordExtraDefinition: rbacSpec=RbacSpecDefinition | meta=MetaDefinition;
+
 fragment RecDef: name=ID extends=ExtendsClause? schema=RecordSchemaDefinition;
 
 EntityDefinition: 'entity' RecDef;

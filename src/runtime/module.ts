@@ -12,6 +12,7 @@ import {
   RecordSchemaDefinition,
   MapEntry,
   isLiteral,
+  MetaDefinition,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -25,6 +26,7 @@ import {
   joinStatements,
   isMinusZero,
   now,
+  findMetaSchema,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -192,8 +194,9 @@ export class Record extends ModuleEntry {
         this.schema.set(a.name, { type: t, properties: props });
       });
     }
-    if (scm && scm.meta) {
-      scm.meta.spec.entries.forEach((entry: MapEntry) => {
+    const meta: MetaDefinition | undefined = findMetaSchema(scm);
+    if (meta) {
+      meta.spec.entries.forEach((entry: MapEntry) => {
         this.addMeta(entry.key, normalizeMetaValue(entry.value));
       });
     }

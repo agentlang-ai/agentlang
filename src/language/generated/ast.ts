@@ -444,7 +444,7 @@ export function isMapLiteral(item: unknown): item is MapLiteral {
 }
 
 export interface MetaDefinition extends langium.AstNode {
-    readonly $container: RecordSchemaDefinition;
+    readonly $container: RecordExtraDefinition;
     readonly $type: 'MetaDefinition';
     spec: MapLiteral;
 }
@@ -611,7 +611,7 @@ export function isRbacRolesSpec(item: unknown): item is RbacRolesSpec {
 }
 
 export interface RbacSpecDefinition extends langium.AstNode {
-    readonly $container: RecordSchemaDefinition;
+    readonly $container: RecordExtraDefinition;
     readonly $type: 'RbacSpecDefinition';
     specEntries: Array<RbacSpecEntries>;
 }
@@ -662,12 +662,24 @@ export function isRecordDefinition(item: unknown): item is RecordDefinition {
     return reflection.isInstance(item, RecordDefinition);
 }
 
+export interface RecordExtraDefinition extends langium.AstNode {
+    readonly $container: RecordSchemaDefinition;
+    readonly $type: 'RecordExtraDefinition';
+    meta?: MetaDefinition;
+    rbacSpec?: RbacSpecDefinition;
+}
+
+export const RecordExtraDefinition = 'RecordExtraDefinition';
+
+export function isRecordExtraDefinition(item: unknown): item is RecordExtraDefinition {
+    return reflection.isInstance(item, RecordExtraDefinition);
+}
+
 export interface RecordSchemaDefinition extends langium.AstNode {
     readonly $container: EntityDefinition | EventDefinition | RecordDefinition | RelationshipDefinition;
     readonly $type: 'RecordSchemaDefinition';
     attributes: Array<AttributeDefinition>;
-    meta?: MetaDefinition;
-    rbacSpec?: RbacSpecDefinition;
+    extras: Array<RecordExtraDefinition>;
 }
 
 export const RecordSchemaDefinition = 'RecordSchemaDefinition';
@@ -878,6 +890,7 @@ export type AgentlangAstType = {
     RbacSpecEntries: RbacSpecEntries
     RbacSpecEntry: RbacSpecEntry
     RecordDefinition: RecordDefinition
+    RecordExtraDefinition: RecordExtraDefinition
     RecordSchemaDefinition: RecordSchemaDefinition
     RelNodes: RelNodes
     RelationshipDefinition: RelationshipDefinition
@@ -896,7 +909,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
+        return [ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, Throws, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1300,13 +1313,21 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case RecordExtraDefinition: {
+                return {
+                    name: RecordExtraDefinition,
+                    properties: [
+                        { name: 'meta' },
+                        { name: 'rbacSpec' }
+                    ]
+                };
+            }
             case RecordSchemaDefinition: {
                 return {
                     name: RecordSchemaDefinition,
                     properties: [
                         { name: 'attributes', defaultValue: [] },
-                        { name: 'meta' },
-                        { name: 'rbacSpec' }
+                        { name: 'extras', defaultValue: [] }
                     ]
                 };
             }
