@@ -329,9 +329,9 @@ describe('Expression tests', () => {
       entity E {
         id Int @id,
         v Int
+      }
       workflow CrE {
           {E {id CrE.id, v CrE.v + 2 * 10}}
-      }
       }`)
     assert(isModule('ExprTest'))
     await parseAndEvaluateStatement(`{ExprTest/CrE {id 1, v 10}}`)
@@ -342,6 +342,58 @@ describe('Expression tests', () => {
       .then((result: Instance[]) => {
         const v = result[0].lookup('v')
         assert(v == 30, 'Invalid value for v')
+      })
+  })
+})
+
+describe('Pre-Post trigger tests', () => {
+  test('Check pre-post event triggers', async () => {
+    await doInternModule(`module PrePostEvents
+      entity E {
+        id Int @id,
+        v Int,
+        @after {create AfterCreate},
+        @before {delete BeforeDelete}
+      }
+      entity F {
+        id Int @id
+        w Int
+      }
+      workflow CrE {
+        {E {id CrE.id, v CrE.v}}
+      }
+      workflow AfterCreate {
+        {F {id AfterCreate.E.id, w AfterCreate.E.v * 10}}
+      }
+      workflow BeforeDelete {
+        delete {F {id? BeforeDelete.E.id}}
+      }
+     `)
+    assert(isModule('PrePostEvents'))
+    await parseAndEvaluateStatement(`{PrePostEvents/CrE {id 1, v 10}}`)
+      .then((result: Instance) => {
+        assert(isInstanceOfType(result, 'PrePostEvents/E'))
+      })
+    await parseAndEvaluateStatement(`{PrePostEvents/CrE {id 2, v 20}}`)
+      .then((result: Instance) => {
+        assert(isInstanceOfType(result, 'PrePostEvents/E'))
+      })
+    await parseAndEvaluateStatement(`{PrePostEvents/F {id? 1}}`)
+      .then((result: Instance[]) => {
+        assert(result.length == 1)
+        assert(isInstanceOfType(result[0], 'PrePostEvents/F'))
+        assert(result[0].lookup('w') == 100)
+      })
+    await parseAndEvaluateStatement(`delete {PrePostEvents/E {id? 1}}`)
+    await parseAndEvaluateStatement(`{PrePostEvents/F {id? 1}}`)
+      .then((result: Instance[]) => {
+        assert(result.length == 0)
+      })
+    await parseAndEvaluateStatement(`{PrePostEvents/F {id? 2}}`)
+      .then((result: Instance[]) => {
+        assert(result.length == 1)
+        assert(isInstanceOfType(result[0], 'PrePostEvents/F'))
+        assert(result[0].lookup('w') == 200)
       })
   })
 })

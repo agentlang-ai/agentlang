@@ -12,6 +12,9 @@ import {
   RecordSchemaDefinition,
   MapEntry,
   isLiteral,
+  MetaDefinition,
+  PrePostTriggerDefinition,
+  TriggerEntry,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -25,6 +28,10 @@ import {
   joinStatements,
   isMinusZero,
   now,
+  findMetaSchema,
+  findAllPrePostTriggerSchema,
+  CrudType,
+  asCrudType,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -148,11 +155,25 @@ function normalizeMetaValue(metaValue: any): any {
   }
 }
 
+export type TriggerInfo = {
+  eventName: string;
+  async: boolean;
+};
+
+function asTriggerInfo(te: TriggerEntry): TriggerInfo {
+  return {
+    eventName: te.event,
+    async: te.async ? true : false,
+  };
+}
+
 export class Record extends ModuleEntry {
   schema: RecordSchema;
   meta: Meta | undefined;
   type: RecordType = RecordType.RECORD;
   parentEntryName: string | undefined;
+  afterTriggers: Map<CrudType, TriggerInfo> | undefined;
+  beforeTriggers: Map<CrudType, TriggerInfo> | undefined;
 
   constructor(
     name: string,
@@ -192,11 +213,46 @@ export class Record extends ModuleEntry {
         this.schema.set(a.name, { type: t, properties: props });
       });
     }
-    if (scm && scm.meta) {
-      scm.meta.spec.entries.forEach((entry: MapEntry) => {
+    const meta: MetaDefinition | undefined = findMetaSchema(scm);
+    if (meta) {
+      meta.spec.entries.forEach((entry: MapEntry) => {
         this.addMeta(entry.key, normalizeMetaValue(entry.value));
       });
     }
+    const prepostTrigs: PrePostTriggerDefinition[] | undefined = findAllPrePostTriggerSchema(scm);
+    if (prepostTrigs) {
+      prepostTrigs.forEach((ppt: PrePostTriggerDefinition) => {
+        if (ppt.after) {
+          if (this.afterTriggers == undefined) {
+            this.afterTriggers = new Map();
+          }
+          ppt.after.triggers.entries.forEach((te: TriggerEntry) => {
+            if (this.afterTriggers) this.afterTriggers.set(asCrudType(te.on), asTriggerInfo(te));
+          });
+        } else if (ppt.before) {
+          if (this.beforeTriggers == undefined) {
+            this.beforeTriggers = new Map();
+          }
+          ppt.before.triggers.entries.forEach((te: TriggerEntry) => {
+            if (this.beforeTriggers) this.beforeTriggers.set(asCrudType(te.on), asTriggerInfo(te));
+          });
+        }
+      });
+    }
+  }
+
+  getPreTriggerInfo(crudType: CrudType): TriggerInfo | undefined {
+    if (this.beforeTriggers) {
+      return this.beforeTriggers.get(crudType);
+    }
+    return undefined;
+  }
+
+  getPostTriggerInfo(crudType: CrudType): TriggerInfo | undefined {
+    if (this.afterTriggers) {
+      return this.afterTriggers.get(crudType);
+    }
+    return undefined;
   }
 
   addMeta(k: string, v: any): void {
@@ -1274,8 +1330,6 @@ export function addEntity(
   ext?: string
 ): Entity {
   const module: Module = fetchModule(moduleName);
-  const attrs: AttributeDefinition[] | undefined = scm ? scm.attributes : undefined;
-  if (attrs) attrs.forEach(a => verifyAttribute(a));
   return module.addEntry(new Entity(name, moduleName, scm, ext)) as Entity;
 }
 
@@ -1774,6 +1828,10 @@ export class Instance {
 
   setAuthContext(sesssionInfo: ActiveSessionInfo): Instance {
     return this.addContextData('sessionInfo', sesssionInfo);
+  }
+
+  getAuthContext(): ActiveSessionInfo | undefined {
+    return this.getContextData('sessionInfo', undefined);
   }
 
   getAuthContextUserId(): string {

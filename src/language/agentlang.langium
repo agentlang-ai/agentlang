@@ -16,7 +16,10 @@ KvPair: value=Literal | key=ID ':' value=Literal;
 KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 
 RecordSchemaDefinition: '{''}' | '{' (attributes+=AttributeDefinition (',' attributes+=AttributeDefinition)*)+
-          (',' rbacSpec=RbacSpecDefinition?)? (',' meta=MetaDefinition?)? '}'?;
+(',' extras+=RecordExtraDefinition (',' extras+=RecordExtraDefinition)*)? '}';
+
+RecordExtraDefinition: rbacSpec=RbacSpecDefinition | meta=MetaDefinition | prePost=PrePostTriggerDefinition;
+
 fragment RecDef: name=ID extends=ExtendsClause? schema=RecordSchemaDefinition;
 
 EntityDefinition: 'entity' RecDef;
@@ -51,6 +54,14 @@ RbacOpr: value=('create' | 'delete' | 'update' | 'read');
 RbacExpressionSpec: 'where' ':' lhs=Ref '=' rhs=Ref;
 
 MetaDefinition: '@meta' spec=MapLiteral;
+
+PrePostTriggerDefinition: after=AfterTriggerDefinition | before=BeforeTriggerDefinition;
+
+AfterTriggerDefinition: '@after' triggers=TriggerDefinition;
+BeforeTriggerDefinition: '@before' triggers=TriggerDefinition;
+
+TriggerDefinition: '{' entries+=TriggerEntry (',' entries+=TriggerEntry)* '}';
+TriggerEntry: on=('create' | 'delete' | 'update') event=ID async='@async'?;
 
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 
@@ -137,7 +148,7 @@ QueryId returns string: ID | ID '?';
 
 TaggedId returns string: '@' ID;
 
-Ref returns string: ID '.' ID;
+Ref returns string: ID '.' (Ref | ID);
 
 terminal ID returns string: NAME ('/' NAME)?;
 

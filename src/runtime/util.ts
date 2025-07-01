@@ -1,5 +1,12 @@
 import { isNodeEnv } from '../utils/runtime.js';
-import { ExtendsClause } from '../language/generated/ast.js';
+import {
+  ExtendsClause,
+  MetaDefinition,
+  PrePostTriggerDefinition,
+  RbacSpecDefinition,
+  RecordExtraDefinition,
+  RecordSchemaDefinition,
+} from '../language/generated/ast.js';
 import { readFile } from '../utils/fs-utils.js';
 
 export const QuerySuffix = '?';
@@ -258,4 +265,85 @@ export function now(): string {
 export async function slurpJsonFile(fileName: string): Promise<any> {
   const s = await readFile(fileName);
   return JSON.parse(s);
+}
+
+const enum ExtraType {
+  META,
+  RBAC,
+  PRE_POST_TRIGGER,
+}
+
+function findExtraSchema(
+  type: ExtraType,
+  scm: RecordSchemaDefinition | undefined
+): RecordExtraDefinition | undefined {
+  if (scm && scm.extras) {
+    return scm.extras.find((ex: RecordExtraDefinition) => {
+      switch (type) {
+        case ExtraType.META:
+          return ex.meta ? true : false;
+        case ExtraType.RBAC:
+          return ex.rbacSpec ? true : false;
+        case ExtraType.PRE_POST_TRIGGER:
+          return ex.prePost ? true : false;
+      }
+    });
+  } else {
+    return undefined;
+  }
+}
+
+export function findMetaSchema(
+  scm: RecordSchemaDefinition | undefined
+): MetaDefinition | undefined {
+  const ex = findExtraSchema(ExtraType.META, scm);
+  if (ex) {
+    return ex.meta;
+  }
+  return undefined;
+}
+
+export function findRbacSchema(
+  scm: RecordSchemaDefinition | undefined
+): RbacSpecDefinition | undefined {
+  const ex = findExtraSchema(ExtraType.RBAC, scm);
+  if (ex) {
+    return ex.rbacSpec;
+  }
+  return undefined;
+}
+
+export function findAllPrePostTriggerSchema(
+  scm: RecordSchemaDefinition | undefined
+): PrePostTriggerDefinition[] | undefined {
+  if (scm && scm.extras) {
+    let result: PrePostTriggerDefinition[] | undefined;
+    for (let i = 0; i < scm.extras.length; ++i) {
+      const rex: RecordExtraDefinition = scm.extras[i];
+      if (rex.prePost) {
+        if (result == undefined) {
+          result = new Array<PrePostTriggerDefinition>();
+        }
+        result.push(rex.prePost);
+      }
+    }
+    return result;
+  }
+  return undefined;
+}
+
+export enum CrudType {
+  CREATE,
+  UPDATE,
+  DELETE,
+  READ,
+  UPSERT,
+}
+
+export function asCrudType(s: string): CrudType {
+  const r: CrudType | undefined = CrudType[s.toUpperCase() as keyof typeof CrudType];
+  if (r == undefined) {
+    throw new Error(`${s} does not represent a valid CrudType`);
+  }
+  return r;
 }

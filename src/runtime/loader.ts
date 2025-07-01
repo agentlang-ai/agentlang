@@ -36,6 +36,7 @@ import {
   isModule,
 } from './module.js';
 import {
+  findRbacSchema,
   importModule,
   makeFqName,
   maybeExtends,
@@ -327,8 +328,9 @@ async function createRolesAndPermissions(rbacSpec: RbacSpecification) {
 
 function addEntityFromDef(def: EntityDefinition, moduleName: string): Entity {
   const entity = addEntity(def.name, moduleName, def.schema, maybeExtends(def.extends));
-  if (def.schema.rbacSpec) {
-    setRbacForEntity(entity, def.schema.rbacSpec);
+  const rbacSpec = findRbacSchema(def.schema);
+  if (rbacSpec) {
+    setRbacForEntity(entity, rbacSpec);
   }
   return entity;
 }
@@ -402,6 +404,12 @@ export async function parseAndIntern(code: string, moduleName?: string) {
     throw new Error(`Module not found - ${moduleName}`);
   }
   const r = await parse(moduleName ? `module ${moduleName} ${code}` : code);
+  if (r.parseResult.lexerErrors.length > 0) {
+    throw new Error(`Lexer errors: ${r.parseResult.lexerErrors.join('\n')}`);
+  }
+  if (r.parseResult.parserErrors.length > 0) {
+    throw new Error(`Parser errors: ${r.parseResult.parserErrors.join('\n')}`);
+  }
   if (moduleName == undefined) {
     moduleName = r.parseResult.value.name;
     addModule(moduleName);
