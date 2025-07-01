@@ -1,7 +1,15 @@
+import { AppConfig } from '../state.js';
+
 // TODO: AdminUserId must be dynamically set based on auth-service-config and a valid admin-login
 export const AdminUserId = '00000000-0000-0000-0000-000000000000';
 
-export const AuthEnabled = true;
+export function isAuthEnabled(): boolean {
+  if (AppConfig && AppConfig.rbacEnabled == true) {
+    return true;
+  } else {
+    return false;
+  }
+}
 
 export type ActiveSessionInfo = {
   sessionId: string;
