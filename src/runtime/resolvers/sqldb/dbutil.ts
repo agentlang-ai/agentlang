@@ -78,7 +78,7 @@ export function modulesAsOrmSchema(): OrmSchema {
       }
     })
   })
-  return {entities: ents, vectorEntities: vects}
+  return { entities: ents, vectorEntities: vects }
 }
 
 function ormSchemaFromRecordSchema(moduleName: string, entry: Record, hasOwnPk?: boolean): EntitySchemaOptions<any> {
@@ -235,7 +235,9 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
 }
 
 export function asSqlType(type: string): ColumnType {
-  if (type == 'String' || type == 'DateTime' || type == 'Email' || type == 'URL' || type == 'Map' || type == 'Any') return 'varchar';
+  if (type == 'String' || type == 'DateTime' || type == 'Email' || type == 'URL'
+    || type == 'Map' || type == 'Any' || type == 'Path')
+    return 'varchar';
   else if (type == 'Int') return 'integer';
   else if (!isBuiltInType(type)) return 'varchar';
   else return type.toLowerCase() as ColumnType;
