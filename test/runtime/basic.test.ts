@@ -516,5 +516,29 @@ describe('Nested query-into tests', () => {
     await crb(20, 200, 1)
     await crb(30, 300, 2)
     await crc(100, 1000, 1, 10)
+    await crc(200, 2000, 2, 30)
+    await crc(300, 3000, 2, 30)
+    const f = async (aid: number, check: (value: any) => any) => {
+      await parseAndEvaluateStatement(`{NestedInto/A {id? ${aid}},
+      NestedInto/AB {NestedInto/B? {},
+                     NestedInto/BC {NestedInto/C? {}}},
+      into {ax NestedInto/A.x, by NestedInto/B.y, cz NestedInto/C.z}}`)
+        .then(check)
+    }
+    await f(1, (result: any[]) => {
+      assert(result.length == 1)
+      assert(result[0].ax == 10)
+      assert(result[0].by == 100)
+      assert(result[0].cz == 1000)
+    })
+    await f(2, (result: any[]) => {
+      assert(result.length == 2)
+      assert(result[0].ax == 20)
+      assert(result[1].ax == 20)
+      assert(result[0].by == 300)
+      assert(result[1].by == 300)
+      assert(result[0].cz == 2000)
+      assert(result[1].cz == 3000)
+    })
   })
 })
