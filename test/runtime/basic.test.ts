@@ -14,6 +14,7 @@ import {
   Record,
   removeModule,
   Module,
+  isModule
 } from '../../src/runtime/module.js';
 import {
   buildGraph,
@@ -552,7 +553,9 @@ describe('Default id attribute test', () => {
         assert(path.indexOf(id) > 0)
       })
   })
-})describe('Multiple module loading tests', () => {
+})
+
+describe('Multiple module loading tests', () => {
   test('Check multiple file-based module loading and isolation', async () => {
     await doPreInit()
 
