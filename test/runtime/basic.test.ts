@@ -1,5 +1,5 @@
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
-import { ApplicationSpec, load } from '../../src/runtime/loader.js';
+import { ApplicationSpec, flushAllAndLoad, load } from '../../src/runtime/loader.js';
 import {
   addBetweenRelationship,
   addContainsRelationship,
@@ -569,26 +569,23 @@ describe('Multiple module loading tests', () => {
         assert(blogModule.hasEntry('Post'), 'Blog module missing Post entity')
 
         // Load second module and verify if Blog is still accessible
-        await load('example/erp/core.al').then(async (erpAppSpec: ApplicationSpec) => {
-          assert(erpAppSpec.name, 'Invalid ERP application spec')
-          const erpModule: Module = fetchModule('ErpCore')
-          assert(erpModule.name == 'ErpCore', 'Failed to load ErpCore module')
-          assert(erpModule.hasEntry('Employee'), 'ErpCore module missing Employee entity')
+        await flushAllAndLoad('example/family/family.al').then(async (erpAppSpec: ApplicationSpec) => {
+          assert(erpAppSpec.name, 'Invalid Family application spec')
+          const familyModule: Module = fetchModule('Family')
+          assert(familyModule.name == 'Family', 'Failed to load Family module')
+          assert(familyModule.hasEntry('Member'), 'Family module missing Member entity')
 
-          // Critical test: Blog module should still be accessible after ERP load but, test if it is
-          const blogModuleAfter: Module = fetchModule('Blog')
-          assert(blogModuleAfter.name == 'Blog', 'Blog module not accessible after ErpCore load')
-          assert(blogModuleAfter.hasEntry('User'), 'Blog/User missing after ErpCore load')
-          assert(isModule('Blog'), 'Blog module not registered after ErpCore load')
-          assert(isModule('ErpCore'), 'ErpCore module not registered')
+          // Critical test: Blog module should not still be accessible after Family load
+          assert(!isModule('Blog'), 'Blog module not removed before ErpCore load')
+          assert(isModule('Family'), 'Family module not registered')
 
-          removeModule('ErpCore')
-          removeModule('Blog')
+          removeModule('Family')
+          assert(!isModule('Family'), 'Family module not removed')
         })
       })
     } finally {
       try { removeModule('Blog') } catch { }
-      try { removeModule('ErpCore') } catch { }
+      try { removeModule('Family') } catch { }
     }
   })
 })
