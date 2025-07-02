@@ -410,17 +410,7 @@ export async function parseAndIntern(code: string, moduleName?: string) {
   if (r.parseResult.parserErrors.length > 0) {
     throw new Error(`Parser errors: ${r.parseResult.parserErrors.join('\n')}`);
   }
-  if (moduleName == undefined) {
-    moduleName = r.parseResult.value.name;
-    addModule(moduleName);
-  }
-  if (moduleName != undefined) {
-    r.parseResult.value.defs.forEach((def: Definition) => {
-      addFromDef(def, moduleName);
-    });
-  } else {
-    throw new Error('Failed to initialize module-name');
-  }
+  internModule(r.parseResult.value);
 }
 
 export function internModule(module: ModuleDefinition): Module {
