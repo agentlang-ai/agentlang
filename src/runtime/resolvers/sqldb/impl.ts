@@ -245,10 +245,11 @@ export class SqlDbResolver extends Resolver {
   ): Promise<any> {
     const tableName = asTableName(inst.moduleName, inst.name);
     const joinClauses: JoinClause[] = [];
+    let joinParentTable = tableName;
     joinsSpec.forEach((ji: JoinInfo) => {
       const rel: Relationship = ji.relationship;
       const joinTableName = asTableName(ji.queryInstance.moduleName, ji.queryInstance.name);
-      const pathRef = `${tableName}.${PathAttributeName}`;
+      const pathRef = `${joinParentTable}.${PathAttributeName}`;
       let joinOn: JoinOn | JoinOn[] | undefined;
       if (rel.isContains()) {
         joinOn = makeJoinOn(`"${joinTableName}"."${ParentAttributeName}"`, pathRef);
@@ -283,6 +284,7 @@ export class SqlDbResolver extends Resolver {
           `Relationship type for ${ji.relationship.name} not supported for join-queries`
         );
       }
+      joinParentTable = joinTableName;
     });
     intoSpec.forEach((v: string, k: string) => {
       const p = splitFqName(v);
