@@ -1,5 +1,5 @@
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
-import { ApplicationSpec, load } from '../../src/runtime/loader.js';
+import { ApplicationSpec, flushAllAndLoad, load } from '../../src/runtime/loader.js';
 import {
   addBetweenRelationship,
   addContainsRelationship,
@@ -14,6 +14,7 @@ import {
   Record,
   removeModule,
   Module,
+  isModule
 } from '../../src/runtime/module.js';
 import {
   buildGraph,
@@ -553,6 +554,7 @@ describe('Default id attribute test', () => {
       })
   })
 })
+
 describe('Multiple module loading tests', () => {
   test('Check multiple file-based module loading and isolation', async () => {
     await doPreInit()
@@ -567,26 +569,43 @@ describe('Multiple module loading tests', () => {
         assert(blogModule.hasEntry('Post'), 'Blog module missing Post entity')
 
         // Load second module and verify if Blog is still accessible
-        await load('example/erp/core.al').then(async (erpAppSpec: ApplicationSpec) => {
-          assert(erpAppSpec.name, 'Invalid ERP application spec')
-          const erpModule: Module = fetchModule('ErpCore')
-          assert(erpModule.name == 'ErpCore', 'Failed to load ErpCore module')
-          assert(erpModule.hasEntry('Employee'), 'ErpCore module missing Employee entity')
+        await flushAllAndLoad('example/family/family.al').then(async (erpAppSpec: ApplicationSpec) => {
+          assert(erpAppSpec.name, 'Invalid Family application spec')
+          const familyModule: Module = fetchModule('Family')
+          assert(familyModule.name == 'Family', 'Failed to load Family module')
+          assert(familyModule.hasEntry('Member'), 'Family module missing Member entity')
 
-          // Critical test: Blog module should not still be accessible after ERP load but, test if it is
-          const blogModuleAfter: Module = fetchModule('Blog')
-          assert(blogModuleAfter.name == 'Blog', 'Blog module not accessible after ErpCore load')
-          assert(blogModuleAfter.hasEntry('User'), 'Blog/User missing after ErpCore load')
-          assert(isModule('Blog'), 'Blog module not registered after ErpCore load')
-          assert(isModule('ErpCore'), 'ErpCore module not registered')
+          // Critical test: Blog module should not still be accessible after Family load
+          assert(!isModule('Blog'), 'Blog module not removed before ErpCore load')
+          assert(isModule('Family'), 'Family module not registered')
 
-          removeModule('ErpCore')
-          removeModule('Blog')
+          removeModule('Family')
+          assert(!isModule('Family'), 'Family module not removed')
         })
       })
     } finally {
       try { removeModule('Blog') } catch { }
-      try { removeModule('ErpCore') } catch { }
+      try { removeModule('Family') } catch { }
     }
   })
 })
+
+describe('Catch test', () => {
+  test('Check catch handlers', async () => {
+    await doInternModule('Catch',
+      `entity E {
+        id Int @id,
+        x int
+      }`)
+      const chk = (result: Instance) => {
+        assert(isInstanceOfType(result, 'Catch/E'))
+        assert(result.lookup('x') == 100)
+      }
+      await parseAndEvaluateStatement(`{Catch/E {id? 1}} as [E]
+                                        catch {not_found {Catch/E {id 1, x 100}}
+                                               error {Catch/E {id -1, x -1}}}`)
+      .then(chk)
+     await parseAndEvaluateStatement(`{Catch/E {id? 1}} as [E]`)
+     .then((result: Instance[]) => chk(result[0]))
+    })
+  })

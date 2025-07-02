@@ -1,11 +1,14 @@
 import { isNodeEnv } from '../utils/runtime.js';
 import {
+  AliasSpec,
+  CatchSpec,
   ExtendsClause,
   MetaDefinition,
   PrePostTriggerDefinition,
   RbacSpecDefinition,
   RecordExtraDefinition,
   RecordSchemaDefinition,
+  Statement,
 } from '../language/generated/ast.js';
 import { readFile } from '../utils/fs-utils.js';
 
@@ -368,6 +371,30 @@ export function fqNameFromPath(path: string): string | undefined {
     const n = restoreFqName(parts[len - 2]);
     if (n.indexOf('/') > 0) {
       return n;
+    }
+  }
+  return undefined;
+}
+
+export function firstAliasSpec(stmt: Statement): AliasSpec | undefined {
+  if (stmt.hints) {
+    for (let i = 0; i < stmt.hints.length; ++i) {
+      const rh = stmt.hints[i];
+      if (rh.aliasSpec) {
+        return rh.aliasSpec;
+      }
+    }
+  }
+  return undefined;
+}
+
+export function firstCatchSpec(stmt: Statement): CatchSpec | undefined {
+  if (stmt.hints) {
+    for (let i = 0; i < stmt.hints.length; ++i) {
+      const rh = stmt.hints[i];
+      if (rh.catchSpec) {
+        return rh.catchSpec;
+      }
     }
   }
   return undefined;

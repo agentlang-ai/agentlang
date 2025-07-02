@@ -6,6 +6,7 @@ import {
   FnCall,
   ForEach,
   FullTextSearch,
+  Handler,
   If,
   isBinExpr,
   isGroup,
@@ -17,6 +18,7 @@ import {
   Pattern,
   Purge,
   RelationshipPattern,
+  RuntimeHint,
   SelectIntoEntry,
   SelectIntoSpec,
   SetAttribute,
@@ -458,30 +460,81 @@ export async function evaluateStatements(
 }
 
 async function evaluateStatement(stmt: Statement, env: Environment): Promise<void> {
-  await evaluatePattern(stmt.pattern, env);
-  if (stmt.alias != undefined || stmt.aliases.length > 0) {
-    const result: Result = env.getLastResult();
-    const alias: string | undefined = stmt.alias;
-    if (alias != undefined) {
-      env.bind(alias, result);
-    } else {
-      const aliases: string[] = stmt.aliases;
-      if (result instanceof Array) {
-        const resArr: Array<any> = result as Array<any>;
-        for (let i = 0; i < aliases.length; ++i) {
-          const k: string = aliases[i];
-          if (k == '_') {
-            env.bind(aliases[i + 1], resArr.splice(i));
-            break;
-          } else {
-            env.bind(aliases[i], resArr[i]);
-          }
-        }
-      } else {
-        env.bind(aliases[0], result);
+  const hints = stmt.hints;
+  const hasHints = hints && hints.length > 0;
+  const handlers: Map<string, Statement> | undefined = hasHints
+    ? maybeFindHandlers(hints)
+    : undefined;
+  try {
+    await evaluatePattern(stmt.pattern, env);
+    if (hasHints) {
+      maybeBindStatementResultToAlias(hints, env);
+    }
+    const lastResult: Result = env.getLastResult();
+    if (
+      lastResult == null ||
+      lastResult == undefined ||
+      (lastResult instanceof Array && lastResult.length == 0)
+    ) {
+      const onNotFound = handlers ? handlers.get('not_found') : undefined;
+      if (onNotFound) {
+        await evaluateStatement(onNotFound, env);
       }
     }
+  } catch (reason: any) {
+    const handler = handlers ? handlers.get('error') : undefined;
+    if (handler) {
+      await evaluateStatement(handler, env);
+    } else {
+      throw new Error(reason);
+    }
   }
+}
+
+function maybeBindStatementResultToAlias(hints: RuntimeHint[], env: Environment) {
+  for (let i = 0; i < hints.length; ++i) {
+    const rh = hints[i];
+    if (rh.aliasSpec) {
+      if (rh.aliasSpec.alias != undefined || rh.aliasSpec.aliases.length > 0) {
+        const result: Result = env.getLastResult();
+        const alias: string | undefined = rh.aliasSpec.alias;
+        if (alias != undefined) {
+          env.bind(alias, result);
+        } else {
+          const aliases: string[] = rh.aliasSpec.aliases;
+          if (result instanceof Array) {
+            const resArr: Array<any> = result as Array<any>;
+            for (let i = 0; i < aliases.length; ++i) {
+              const k: string = aliases[i];
+              if (k == '_') {
+                env.bind(aliases[i + 1], resArr.splice(i));
+                break;
+              } else {
+                env.bind(aliases[i], resArr[i]);
+              }
+            }
+          } else {
+            env.bind(aliases[0], result);
+          }
+        }
+      }
+      break;
+    }
+  }
+}
+
+function maybeFindHandlers(hints: RuntimeHint[]): Map<string, Statement> | undefined {
+  for (let i = 0; i < hints.length; ++i) {
+    const rh = hints[i];
+    if (rh.catchSpec) {
+      const result = new Map<string, Statement>();
+      rh.catchSpec.handlers.forEach((h: Handler) => {
+        result.set(h.except, h.stmt);
+      });
+      return result;
+    }
+  }
+  return undefined;
 }
 
 export async function parseAndEvaluateStatement(

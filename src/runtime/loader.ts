@@ -34,6 +34,8 @@ import {
   Module,
   Workflow,
   isModule,
+  getUserModuleNames,
+  removeModule,
 } from './module.js';
 import {
   findRbacSchema,
@@ -189,6 +191,7 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
  * Load a module from a file
  * @param fileName Path to the file containing the module
  * @param fsOptions Optional configuration for the filesystem
+ * @param callback Function to be called after loading the module
  * @returns Promise that resolves when the module is loaded
  */
 export async function load(
@@ -203,6 +206,24 @@ export async function load(
     result = await loadApp(fileName, fsOptions, callback);
   }
   return { name: result, version: '0.0.1' };
+}
+
+/**
+ * Removes all existing user-modules and loads the specified module-file.
+ * @param fileName Path to the file containing the module
+ * @param fsOptions Optional configuration for the filesystem
+ * @param callback Function to be called after loading the module
+ * @returns Promise that resolves when the module is loaded
+ */
+export async function flushAllAndLoad(
+  fileName: string,
+  fsOptions?: any,
+  callback?: Function
+): Promise<ApplicationSpec> {
+  getUserModuleNames().forEach((n: string) => {
+    removeModule(n);
+  });
+  return await load(fileName, fsOptions, callback);
 }
 
 export async function loadCoreModules() {
@@ -410,17 +431,7 @@ export async function parseAndIntern(code: string, moduleName?: string) {
   if (r.parseResult.parserErrors.length > 0) {
     throw new Error(`Parser errors: ${r.parseResult.parserErrors.join('\n')}`);
   }
-  if (moduleName == undefined) {
-    moduleName = r.parseResult.value.name;
-    addModule(moduleName);
-  }
-  if (moduleName != undefined) {
-    r.parseResult.value.defs.forEach((def: Definition) => {
-      addFromDef(def, moduleName);
-    });
-  } else {
-    throw new Error('Failed to initialize module-name');
-  }
+  internModule(r.parseResult.value);
 }
 
 export function internModule(module: ModuleDefinition): Module {
