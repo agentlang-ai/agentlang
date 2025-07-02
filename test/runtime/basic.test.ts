@@ -589,3 +589,23 @@ describe('Multiple module loading tests', () => {
     }
   })
 })
+
+describe('Catch test', () => {
+  test('Check catch handlers', async () => {
+    await doInternModule('Catch',
+      `entity E {
+        id Int @id,
+        x int
+      }`)
+      const chk = (result: Instance) => {
+        assert(isInstanceOfType(result, 'Catch/E'))
+        assert(result.lookup('x') == 100)
+      }
+      await parseAndEvaluateStatement(`{Catch/E {id? 1}} as [E]
+                                        catch {not_found {Catch/E {id 1, x 100}}
+                                               error {Catch/E {id -1, x -1}}}`)
+      .then(chk)
+     await parseAndEvaluateStatement(`{Catch/E {id? 1}} as [E]`)
+     .then((result: Instance[]) => chk(result[0]))
+    })
+  })
