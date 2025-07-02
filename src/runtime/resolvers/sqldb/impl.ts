@@ -243,7 +243,29 @@ export class SqlDbResolver extends Resolver {
   ): Promise<any> {
     const tableName = asTableName(inst.moduleName, inst.name);
     const joinClauses: JoinClause[] = [];
-    let joinParentTable = tableName;
+    this.processJoinInfo(tableName, inst, joinsSpec, joinClauses);
+    intoSpec.forEach((v: string, k: string) => {
+      const p = splitFqName(v);
+      const mn = p.hasModule() ? p.getModuleName() : inst.moduleName;
+      intoSpec.set(k, asTableName(mn, p.getEntryName()));
+    });
+    const rslt: any = await getManyByJoin(
+      tableName,
+      inst.queryAttributesAsObject(),
+      inst.queryAttributeValuesAsObject(),
+      joinClauses,
+      intoSpec,
+      this.getDbContext(inst.getFqName())
+    );
+    return rslt;
+  }
+
+  private processJoinInfo(
+    joinParentTable: string,
+    joinInst: Instance,
+    joinsSpec: JoinInfo[],
+    joinClauses: JoinClause[]
+  ) {
     joinsSpec.forEach((ji: JoinInfo) => {
       const rel: Relationship = ji.relationship;
       const joinTableName = asTableName(ji.queryInstance.moduleName, ji.queryInstance.name);
@@ -254,7 +276,7 @@ export class SqlDbResolver extends Resolver {
       } else {
         if (rel.isOneToOne()) {
           joinOn = makeJoinOn(
-            `"${joinTableName}"."${rel.getAliasForName(inst.getFqName())}"`,
+            `"${joinTableName}"."${rel.getAliasForName(joinInst.getFqName())}"`,
             pathRef
           );
         } else {
@@ -282,22 +304,10 @@ export class SqlDbResolver extends Resolver {
           `Relationship type for ${ji.relationship.name} not supported for join-queries`
         );
       }
-      joinParentTable = joinTableName;
+      if (ji.subJoins) {
+        this.processJoinInfo(joinTableName, ji.queryInstance, ji.subJoins, joinClauses);
+      }
     });
-    intoSpec.forEach((v: string, k: string) => {
-      const p = splitFqName(v);
-      const mn = p.hasModule() ? p.getModuleName() : inst.moduleName;
-      intoSpec.set(k, asTableName(mn, p.getEntryName()));
-    });
-    const rslt: any = await getManyByJoin(
-      tableName,
-      inst.queryAttributesAsObject(),
-      inst.queryAttributeValuesAsObject(),
-      joinClauses,
-      intoSpec,
-      this.getDbContext(inst.getFqName())
-    );
-    return rslt;
   }
 
   private async deleteInstanceHelper(target: Instance, purge: boolean) {

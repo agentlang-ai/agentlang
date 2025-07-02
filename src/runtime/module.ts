@@ -241,16 +241,6 @@ export class Record extends ModuleEntry {
         }
       });
     }
-    if (this.type == RecordType.ENTITY) {
-      const idattr = this.getIdAttributeName()
-      if (idattr == undefined) {
-        const attrSpec: AttributeSpec = {
-          type: "UUID",
-          properties: new Map().set("default", "uuid()").set("id", true)
-        }
-        this.schema.set(DefaultIdAttributeName, attrSpec)
-      }
-    }
   }
 
   getPreTriggerInfo(crudType: CrudType): TriggerInfo | undefined {
@@ -593,6 +583,23 @@ export class RbacSpecification {
 export class Entity extends Record {
   override type: RecordType = RecordType.ENTITY;
   rbac: RbacSpecification[] | undefined;
+
+  constructor(
+    name: string,
+    moduleName: string,
+    scm?: RecordSchemaDefinition,
+    parentEntryName?: string
+  ) {
+    super(name, moduleName, scm, parentEntryName);
+    const idattr = this.getIdAttributeName();
+    if (idattr == undefined) {
+      const attrSpec: AttributeSpec = {
+        type: 'UUID',
+        properties: new Map().set('default', 'uuid()').set('id', true),
+      };
+      this.schema.set(DefaultIdAttributeName, attrSpec);
+    }
+  }
 
   setRbacSpecifications(rbac: RbacSpecification[]): Entity {
     this.rbac = rbac;

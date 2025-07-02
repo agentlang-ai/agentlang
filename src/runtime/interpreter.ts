@@ -851,12 +851,9 @@ async function walkJoinQueryPattern(
     joinsSpec.push({
       relationship: getRelationship(rp.name, qInst.moduleName),
       queryInstance: qInst,
+      subJoins: subJoins,
     });
-    if (subJoins) {
-      return joinsSpec.concat(subJoins);
-    } else {
-      return joinsSpec;
-    }
+    return joinsSpec;
   } else {
     throw new Error(`Expected a query for relationship ${rp.name}`);
   }

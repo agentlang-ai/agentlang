@@ -21,6 +21,7 @@ export const DefaultAuthInfo = new ResolverAuthInfo(
 export type JoinInfo = {
   relationship: Relationship;
   queryInstance: Instance;
+  subJoins: JoinInfo[] | undefined;
 };
 
 export class Resolver {

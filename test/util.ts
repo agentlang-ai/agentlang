@@ -1,6 +1,8 @@
+import { assert } from "vitest";
 import { runPostInitTasks, runPreInitTasks } from "../src/cli/main.js";
 import { parseAndIntern } from "../src/runtime/loader.js";
 import { logger } from "../src/runtime/logger.js";
+import { isModule } from "../src/runtime/module.js";
 import { resetDefaultDatabase } from "../src/runtime/resolvers/sqldb/database.js";
 
 let CoreModulesInited = false
@@ -12,11 +14,12 @@ export async function doPreInit() {
     }
 }
 
-export async function doInternModule(code: string) {
+export async function doInternModule(moduleName: string, code: string) {
     await resetDefaultDatabase()
     await doPreInit()
-    await parseAndIntern(code)
+    await parseAndIntern(`module ${moduleName} ${code}`)
     await runPostInitTasks()
+    assert(isModule(moduleName), `Module ${moduleName} not found`)
 }
 
 function DefaultErrorHandler(err: any): PromiseLike<never> {
