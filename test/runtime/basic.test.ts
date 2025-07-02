@@ -429,3 +429,92 @@ describe('Path reference tests', () => {
       })
   })
 })
+
+describe('Nested query-into tests', () => {
+  test('Check nested into-queries', async () => {
+    await doInternModule(`module NestedInto
+      entity A {
+        id Int @id
+        x int
+      }
+      entity B {
+        id Int @id
+        y Int
+      }
+      entity C {
+        id Int @id
+        z Int
+      }
+      relationship AB contains(A, B)
+      relationship BC contains(B, C)
+      `)
+    assert(isModule('NestedInto'))
+    const isa = ((obj: any) => isInstanceOfType(obj, 'NestedInto/A'))
+    const isb = ((obj: any) => isInstanceOfType(obj, 'NestedInto/B'))
+    const isc = ((obj: any) => isInstanceOfType(obj, 'NestedInto/C'))
+    const cra = async (id: number, x: number) => {
+      await parseAndEvaluateStatement(`{NestedInto/A {id ${id}, x ${x}}}`)
+        .then((result: any) => {
+          assert(isa(result))
+        })
+    }
+    const crb = async (id: number, y: number, aid: number) => {
+      await parseAndEvaluateStatement(`{NestedInto/A {id? ${aid}},
+        NestedInto/AB {NestedInto/B {id ${id}, y ${y}}}}`)
+        .then((results: Instance[]) => {
+          assert(results.length == 1)
+          const result: Instance = results[0]
+          assert(isa(result), 'Not an instance of A')
+          const relInsts = result.relatedInstances
+          assert(relInsts)
+          if (relInsts) {
+            const bs = relInsts.get('NestedInto/AB')
+            assert(bs)
+            if (bs) {
+              assert(bs.length > 0)
+              bs.forEach((inst: Instance) => {
+                assert(isb(inst))
+              })
+            }
+          }
+        })
+    }
+    const crc = async (id: number, z: number, aid: number, bid: number) => {
+      await parseAndEvaluateStatement(`{NestedInto/A {id? ${aid}},
+        NestedInto/AB {NestedInto/B {id? ${bid}},
+                       NestedInto/BC {NestedInto/C {id ${id}, z ${z}}}}}`)
+        .then((results: Instance[]) => {
+          assert(results.length == 1)
+          const result: Instance = results[0]
+          assert(isa(result))
+          let relInsts = result.relatedInstances
+          assert(relInsts)
+          if (relInsts) {
+            const bs = relInsts.get('NestedInto/AB')
+            assert(bs)
+            if (bs) {
+              assert(bs.length == 1)
+              const b: Instance = bs[0]
+              assert(isb(b))
+              relInsts = b.relatedInstances
+              assert(relInsts)
+              if (relInsts) {
+                const cs = relInsts.get('NestedInto/BC')
+                assert(cs)
+                if (cs) {
+                  assert(cs.length == 1)
+                  assert(isc(cs[0]))
+                }
+              }
+            }
+          }
+        })
+    }
+    await cra(1, 10)
+    await cra(2, 20)
+    await crb(10, 100, 1)
+    await crb(20, 200, 1)
+    await crb(30, 300, 2)
+    await crc(100, 1000, 1, 10)
+  })
+})

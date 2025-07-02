@@ -828,29 +828,42 @@ async function evaluateJoinQuery(
     normIntoSpec.set(entry.alias, entry.attribute);
   });
   const moduleName = inst.moduleName;
-  const joinsSpec = new Array<JoinInfo>();
+  let joinsSpec = new Array<JoinInfo>();
   for (let i = 0; i < relationships.length; ++i) {
-    const rp: RelationshipPattern = relationships[i];
-    if (rp.pattern.crudMap) {
-      if (rp.pattern.crudMap.relationships && rp.pattern.crudMap.relationships.length > 0) {
-        throw new Error(`Nested relationships not supported in join-queries - ${inst.getFqName()}`);
-      }
-      const qInst = await patternToInstance(
-        rp.pattern.crudMap.name,
-        rp.pattern.crudMap.attributes,
-        env
-      );
-      joinsSpec.push({
-        relationship: getRelationship(rp.name, moduleName),
-        queryInstance: qInst,
-      });
-    } else {
-      throw new Error(`Expected a query for relationship ${rp.name}`);
-    }
+    joinsSpec = await walkJoinQueryPattern(relationships[i], joinsSpec, env);
   }
   const resolver = await getResolverForPath(inst.name, moduleName, env);
   const result: Result = await resolver.queryByJoin(inst, joinsSpec, normIntoSpec);
   env.setLastResult(result);
+}
+
+async function walkJoinQueryPattern(
+  rp: RelationshipPattern,
+  joinsSpec: JoinInfo[],
+  env: Environment
+): Promise<JoinInfo[]> {
+  const crudMap = rp.pattern.crudMap;
+  if (crudMap) {
+    let subJoins: JoinInfo[] | undefined;
+    if (crudMap.relationships && crudMap.relationships.length > 0) {
+      subJoins = new Array<JoinInfo>();
+      for (let i = 0; i < crudMap.relationships.length; ++i) {
+        await walkJoinQueryPattern(crudMap.relationships[i], subJoins, env);
+      }
+    }
+    const qInst = await patternToInstance(crudMap.name, crudMap.attributes, env);
+    joinsSpec.push({
+      relationship: getRelationship(rp.name, qInst.moduleName),
+      queryInstance: qInst,
+    });
+    if (subJoins) {
+      return joinsSpec.concat(subJoins);
+    } else {
+      return joinsSpec;
+    }
+  } else {
+    throw new Error(`Expected a query for relationship ${rp.name}`);
+  }
 }
 
 async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
