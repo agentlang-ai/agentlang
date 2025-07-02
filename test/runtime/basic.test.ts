@@ -1,5 +1,5 @@
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
-import { ApplicationSpec, load } from '../../src/runtime/loader.js';
+import { ApplicationSpec, flushAllAndLoad, load } from '../../src/runtime/loader.js';
 import {
   addBetweenRelationship,
   addContainsRelationship,
@@ -14,6 +14,7 @@ import {
   Record,
   removeModule,
   Module,
+  isModule
 } from '../../src/runtime/module.js';
 import {
   buildGraph,
@@ -551,5 +552,40 @@ describe('Default id attribute test', () => {
         const path: string = result.lookup(PathAttributeName)
         assert(path.indexOf(id) > 0)
       })
+  })
+})
+
+describe('Multiple module loading tests', () => {
+  test('Check multiple file-based module loading and isolation', async () => {
+    await doPreInit()
+
+    try {
+      // Load Blog module first
+      await load('example/blog/blog.al').then(async (appSpec: ApplicationSpec) => {
+        assert(appSpec.name, 'Invalid Blog application spec')
+        const blogModule: Module = fetchModule('Blog')
+        assert(blogModule.name == 'Blog', 'Failed to load Blog module')
+        assert(blogModule.hasEntry('User'), 'Blog module missing User entity')
+        assert(blogModule.hasEntry('Post'), 'Blog module missing Post entity')
+
+        // Load second module and verify if Blog is still accessible
+        await flushAllAndLoad('example/family/family.al').then(async (erpAppSpec: ApplicationSpec) => {
+          assert(erpAppSpec.name, 'Invalid Family application spec')
+          const familyModule: Module = fetchModule('Family')
+          assert(familyModule.name == 'Family', 'Failed to load Family module')
+          assert(familyModule.hasEntry('Member'), 'Family module missing Member entity')
+
+          // Critical test: Blog module should not still be accessible after Family load
+          assert(!isModule('Blog'), 'Blog module not removed before ErpCore load')
+          assert(isModule('Family'), 'Family module not registered')
+
+          removeModule('Family')
+          assert(!isModule('Family'), 'Family module not removed')
+        })
+      })
+    } finally {
+      try { removeModule('Blog') } catch { }
+      try { removeModule('Family') } catch { }
+    }
   })
 })
