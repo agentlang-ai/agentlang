@@ -20,8 +20,8 @@ import {
   Module,
 } from '../../module.js';
 import { buildGraph } from '../../relgraph.js';
-import { DeletedFlagAttributeName, ParentAttributeName, PathAttributeName } from './database.js';
 import { makeFqName } from '../../util.js';
+import { DeletedFlagAttributeName, ParentAttributeName, PathAttributeName } from '../../defs.js';
 
 export const DefaultVectorDimension = 1536
 
