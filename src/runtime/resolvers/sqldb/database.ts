@@ -24,13 +24,9 @@ import {
 } from '../../module.js';
 import pgvector from 'pgvector';
 import { isString } from '../../util.js';
+import { DeletedFlagAttributeName, PathAttributeName } from '../../defs.js';
 
 export let defaultDataSource: DataSource | undefined;
-
-export const PathAttributeName: string = '__path__';
-export const PathAttributeNameQuery: string = '__path__?';
-export const ParentAttributeName: string = '__parent__';
-export const DeletedFlagAttributeName: string = '__is_deleted__';
 
 export class DbContext {
   txnId: string | undefined;

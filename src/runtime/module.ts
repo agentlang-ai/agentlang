@@ -36,6 +36,7 @@ import {
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
+import { DefaultIdAttributeName } from './defs.js';
 
 export class ModuleEntry {
   name: string;
@@ -239,6 +240,16 @@ export class Record extends ModuleEntry {
           });
         }
       });
+    }
+    if (this.type == RecordType.ENTITY) {
+      const idattr = this.getIdAttributeName()
+      if (idattr == undefined) {
+        const attrSpec: AttributeSpec = {
+          type: "UUID",
+          properties: new Map().set("default", "uuid()").set("id", true)
+        }
+        this.schema.set(DefaultIdAttributeName, attrSpec)
+      }
     }
   }
 

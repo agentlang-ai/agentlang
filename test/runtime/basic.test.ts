@@ -26,7 +26,7 @@ import {
 import { arrayEquals } from '../../src/runtime/util.js';
 import { assert, describe, test } from 'vitest';
 import { doInternModule, doPreInit } from '../util.js';
-import { PathAttributeName } from '../../src/runtime/resolvers/sqldb/database.js';
+import { PathAttributeName } from '../../src/runtime/defs.js';
 
 function createTestModule(): Module | undefined {
   addModule('Acme');

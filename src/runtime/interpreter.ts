@@ -45,11 +45,6 @@ import {
 import { JoinInfo, Resolver, ResolverAuthInfo } from './resolvers/interface.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
 import {
-  ParentAttributeName,
-  PathAttributeName,
-  PathAttributeNameQuery,
-} from './resolvers/sqldb/database.js';
-import {
   CrudType,
   DefaultModuleName,
   escapeFqName,
@@ -70,6 +65,7 @@ import { parseStatement, parseWorkflow } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 import { Agent, AgentFqName, findAgentByName } from './modules/ai.js';
 import { logger } from './logger.js';
+import { ParentAttributeName, PathAttributeName, PathAttributeNameQuery } from './defs.js';
 
 export type Result = any;
 

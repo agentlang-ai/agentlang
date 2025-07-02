@@ -18,10 +18,8 @@ import { asTableName } from './dbutil.js';
 import {
   getMany,
   insertRow,
-  PathAttributeName,
   updateRow,
   getAllConnected,
-  DeletedFlagAttributeName,
   startDbTransaction,
   commitDbTransaction,
   rollbackDbTransaction,
@@ -32,7 +30,6 @@ import {
   vectorStoreSearch,
   vectorStoreSearchEntryExists,
   deleteFullTextSearchEntry,
-  ParentAttributeName,
   JoinClause,
   JoinOn,
   makeJoinOn,
@@ -41,6 +38,7 @@ import {
 import { Environment } from '../../interpreter.js';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { Embeddings } from '@langchain/core/embeddings';
+import { DeletedFlagAttributeName, ParentAttributeName, PathAttributeName } from '../../defs.js';
 
 function maybeFindIdAttributeName(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
