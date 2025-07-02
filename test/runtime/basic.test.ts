@@ -14,6 +14,7 @@ import {
   Record,
   removeModule,
   Module,
+  isModule,
 } from '../../src/runtime/module.js';
 import {
   buildGraph,

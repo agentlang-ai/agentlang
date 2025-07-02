@@ -7,6 +7,7 @@ import { EmptyFileSystem } from 'langium';
 export class BasePattern {
   alias: string | undefined;
   aliases: string[] | undefined;
+  handlers: Map<string, BasePattern> | undefined
 
   setAlias(alias: string) {
     this.alias = alias;
@@ -29,14 +30,41 @@ export class BasePattern {
     this.aliases = aliases;
   }
 
-  aliasAsString(): string {
+  addHandler(k: 'not_found' | 'error', handler: BasePattern) {
+    if (this.handlers == undefined) {
+      this.handlers = new Map()
+    }
+    this.handlers.set(k, handler)
+  }
+
+  private aliasesAsString(): string | undefined {
     if (this.alias) {
       return ` as ${this.alias}`;
     } else if (this.aliases) {
       return ` as [${this.aliases.join(',')}]`;
     } else {
-      return '';
+      return undefined;
     }
+  }
+
+  private handlersAsString(): string | undefined {
+    if (this.handlers) {
+      let s = '{'
+      this.handlers.forEach((handler: BasePattern, k: string) => {
+        s = `${s} ${k} ${handler.toString()}\n`
+      })
+      return s + '}'
+    } else {
+      return undefined
+    }
+  }
+  hintsAsString(): string {
+    const a = this.aliasesAsString()
+    const h = this.handlersAsString()
+    if (!a && !h) return ''
+    if (a && !h) return a
+    if (!a && h) return h
+    return `${a}\n${h}`
   }
 
   toString(): string {
@@ -127,7 +155,7 @@ export class LiteralPattern extends BasePattern {
       default:
         s = this.value.toString();
     }
-    return s.concat(this.aliasAsString());
+    return s.concat(this.hintsAsString());
   }
 }
 
@@ -192,7 +220,7 @@ export class FunctionCallPattern extends BasePattern {
     } else {
       s = `${this.fnName}()`;
     }
-    return s.concat(this.aliasAsString());
+    return s.concat(this.hintsAsString());
   }
 }
 
@@ -228,7 +256,7 @@ export class ExpressionPattern extends BasePattern {
 
   override toString(): string {
     const s = this.expression.toString();
-    return s.concat(this.aliasAsString());
+    return s.concat(this.hintsAsString());
   }
 }
 
@@ -298,7 +326,7 @@ export class ReferencePattern extends BasePattern {
   }
 
   override toString(): string {
-    return `${this.record}.${this.member}`.concat(this.aliasAsString());
+    return `${this.record}.${this.member}`.concat(this.hintsAsString());
   }
 }
 
@@ -416,7 +444,7 @@ export class CrudPattern extends BasePattern {
     if (rs.length > 0) {
       s = s.concat(`,${rs}`);
     }
-    return s.concat('}', this.aliasAsString());
+    return s.concat('}', this.hintsAsString());
   }
 }
 
@@ -488,7 +516,7 @@ export class ForEachPattern extends BasePattern {
     }
     let s = `for ${this.variable} in ${this.source.toString()}`;
     s = s.concat(`{${patternsToString(this.body)}}`);
-    return s.concat(this.aliasAsString());
+    return s.concat(this.hintsAsString());
   }
 }
 
@@ -558,7 +586,7 @@ export class IfPattern extends BasePattern {
         s = s.concat(` else {${patternsToString(this.elseBody)}}`);
       }
     }
-    return s.concat(this.aliasAsString());
+    return s.concat(this.hintsAsString());
   }
 }
 
@@ -596,7 +624,7 @@ export class DeletePattern extends BasePattern {
   }
 
   override toString(): string {
-    return `delete ${this.pattern.toString()}`.concat(this.aliasAsString());
+    return `delete ${this.pattern.toString()}`.concat(this.hintsAsString());
   }
 }
 
