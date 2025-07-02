@@ -460,34 +460,40 @@ export async function evaluateStatements(
 }
 
 async function evaluateStatement(stmt: Statement, env: Environment): Promise<void> {
-  const hints = stmt.hints
-  const hasHints = hints && hints.length > 0
-  const handlers: Map<string, Statement> | undefined = hasHints ? maybeFindHandlers(hints) : undefined
+  const hints = stmt.hints;
+  const hasHints = hints && hints.length > 0;
+  const handlers: Map<string, Statement> | undefined = hasHints
+    ? maybeFindHandlers(hints)
+    : undefined;
   try {
     await evaluatePattern(stmt.pattern, env);
     if (hasHints) {
-      maybeBindStatementResultToAlias(hints, env)
+      maybeBindStatementResultToAlias(hints, env);
     }
-    const lastResult: Result = env.getLastResult()
-    if (lastResult == null || lastResult == undefined || (lastResult instanceof Array && lastResult.length == 0)) {
-      const onNotFound = handlers ? handlers.get('not_found') : undefined
+    const lastResult: Result = env.getLastResult();
+    if (
+      lastResult == null ||
+      lastResult == undefined ||
+      (lastResult instanceof Array && lastResult.length == 0)
+    ) {
+      const onNotFound = handlers ? handlers.get('not_found') : undefined;
       if (onNotFound) {
-        await evaluateStatement(onNotFound, env)
+        await evaluateStatement(onNotFound, env);
       }
     }
   } catch (reason: any) {
-    const handler = handlers ? handlers.get('error') : undefined
+    const handler = handlers ? handlers.get('error') : undefined;
     if (handler) {
-      await evaluateStatement(handler, env)
+      await evaluateStatement(handler, env);
     } else {
-      throw new Error(reason)
+      throw new Error(reason);
     }
   }
 }
 
 function maybeBindStatementResultToAlias(hints: RuntimeHint[], env: Environment) {
   for (let i = 0; i < hints.length; ++i) {
-    const rh = hints[i]
+    const rh = hints[i];
     if (rh.aliasSpec) {
       if (rh.aliasSpec.alias != undefined || rh.aliasSpec.aliases.length > 0) {
         const result: Result = env.getLastResult();
@@ -519,16 +525,16 @@ function maybeBindStatementResultToAlias(hints: RuntimeHint[], env: Environment)
 
 function maybeFindHandlers(hints: RuntimeHint[]): Map<string, Statement> | undefined {
   for (let i = 0; i < hints.length; ++i) {
-    const rh = hints[i]
+    const rh = hints[i];
     if (rh.catchSpec) {
-      const result = new Map<string, Statement>()
+      const result = new Map<string, Statement>();
       rh.catchSpec.handlers.forEach((h: Handler) => {
-        result.set(h.except, h.stmt)
-      })
-      return result
+        result.set(h.except, h.stmt);
+      });
+      return result;
     }
   }
-  return undefined
+  return undefined;
 }
 
 export async function parseAndEvaluateStatement(

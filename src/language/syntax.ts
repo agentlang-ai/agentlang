@@ -7,7 +7,7 @@ import { EmptyFileSystem } from 'langium';
 export class BasePattern {
   alias: string | undefined;
   aliases: string[] | undefined;
-  handlers: Map<string, BasePattern> | undefined
+  handlers: Map<string, BasePattern> | undefined;
 
   setAlias(alias: string) {
     this.alias = alias;
@@ -32,9 +32,9 @@ export class BasePattern {
 
   addHandler(k: 'not_found' | 'error', handler: BasePattern) {
     if (this.handlers == undefined) {
-      this.handlers = new Map()
+      this.handlers = new Map();
     }
-    this.handlers.set(k, handler)
+    this.handlers.set(k, handler);
   }
 
   private aliasesAsString(): string | undefined {
@@ -49,22 +49,22 @@ export class BasePattern {
 
   private handlersAsString(): string | undefined {
     if (this.handlers) {
-      let s = '{'
+      let s = '{';
       this.handlers.forEach((handler: BasePattern, k: string) => {
-        s = `${s} ${k} ${handler.toString()}\n`
-      })
-      return s + '}'
+        s = `${s} ${k} ${handler.toString()}\n`;
+      });
+      return s + '}';
     } else {
-      return undefined
+      return undefined;
     }
   }
   hintsAsString(): string {
-    const a = this.aliasesAsString()
-    const h = this.handlersAsString()
-    if (!a && !h) return ''
-    if (a && !h) return a
-    if (!a && h) return h
-    return `${a}\n${h}`
+    const a = this.aliasesAsString();
+    const h = this.handlersAsString();
+    if (!a && !h) return '';
+    if (a && !h) return a;
+    if (!a && h) return h;
+    return `${a}\n${h}`;
   }
 
   toString(): string {

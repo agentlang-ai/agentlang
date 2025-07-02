@@ -379,23 +379,23 @@ export function fqNameFromPath(path: string): string | undefined {
 export function firstAliasSpec(stmt: Statement): AliasSpec | undefined {
   if (stmt.hints) {
     for (let i = 0; i < stmt.hints.length; ++i) {
-      const rh = stmt.hints[i]
+      const rh = stmt.hints[i];
       if (rh.aliasSpec) {
-        return rh.aliasSpec
+        return rh.aliasSpec;
       }
     }
   }
-  return undefined
+  return undefined;
 }
 
 export function firstCatchSpec(stmt: Statement): CatchSpec | undefined {
   if (stmt.hints) {
     for (let i = 0; i < stmt.hints.length; ++i) {
-      const rh = stmt.hints[i]
+      const rh = stmt.hints[i];
       if (rh.catchSpec) {
-        return rh.catchSpec
+        return rh.catchSpec;
       }
     }
   }
-  return undefined
+  return undefined;
 }

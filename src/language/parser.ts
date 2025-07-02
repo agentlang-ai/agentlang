@@ -126,7 +126,7 @@ function introspectHelper(stmts: Statement[]): BasePattern[] {
 
 function introspectStatement(stmt: Statement): BasePattern {
   const r: BasePattern = introspectPattern(stmt.pattern);
-  const aliasSpec = firstAliasSpec(stmt)
+  const aliasSpec = firstAliasSpec(stmt);
   if (aliasSpec) {
     if (aliasSpec.alias) {
       r.setAlias(aliasSpec.alias);
@@ -134,11 +134,11 @@ function introspectStatement(stmt: Statement): BasePattern {
       r.setAliases(aliasSpec.aliases);
     }
   }
-  const catchSpec = firstCatchSpec(stmt)
+  const catchSpec = firstCatchSpec(stmt);
   if (catchSpec) {
     catchSpec.handlers.forEach((h: Handler) => {
-      r.addHandler(h.except, introspectStatement(h.stmt))
-    })
+      r.addHandler(h.except, introspectStatement(h.stmt));
+    });
   }
   return r;
 }
