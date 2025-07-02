@@ -4,8 +4,7 @@ import { fetchModule, isModule } from "../../src/runtime/module.js"
 
 describe('Issue 92', () => {
     test('Check Issue 92 fix', async () => {
-        await doInternModule(`module I92
-      entity E {
+        await doInternModule('I92', `entity E {
         id Int @id,
         x Int
     }`)
@@ -16,8 +15,7 @@ describe('Issue 92', () => {
             assert(ents.length == 1 && ents[0] == ent)
         }
         chk('E')
-        await doInternModule(`module I92
-      entity F {
+        await doInternModule('I92', `entity F {
         id Int @id,
         x Int
     }`)

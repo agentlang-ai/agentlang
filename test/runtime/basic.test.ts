@@ -14,6 +14,7 @@ import {
   Record,
   removeModule,
   Module,
+  isModule
 } from '../../src/runtime/module.js';
 import {
   buildGraph,
@@ -553,6 +554,7 @@ describe('Default id attribute test', () => {
       })
   })
 })
+
 describe('Multiple module loading tests', () => {
   test('Check multiple file-based module loading and isolation', async () => {
     await doPreInit()
@@ -573,7 +575,7 @@ describe('Multiple module loading tests', () => {
           assert(erpModule.name == 'ErpCore', 'Failed to load ErpCore module')
           assert(erpModule.hasEntry('Employee'), 'ErpCore module missing Employee entity')
 
-          // Critical test: Blog module should not still be accessible after ERP load but, test if it is
+          // Critical test: Blog module should still be accessible after ERP load but, test if it is
           const blogModuleAfter: Module = fetchModule('Blog')
           assert(blogModuleAfter.name == 'Blog', 'Blog module not accessible after ErpCore load')
           assert(blogModuleAfter.hasEntry('User'), 'Blog/User missing after ErpCore load')
