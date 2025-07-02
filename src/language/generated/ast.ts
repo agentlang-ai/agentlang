@@ -50,6 +50,7 @@ export type AgentlangKeywordNames =
     | "as"
     | "await"
     | "between"
+    | "catch"
     | "contains"
     | "create"
     | "delete"
@@ -74,7 +75,6 @@ export type AgentlangKeywordNames =
     | "record"
     | "relationship"
     | "roles"
-    | "throws"
     | "true"
     | "update"
     | "upsert"
@@ -121,14 +121,6 @@ export function isExpr(item: unknown): item is Expr {
     return reflection.isInstance(item, Expr);
 }
 
-export type Handler = Statement;
-
-export const Handler = 'Handler';
-
-export function isHandler(item: unknown): item is Handler {
-    return reflection.isInstance(item, Handler);
-}
-
 export type PrimExpr = Group | Literal | NegExpr | NotExpr;
 
 export const PrimExpr = 'PrimExpr';
@@ -173,6 +165,19 @@ export const AfterTriggerDefinition = 'AfterTriggerDefinition';
 
 export function isAfterTriggerDefinition(item: unknown): item is AfterTriggerDefinition {
     return reflection.isInstance(item, AfterTriggerDefinition);
+}
+
+export interface AliasSpec extends langium.AstNode {
+    readonly $container: RuntimeHint;
+    readonly $type: 'AliasSpec';
+    alias?: string;
+    aliases: Array<string>;
+}
+
+export const AliasSpec = 'AliasSpec';
+
+export function isAliasSpec(item: unknown): item is AliasSpec {
+    return reflection.isInstance(item, AliasSpec);
 }
 
 export interface ArrayLiteral extends langium.AstNode {
@@ -239,6 +244,18 @@ export const BinExpr = 'BinExpr';
 
 export function isBinExpr(item: unknown): item is BinExpr {
     return reflection.isInstance(item, BinExpr);
+}
+
+export interface CatchSpec extends langium.AstNode {
+    readonly $container: RuntimeHint;
+    readonly $type: 'CatchSpec';
+    handlers: Array<Handler>;
+}
+
+export const CatchSpec = 'CatchSpec';
+
+export function isCatchSpec(item: unknown): item is CatchSpec {
+    return reflection.isInstance(item, CatchSpec);
 }
 
 export interface CrudMap extends langium.AstNode {
@@ -371,6 +388,19 @@ export const Group = 'Group';
 
 export function isGroup(item: unknown): item is Group {
     return reflection.isInstance(item, Group);
+}
+
+export interface Handler extends langium.AstNode {
+    readonly $container: CatchSpec;
+    readonly $type: 'Handler';
+    except: 'error' | 'not_found';
+    stmt: Statement;
+}
+
+export const Handler = 'Handler';
+
+export function isHandler(item: unknown): item is Handler {
+    return reflection.isInstance(item, Handler);
 }
 
 export interface If extends langium.AstNode {
@@ -771,6 +801,19 @@ export function isRelNodes(item: unknown): item is RelNodes {
     return reflection.isInstance(item, RelNodes);
 }
 
+export interface RuntimeHint extends langium.AstNode {
+    readonly $container: Statement;
+    readonly $type: 'RuntimeHint';
+    aliasSpec?: AliasSpec;
+    catchSpec?: CatchSpec;
+}
+
+export const RuntimeHint = 'RuntimeHint';
+
+export function isRuntimeHint(item: unknown): item is RuntimeHint {
+    return reflection.isInstance(item, RuntimeHint);
+}
+
 export interface SelectIntoEntry extends langium.AstNode {
     readonly $container: SelectIntoSpec;
     readonly $type: 'SelectIntoEntry';
@@ -823,30 +866,16 @@ export function isStandaloneStatement(item: unknown): item is StandaloneStatemen
 }
 
 export interface Statement extends langium.AstNode {
-    readonly $container: ArrayLiteral | Else | ForEach | If | StandaloneStatement | Throws | WorkflowDefinition;
+    readonly $container: ArrayLiteral | Else | ForEach | Handler | If | StandaloneStatement | WorkflowDefinition;
     readonly $type: 'Statement';
-    alias?: string;
-    aliases: Array<string>;
+    hints: Array<RuntimeHint>;
     pattern: Pattern;
-    throws?: Throws;
 }
 
 export const Statement = 'Statement';
 
 export function isStatement(item: unknown): item is Statement {
     return reflection.isInstance(item, Statement);
-}
-
-export interface Throws extends langium.AstNode {
-    readonly $container: Statement;
-    readonly $type: 'Throws';
-    handlers: Array<Handler>;
-}
-
-export const Throws = 'Throws';
-
-export function isThrows(item: unknown): item is Throws {
-    return reflection.isInstance(item, Throws);
 }
 
 export interface TriggerDefinition extends langium.AstNode {
@@ -914,12 +943,14 @@ export function isQueryAllPattern(item: unknown): item is QueryAllPattern {
 
 export type AgentlangAstType = {
     AfterTriggerDefinition: AfterTriggerDefinition
+    AliasSpec: AliasSpec
     ArrayLiteral: ArrayLiteral
     AsyncFnCall: AsyncFnCall
     AttributeDefinition: AttributeDefinition
     AttributeValueExpression: AttributeValueExpression
     BeforeTriggerDefinition: BeforeTriggerDefinition
     BinExpr: BinExpr
+    CatchSpec: CatchSpec
     CrudMap: CrudMap
     Definition: Definition
     Delete: Delete
@@ -965,13 +996,13 @@ export type AgentlangAstType = {
     RelNodes: RelNodes
     RelationshipDefinition: RelationshipDefinition
     RelationshipPattern: RelationshipPattern
+    RuntimeHint: RuntimeHint
     SchemaDefinition: SchemaDefinition
     SelectIntoEntry: SelectIntoEntry
     SelectIntoSpec: SelectIntoSpec
     SetAttribute: SetAttribute
     StandaloneStatement: StandaloneStatement
     Statement: Statement
-    Throws: Throws
     TriggerDefinition: TriggerDefinition
     TriggerEntry: TriggerEntry
     Upsert: Upsert
@@ -981,7 +1012,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [AfterTriggerDefinition, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, Throws, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
+        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1013,9 +1044,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case WorkflowDefinition: {
                 return this.isSubtype(Definition, supertype);
             }
-            case Statement: {
-                return this.isSubtype(Handler, supertype);
-            }
             default: {
                 return false;
             }
@@ -1038,6 +1066,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: AfterTriggerDefinition,
                     properties: [
                         { name: 'triggers' }
+                    ]
+                };
+            }
+            case AliasSpec: {
+                return {
+                    name: AliasSpec,
+                    properties: [
+                        { name: 'alias' },
+                        { name: 'aliases', defaultValue: [] }
                     ]
                 };
             }
@@ -1084,6 +1121,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'e1' },
                         { name: 'e2' },
                         { name: 'op' }
+                    ]
+                };
+            }
+            case CatchSpec: {
+                return {
+                    name: CatchSpec,
+                    properties: [
+                        { name: 'handlers', defaultValue: [] }
                     ]
                 };
             }
@@ -1177,6 +1222,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Group,
                     properties: [
                         { name: 'ge' }
+                    ]
+                };
+            }
+            case Handler: {
+                return {
+                    name: Handler,
+                    properties: [
+                        { name: 'except' },
+                        { name: 'stmt' }
                     ]
                 };
             }
@@ -1459,6 +1513,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case RuntimeHint: {
+                return {
+                    name: RuntimeHint,
+                    properties: [
+                        { name: 'aliasSpec' },
+                        { name: 'catchSpec' }
+                    ]
+                };
+            }
             case SelectIntoEntry: {
                 return {
                     name: SelectIntoEntry,
@@ -1498,18 +1561,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: Statement,
                     properties: [
-                        { name: 'alias' },
-                        { name: 'aliases', defaultValue: [] },
-                        { name: 'pattern' },
-                        { name: 'throws' }
-                    ]
-                };
-            }
-            case Throws: {
-                return {
-                    name: Throws,
-                    properties: [
-                        { name: 'handlers', defaultValue: [] }
+                        { name: 'hints', defaultValue: [] },
+                        { name: 'pattern' }
                     ]
                 };
             }

@@ -81,7 +81,11 @@ WorkflowDefinition: 'workflow' name=ID Body;
 
 Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | upsert=Upsert | fullTextSearch=FullTextSearch;
 
-Statement: pattern=Pattern ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*)+ ']'))? throws=Throws?;
+Statement: pattern=Pattern hints+=RuntimeHint*;
+
+RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec;
+
+AliasSpec: ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*)+ ']'));
 
 CrudMap: QueryAllPattern | '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}'
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? 
@@ -97,9 +101,9 @@ FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
 RelationshipPattern: name=ID pattern=Pattern;
 
-Throws: 'throws' '{' (handlers+=Handler)+ '}';
+CatchSpec: 'catch' '{' (handlers+=Handler)+ '}';
 
-Handler: ('not_found' | 'error') Statement;
+Handler: except=('not_found' | 'error') stmt=Statement;
 
 If: 'if' '(' cond=Expr ')' Body else=Else?;
 

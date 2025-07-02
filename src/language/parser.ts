@@ -7,6 +7,7 @@ import {
   Expr,
   ForEach,
   Group,
+  Handler,
   If,
   isGroup,
   isLiteral,
@@ -25,7 +26,7 @@ import {
   Statement,
   WorkflowDefinition,
 } from './generated/ast.js';
-import { QuerySuffix } from '../runtime/util.js';
+import { firstAliasSpec, firstCatchSpec, QuerySuffix } from '../runtime/util.js';
 import {
   BasePattern,
   CrudPattern,
@@ -125,10 +126,19 @@ function introspectHelper(stmts: Statement[]): BasePattern[] {
 
 function introspectStatement(stmt: Statement): BasePattern {
   const r: BasePattern = introspectPattern(stmt.pattern);
-  if (stmt.alias) {
-    r.setAlias(stmt.alias);
-  } else if (stmt.aliases.length > 0) {
-    r.setAliases(stmt.aliases);
+  const aliasSpec = firstAliasSpec(stmt);
+  if (aliasSpec) {
+    if (aliasSpec.alias) {
+      r.setAlias(aliasSpec.alias);
+    } else if (aliasSpec.aliases.length > 0) {
+      r.setAliases(aliasSpec.aliases);
+    }
+  }
+  const catchSpec = firstCatchSpec(stmt);
+  if (catchSpec) {
+    catchSpec.handlers.forEach((h: Handler) => {
+      r.addHandler(h.except, introspectStatement(h.stmt));
+    });
   }
   return r;
 }
