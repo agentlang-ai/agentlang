@@ -553,3 +553,40 @@ describe('Default id attribute test', () => {
       })
   })
 })
+describe('Multiple module loading tests', () => {
+  test('Check multiple file-based module loading and isolation', async () => {
+    await doPreInit()
+
+    try {
+      // Load Blog module first
+      await load('example/blog/blog.al').then(async (appSpec: ApplicationSpec) => {
+        assert(appSpec.name, 'Invalid Blog application spec')
+        const blogModule: Module = fetchModule('Blog')
+        assert(blogModule.name == 'Blog', 'Failed to load Blog module')
+        assert(blogModule.hasEntry('User'), 'Blog module missing User entity')
+        assert(blogModule.hasEntry('Post'), 'Blog module missing Post entity')
+
+        // Load second module and verify if Blog is still accessible
+        await load('example/erp/core.al').then(async (erpAppSpec: ApplicationSpec) => {
+          assert(erpAppSpec.name, 'Invalid ERP application spec')
+          const erpModule: Module = fetchModule('ErpCore')
+          assert(erpModule.name == 'ErpCore', 'Failed to load ErpCore module')
+          assert(erpModule.hasEntry('Employee'), 'ErpCore module missing Employee entity')
+
+          // Critical test: Blog module should not still be accessible after ERP load but, test if it is
+          const blogModuleAfter: Module = fetchModule('Blog')
+          assert(blogModuleAfter.name == 'Blog', 'Blog module not accessible after ErpCore load')
+          assert(blogModuleAfter.hasEntry('User'), 'Blog/User missing after ErpCore load')
+          assert(isModule('Blog'), 'Blog module not registered after ErpCore load')
+          assert(isModule('ErpCore'), 'ErpCore module not registered')
+
+          removeModule('ErpCore')
+          removeModule('Blog')
+        })
+      })
+    } finally {
+      try { removeModule('Blog') } catch { }
+      try { removeModule('ErpCore') } catch { }
+    }
+  })
+})
