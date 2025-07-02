@@ -10,7 +10,6 @@ import {
   fetchModule,
   Instance,
   isInstanceOfType,
-  isModule,
   newRelNodeEntry,
   Record,
   removeModule,
@@ -26,7 +25,7 @@ import {
 import { arrayEquals } from '../../src/runtime/util.js';
 import { assert, describe, test } from 'vitest';
 import { doInternModule, doPreInit } from '../util.js';
-import { PathAttributeName } from '../../src/runtime/resolvers/sqldb/database.js';
+import { DefaultIdAttributeName, PathAttributeName } from '../../src/runtime/defs.js';
 
 function createTestModule(): Module | undefined {
   addModule('Acme');
@@ -161,8 +160,8 @@ describe('Basic loader test', () => {
 
 describe('Basic CRUD tests', () => {
   test('Check CRUD patterns', async () => {
-    await doInternModule(`module Blogger
-      entity User {
+    await doInternModule('Blogger',
+      `entity User {
         email Email @id,
         name String
       }
@@ -172,7 +171,6 @@ describe('Basic CRUD tests', () => {
       }
       relationship UserPost between(User, Post) @one_many
       `)
-    assert(isModule('Blogger'), 'Module `Blogger` not found')
     const isUser = (inst: Instance): boolean => {
       return isInstanceOfType(inst, 'Blogger/User')
     }
@@ -255,13 +253,12 @@ describe('Basic CRUD tests', () => {
 
 describe('Array and one-of tests', () => {
   test('Check array and one-of attribute types', async () => {
-    await doInternModule(`module ArrayTest
-      entity E {
+    await doInternModule('ArrayTest',
+      `entity E {
         id Int @id,
         vals String[],
         x @oneof("123", "456")
       }`)
-    assert(isModule('ArrayTest'))
     await parseAndEvaluateStatement(`{ArrayTest/E {id 1, vals ["a", "b"], x "123"}}`)
       .then((result: Instance) => {
         assert(isInstanceOfType(result, 'ArrayTest/E'))
@@ -284,12 +281,11 @@ describe('Array and one-of tests', () => {
 
 describe('Default date-time test', () => {
   test('Check date-time', async () => {
-    await doInternModule(`module DtTest
-      entity E {
+    await doInternModule('DtTest',
+      `entity E {
         id Int @id,
         dt DateTime @default(now())
       }`)
-    assert(isModule('DtTest'))
     let dt = ''
     await parseAndEvaluateStatement(`{DtTest/E {id 1}}`)
       .then((result: Instance) => {
@@ -306,12 +302,11 @@ describe('Default date-time test', () => {
 
 describe('Map attribute tests', () => {
   test('Check Map attributes', async () => {
-    await doInternModule(`module MapTest
-      entity E {
+    await doInternModule('MapTest',
+      `entity E {
         id Int @id,
         v Map
       }`)
-    assert(isModule('MapTest'))
     await parseAndEvaluateStatement(`{MapTest/E {id 1, v #{"a": 1, "b": 2}}}`)
       .then((result: Instance) => {
         assert(isInstanceOfType(result, 'MapTest/E'))
@@ -326,15 +321,14 @@ describe('Map attribute tests', () => {
 
 describe('Expression tests', () => {
   test('Check expression attributes', async () => {
-    await doInternModule(`module ExprTest
-      entity E {
+    await doInternModule('ExprTest',
+      `entity E {
         id Int @id,
         v Int
       }
       workflow CrE {
           {E {id CrE.id, v CrE.v + 2 * 10}}
       }`)
-    assert(isModule('ExprTest'))
     await parseAndEvaluateStatement(`{ExprTest/CrE {id 1, v 10}}`)
       .then((result: Instance) => {
         assert(isInstanceOfType(result, 'ExprTest/E'))
@@ -349,8 +343,8 @@ describe('Expression tests', () => {
 
 describe('Pre-Post trigger tests', () => {
   test('Check pre-post event triggers', async () => {
-    await doInternModule(`module PrePostEvents
-      entity E {
+    await doInternModule('PrePostEvents',
+      `entity E {
         id Int @id,
         v Int,
         @after {create AfterCreate},
@@ -370,7 +364,6 @@ describe('Pre-Post trigger tests', () => {
         delete {F {id? BeforeDelete.E.id}}
       }
      `)
-    assert(isModule('PrePostEvents'))
     await parseAndEvaluateStatement(`{PrePostEvents/CrE {id 1, v 10}}`)
       .then((result: Instance) => {
         assert(isInstanceOfType(result, 'PrePostEvents/E'))
@@ -401,8 +394,8 @@ describe('Pre-Post trigger tests', () => {
 
 describe('Path reference tests', () => {
   test('Check path references', async () => {
-    await doInternModule(`module PathRefs
-      entity E {
+    await doInternModule('PathRefs',
+      `entity E {
         id Int @id,
         f Path,
         v Int
@@ -415,7 +408,6 @@ describe('Path reference tests', () => {
         {E {id CrE.id, f CrE.f, v CrE.f.w * 10}}
       }
      `)
-    assert(isModule('PathRefs'))
     let fpath = ''
     await parseAndEvaluateStatement(`{PathRefs/F {id 1, w 2}}`)
       .then((result: Instance) => {
@@ -432,8 +424,8 @@ describe('Path reference tests', () => {
 
 describe('Nested query-into tests', () => {
   test('Check nested into-queries', async () => {
-    await doInternModule(`module NestedInto
-      entity A {
+    await doInternModule('NestedInto',
+      `entity A {
         id Int @id
         x int
       }
@@ -448,7 +440,6 @@ describe('Nested query-into tests', () => {
       relationship AB contains(A, B)
       relationship BC contains(B, C)
       `)
-    assert(isModule('NestedInto'))
     const isa = ((obj: any) => isInstanceOfType(obj, 'NestedInto/A'))
     const isb = ((obj: any) => isInstanceOfType(obj, 'NestedInto/B'))
     const isc = ((obj: any) => isInstanceOfType(obj, 'NestedInto/C'))
@@ -540,5 +531,62 @@ describe('Nested query-into tests', () => {
       assert(result[0].cz == 2000)
       assert(result[1].cz == 3000)
     })
+  })
+})
+
+describe('Default id attribute test', () => {
+  test('Check default id attribute', async () => {
+    await doInternModule('DefId',
+      `entity E {
+        x int
+      }`)
+    const m = fetchModule('DefId')
+    const e = m.getEntry('E')
+    assert((e as Record).getIdAttributeName() == DefaultIdAttributeName)
+    await parseAndEvaluateStatement(`{DefId/E {x 10}}`)
+      .then((result: Instance) => {
+        assert(isInstanceOfType(result, 'DefId/E'))
+        const id: string = result.lookup(DefaultIdAttributeName)
+        assert(id.length > 0)
+        const path: string = result.lookup(PathAttributeName)
+        assert(path.indexOf(id) > 0)
+      })
+  })
+})
+describe('Multiple module loading tests', () => {
+  test('Check multiple file-based module loading and isolation', async () => {
+    await doPreInit()
+
+    try {
+      // Load Blog module first
+      await load('example/blog/blog.al').then(async (appSpec: ApplicationSpec) => {
+        assert(appSpec.name, 'Invalid Blog application spec')
+        const blogModule: Module = fetchModule('Blog')
+        assert(blogModule.name == 'Blog', 'Failed to load Blog module')
+        assert(blogModule.hasEntry('User'), 'Blog module missing User entity')
+        assert(blogModule.hasEntry('Post'), 'Blog module missing Post entity')
+
+        // Load second module and verify if Blog is still accessible
+        await load('example/erp/core.al').then(async (erpAppSpec: ApplicationSpec) => {
+          assert(erpAppSpec.name, 'Invalid ERP application spec')
+          const erpModule: Module = fetchModule('ErpCore')
+          assert(erpModule.name == 'ErpCore', 'Failed to load ErpCore module')
+          assert(erpModule.hasEntry('Employee'), 'ErpCore module missing Employee entity')
+
+          // Critical test: Blog module should not still be accessible after ERP load but, test if it is
+          const blogModuleAfter: Module = fetchModule('Blog')
+          assert(blogModuleAfter.name == 'Blog', 'Blog module not accessible after ErpCore load')
+          assert(blogModuleAfter.hasEntry('User'), 'Blog/User missing after ErpCore load')
+          assert(isModule('Blog'), 'Blog module not registered after ErpCore load')
+          assert(isModule('ErpCore'), 'ErpCore module not registered')
+
+          removeModule('ErpCore')
+          removeModule('Blog')
+        })
+      })
+    } finally {
+      try { removeModule('Blog') } catch { }
+      try { removeModule('ErpCore') } catch { }
+    }
   })
 })

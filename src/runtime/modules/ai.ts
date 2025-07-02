@@ -11,7 +11,7 @@ import {
 } from '../agents/provider.js';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
 import { PlannerInstructions } from '../agents/common.js';
-import { PathAttributeNameQuery } from '../resolvers/sqldb/database.js';
+import { PathAttributeNameQuery } from '../defs.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 

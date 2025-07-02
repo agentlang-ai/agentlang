@@ -24,8 +24,8 @@ if (process.env.AL_TEST) {
 
   describe('Basic agent', () => {
     test('Simple chat agent', async () => {
-      await doInternModule(`module SimpleAIChat
-          {agentlang_ai/llm {name "simpleChatLLM"}}
+      await doInternModule('SimpleAIChat',
+        `{agentlang_ai/llm {name "simpleChatLLM"}}
           {agentlang_ai/agent {name "simpleChatAgent",
                               instruction "Is the following number odd? Answer YES or NO.",
                               llm "simpleChatLLM"}}
@@ -40,15 +40,14 @@ if (process.env.AL_TEST) {
 
   describe('Basic planner', () => {
     test('Simple planner agent', async () => {
-      await doInternModule(`module SPA entity Person {id Int @id, name String, age Int}`)
-      await doInternModule(`module SimplePlannerAgent
-          {agentlang_ai/llm {name "planner01_llm"}}
+      await doInternModule('SPA', `entity Person {id Int @id, name String, age Int}`)
+      await doInternModule('SimplePlannerAgent',
+        `{agentlang_ai/llm {name "planner01_llm"}}
           {agentlang_ai/agent {name "planner01",
                               instruction "Based on the user request, create appropriate patterns based on the SPA module.",
                               tools ["SPA"],
                               llm "planner01_llm"}}
-          workflow chat {{planner01 {message chat.msg}}
-          }
+          workflow chat {{planner01 {message chat.msg}}}
           `)
       const k = async (ins: string) => {
         return await parseAndEvaluateStatement(`{SimplePlannerAgent/chat {msg "${ins}"}}`)
@@ -72,7 +71,8 @@ if (process.env.AL_TEST) {
         .concat("The event should have an extra boolean attribute called X. ")
         .concat("If X is set create the Person with age incremented by one, otherwise use the age as specified in the event. ")
         .concat("(Only define the workflow, no need to define the event).")
-      const wf: WorkflowDefinition = await parseWorkflow(await k(ins))
+      const wfs = await k(ins)
+      const wf: WorkflowDefinition = await parseWorkflow(wfs)
       addWorkflowFromDef(wf, 'SPA')
       let p = { id: 103, name: "Chole", age: 11 }
       chk(await parseAndEvaluateStatement(`{SPA/${wf.name} {id 103, name "Chole", age 10, X true}}`), p)
