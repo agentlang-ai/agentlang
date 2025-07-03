@@ -616,16 +616,23 @@ describe('Expression attributes', () => {
       `entity E {
         id Int @id,
         x Int,
-        y Int @expr(x*10),
-        z Int @expr(y+1)
-      }`)
+        y Int @expr(x * 10),
+        z Int @expr(y + 1)
+      }
+      entity F {
+        id Int @id,
+        e Path,
+        a Int @expr(e.y + 10 - k),
+        k Int
+      }
+      `)
     const ise = (r: any) => isInstanceOfType(r, 'ExprAttr/E')
     const cre = async (id: number, x: number): Promise<Instance> => {
       const r: any = await parseAndEvaluateStatement(`{ExprAttr/E {id ${id}, x ${x}}}`)
       assert(ise(r))
       return r as Instance
     }
-    await cre(1, 10)
+    const e1 = await cre(1, 10)
     await cre(2, 20)
     await parseAndEvaluateStatement(`{ExprAttr/E {id? 1}}`)
       .then((result: Instance[]) => {
@@ -647,5 +654,12 @@ describe('Expression attributes', () => {
         assert(ys == 300)
         assert(zs == 302)
       })
+    const crf = async (id: number, e: string, k: number): Promise<Instance> => {
+      const f = await parseAndEvaluateStatement(`{ExprAttr/F {id ${id}, e "${e}", k ${k}}}`)
+      assert(isInstanceOfType(f, "ExprAttr/F"))
+      return f as Instance
+    }
+    const f = await crf(11, e1.lookup(PathAttributeName), 5)
+    assert(f.lookup('a') == 105)
   })
 })
