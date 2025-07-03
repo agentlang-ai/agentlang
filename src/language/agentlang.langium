@@ -85,13 +85,11 @@ Statement: pattern=Pattern hints+=RuntimeHint*;
 
 RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec;
 
-AliasSpec: ('as' (alias=ID | ('[' aliases+=ID (',' aliases+=ID)*)+ ']'));
+AliasSpec: ('as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
 
-CrudMap: QueryAllPattern | '{' name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}'
+CrudMap: '{' (name=QueryId '{''}' | name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}')
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? 
              (',' into=SelectIntoSpec)? '}';
-
-QueryAllPattern: '{' name=QueryId '{''}' (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? '}';
 
 SelectIntoSpec: 'into' '{' entries+=SelectIntoEntry (',' entries+=SelectIntoEntry)* '}';
 

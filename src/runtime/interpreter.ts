@@ -698,7 +698,7 @@ async function patternToInstance(
     if (p.hasModule()) moduleName = p.getModuleName();
     if (p.hasEntry()) entryName = p.getEntryName();
   }
-  return makeInstance(moduleName, entryName, attrs, qattrs, qattrVals);
+  return makeInstance(moduleName, entryName, attrs, qattrs, qattrVals, isQueryAll);
 }
 
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {

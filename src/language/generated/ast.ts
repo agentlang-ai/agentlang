@@ -259,10 +259,11 @@ export function isCatchSpec(item: unknown): item is CatchSpec {
 }
 
 export interface CrudMap extends langium.AstNode {
-    readonly $type: 'CrudMap' | 'QueryAllPattern';
+    readonly $container: Pattern | Upsert;
+    readonly $type: 'CrudMap';
     attributes: Array<SetAttribute>;
     into?: SelectIntoSpec;
-    name: string;
+    name: QueryId | string;
     properties: Array<PropertyDefinition>;
     relationships: Array<RelationshipPattern>;
 }
@@ -776,7 +777,7 @@ export function isRelationshipDefinition(item: unknown): item is RelationshipDef
 }
 
 export interface RelationshipPattern extends langium.AstNode {
-    readonly $container: CrudMap | QueryAllPattern;
+    readonly $container: CrudMap;
     readonly $type: 'RelationshipPattern';
     name: string;
     pattern: Pattern;
@@ -929,18 +930,6 @@ export function isWorkflowDefinition(item: unknown): item is WorkflowDefinition 
     return reflection.isInstance(item, WorkflowDefinition);
 }
 
-export interface QueryAllPattern extends CrudMap {
-    readonly $type: 'QueryAllPattern';
-    name: QueryId;
-    relationships: Array<RelationshipPattern>;
-}
-
-export const QueryAllPattern = 'QueryAllPattern';
-
-export function isQueryAllPattern(item: unknown): item is QueryAllPattern {
-    return reflection.isInstance(item, QueryAllPattern);
-}
-
 export type AgentlangAstType = {
     AfterTriggerDefinition: AfterTriggerDefinition
     AliasSpec: AliasSpec
@@ -982,7 +971,6 @@ export type AgentlangAstType = {
     PrimExpr: PrimExpr
     PropertyDefinition: PropertyDefinition
     Purge: Purge
-    QueryAllPattern: QueryAllPattern
     RbacAllowSpec: RbacAllowSpec
     RbacExpressionSpec: RbacExpressionSpec
     RbacOpr: RbacOpr
@@ -1012,7 +1000,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, QueryAllPattern, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
+        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1034,9 +1022,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case NegExpr:
             case NotExpr: {
                 return this.isSubtype(PrimExpr, supertype);
-            }
-            case QueryAllPattern: {
-                return this.isSubtype(CrudMap, supertype);
             }
             case RelationshipDefinition:
             case SchemaDefinition:
@@ -1598,18 +1583,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'name' },
                         { name: 'statements', defaultValue: [] }
-                    ]
-                };
-            }
-            case QueryAllPattern: {
-                return {
-                    name: QueryAllPattern,
-                    properties: [
-                        { name: 'attributes', defaultValue: [] },
-                        { name: 'into' },
-                        { name: 'name' },
-                        { name: 'properties', defaultValue: [] },
-                        { name: 'relationships', defaultValue: [] }
                     ]
                 };
             }

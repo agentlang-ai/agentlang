@@ -1923,7 +1923,8 @@ export function makeInstance(
   entryName: string,
   attributes: InstanceAttributes,
   queryAttributes?: InstanceAttributes,
-  queryAttributeValues?: InstanceAttributes
+  queryAttributeValues?: InstanceAttributes,
+  queryAll: boolean = false
 ): Instance {
   const module: Module = fetchModule(moduleName);
   const record: Record = module.getRecord(entryName);
@@ -1938,7 +1939,7 @@ export function makeInstance(
       validateType(key, value, spec);
     });
   }
-  if (!queryAttributes) {
+  if (!queryAttributes && !queryAll) {
     attributes = maybeSetDefaultAttributeValues(schema, attributes);
   }
   return new Instance(
