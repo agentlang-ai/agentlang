@@ -320,6 +320,30 @@ export function findRbacSchema(
   return undefined;
 }
 
+export function findUqCompositeAttributes(
+  scm: RecordSchemaDefinition | undefined
+): Array<string> | undefined {
+  if (scm && scm.extras) {
+    const uqs = scm.extras.filter((ex: RecordExtraDefinition) => {
+      return ex.uq ? true : false;
+    });
+    if (uqs && uqs.length > 0) {
+      if (uqs.length == 1 && uqs[0].uq) {
+        return uqs[0].uq.attrs;
+      } else {
+        let attrs = new Array<string>();
+        uqs.forEach((uq: RecordExtraDefinition) => {
+          if (uq.uq) {
+            attrs = attrs.concat(uq.uq.attrs);
+          }
+        });
+        return attrs;
+      }
+    }
+  }
+  return undefined;
+}
+
 export function findAllPrePostTriggerSchema(
   scm: RecordSchemaDefinition | undefined
 ): PrePostTriggerDefinition[] | undefined {

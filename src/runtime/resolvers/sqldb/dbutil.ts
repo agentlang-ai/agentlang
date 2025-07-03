@@ -140,6 +140,13 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: Record, hasOwnPk?:
     result.relations = Object.fromEntries(relsSpec)
   }
   result.columns = Object.fromEntries(cols)
+  const compUqs = entry.getCompositeUniqueAttributes()
+  if (compUqs) {
+    indices.push(Object.fromEntries(new Map()
+      .set('name', `${result.tableName}__comp__index`)
+      .set('columns', compUqs)
+      .set('unique', true)))
+  }
   if (indices.length > 0) {
     result.indices = indices
   }
@@ -235,13 +242,13 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
 }
 
 export function asSqlType(type: string): ColumnType {
-  type = type.toLowerCase()
-  if (type == 'string' || type == 'datetime' || type == 'email' || type == 'url'
-    || type == 'map' || type == 'any' || type == 'path')
+  const t = type.toLowerCase()
+  if (t == 'string' || t == 'datetime' || t == 'email' || t == 'url'
+    || t == 'map' || t == 'any' || t == 'path')
     return 'varchar';
   else if (type == 'int') return 'integer';
   else if (!isBuiltInType(type)) return 'varchar';
-  else return type.toLowerCase() as ColumnType;
+  else return t as ColumnType;
 }
 
 export function isSqlTrue(v: true | false | 1 | 0): boolean {

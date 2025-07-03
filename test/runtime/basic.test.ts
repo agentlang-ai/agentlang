@@ -25,7 +25,7 @@ import {
 } from '../../src/runtime/relgraph.js';
 import { arrayEquals } from '../../src/runtime/util.js';
 import { assert, describe, test } from 'vitest';
-import { doInternModule, doPreInit } from '../util.js';
+import { doInternModule, doPreInit, expectError } from '../util.js';
 import { DefaultIdAttributeName, PathAttributeName } from '../../src/runtime/defs.js';
 
 function createTestModule(): Module | undefined {
@@ -661,5 +661,36 @@ describe('Expression attributes', () => {
     }
     const f = await crf(11, e1.lookup(PathAttributeName), 5)
     assert(f.lookup('a') == 105)
+  })
+})
+
+describe('Composite unique attributes', () => {
+  test('Check composite uniques', async () => {
+    await doInternModule('Cuq',
+      `entity E {
+        id Int @id,
+        x Int,
+        y Int,
+        @with_unique(x, y)
+      }`)
+    const ee = expectError()
+    const cre = async (id: number, x: number, y: number, err: boolean = false) => {
+      const r: any = await parseAndEvaluateStatement(`{Cuq/E {id ${id}, x ${x}, y ${y}}}`)
+        .catch((reason: any) => {
+          if (err) {
+            ee.f()(reason)
+          } else {
+            throw new Error(reason)
+          }
+        })
+      if (!err) {
+        assert(isInstanceOfType(r, 'Cuq/E'))
+        assert(r.lookup('id') == id && r.lookup('x') == x && r.lookup('y') == y)
+      }
+    }
+    await cre(1, 10, 20)
+    await cre(2, 10, 30)
+    await cre(3, 10, 20, true)
+    await cre(4, 20, 10)
   })
 })

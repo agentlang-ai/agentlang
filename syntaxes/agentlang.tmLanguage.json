@@ -10,7 +10,7 @@
     },
     {
       "name": "keyword.control.agentlang",
-      "match": "\\b(allow|and|as|await|between|catch|contains|create|delete|else|entity|error|event|extends|false|for|if|import|in|into|like|module|not|not_found|or|purge|read|record|relationship|roles|true|update|upsert|where|workflow)\\b|\\B(@after|@async|@before|@expr|@meta|@oneof|@rbac)\\b"
+      "match": "\\b(allow|and|as|await|between|catch|contains|create|delete|else|entity|error|event|extends|false|for|if|import|in|into|like|module|not|not_found|or|purge|read|record|relationship|roles|true|update|upsert|where|workflow)\\b|\\B(@after|@async|@before|@expr|@meta|@oneof|@rbac|@with_unique)\\b"
     }
   ],
   "repository": {
