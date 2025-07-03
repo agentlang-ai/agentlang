@@ -18,7 +18,7 @@ KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 RecordSchemaDefinition: '{''}' | '{' (attributes+=AttributeDefinition (',' attributes+=AttributeDefinition)*)+
 (',' extras+=RecordExtraDefinition (',' extras+=RecordExtraDefinition)*)? '}';
 
-RecordExtraDefinition: rbacSpec=RbacSpecDefinition | meta=MetaDefinition | prePost=PrePostTriggerDefinition;
+RecordExtraDefinition: rbacSpec=RbacSpecDefinition | meta=MetaDefinition | prePost=PrePostTriggerDefinition | uq=CompositeUniqueDefinition;
 
 fragment RecDef: name=ID extends=ExtendsClause? schema=RecordSchemaDefinition;
 
@@ -62,6 +62,8 @@ BeforeTriggerDefinition: '@before' triggers=TriggerDefinition;
 
 TriggerDefinition: '{' entries+=TriggerEntry (',' entries+=TriggerEntry)* '}';
 TriggerEntry: on=('create' | 'delete' | 'update') event=ID async='@async'?;
+
+CompositeUniqueDefinition: '@with_unique' '(' attrs+=ID (',' attrs+=ID)* ')';
 
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 

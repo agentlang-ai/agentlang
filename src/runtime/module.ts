@@ -34,6 +34,7 @@ import {
   CrudType,
   asCrudType,
   isPath,
+  findUqCompositeAttributes,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -177,6 +178,7 @@ export class Record extends ModuleEntry {
   parentEntryName: string | undefined;
   afterTriggers: Map<CrudType, TriggerInfo> | undefined;
   beforeTriggers: Map<CrudType, TriggerInfo> | undefined;
+  compositeUqAttributes: Array<string> | undefined;
 
   constructor(
     name: string,
@@ -248,6 +250,11 @@ export class Record extends ModuleEntry {
         }
       });
     }
+    this.compositeUqAttributes = findUqCompositeAttributes(scm);
+  }
+
+  getCompositeUniqueAttributes(): Array<string> | undefined {
+    return this.compositeUqAttributes;
   }
 
   getPreTriggerInfo(crudType: CrudType): TriggerInfo | undefined {

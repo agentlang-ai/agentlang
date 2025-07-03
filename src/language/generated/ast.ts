@@ -44,6 +44,7 @@ export type AgentlangKeywordNames =
     | "@meta"
     | "@oneof"
     | "@rbac"
+    | "@with_unique"
     | "["
     | "]"
     | "allow"
@@ -258,6 +259,18 @@ export const CatchSpec = 'CatchSpec';
 
 export function isCatchSpec(item: unknown): item is CatchSpec {
     return reflection.isInstance(item, CatchSpec);
+}
+
+export interface CompositeUniqueDefinition extends langium.AstNode {
+    readonly $container: RecordExtraDefinition;
+    readonly $type: 'CompositeUniqueDefinition';
+    attrs: Array<string>;
+}
+
+export const CompositeUniqueDefinition = 'CompositeUniqueDefinition';
+
+export function isCompositeUniqueDefinition(item: unknown): item is CompositeUniqueDefinition {
+    return reflection.isInstance(item, CompositeUniqueDefinition);
 }
 
 export interface CrudMap extends langium.AstNode {
@@ -741,6 +754,7 @@ export interface RecordExtraDefinition extends langium.AstNode {
     meta?: MetaDefinition;
     prePost?: PrePostTriggerDefinition;
     rbacSpec?: RbacSpecDefinition;
+    uq?: CompositeUniqueDefinition;
 }
 
 export const RecordExtraDefinition = 'RecordExtraDefinition';
@@ -942,6 +956,7 @@ export type AgentlangAstType = {
     BeforeTriggerDefinition: BeforeTriggerDefinition
     BinExpr: BinExpr
     CatchSpec: CatchSpec
+    CompositeUniqueDefinition: CompositeUniqueDefinition
     CrudMap: CrudMap
     Definition: Definition
     Delete: Delete
@@ -1002,7 +1017,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
+        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1117,6 +1132,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: CatchSpec,
                     properties: [
                         { name: 'handlers', defaultValue: [] }
+                    ]
+                };
+            }
+            case CompositeUniqueDefinition: {
+                return {
+                    name: CompositeUniqueDefinition,
+                    properties: [
+                        { name: 'attrs', defaultValue: [] }
                     ]
                 };
             }
@@ -1458,7 +1481,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'meta' },
                         { name: 'prePost' },
-                        { name: 'rbacSpec' }
+                        { name: 'rbacSpec' },
+                        { name: 'uq' }
                     ]
                 };
             }
