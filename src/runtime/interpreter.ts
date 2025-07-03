@@ -765,9 +765,6 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           } else if (isBetweenRelationship(rel.name, moduleName)) {
             const lastInst: Instance = env.getLastResult() as Instance;
             const relEntry: Relationship = getRelationship(rel.name, moduleName);
-            if (!relEntry.isManyToMany()) {
-              newEnv.setBetweenRelInfo({ relationship: relEntry, connectedInstance: lastInst });
-            }
             await evaluatePattern(rel.pattern, newEnv);
             const relResult: any = newEnv.getLastResult();
             const res: Resolver = await getResolverForPath(rel.name, moduleName, env);

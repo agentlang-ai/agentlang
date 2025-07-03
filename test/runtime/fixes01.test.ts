@@ -42,6 +42,11 @@ describe('Issue 97', () => {
                 I97/ResAlloc {I97/Resource? {}},
                 into {e I97/Resource.name, t I97/Allocation.name}}
             }
+
+            workflow CreateAllocation {
+               {I97/Allocation {name CreateAllocation.name},
+                I97/ResAlloc {I97/Resource {id? CreateAllocation.id}}}
+            }
              `
         )
         const isr = (r: any) => assert(isInstanceOfType(r, 'I97/Resource'))
@@ -84,6 +89,12 @@ describe('Issue 97', () => {
         .then((result: any[]) => {
             assert(result.length == 1)
             assert(result[0].e == 'r02' && result[0].t == 'a03')
+        })
+        isa(await parseAndEvaluateStatement(`{I97/CreateAllocation {id "${r02.lookup('id')}", name "a04"}}`))
+        await parseAndEvaluateStatement(`{I97/FetchResourceAllocations {id "${r02.lookup("id")}"}}`)
+        .then((result: any[]) => {
+            assert(result.length == 2)
+            assert(result.every((r: any) => { return r.e == 'r02' && (r.t == 'a03' || r.t == 'a04')}))
         })
     })
 })
