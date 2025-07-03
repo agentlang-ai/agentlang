@@ -150,8 +150,9 @@ export class SqlDbResolver extends Resolver {
   ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
 
+    const tableName = asTableName(inst.moduleName, inst.name);
     const rslt: any = await getMany(
-      asTableName(inst.moduleName, inst.name),
+      tableName,
       queryAll ? undefined : inst.queryAttributesAsObject(),
       queryAll ? undefined : inst.queryAttributeValuesAsObject(),
       this.getDbContext(inst.getFqName())
@@ -159,7 +160,10 @@ export class SqlDbResolver extends Resolver {
     if (rslt instanceof Array) {
       result = new Array<Instance>();
       rslt.forEach((r: object) => {
-        const attrs: InstanceAttributes = new Map(Object.entries(r));
+        const attrs: InstanceAttributes = maybeNormalizeAttributeNames(
+          tableName,
+          new Map(Object.entries(r))
+        );
         attrs.delete(DeletedFlagAttributeName);
         result.push(Instance.newWithAttributes(inst, attrs));
       });
@@ -443,4 +447,20 @@ function ensureOneToOneAttributes(inst: Instance) {
       }
     }
   );
+}
+
+function maybeNormalizeAttributeNames(
+  tableName: string,
+  attrs: InstanceAttributes
+): InstanceAttributes {
+  const ks = [...attrs.keys()];
+  if (ks[0].startsWith(tableName)) {
+    const n = tableName.length;
+    ks.forEach((k: string) => {
+      const v = attrs.get(k);
+      attrs.delete(k);
+      attrs.set(k.substring(n + 1), v);
+    });
+  }
+  return attrs;
 }

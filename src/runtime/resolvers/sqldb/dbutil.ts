@@ -235,10 +235,11 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
 }
 
 export function asSqlType(type: string): ColumnType {
-  if (type == 'String' || type == 'DateTime' || type == 'Email' || type == 'URL'
-    || type == 'Map' || type == 'Any' || type == 'Path')
+  type = type.toLowerCase()
+  if (type == 'string' || type == 'datetime' || type == 'email' || type == 'url'
+    || type == 'map' || type == 'any' || type == 'path')
     return 'varchar';
-  else if (type == 'Int') return 'integer';
+  else if (type == 'int') return 'integer';
   else if (!isBuiltInType(type)) return 'varchar';
   else return type.toLowerCase() as ColumnType;
 }
