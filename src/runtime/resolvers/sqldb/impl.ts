@@ -282,13 +282,16 @@ export class SqlDbResolver extends Resolver {
         } else {
           const relTableName = asTableName(rel.moduleName, rel.name);
           const jPathRef = `"${joinTableName}"."${PathAttributeName}"`;
+          const fqn = ji.queryInstance.getFqName();
+          const n1 = rel.getAliasForName(fqn);
+          const n2 = rel.getInverseAliasForName(fqn);
           joinClauses.push({
             tableName: relTableName,
-            joinOn: makeJoinOn(`"${relTableName}"."${rel.node1.alias}"`, pathRef),
+            joinOn: makeJoinOn(`"${relTableName}"."${n2}"`, pathRef),
           });
           joinOn = [
-            makeJoinOn(jPathRef, `"${relTableName}"."${rel.node2.alias}"`),
-            makeJoinOn(`"${relTableName}"."${rel.node2.alias}"`, jPathRef),
+            makeJoinOn(jPathRef, `"${relTableName}"."${n1}"`),
+            makeJoinOn(`"${relTableName}"."${n1}"`, jPathRef),
           ];
         }
       }
