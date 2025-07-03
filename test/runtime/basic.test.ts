@@ -428,7 +428,7 @@ describe('Nested query-into tests', () => {
     await doInternModule('NestedInto',
       `entity A {
         id Int @id
-        x int
+        x Int
       }
       entity B {
         id Int @id
@@ -539,7 +539,7 @@ describe('Default id attribute test', () => {
   test('Check default id attribute', async () => {
     await doInternModule('DefId',
       `entity E {
-        x int
+        x Int
       }`)
     const m = fetchModule('DefId')
     const e = m.getEntry('E')
@@ -595,17 +595,57 @@ describe('Catch test', () => {
     await doInternModule('Catch',
       `entity E {
         id Int @id,
-        x int
+        x Int
       }`)
-      const chk = (result: Instance) => {
-        assert(isInstanceOfType(result, 'Catch/E'))
-        assert(result.lookup('x') == 100)
-      }
-      await parseAndEvaluateStatement(`{Catch/E {id? 1}} as [E]
+    const chk = (result: Instance) => {
+      assert(isInstanceOfType(result, 'Catch/E'))
+      assert(result.lookup('x') == 100)
+    }
+    await parseAndEvaluateStatement(`{Catch/E {id? 1}} as [E]
                                         catch {not_found {Catch/E {id 1, x 100}}
                                                error {Catch/E {id -1, x -1}}}`)
       .then(chk)
-     await parseAndEvaluateStatement(`{Catch/E {id? 1}} as [E]`)
-     .then((result: Instance[]) => chk(result[0]))
-    })
+    await parseAndEvaluateStatement(`{Catch/E {id? 1}} as [E]`)
+      .then((result: Instance[]) => chk(result[0]))
   })
+})
+
+describe('Expression attributes', () => {
+  test('Check expression attributes', async () => {
+    await doInternModule('ExprAttr',
+      `entity E {
+        id Int @id,
+        x Int,
+        y Int @expr(x*10),
+        z Int @expr(y+1)
+      }`)
+    const ise = (r: any) => isInstanceOfType(r, 'ExprAttr/E')
+    const cre = async (id: number, x: number): Promise<Instance> => {
+      const r: any = await parseAndEvaluateStatement(`{ExprAttr/E {id ${id}, x ${x}}}`)
+      assert(ise(r))
+      return r as Instance
+    }
+    await cre(1, 10)
+    await cre(2, 20)
+    await parseAndEvaluateStatement(`{ExprAttr/E {id? 1}}`)
+      .then((result: Instance[]) => {
+        assert(result.length == 1)
+        assert(result.every(ise))
+        const r: Instance = result[0]
+        assert(r.lookup('id') == 1 && r.lookup('x') == 10 && r.lookup('y') == 100 && r.lookup('z') == 101)
+      })
+    await parseAndEvaluateStatement(`{ExprAttr/E? {}}`)
+      .then((result: Instance[]) => {
+        assert(result.length == 2)
+        assert(result.every(ise))
+        let ys = 0
+        let zs = 0
+        result.forEach((r: Instance) => {
+          ys += r.lookup('y')
+          zs += r.lookup('z')
+        })
+        assert(ys == 300)
+        assert(zs == 302)
+      })
+  })
+})

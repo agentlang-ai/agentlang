@@ -729,6 +729,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
       let r: Instance | undefined;
+      await computeExprAttributes(inst, env);
       if (env.isInUpsertMode()) {
         await runPreUpdateEvents(inst, env);
         r = await res.upsertInstance(inst);
@@ -837,6 +838,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             );
             const res: Array<Instance> = new Array<Instance>();
             for (let i = 0; i < lastRes.length; ++i) {
+              await computeExprAttributes(lastRes[i], env);
               await runPreUpdateEvents(lastRes[i], env);
               const finalInst: Instance = await resolver.updateInstance(lastRes[i], attrs);
               await runPostUpdateEvents(finalInst, env);
@@ -848,6 +850,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           }
         } else {
           const res: Resolver = await getResolverForPath(lastRes.name, lastRes.moduleName, env);
+          await computeExprAttributes(lastRes, env);
           await runPreUpdateEvents(lastRes, env);
           const finalInst: Instance = await res.updateInstance(lastRes, attrs);
           await runPostUpdateEvents(finalInst, env);
@@ -860,6 +863,27 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     else await evaluate(inst, (result: Result) => env.setLastResult(result), env);
   } else {
     env.setLastResult(inst);
+  }
+}
+
+async function computeExprAttributes(inst: Instance, env: Environment) {
+  const exprAttrs = inst.getExprAttributes();
+  if (exprAttrs) {
+    const newEnv = new Environment('expr-env', env);
+    inst.attributes.forEach((v: any, k: string) => {
+      newEnv.bind(k, v);
+    });
+    const ks = [...exprAttrs.keys()];
+    for (let i = 0; i < ks.length; ++i) {
+      const n = ks[i];
+      const expr: Expr | undefined = exprAttrs.get(n);
+      if (expr) {
+        await evaluateExpression(expr, newEnv);
+        const v: Result = newEnv.getLastResult();
+        newEnv.bind(n, v);
+        inst.attributes.set(n, v);
+      }
+    }
   }
 }
 

@@ -40,6 +40,7 @@ export type AgentlangKeywordNames =
     | "@after"
     | "@async"
     | "@before"
+    | "@expr"
     | "@meta"
     | "@oneof"
     | "@rbac"
@@ -208,6 +209,7 @@ export interface AttributeDefinition extends langium.AstNode {
     readonly $container: RecordSchemaDefinition;
     readonly $type: 'AttributeDefinition';
     arrayType?: string;
+    expr?: Expr;
     name: string;
     oneOfSpec?: OneOfSpec;
     properties: Array<PropertyDefinition>;
@@ -233,7 +235,7 @@ export function isBeforeTriggerDefinition(item: unknown): item is BeforeTriggerD
 }
 
 export interface BinExpr extends langium.AstNode {
-    readonly $container: BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
     readonly $type: 'BinExpr';
     e1: Expr | PrimExpr;
     e2: Expr | PrimExpr;
@@ -380,7 +382,7 @@ export function isFullTextSearch(item: unknown): item is FullTextSearch {
 }
 
 export interface Group extends langium.AstNode {
-    readonly $container: BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
     readonly $type: 'Group';
     ge: Expr;
 }
@@ -457,7 +459,7 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: BinExpr | FnCall | FullTextSearch | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | FnCall | FullTextSearch | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
@@ -527,7 +529,7 @@ export function isModuleDefinition(item: unknown): item is ModuleDefinition {
 }
 
 export interface NegExpr extends langium.AstNode {
-    readonly $container: BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
     readonly $type: 'NegExpr';
     ne: Expr;
 }
@@ -552,7 +554,7 @@ export function isNodeDefinition(item: unknown): item is NodeDefinition {
 }
 
 export interface NotExpr extends langium.AstNode {
-    readonly $container: BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
     readonly $type: 'NotExpr';
     ne: Expr;
 }
@@ -1084,6 +1086,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: AttributeDefinition,
                     properties: [
                         { name: 'arrayType' },
+                        { name: 'expr' },
                         { name: 'name' },
                         { name: 'oneOfSpec' },
                         { name: 'properties', defaultValue: [] },

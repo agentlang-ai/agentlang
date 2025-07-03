@@ -15,6 +15,7 @@ import {
   MetaDefinition,
   PrePostTriggerDefinition,
   TriggerEntry,
+  Expr,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -203,6 +204,12 @@ export class Record extends ModuleEntry {
           }
         }
         let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
+        if (a.expr) {
+          if (props == undefined) {
+            props = new Map();
+          }
+          props.set('expr', a.expr).set('optional', true);
+        }
         const isObjectType: boolean = t == 'Map' || !isBuiltInType(t);
         if (isArrayType || isObjectType) {
           if (props == undefined) {
@@ -1260,6 +1267,7 @@ function validateProperties(props: PropertyDefinition[] | undefined): void {
 }
 
 function verifyAttribute(attr: AttributeDefinition): void {
+  if (attr.expr) return;
   if (!attr.oneOfSpec) checkType(attr.type || attr.arrayType);
   validateProperties(attr.properties);
 }
@@ -1325,6 +1333,10 @@ export function isArrayAttribute(attrSpec: AttributeSpec): boolean {
 
 export function isObjectAttribute(attrSpec: AttributeSpec): boolean {
   return getBooleanProperty('object', attrSpec);
+}
+
+export function getAttributeExpr(attrSpec: AttributeSpec): Expr | undefined {
+  return getAnyProperty('expr', attrSpec);
 }
 
 export function getOneOfValues(attrSpec: AttributeSpec): Set<string> | undefined {
@@ -1860,6 +1872,20 @@ export class Instance {
       AdminSession
     ) as ActiveSessionInfo;
     return sessInfo.userId;
+  }
+
+  getExprAttributes(): Map<string, Expr> | undefined {
+    let result: Map<string, Expr> | undefined;
+    this.record.schema.forEach((attrSpec: AttributeSpec, n: string) => {
+      const expr = getAttributeExpr(attrSpec);
+      if (expr) {
+        if (result == undefined) {
+          result = new Map<string, Expr>();
+        }
+        result.set(n, expr);
+      }
+    });
+    return result;
   }
 
   cast<T>(): T {
