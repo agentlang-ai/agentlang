@@ -803,6 +803,10 @@ export class Relationship extends Record {
     }
   }
 
+  isParent(inst: Instance): boolean {
+    return inst.getFqName() == this.node1.path.asFqName();
+  }
+
   override toString(): string {
     const n1 = relNodeEntryToString(this.node1);
     const n2 = relNodeEntryToString(this.node2);

@@ -273,11 +273,16 @@ export class SqlDbResolver extends Resolver {
     joinsSpec.forEach((ji: JoinInfo) => {
       const rel: Relationship = ji.relationship;
       const joinTableName = asTableName(ji.queryInstance.moduleName, ji.queryInstance.name);
-      const pathRef = `${joinParentTable}.${PathAttributeName}`;
       let joinOn: JoinOn | JoinOn[] | undefined;
       if (rel.isContains()) {
-        joinOn = makeJoinOn(`"${joinTableName}"."${ParentAttributeName}"`, pathRef);
+        const walkDown = rel.isParent(joinInst);
+        const pathRef = `${joinParentTable}.${walkDown ? PathAttributeName : ParentAttributeName}`;
+        joinOn = makeJoinOn(
+          `"${joinTableName}"."${walkDown ? ParentAttributeName : PathAttributeName}"`,
+          pathRef
+        );
       } else {
+        const pathRef = `${joinParentTable}.${PathAttributeName}`;
         if (rel.isOneToOne()) {
           joinOn = makeJoinOn(
             `"${joinTableName}"."${rel.getAliasForName(joinInst.getFqName())}"`,
