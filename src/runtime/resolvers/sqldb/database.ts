@@ -516,7 +516,7 @@ export async function updateRow(
     .createQueryBuilder()
     .update(tableName)
     .set(updateObj)
-    .where(objectToWhereClause(queryObj), queryVals)
+    .where(objectToWhereClause(queryObj, queryVals), queryVals)
     .execute();
   return true;
 }
@@ -544,13 +544,33 @@ export async function hardDeleteRow(tableName: string, queryObject: QueryObject,
   return true;
 }
 
-function objectToWhereClause(queryObj: object, tableName?: string): string {
+function mkBetweenClause(tableName: string | undefined, k: string, queryVals: any): string {
+  const ov = queryVals[k];
+  if (ov instanceof Array) {
+    const isstr = isString(ov[0]);
+    const v1 = isstr ? `'${ov[0]}'` : ov[0];
+    const v2 = isstr ? `'${ov[1]}'` : ov[1];
+    const s = tableName
+      ? `${tableName}.${k} BETWEEN ${v1} AND ${v2}`
+      : `${k} BETWEEN ${v1} AND ${v2}`;
+    delete queryVals[k];
+    return s;
+  } else {
+    throw new Error(`between requires an array argument, not ${ov}`);
+  }
+}
+
+function objectToWhereClause(queryObj: object, queryVals: any, tableName?: string): string {
   const clauses: Array<string> = new Array<string>();
   Object.entries(queryObj).forEach((value: [string, any]) => {
     const op: string = value[1] as string;
-    clauses.push(
-      tableName ? `${tableName}.${value[0]} ${op} :${value[0]}` : `${value[0]} ${op} :${value[0]}`
-    );
+    const clause =
+      op == 'between'
+        ? mkBetweenClause(tableName, value[0], queryVals)
+        : tableName
+          ? `${tableName}.${value[0]} ${op} :${value[0]}`
+          : `${value[0]} ${op} :${value[0]}`;
+    clauses.push(clause);
   });
   return clauses.join(' AND ');
 }
@@ -560,9 +580,15 @@ function objectToRawWhereClause(queryObj: object, queryVals: any, tableName?: st
   Object.entries(queryObj).forEach((value: [string, any]) => {
     const op: string = value[1] as string;
     const k: string = value[0];
-    const ov: any = queryVals[k];
-    const v = isString(ov) ? `'${ov}'` : ov;
-    clauses.push(tableName ? `${tableName}.${k} ${op} ${v}` : `${k} ${op} ${v}`);
+    let clause = '';
+    if (op == 'between') {
+      clause = mkBetweenClause(tableName, k, queryVals);
+    } else {
+      const ov: any = queryVals[k];
+      const v = isString(ov) ? `'${ov}'` : ov;
+      clause = tableName ? `${tableName}.${k} ${op} ${v}` : `${k} ${op} ${v}`;
+    }
+    clauses.push(clause);
   });
   if (clauses.length > 0) {
     return clauses.join(' AND ');
@@ -580,7 +606,7 @@ export async function getMany(
   const alias: string = tableName.toLowerCase();
   const queryStr: string = withNotDeletedClause(
     alias,
-    queryObj != undefined ? objectToWhereClause(queryObj, alias) : ''
+    queryObj != undefined ? objectToWhereClause(queryObj, queryVals, alias) : ''
   );
   let ownersJoinCond: string[] | undefined;
   let ot: string = '';
