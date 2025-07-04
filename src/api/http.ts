@@ -1,19 +1,21 @@
 import chalk from 'chalk';
 import express, { Request, Response } from 'express';
 import {
+  getAllChildRelationships,
   getAllEntityNames,
   getAllEventNames,
   Instance,
   InstanceAttributes,
   makeInstance,
   objectAsInstanceAttributes,
+  Relationship,
 } from '../runtime/module.js';
 import { evaluate, parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
 import { requireAuth, verifySession } from '../runtime/modules/auth.js';
 import { ActiveSessionInfo, BypassSession, isNoSession, NoSession } from '../runtime/auth/defs.js';
-import { escapeFqName, isString, makeFqName } from '../runtime/util.js';
+import { escapeFqName, isString, makeFqName, splitFqName } from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number) {
@@ -40,7 +42,7 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
       app.get(`/${moduleName}/${n}/:path`, (req: Request, res: Response) => {
         handleEntityGet(moduleName, n, req, res);
       });
-      app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+      app.post(`/${moduleName}/${n}/:path`, (req: Request, res: Response) => {
         handleEntityPost(moduleName, n, req, res);
       });
       app.put(`/${moduleName}/${n}/:path`, (req: Request, res: Response) => {
@@ -143,11 +145,9 @@ async function handleEntityPost(
       res.status(401).send('Authorization required');
       return;
     }
-    const pattern = patternFromAttributes(
-      moduleName,
-      entityName,
-      objectAsInstanceAttributes(req.body)
-    );
+    const pattern = req.params.path
+      ? createChildPattern(moduleName, entityName, req)
+      : patternFromAttributes(moduleName, entityName, objectAsInstanceAttributes(req.body));
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
@@ -168,7 +168,12 @@ async function handleEntityGet(
       res.status(401).send('Authorization required');
       return;
     }
-    const pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
+    let pattern = '';
+    if (req.query.tree) {
+      pattern = fetchTreePattern(makeFqName(moduleName, entityName), path);
+    } else {
+      pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
+    }
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
@@ -217,6 +222,42 @@ async function handleEntityDelete(
   } catch (err: any) {
     logger.error(err);
     res.status(500).send(err.toString());
+  }
+}
+
+function fetchTreePattern(fqName: string, path?: string): string {
+  let pattern = path ? `{${fqName} {${PathAttributeNameQuery} "${path}"}` : `{${fqName}? {}`;
+  const rels = getAllChildRelationships(fqName);
+  if (rels.length > 0) {
+    const treePats = new Array<string>();
+    rels.forEach((rel: Relationship) => {
+      treePats.push(`${rel.getFqName()} ${fetchTreePattern(rel.getChildFqName())}`);
+    });
+    pattern = pattern.concat(treePats.join(','));
+  }
+  return `${pattern}}`;
+}
+
+function createChildPattern(moduleName: string, entityName: string, req: Request): string {
+  const path = pathFromRequest(moduleName, entityName, req);
+  try {
+    const parts = path.split('/');
+    const pinfo = parts.slice(-4);
+    const parentFqname = escapeFqName(pinfo[0]);
+    const relName = escapeFqName(pinfo[2]);
+    const parentPath = parts.slice(0, parts.length - 2);
+    const childFqName = escapeFqName(pinfo[3]);
+    const cparts = splitFqName(childFqName);
+    const childModuleName = cparts.getModuleName();
+    const childName = cparts.getEntryName();
+    const cp = patternFromAttributes(
+      childModuleName,
+      childName,
+      objectAsInstanceAttributes(req.body)
+    );
+    return `{${parentFqname} {${PathAttributeNameQuery} "${parentPath}"}, ${relName} ${cp}}`;
+  } catch (err: any) {
+    throw new BadRequestError(err.message);
   }
 }
 
