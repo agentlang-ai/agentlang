@@ -694,3 +694,34 @@ describe('Composite unique attributes', () => {
     await cre(4, 20, 10)
   })
 })
+
+describe('Between operator test', () => {
+  test('Check between operator', async () => {
+    await doInternModule('BetOpr',
+      `entity E {
+        id Int @id,
+        x Int,
+        y DateTime
+      }`)
+      const ise = (r: any) => isInstanceOfType(r, 'BetOpr/E')
+      const cre = async (id: number, x: number, y: string) => {
+        const r = await parseAndEvaluateStatement(`{BetOpr/E {id ${id}, x ${x}, y "${y}"}}`)
+        assert(ise(r))
+        return r
+      }
+      await cre(1, 10, '2025-01-02')
+      await cre(2, 20, '2025-02-20')
+      await cre(3, 30, '2025-03-01')
+      await cre(4, 40, '2025-03-12')
+      let result: Instance[] = await parseAndEvaluateStatement(`{BetOpr/E {x?between [20, 40]}}`)
+      assert(result.length == 3)
+      assert(result.every((inst: Instance) => {
+        return inst.lookup('x') > 10
+      }))
+      result = await parseAndEvaluateStatement(`{BetOpr/E {y?between ["2025-01-01", "2025-03-05"]}}`)
+      assert(result.length == 3)
+      assert(result.every((inst: Instance) => {
+        return inst.lookup('x') < 40
+      }))
+    })
+  })
