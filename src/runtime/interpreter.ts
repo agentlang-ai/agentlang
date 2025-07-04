@@ -334,7 +334,7 @@ export class Environment extends Instance {
       });
     await this.endAllTransactions(commit);
     if (!commit) {
-      throw new Error(result);
+      throw result;
     }
     return result;
   }
@@ -486,7 +486,7 @@ async function evaluateStatement(stmt: Statement, env: Environment): Promise<voi
     if (handler) {
       await evaluateStatement(handler, env);
     } else {
-      throw new Error(reason);
+      throw reason;
     }
   }
 }

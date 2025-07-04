@@ -14,7 +14,7 @@ import { logger } from '../runtime/logger.js';
 import { requireAuth, verifySession } from '../runtime/modules/auth.js';
 import { ActiveSessionInfo, BypassSession, isNoSession, NoSession } from '../runtime/auth/defs.js';
 import { escapeFqName, isString, makeFqName } from '../runtime/util.js';
-import { PathAttributeNameQuery } from '../runtime/defs.js';
+import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number) {
   const app = express();
@@ -69,10 +69,20 @@ function ok(res: Response) {
   };
 }
 
+function statusFromErrorType(err: any): number {
+  if (err instanceof UnauthorisedError) {
+    return 401;
+  } else if (err instanceof BadRequestError) {
+    return 400;
+  } else {
+    return 500;
+  }
+}
+
 function internalError(res: Response) {
   return (reason: any) => {
     logger.error(reason);
-    res.status(500).send(reason);
+    res.status(statusFromErrorType(reason)).send(reason.message);
   };
 }
 
@@ -116,7 +126,7 @@ async function handleEventPost(
     ).setAuthContext(sessionInfo);
     evaluate(inst, ok(res)).catch(internalError(res));
   } catch (err: any) {
-    logger.error(`Error in handing request: ${err}`);
+    logger.error(err);
     res.status(500).send(err.toString());
   }
 }
@@ -140,7 +150,7 @@ async function handleEntityPost(
     );
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
-    logger.error(`Error in handing request: ${err}`);
+    logger.error(err);
     res.status(500).send(err.toString());
   }
 }
@@ -161,7 +171,7 @@ async function handleEntityGet(
     const pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
-    logger.error(`Error in handing request: ${err}`);
+    logger.error(err);
     res.status(500).send(err.toString());
   }
 }
@@ -184,7 +194,7 @@ async function handleEntityPut(
     const pattern = patternFromAttributes(moduleName, entityName, attrs);
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
-    logger.error(`Error in handing request: ${err}`);
+    logger.error(err);
     res.status(500).send(err.toString());
   }
 }
@@ -205,7 +215,7 @@ async function handleEntityDelete(
     const pattern = `delete {${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
-    logger.error(`Error in handing request: ${err}`);
+    logger.error(err);
     res.status(500).send(err.toString());
   }
 }

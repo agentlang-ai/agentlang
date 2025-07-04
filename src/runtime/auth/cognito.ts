@@ -20,6 +20,7 @@ import { Instance } from '../module.js';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { Environment } from '../interpreter.js';
 import { isNodeEnv } from '../../utils/runtime.js';
+import { UnauthorisedError } from '../defs.js';
 
 let fromEnv: any = undefined;
 let CognitoIdentityProviderClient: any = undefined;
@@ -145,16 +146,20 @@ export class CognitoAuth implements AgentlangAuth {
       Password: password,
     });
     let result: any;
+    let errMsg: string | undefined;
     user.authenticateUser(authDetails, {
       onSuccess: (session: any) => {
         result = session;
       },
       onFailure: (err: any) => {
-        throw new Error(`Authentication failed for ${username} - ${err}`);
+        errMsg = `Authentication failed for ${username} - ${err}`;
       },
     });
-    while (result == undefined) {
+    while (result == undefined && errMsg == undefined) {
       await sleepMilliseconds(100);
+    }
+    if (errMsg) {
+      throw new UnauthorisedError(errMsg);
     }
     if (result) {
       const userid = localUser.lookup('id');

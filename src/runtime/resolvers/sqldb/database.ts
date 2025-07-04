@@ -7,13 +7,7 @@ import {
   VectorSuffix,
 } from './dbutil.js';
 import { DefaultAuthInfo, ResolverAuthInfo } from '../interface.js';
-import {
-  canUserCreate,
-  canUserDelete,
-  canUserRead,
-  canUserUpdate,
-  UnauthorisedError,
-} from '../../modules/auth.js';
+import { canUserCreate, canUserDelete, canUserRead, canUserUpdate } from '../../modules/auth.js';
 import { Environment, GlobalEnvironment } from '../../interpreter.js';
 import {
   Instance,
@@ -24,7 +18,7 @@ import {
 } from '../../module.js';
 import pgvector from 'pgvector';
 import { isString } from '../../util.js';
-import { DeletedFlagAttributeName, PathAttributeName } from '../../defs.js';
+import { DeletedFlagAttributeName, PathAttributeName, UnauthorisedError } from '../../defs.js';
 
 export let defaultDataSource: DataSource | undefined;
 
