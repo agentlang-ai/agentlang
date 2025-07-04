@@ -2001,17 +2001,29 @@ export function isRecordInstance(inst: Instance): boolean {
   return inst.record.type == RecordType.RECORD;
 }
 
-export function getAllEventNames() {
+export function getAllModuleEntries(f: Function): Map<string, string[]> {
   const result: Map<string, string[]> = new Map<string, string[]>();
-  moduleDb.forEach((v: Module, k: string) => {
+  moduleDb.forEach((module: Module, k: string) => {
     result.set(
       k,
-      v.getEventEntries().map((me: ModuleEntry) => {
+      f(module).map((me: ModuleEntry) => {
         return me.name;
       })
     );
   });
   return result;
+}
+
+export function getAllEventNames() {
+  return getAllModuleEntries((module: Module) => {
+    return module.getEventEntries();
+  });
+}
+
+export function getAllEntityNames() {
+  return getAllModuleEntries((module: Module) => {
+    return module.getEntityEntries();
+  });
 }
 
 export function isBetweenRelationship(relName: string, moduleName: string): boolean {

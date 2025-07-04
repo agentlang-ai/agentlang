@@ -1,16 +1,20 @@
 import chalk from 'chalk';
 import express, { Request, Response } from 'express';
 import {
+  getAllEntityNames,
   getAllEventNames,
   Instance,
+  InstanceAttributes,
   makeInstance,
   objectAsInstanceAttributes,
 } from '../runtime/module.js';
-import { evaluate, Result } from '../runtime/interpreter.js';
+import { evaluate, parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
 import { requireAuth, verifySession } from '../runtime/modules/auth.js';
 import { ActiveSessionInfo, BypassSession, isNoSession, NoSession } from '../runtime/auth/defs.js';
+import { escapeFqName, isString, makeFqName } from '../runtime/util.js';
+import { PathAttributeNameQuery } from '../runtime/defs.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number) {
   const app = express();
@@ -23,11 +27,27 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
     res.send(appName);
   });
 
-  const eventNames: Map<string, string[]> = getAllEventNames();
-  eventNames.forEach((eventNames: string[], moduleName: string) => {
+  getAllEventNames().forEach((eventNames: string[], moduleName: string) => {
     eventNames.forEach((n: string) => {
       app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
         handleEventPost(moduleName, n, req, res);
+      });
+    });
+  });
+
+  getAllEntityNames().forEach((entityNames: string[], moduleName: string) => {
+    entityNames.forEach((n: string) => {
+      app.get(`/${moduleName}/${n}/:path`, (req: Request, res: Response) => {
+        handleEntityGet(moduleName, n, req, res);
+      });
+      app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+        handleEntityPost(moduleName, n, req, res);
+      });
+      app.put(`/${moduleName}/${n}/:path`, (req: Request, res: Response) => {
+        handleEntityPut(moduleName, n, req, res);
+      });
+      app.delete(`/${moduleName}/${n}/:path`, (req: Request, res: Response) => {
+        handleEntityDelete(moduleName, n, req, res);
       });
     });
   });
@@ -39,6 +59,42 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
       )
     );
   });
+}
+
+function ok(res: Response) {
+  return (value: Result) => {
+    const result: Result = normalizedResult(value);
+    res.contentType('application/json');
+    res.send(JSON.stringify(result));
+  };
+}
+
+function internalError(res: Response) {
+  return (reason: any) => {
+    logger.error(reason);
+    res.status(500).send(reason);
+  };
+}
+
+function patternFromAttributes(
+  moduleName: string,
+  recName: string,
+  attrs: InstanceAttributes
+): string {
+  const attrsStrs = new Array<string>();
+  attrs.forEach((v: any, n: string) => {
+    const av = isString(v) ? `"${v}"` : v;
+    attrsStrs.push(`${n} ${av}`);
+  });
+  return `{${moduleName}/${recName} { ${attrsStrs.join(',\n')} }}`;
+}
+
+function pathFromRequest(moduleName: string, entryName: string, req: Request): string {
+  const path = req.params.path;
+  if (!path) {
+    throw new Error(`No path specified in ${req.baseUrl}`);
+  }
+  return `${escapeFqName(makeFqName(moduleName, entryName))}/${path}`;
 }
 
 async function handleEventPost(
@@ -58,14 +114,96 @@ async function handleEventPost(
       eventName,
       objectAsInstanceAttributes(req.body)
     ).setAuthContext(sessionInfo);
-    evaluate(inst, (value: Result) => {
-      const result: Result = normalizedResult(value);
-      res.contentType('application/json');
-      res.send(JSON.stringify(result));
-    }).catch((reason: any) => {
-      logger.error(reason);
-      res.status(500).send(reason);
-    });
+    evaluate(inst, ok(res)).catch(internalError(res));
+  } catch (err: any) {
+    logger.error(`Error in handing request: ${err}`);
+    res.status(500).send(err.toString());
+  }
+}
+
+async function handleEntityPost(
+  moduleName: string,
+  entityName: string,
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const pattern = patternFromAttributes(
+      moduleName,
+      entityName,
+      objectAsInstanceAttributes(req.body)
+    );
+    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+  } catch (err: any) {
+    logger.error(`Error in handing request: ${err}`);
+    res.status(500).send(err.toString());
+  }
+}
+
+async function handleEntityGet(
+  moduleName: string,
+  entityName: string,
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const path = pathFromRequest(moduleName, entityName, req);
+    const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
+    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+  } catch (err: any) {
+    logger.error(`Error in handing request: ${err}`);
+    res.status(500).send(err.toString());
+  }
+}
+
+async function handleEntityPut(
+  moduleName: string,
+  entityName: string,
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const path = pathFromRequest(moduleName, entityName, req);
+    const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const attrs = objectAsInstanceAttributes(req.body);
+    attrs.set(PathAttributeNameQuery, path);
+    const pattern = patternFromAttributes(moduleName, entityName, attrs);
+    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+  } catch (err: any) {
+    logger.error(`Error in handing request: ${err}`);
+    res.status(500).send(err.toString());
+  }
+}
+
+async function handleEntityDelete(
+  moduleName: string,
+  entityName: string,
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const path = pathFromRequest(moduleName, entityName, req);
+    const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const pattern = `delete {${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
+    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(`Error in handing request: ${err}`);
     res.status(500).send(err.toString());
