@@ -134,48 +134,99 @@ export class CognitoAuth implements AgentlangAuth {
     env: Environment,
     cb: LoginCallback
   ): Promise<void> {
-    let localUser = await findUserByEmail(username, env);
-    if (!localUser) {
-      logger.warn(`User ${username} not found in local store`);
-      localUser = await ensureUser(username, '', '', env);
-    }
-    const user = new CognitoUser({
-      Username: username,
-      Pool: this.fetchUserPool(),
-    });
-    const authDetails = new AuthenticationDetails({
-      Username: username,
-      Password: password,
-    });
-    let result: any;
-    let errMsg: string | undefined;
-    user.authenticateUser(authDetails, {
-      onSuccess: (session: any) => {
-        result = session;
-      },
-      onFailure: (err: any) => {
-        errMsg = `Authentication failed for ${username} - ${err}`;
-      },
-    });
-    while (result == undefined && errMsg == undefined) {
-      await sleepMilliseconds(100);
-    }
-    if (errMsg) {
-      throw new UnauthorisedError(errMsg);
-    }
-    if (result) {
-      const userid = localUser.lookup('id');
-      const token = result.getIdToken().getJwtToken();
-      const localSess: Instance = await ensureUserSession(userid, token, env);
-      const sessInfo: SessionInfo = {
-        sessionId: localSess.lookup('id'),
-        userId: userid,
-        authToken: token,
-        systemSesionInfo: result,
-      };
-      cb(sessInfo);
+    // Check if Cognito is configured
+    const cognitoConfigured = process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID;
+
+    if (cognitoConfigured) {
+      // Cognito-first: authenticate directly with Cognito without local store dependency
+      const user = new CognitoUser({
+        Username: username,
+        Pool: this.fetchUserPool(),
+      });
+      const authDetails = new AuthenticationDetails({
+        Username: username,
+        Password: password,
+      });
+      let result: any;
+      let errMsg: string | undefined;
+      user.authenticateUser(authDetails, {
+        onSuccess: (session: any) => {
+          result = session;
+        },
+        onFailure: (err: any) => {
+          errMsg = `Authentication failed for ${username} - ${err}`;
+        },
+      });
+      while (result == undefined && errMsg == undefined) {
+        await sleepMilliseconds(100);
+      }
+      if (errMsg) {
+        throw new UnauthorisedError(errMsg);
+      }
+      if (result) {
+        // After successful Cognito authentication, create/update local records
+        let localUser = await findUserByEmail(username, env);
+        if (!localUser) {
+          localUser = await ensureUser(username, '', '', env);
+        }
+        const userid = localUser.lookup('id');
+        const token = result.getIdToken().getJwtToken();
+        const localSess: Instance = await ensureUserSession(userid, token, env);
+        const sessInfo: SessionInfo = {
+          sessionId: localSess.lookup('id'),
+          userId: userid,
+          authToken: token,
+          systemSesionInfo: result,
+        };
+        cb(sessInfo);
+      } else {
+        console.log(`Login failed for ${username}`);
+      }
     } else {
-      console.log(`Login failed for ${username}`);
+      // Cognito not configured, fall back to local authentication
+      let localUser = await findUserByEmail(username, env);
+      if (!localUser) {
+        logger.warn(`User ${username} not found in local store`);
+        localUser = await ensureUser(username, '', '', env);
+      }
+      const user = new CognitoUser({
+        Username: username,
+        Pool: this.fetchUserPool(),
+      });
+      const authDetails = new AuthenticationDetails({
+        Username: username,
+        Password: password,
+      });
+      let result: any;
+      let errMsg: string | undefined;
+      user.authenticateUser(authDetails, {
+        onSuccess: (session: any) => {
+          result = session;
+        },
+        onFailure: (err: any) => {
+          errMsg = `Authentication failed for ${username} - ${err}`;
+        },
+      });
+      while (result == undefined && errMsg == undefined) {
+        await sleepMilliseconds(100);
+      }
+      if (errMsg) {
+        throw new UnauthorisedError(errMsg);
+      }
+      if (result) {
+        const userid = localUser.lookup('id');
+        const token = result.getIdToken().getJwtToken();
+        const localSess: Instance = await ensureUserSession(userid, token, env);
+        const sessInfo: SessionInfo = {
+          sessionId: localSess.lookup('id'),
+          userId: userid,
+          authToken: token,
+          systemSesionInfo: result,
+        };
+        cb(sessInfo);
+      } else {
+        console.log(`Login failed for ${username}`);
+      }
     }
   }
 
@@ -226,90 +277,131 @@ export class CognitoAuth implements AgentlangAuth {
   }
 
   async getUser(userId: string, env: Environment): Promise<UserInfo> {
-    // Find local user first
-    const localUser = await findUser(userId, env);
-    if (!localUser) {
-      throw new Error(`User ${userId} not found`);
-    }
+    // Check if Cognito is configured
+    const cognitoConfigured = process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID;
 
-    try {
-      // Get user details from Cognito
-      const client = new CognitoIdentityProviderClient({
-        region: process.env.AWS_REGION || 'us-west-2',
-        credentials: fromEnv(),
-      });
+    if (cognitoConfigured) {
+      // Cognito is configured, skip local lookup and go directly to Cognito
+      // First try to find local user to get email, but don't fail if not found
+      const localUser = await findUser(userId, env);
+      let userEmail = localUser?.lookup('email');
 
-      const command = new AdminGetUserCommand({
-        UserPoolId: this.fetchUserPoolId(),
-        Username: localUser.lookup('email'),
-      });
+      // If no local user found, try to use userId as email (common pattern)
+      if (!userEmail) {
+        userEmail = userId.includes('@') ? userId : null;
+      }
 
-      const response = await client.send(command);
+      if (!userEmail) {
+        throw new Error(`User ${userId} not found and no email available for Cognito lookup`);
+      }
 
-      // Return user info following AgentLang pattern
+      try {
+        // Get user details from Cognito
+        const client = new CognitoIdentityProviderClient({
+          region: process.env.AWS_REGION || 'us-west-2',
+          credentials: fromEnv(),
+        });
+
+        const command = new AdminGetUserCommand({
+          UserPoolId: this.fetchUserPoolId(),
+          Username: userEmail,
+        });
+
+        const response = await client.send(command);
+
+        // Return user info following AgentLang pattern
+        return {
+          id: userId,
+          username: userEmail,
+          systemUserInfo: {
+            userAttributes: response.UserAttributes,
+            userCreateDate: response.UserCreateDate,
+            userLastModifiedDate: response.UserLastModifiedDate,
+            userStatus: response.UserStatus,
+            enabled: response.Enabled,
+            preferredMfaSetting: response.PreferredMfaSetting,
+            userMFASettingList: response.UserMFASettingList,
+          },
+        };
+      } catch (err: any) {
+        logger.error(`Failed to get user info for ${userId}: ${err.message}`);
+        if (err.name === 'UserNotFoundException') {
+          throw new Error(`User ${userId} not found in Cognito`);
+        }
+        throw new Error(`Failed to retrieve user information: ${err.message}`);
+      }
+    } else {
+      // Cognito not configured, use local lookup
+      const localUser = await findUser(userId, env);
+      if (!localUser) {
+        throw new Error(`User ${userId} not found`);
+      }
+
       return {
         id: userId,
         username: localUser.lookup('email'),
-        systemUserInfo: {
-          userAttributes: response.UserAttributes,
-          userCreateDate: response.UserCreateDate,
-          userLastModifiedDate: response.UserLastModifiedDate,
-          userStatus: response.UserStatus,
-          enabled: response.Enabled,
-          preferredMfaSetting: response.PreferredMfaSetting,
-          userMFASettingList: response.UserMFASettingList,
-        },
+        systemUserInfo: localUser,
       };
-    } catch (err: any) {
-      logger.error(`Failed to get user info for ${userId}: ${err.message}`);
-      if (err.name === 'UserNotFoundException') {
-        throw new Error(`User ${userId} not found in Cognito`);
-      }
-      throw new Error(`Failed to retrieve user information: ${err.message}`);
     }
   }
 
   async getUserByEmail(email: string, env: Environment): Promise<UserInfo> {
-    // Find local user by email
-    const localUser = await findUserByEmail(email, env);
-    if (!localUser) {
-      throw new Error(`User with email ${email} not found`);
-    }
+    // Check if Cognito is configured
+    const cognitoConfigured = process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID;
 
-    try {
-      // Get user details from Cognito using email
-      const client = new CognitoIdentityProviderClient({
-        region: process.env.AWS_REGION || 'us-west-2',
-        credentials: fromEnv(),
-      });
+    if (cognitoConfigured) {
+      // Cognito is configured, skip local lookup and go directly to Cognito
+      try {
+        // Get user details from Cognito using email
+        const client = new CognitoIdentityProviderClient({
+          region: process.env.AWS_REGION || 'us-west-2',
+          credentials: fromEnv(),
+        });
 
-      const command = new AdminGetUserCommand({
-        UserPoolId: this.fetchUserPoolId(),
-        Username: email,
-      });
+        const command = new AdminGetUserCommand({
+          UserPoolId: this.fetchUserPoolId(),
+          Username: email,
+        });
 
-      const response = await client.send(command);
+        const response = await client.send(command);
 
-      // Return user info following AgentLang pattern
+        // Generate a userId from email for consistency
+        const userId =
+          response.UserAttributes?.find((attr: any) => attr.Name === 'sub')?.Value || email;
+
+        // Return user info following AgentLang pattern
+        return {
+          id: userId,
+          username: email,
+          systemUserInfo: {
+            userAttributes: response.UserAttributes,
+            userCreateDate: response.UserCreateDate,
+            userLastModifiedDate: response.UserLastModifiedDate,
+            userStatus: response.UserStatus,
+            enabled: response.Enabled,
+            preferredMfaSetting: response.PreferredMfaSetting,
+            userMFASettingList: response.UserMFASettingList,
+          },
+        };
+      } catch (err: any) {
+        logger.error(`Failed to get user info for email ${email}: ${err.message}`);
+        if (err.name === 'UserNotFoundException') {
+          throw new Error(`User with email ${email} not found in Cognito`);
+        }
+        throw new Error(`Failed to retrieve user information: ${err.message}`);
+      }
+    } else {
+      // Cognito not configured, use local lookup
+      const localUser = await findUserByEmail(email, env);
+      if (!localUser) {
+        throw new Error(`User with email ${email} not found`);
+      }
+
       return {
         id: localUser.lookup('id'),
         username: email,
-        systemUserInfo: {
-          userAttributes: response.UserAttributes,
-          userCreateDate: response.UserCreateDate,
-          userLastModifiedDate: response.UserLastModifiedDate,
-          userStatus: response.UserStatus,
-          enabled: response.Enabled,
-          preferredMfaSetting: response.PreferredMfaSetting,
-          userMFASettingList: response.UserMFASettingList,
-        },
+        systemUserInfo: localUser,
       };
-    } catch (err: any) {
-      logger.error(`Failed to get user info for email ${email}: ${err.message}`);
-      if (err.name === 'UserNotFoundException') {
-        throw new Error(`User with email ${email} not found in Cognito`);
-      }
-      throw new Error(`Failed to retrieve user information: ${err.message}`);
     }
   }
 }
