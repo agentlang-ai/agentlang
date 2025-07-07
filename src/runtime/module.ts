@@ -1932,7 +1932,8 @@ export class Instance {
 export function objectAsInstanceAttributes(obj: object): InstanceAttributes {
   const attrs: InstanceAttributes = newInstanceAttributes();
   Object.entries(obj).forEach((v: [string, any]) => {
-    attrs.set(v[0], v[1]);
+    let obj = v[1]
+    attrs.set(v[0], obj);
   });
   return attrs;
 }
