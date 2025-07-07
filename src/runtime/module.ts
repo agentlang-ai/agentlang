@@ -807,6 +807,14 @@ export class Relationship extends Record {
     return inst.getFqName() == this.node1.path.asFqName();
   }
 
+  getParentFqName(): string {
+    return this.node1.path.asFqName();
+  }
+
+  getChildFqName(): string {
+    return this.node2.path.asFqName();
+  }
+
   override toString(): string {
     const n1 = relNodeEntryToString(this.node1);
     const n2 = relNodeEntryToString(this.node2);
@@ -1516,6 +1524,19 @@ export function getAllBetweenRelationships(): Relationship[] {
   allModuleNames().forEach((moduleName: string) => {
     const mod = fetchModule(moduleName);
     result = result.concat(mod.getBetweenRelationshipEntries());
+  });
+  return result;
+}
+
+export function getAllChildRelationships(parentFqName: string): Relationship[] {
+  let result = new Array<Relationship>();
+  allModuleNames().forEach((moduleName: string) => {
+    const mod = fetchModule(moduleName);
+    result = result.concat(
+      mod.getContainsRelationshipEntries().filter((rel: Relationship) => {
+        return rel.getParentFqName() == parentFqName;
+      })
+    );
   });
   return result;
 }

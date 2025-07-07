@@ -155,6 +155,26 @@ export function makeFqName(moduleName: string, entryName: string): string {
   return moduleName + '/' + entryName;
 }
 
+export function forceAsFqName(entryName: string, moduleName: string): string {
+  if (entryName.indexOf('$') > 0) {
+    return restoreFqName(entryName);
+  }
+  if (isFqName(entryName)) {
+    return entryName;
+  }
+  return makeFqName(moduleName, entryName);
+}
+
+export function forceAsEscapedName(entryName: string, moduleName: string): string {
+  if (entryName.indexOf('$') > 0) {
+    return entryName;
+  }
+  if (isFqName(entryName)) {
+    return escapeFqName(entryName);
+  }
+  return `${moduleName}$${entryName}`;
+}
+
 export function isFqName(s: string): boolean {
   return s.indexOf('/') > 0;
 }
@@ -201,7 +221,12 @@ export function runShellCommand(cmd: string, options?: any, continuation?: Funct
   });
 }
 
-export function escapeFqName(n: string): string {
+export function escapeFqName(n: string, moduleName?: string): string {
+  if (moduleName) {
+    if (n.indexOf('/') < 0) {
+      return `${moduleName}$${n}`;
+    }
+  }
   return n.replace('/', '$');
 }
 
@@ -422,4 +447,54 @@ export function firstCatchSpec(stmt: Statement): CatchSpec | undefined {
     }
   }
   return undefined;
+}
+
+function maybeExtractEntryName(n: string): string {
+  const i = n.indexOf('$');
+  if (i > 0) {
+    return n.substring(i + 1);
+  }
+  return n;
+}
+
+function maybeExtractModuleName(n: string, moduleName?: string | undefined): string {
+  const i = n.indexOf('$');
+  if (i > 0) {
+    return n.substring(0, i);
+  }
+  if (moduleName == undefined) {
+    throw new Error(`Failed to extract module-name from ${n}`);
+  }
+  return moduleName;
+}
+
+export function walkDownInstancePath(path: string): [string, string, string | undefined, string[]] {
+  const parts = path.split('/').filter((n: string) => {
+    return n.length > 0;
+  });
+  if (parts.length == 2) {
+    return [parts[0], parts[1], undefined, parts];
+  }
+  const n = parts[0];
+  let moduleName = n;
+  let entryName = maybeExtractEntryName(n);
+  if (parts.length > 1) {
+    let id: string | undefined = parts[1];
+    if (parts.length > 2) {
+      for (let i = 2; i < parts.length; ++i) {
+        const relName = parts[i];
+        moduleName = maybeExtractModuleName(relName, moduleName);
+        entryName = parts[++i];
+        moduleName = maybeExtractModuleName(entryName, moduleName);
+        entryName = maybeExtractEntryName(entryName);
+        if (i < parts.length) {
+          id = parts[++i];
+        } else {
+          id = undefined;
+        }
+      }
+    }
+    return [moduleName, entryName, id, parts];
+  }
+  return [moduleName, entryName, undefined, parts];
 }
