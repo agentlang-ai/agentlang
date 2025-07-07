@@ -15,7 +15,16 @@ import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
 import { requireAuth, verifySession } from '../runtime/modules/auth.js';
 import { ActiveSessionInfo, BypassSession, isNoSession, NoSession } from '../runtime/auth/defs.js';
-import { escapeFqName, isString, makeFqName, splitFqName } from '../runtime/util.js';
+import {
+  escapeFqName,
+  forceAsEscapedName,
+  forceAsFqName,
+  isString,
+  makeFqName,
+  restoreFqName,
+  splitFqName,
+  walkDownInstancePath,
+} from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number) {
@@ -39,16 +48,19 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
 
   getAllEntityNames().forEach((entityNames: string[], moduleName: string) => {
     entityNames.forEach((n: string) => {
-      app.get(`/${moduleName}/${n}/:path`, (req: Request, res: Response) => {
+      app.get(`/${moduleName}/${n}`, (req: Request, res: Response) => {
         handleEntityGet(moduleName, n, req, res);
       });
-      app.post(`/${moduleName}/${n}/:path`, (req: Request, res: Response) => {
+      app.get(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
+        handleEntityGet(moduleName, n, req, res);
+      });
+      app.post(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
         handleEntityPost(moduleName, n, req, res);
       });
-      app.put(`/${moduleName}/${n}/:path`, (req: Request, res: Response) => {
+      app.put(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
         handleEntityPut(moduleName, n, req, res);
       });
-      app.delete(`/${moduleName}/${n}/:path`, (req: Request, res: Response) => {
+      app.delete(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
         handleEntityDelete(moduleName, n, req, res);
       });
     });
@@ -101,12 +113,36 @@ function patternFromAttributes(
   return `{${moduleName}/${recName} { ${attrsStrs.join(',\n')} }}`;
 }
 
-function pathFromRequest(moduleName: string, entryName: string, req: Request): string {
-  const path = req.params.path;
-  if (!path) {
-    throw new Error(`No path specified in ${req.baseUrl}`);
+function normalizeRequestPath(path: string[], moduleName: string): string[] {
+  if (path.length <= 1) {
+    return path;
   }
-  return `${escapeFqName(makeFqName(moduleName, entryName))}/${path}`;
+  const result = new Array<string>();
+  result.push(path[0]);
+  for (let i = 1; i < path.length; ++i) {
+    const rn = forceAsEscapedName(path[i], moduleName);
+    const en = forceAsEscapedName(path[++i], moduleName);
+    result.push(rn);
+    result.push(en);
+    if (i < path.length) {
+      result.push(path[++i]);
+    }
+  }
+  return result;
+}
+
+function pathFromRequest(moduleName: string, entryName: string, req: Request): string {
+  const path: any = req.params.path;
+  if (!path) {
+    return req.url;
+  }
+  let p = '';
+  if (path instanceof Array) {
+    p = normalizeRequestPath(path, moduleName).join('/');
+  } else {
+    p = path.toString();
+  }
+  return `${escapeFqName(makeFqName(moduleName, entryName))}/${p}`;
 }
 
 async function handleEventPost(
@@ -172,7 +208,22 @@ async function handleEntityGet(
     if (req.query.tree) {
       pattern = fetchTreePattern(makeFqName(moduleName, entityName), path);
     } else {
-      pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
+      const r = walkDownInstancePath(path);
+      let moduleName = r[0];
+      let entityName = r[1];
+      const id = r[2];
+      const parts = r[3];
+      if (parts.length == 2) {
+        pattern = `{${moduleName}/${entityName}? {}}`;
+      } else {
+        moduleName = restoreFqName(moduleName);
+        entityName = restoreFqName(entityName);
+        if (id == undefined) {
+          pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery}like "${path}%"}}`;
+        } else {
+          pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
+        }
+      }
     }
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
@@ -233,7 +284,7 @@ function fetchTreePattern(fqName: string, path?: string): string {
     rels.forEach((rel: Relationship) => {
       treePats.push(`${rel.getFqName()} ${fetchTreePattern(rel.getChildFqName())}`);
     });
-    pattern = pattern.concat(treePats.join(','));
+    pattern = pattern.concat(',', treePats.join(','));
   }
   return `${pattern}}`;
 }
@@ -243,10 +294,10 @@ function createChildPattern(moduleName: string, entityName: string, req: Request
   try {
     const parts = path.split('/');
     const pinfo = parts.slice(-4);
-    const parentFqname = escapeFqName(pinfo[0]);
-    const relName = escapeFqName(pinfo[2]);
-    const parentPath = parts.slice(0, parts.length - 2);
-    const childFqName = escapeFqName(pinfo[3]);
+    const parentFqname = forceAsFqName(pinfo[0], moduleName);
+    const relName = forceAsFqName(pinfo[2], moduleName);
+    const parentPath = parts.slice(0, parts.length - 2).join('/');
+    const childFqName = forceAsFqName(pinfo[3], moduleName);
     const cparts = splitFqName(childFqName);
     const childModuleName = cparts.getModuleName();
     const childName = cparts.getEntryName();

@@ -755,17 +755,17 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       if (crud.relationships != undefined) {
         for (let i = 0; i < crud.relationships.length; ++i) {
           const rel: RelationshipPattern = crud.relationships[i];
+          const relEntry: Relationship = getRelationship(rel.name, moduleName);
           const newEnv: Environment = Environment.from(env);
           if (isContainsRelationship(rel.name, moduleName)) {
             const ppath = inst.attributes.get(PathAttributeName);
-            newEnv.setParentPath(`${ppath}/${escapeFqName(rel.name)}`);
+            newEnv.setParentPath(`${ppath}/${escapeFqName(relEntry.getFqName())}`);
             newEnv.setNormalizedParentPath(ppath);
             await evaluatePattern(rel.pattern, newEnv);
             const lastInst: Instance = env.getLastResult();
             lastInst.attachRelatedInstances(rel.name, newEnv.getLastResult());
           } else if (isBetweenRelationship(rel.name, moduleName)) {
             const lastInst: Instance = env.getLastResult() as Instance;
-            const relEntry: Relationship = getRelationship(rel.name, moduleName);
             await evaluatePattern(rel.pattern, newEnv);
             const relResult: any = newEnv.getLastResult();
             const res: Resolver = await getResolverForPath(rel.name, moduleName, env);
@@ -810,16 +810,16 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         const lastRes: Instance[] = env.getLastResult();
         for (let i = 0; i < crud.relationships.length; ++i) {
           const rel: RelationshipPattern = crud.relationships[i];
+          const relEntry: Relationship = getRelationship(rel.name, moduleName);
           for (let j = 0; j < lastRes.length; ++j) {
             const newEnv: Environment = Environment.from(env);
             if (isContainsRelationship(rel.name, moduleName)) {
               const ppath = lastRes[j].attributes.get(PathAttributeName);
-              newEnv.setParentPath(ppath + '/' + rel.name);
+              newEnv.setParentPath(ppath + '/' + escapeFqName(relEntry.getFqName()));
               newEnv.setNormalizedParentPath(ppath);
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             } else if (isBetweenRelationship(rel.name, moduleName)) {
-              const relEntry: Relationship = getRelationship(rel.name, moduleName);
               newEnv.setBetweenRelInfo({ relationship: relEntry, connectedInstance: lastRes[j] });
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
