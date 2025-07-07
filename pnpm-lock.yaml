@@ -181,6 +181,18 @@ importers:
         specifier: ^3.1.0
         version: 3.1.0
 
+  example/blog: {}
+
+  example/erp:
+    dependencies:
+      hello-world-npm:
+        specifier: ^1.1.1
+        version: 1.1.1
+
+  example/family: {}
+
+  example/support_agent: {}
+
 packages:
 
   '@aws-crypto/sha256-browser@5.2.0':
@@ -2846,6 +2858,10 @@ packages:
 
   he@1.2.0:
     resolution: {integrity: sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==}
+    hasBin: true
+
+  hello-world-npm@1.1.1:
+    resolution: {integrity: sha512-BlANCUuBixe7YT2IzCtNsSmVn6TY//X+bEUJWJpX+v8H4waUVaJ9qJiHhnu+YHqk2jrFsqQ4DioU2wD8+sNPLw==}
     hasBin: true
 
   hmac-drbg@1.0.1:
@@ -8848,6 +8864,8 @@ snapshots:
       function-bind: 1.1.2
 
   he@1.2.0: {}
+
+  hello-world-npm@1.1.1: {}
 
   hmac-drbg@1.0.1:
     dependencies:
