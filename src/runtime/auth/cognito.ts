@@ -25,6 +25,7 @@ import { UnauthorisedError } from '../defs.js';
 let fromEnv: any = undefined;
 let CognitoIdentityProviderClient: any = undefined;
 let SignUpCommand: any = undefined;
+let AdminGetUserCommand: any = undefined;
 let AuthenticationDetails: any = undefined;
 let CognitoUser: any = undefined;
 let CognitoUserPool: any = undefined;
@@ -36,6 +37,7 @@ if (isNodeEnv) {
   const cip = await import('@aws-sdk/client-cognito-identity-provider');
   CognitoIdentityProviderClient = cip.CognitoIdentityProviderClient;
   SignUpCommand = cip.SignUpCommand;
+  AdminGetUserCommand = cip.AdminGetUserCommand;
 
   const ci = await import('amazon-cognito-identity-js');
   AuthenticationDetails = ci.AuthenticationDetails;
@@ -220,6 +222,94 @@ export class CognitoAuth implements AgentlangAuth {
       logger.debug(`Decoded JWT for ${payload.email}`);
     } catch (err) {
       throw new Error(`Failed to verify token - ${err}`);
+    }
+  }
+
+  async getUser(userId: string, env: Environment): Promise<UserInfo> {
+    // Find local user first
+    const localUser = await findUser(userId, env);
+    if (!localUser) {
+      throw new Error(`User ${userId} not found`);
+    }
+
+    try {
+      // Get user details from Cognito
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+        credentials: fromEnv(),
+      });
+
+      const command = new AdminGetUserCommand({
+        UserPoolId: this.fetchUserPoolId(),
+        Username: localUser.lookup('email'),
+      });
+
+      const response = await client.send(command);
+      
+      // Return user info following AgentLang pattern
+      return {
+        id: userId,
+        username: localUser.lookup('email'),
+        systemUserInfo: {
+          userAttributes: response.UserAttributes,
+          userCreateDate: response.UserCreateDate,
+          userLastModifiedDate: response.UserLastModifiedDate,
+          userStatus: response.UserStatus,
+          enabled: response.Enabled,
+          preferredMfaSetting: response.PreferredMfaSetting,
+          userMFASettingList: response.UserMFASettingList
+        }
+      };
+    } catch (err: any) {
+      logger.error(`Failed to get user info for ${userId}: ${err.message}`);
+      if (err.name === 'UserNotFoundException') {
+        throw new Error(`User ${userId} not found in Cognito`);
+      }
+      throw new Error(`Failed to retrieve user information: ${err.message}`);
+    }
+  }
+
+  async getUserByEmail(email: string, env: Environment): Promise<UserInfo> {
+    // Find local user by email
+    const localUser = await findUserByEmail(email, env);
+    if (!localUser) {
+      throw new Error(`User with email ${email} not found`);
+    }
+
+    try {
+      // Get user details from Cognito using email
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+        credentials: fromEnv(),
+      });
+
+      const command = new AdminGetUserCommand({
+        UserPoolId: this.fetchUserPoolId(),
+        Username: email,
+      });
+
+      const response = await client.send(command);
+      
+      // Return user info following AgentLang pattern
+      return {
+        id: localUser.lookup('id'),
+        username: email,
+        systemUserInfo: {
+          userAttributes: response.UserAttributes,
+          userCreateDate: response.UserCreateDate,
+          userLastModifiedDate: response.UserLastModifiedDate,
+          userStatus: response.UserStatus,
+          enabled: response.Enabled,
+          preferredMfaSetting: response.PreferredMfaSetting,
+          userMFASettingList: response.UserMFASettingList
+        }
+      };
+    } catch (err: any) {
+      logger.error(`Failed to get user info for email ${email}: ${err.message}`);
+      if (err.name === 'UserNotFoundException') {
+        throw new Error(`User with email ${email} not found in Cognito`);
+      }
+      throw new Error(`Failed to retrieve user information: ${err.message}`);
     }
   }
 }

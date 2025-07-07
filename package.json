@@ -9,6 +9,7 @@
   ],
   "type": "module",
   "scripts": {
+    "install:pnpm": "pnpm install --prefer-offline",
     "build": "tsc -b tsconfig.src.json && node esbuild.mjs",
     "build:deno": "deno run -A scripts/build.ts",
     "build:ts": "tsc -b tsconfig.src.json",

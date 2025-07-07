@@ -135,6 +135,14 @@ workflow signup {
 workflow login {
   await Auth.loginUser(login.email, login.password)
 }
+
+workflow getUser {
+  await Auth.getUserInfo(getUser.userId)
+}
+
+workflow getUserByEmail {
+  await Auth.getUserInfoByEmail(getUserByEmail.email)
+}
 `;
 
 const evalEvent = makeEventEvaluator(CoreAuthModuleName);
@@ -475,6 +483,38 @@ export async function verifySession(token: string, env?: Environment): Promise<A
     } else {
       throw new Error(`No active session for user '${parts[0]}'`);
     }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
+export async function getUserInfo(
+  userId: string,
+  env: Environment
+): Promise<UserInfo> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    return await fetchAuthImpl().getUser(userId, env);
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
+export async function getUserInfoByEmail(
+  email: string,
+  env: Environment
+): Promise<UserInfo> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    return await fetchAuthImpl().getUserByEmail(email, env);
   };
   if (needCommit) {
     return await env.callInTransaction(f);

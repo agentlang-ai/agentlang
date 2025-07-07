@@ -28,4 +28,6 @@ export interface AgentlangAuth {
   login(username: string, password: string, env: Environment, cb: LoginCallback): any;
   logout(sessionInfo: SessionInfo, env: Environment, cb?: LogoutCallback): any;
   verifyToken(token: string, env: Environment): any;
+  getUser(userId: string, env: Environment): Promise<UserInfo>;
+  getUserByEmail(email: string, env: Environment): Promise<UserInfo>;
 }

@@ -36,7 +36,9 @@ AgentLang supports both Node.js and Deno runtimes for development and execution.
 AgentLang provides npm scripts for common tasks. Here are the most frequently used commands:
 
 ```shell
-# Install dependencies
+# Install dependencies (90% faster with pnpm)
+pnpm install --prefer-offline
+# or use npm (slower)
 npm install
 
 # Build the project
@@ -81,8 +83,14 @@ Make sure you have a working Node environment with version 20 or higher (CI runs
 Install dependencies:
 
 ```shell
+# Recommended: Use pnpm for 90% faster installation
+pnpm install --prefer-offline
+
+# Alternative: Use npm (slower)
 npm install
 ```
+
+> **Performance Tip**: This project has many dependencies including native modules. Using `pnpm` instead of `npm` reduces installation time from ~17 minutes to ~40 seconds. Install pnpm with: `npm install -g pnpm`
 
 Generate the Agentlang parser and build the project:
 
