@@ -38,6 +38,7 @@ AgentLang provides npm scripts for common tasks. Here are the most frequently us
 ```shell
 # Install dependencies (90% faster with pnpm)
 pnpm install --prefer-offline
+# If prompted about build scripts, approve esbuild and sqlite3
 # or use npm (slower)
 npm install
 
@@ -91,6 +92,32 @@ npm install
 ```
 
 > **Performance Tip**: This project has many dependencies including native modules. Using `pnpm` instead of `npm` reduces installation time from ~17 minutes to ~40 seconds. Install pnpm with: `npm install -g pnpm`
+
+### Build Script Approval
+
+When using pnpm for the first time, you may see a warning about build scripts:
+
+```
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│   Ignored build scripts: esbuild, sqlite3.                                   │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+To resolve this, approve the build scripts for essential dependencies:
+
+```shell
+# Approve build scripts interactively
+pnpm approve-builds
+# Select both 'esbuild' and 'sqlite3' when prompted
+```
+
+**Why these packages need build scripts:**
+- **esbuild**: JavaScript bundler that requires native compilation for optimal performance
+- **sqlite3**: SQLite database driver with native bindings for database operations
+
+The project is configured to automatically handle this in CI environments, but local development may require manual approval on first install.
 
 Generate the Agentlang parser and build the project:
 
