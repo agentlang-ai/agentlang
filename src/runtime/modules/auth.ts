@@ -491,10 +491,7 @@ export async function verifySession(token: string, env?: Environment): Promise<A
   }
 }
 
-export async function getUserInfo(
-  userId: string,
-  env: Environment
-): Promise<UserInfo> {
+export async function getUserInfo(userId: string, env: Environment): Promise<UserInfo> {
   const needCommit = env ? false : true;
   env = env ? env : new Environment();
   const f = async () => {
@@ -507,10 +504,7 @@ export async function getUserInfo(
   }
 }
 
-export async function getUserInfoByEmail(
-  email: string,
-  env: Environment
-): Promise<UserInfo> {
+export async function getUserInfoByEmail(email: string, env: Environment): Promise<UserInfo> {
   const needCommit = env ? false : true;
   env = env ? env : new Environment();
   const f = async () => {

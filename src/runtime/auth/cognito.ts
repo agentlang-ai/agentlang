@@ -245,7 +245,7 @@ export class CognitoAuth implements AgentlangAuth {
       });
 
       const response = await client.send(command);
-      
+
       // Return user info following AgentLang pattern
       return {
         id: userId,
@@ -257,8 +257,8 @@ export class CognitoAuth implements AgentlangAuth {
           userStatus: response.UserStatus,
           enabled: response.Enabled,
           preferredMfaSetting: response.PreferredMfaSetting,
-          userMFASettingList: response.UserMFASettingList
-        }
+          userMFASettingList: response.UserMFASettingList,
+        },
       };
     } catch (err: any) {
       logger.error(`Failed to get user info for ${userId}: ${err.message}`);
@@ -289,7 +289,7 @@ export class CognitoAuth implements AgentlangAuth {
       });
 
       const response = await client.send(command);
-      
+
       // Return user info following AgentLang pattern
       return {
         id: localUser.lookup('id'),
@@ -301,8 +301,8 @@ export class CognitoAuth implements AgentlangAuth {
           userStatus: response.UserStatus,
           enabled: response.Enabled,
           preferredMfaSetting: response.PreferredMfaSetting,
-          userMFASettingList: response.UserMFASettingList
-        }
+          userMFASettingList: response.UserMFASettingList,
+        },
       };
     } catch (err: any) {
       logger.error(`Failed to get user info for email ${email}: ${err.message}`);
