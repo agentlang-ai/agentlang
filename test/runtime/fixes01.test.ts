@@ -168,3 +168,29 @@ describe('Issue 97 (contains)', () => {
         })
     })
 })
+
+describe('Issue 117 (number-datatype)', () => {
+    test('Check fix for issue-117', async () => {
+        await doInternModule('I117',
+            `entity E {
+               id Int @id
+               x Number
+            }`)
+        const ise = (x: any) => isInstanceOfType(x, 'I117/E')
+        const cre = async (id: number, x: number): Promise<Instance> => {
+            const obj: any = await parseAndEvaluateStatement(`{I117/E {id ${id}, x ${x}}}`)
+            assert(ise(obj))
+            return obj as Instance
+        }
+        const fe = async (id: number, x: number) => {
+            const insts: Instance[] = await parseAndEvaluateStatement(`{I117/E {id? ${id}}}`)
+            assert(insts.length == 1)
+            assert(ise(insts[0]))
+            assert(insts[0].lookup('x') == x)
+        }
+        await cre(1, 10099393.434)
+        await cre(2, 43343333)
+        await fe(1, 10099393.434)
+        await fe(2, 43343333)
+    })
+})
