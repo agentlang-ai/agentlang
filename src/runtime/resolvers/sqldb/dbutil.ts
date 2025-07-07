@@ -246,7 +246,8 @@ export function asSqlType(type: string): ColumnType {
   if (t == 'string' || t == 'datetime' || t == 'email' || t == 'url'
     || t == 'map' || t == 'any' || t == 'path')
     return 'varchar';
-  else if (type == 'int') return 'integer';
+  else if (t == 'int') return 'integer';
+  else if (t == 'number') return 'decimal'
   else if (!isBuiltInType(type)) return 'varchar';
   else return t as ColumnType;
 }
