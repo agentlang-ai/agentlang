@@ -50,7 +50,7 @@ import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-
 import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
-import { CoreModules } from './modules/core.js';
+import { CoreModules, registerCoreModules } from './modules/core.js';
 import { parse, parseModule } from '../language/parser.js';
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
@@ -227,6 +227,9 @@ export async function flushAllAndLoad(
 }
 
 export async function loadCoreModules() {
+  if (CoreModules.length == 0) {
+    registerCoreModules();
+  }
   for (let i = 0; i < CoreModules.length; ++i) {
     internModule(await parseModule(CoreModules[i]));
   }

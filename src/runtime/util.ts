@@ -11,6 +11,7 @@ import {
   Statement,
 } from '../language/generated/ast.js';
 import { readFile } from '../utils/fs-utils.js';
+import { logger } from './logger.js';
 
 export const QuerySuffix = '?';
 
@@ -42,13 +43,22 @@ export function moduleImported(moduleName: string): boolean {
   return importedModules.has(moduleName);
 }
 
+function maybeEvalFunction(fnName: string): Function | undefined {
+  try {
+    return eval(fnName);
+  } catch (reason: any) {
+    logger.debug(reason);
+    return undefined;
+  }
+}
+
 export async function invokeModuleFn(
   fqFnName: string,
   args: Array<any> | null,
   isAsync: boolean = false
 ): Promise<any> {
-  const refs: string[] = splitRefs(fqFnName);
-  if (refs.length == 2) {
+  try {
+    const refs: string[] = splitRefs(fqFnName);
     const m = importedModules.get(refs[0]);
     if (m != undefined) {
       const f = m[refs[1]];
@@ -62,21 +72,19 @@ export async function invokeModuleFn(
         } else return f(...args);
       } else throw new Error(`Function not found - ${fqFnName}`);
     } else throw new Error(`JavaScript module ${refs[0]} not found`);
-  } else if (refs.length == 1) {
-    const f = eval(fqFnName);
-    if (f instanceof Function) {
-      if (args == null)
-        if (isAsync) {
-          return await f();
-        } else return f();
-      else if (isAsync) {
-        return await f(...args);
-      } else return f(...args);
+  } catch (reason: any) {
+    const pf: Function | undefined = maybeEvalFunction(fqFnName);
+    if (pf instanceof Function) {
+      if (args == null) {
+        if (isAsync) return await pf();
+        else return pf();
+      } else {
+        if (isAsync) return await pf(...args.slice(0, args.length - 1));
+        else return pf(...args.slice(0, args.length - 1));
+      }
     } else {
-      throw new Error('Not a function: ' + fqFnName);
+      throw new Error(reason);
     }
-  } else {
-    throw new Error(`Cannot call function in nested references - ${fqFnName}`);
   }
 }
 
