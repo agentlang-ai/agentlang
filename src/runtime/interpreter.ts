@@ -38,6 +38,7 @@ import {
   isEntityInstance,
   isEventInstance,
   isInstanceOfType,
+  isTimer,
   makeInstance,
   newInstanceAttributes,
   PlaceholderRecordEntry,
@@ -68,6 +69,7 @@ import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 import { Agent, AgentFqName, findAgentByName } from './modules/ai.js';
 import { logger } from './logger.js';
 import { ParentAttributeName, PathAttributeName, PathAttributeNameQuery } from './defs.js';
+import { maybeCancelTimer, setTimerRunning } from './modules/core.js';
 
 export type Result = any;
 
@@ -736,6 +738,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         await runPostUpdateEvents(inst, env);
       } else {
         await runPreCreateEvents(inst, env);
+        if (isTimer(inst)) triggerTimer(inst);
         r = await res.createInstance(inst);
         await runPostCreateEvents(inst, env);
       }
@@ -864,6 +867,51 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   } else {
     env.setLastResult(inst);
   }
+}
+
+function triggerTimer(timerInst: Instance): Instance {
+  const dur = timerInst.lookup('duration');
+  const unit = timerInst.lookup('unit');
+  let millisecs = 0;
+  switch (unit) {
+    case 'millisecond': {
+      millisecs = dur;
+      break;
+    }
+    case 'second': {
+      millisecs = dur * 1000;
+      break;
+    }
+    case 'minute': {
+      millisecs = dur * 60 * 1000;
+      break;
+    }
+    case 'hour': {
+      millisecs = dur * 60 * 60 * 1000;
+      break;
+    }
+  }
+  const eventName = splitFqName(timerInst.lookup('trigger'));
+  const m = eventName.hasModule() ? eventName.getModuleName() : timerInst.moduleName;
+  const n = eventName.getEntryName();
+  const inst = makeInstance(m, n, newInstanceAttributes());
+  const name = timerInst.lookup('name');
+  const timer = setInterval(async () => {
+    const env = new Environment();
+    try {
+      await evaluate(
+        inst,
+        (result: Result) => logger.debug(`Timer ${name} ran with result ${result}`),
+        env
+      );
+      await env.commitAllTransactions();
+      await maybeCancelTimer(name, timer, env);
+    } catch (reason: any) {
+      logger.error(`Timer ${name} raised error: ${reason}`);
+    }
+  }, millisecs);
+  setTimerRunning(timerInst);
+  return timerInst;
 }
 
 async function computeExprAttributes(inst: Instance, env: Environment) {

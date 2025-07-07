@@ -2112,6 +2112,10 @@ export function defineAgentEvent(moduleName: string, agentName: string) {
   module.addEntry(event);
 }
 
+export function isTimer(eventInst: Instance): boolean {
+  return eventInst.getFqName() == 'agentlang/timer';
+}
+
 export function isAgentEvent(eventInst: Instance): boolean {
   const flag = eventInst.record.getMeta(IsAgentEventMeta);
   return flag != undefined && flag == 'y';

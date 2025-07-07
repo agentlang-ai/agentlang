@@ -10,7 +10,7 @@ import { CognitoAuth } from '../auth/cognito.js';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
 
-const moduleDef = `module ${CoreAuthModuleName}
+export default `module ${CoreAuthModuleName}
 
 import "./modules/auth.js" as Auth
 
@@ -136,8 +136,6 @@ workflow login {
   await Auth.loginUser(login.email, login.password)
 }
 `;
-
-export default moduleDef;
 
 const evalEvent = makeEventEvaluator(CoreAuthModuleName);
 
