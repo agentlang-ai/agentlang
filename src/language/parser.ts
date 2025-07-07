@@ -1,6 +1,5 @@
 import { createAgentlangServices } from '../language/agentlang-module.js';
-import { EmptyFileSystem, LangiumDocument } from 'langium';
-import { parseHelper } from 'langium/test';
+import { AstNode, EmptyFileSystem, LangiumCoreServices, LangiumDocument, URI } from 'langium';
 import {
   CrudMap,
   Delete,
@@ -40,6 +39,28 @@ import {
   NegExpressionPattern,
   NotExpressionPattern,
 } from './syntax.js';
+
+let nextDocumentId = 1;
+
+export function parseHelper<T extends AstNode = AstNode>(
+  services: LangiumCoreServices
+): (input: string, options?: any) => Promise<LangiumDocument<T>> {
+  const metaData = services.LanguageMetaData;
+  const documentBuilder = services.shared.workspace.DocumentBuilder;
+  return async (input: string, options?: any) => {
+    const uri = URI.parse(
+      options?.documentUri ?? `file:///${nextDocumentId++}${metaData.fileExtensions[0] ?? ''}`
+    );
+    const document = services.shared.workspace.LangiumDocumentFactory.fromString<T>(
+      input,
+      uri,
+      options?.parserOptions
+    );
+    services.shared.workspace.LangiumDocuments.addDocument(document);
+    await documentBuilder.build([document], options);
+    return document;
+  };
+}
 
 const services = createAgentlangServices(EmptyFileSystem);
 export const parse = parseHelper<ModuleDefinition>(services.Agentlang);
