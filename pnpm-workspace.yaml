@@ -1,0 +1,13 @@
+# pnpm workspace configuration
+packages:
+  # Include the root project
+  - '.'
+  # Include any examples
+  - 'example/*'
+
+# Global configuration for package builds
+scripts:
+  # Auto-approve essential build dependencies
+  approval:
+    esbuild: true
+    sqlite3: true

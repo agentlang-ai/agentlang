@@ -32,7 +32,12 @@ jobs:
           cache: 'pnpm'
       
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile
+          # Auto-approve build scripts for esbuild and sqlite3 if needed
+          if pnpm approve-builds --help >/dev/null 2>&1; then
+            echo -e "\ny\ny\n" | pnpm approve-builds || true
+          fi
           
       - name: Run ESLint
         run: pnpm run lint
