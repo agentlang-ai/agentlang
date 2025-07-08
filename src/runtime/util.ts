@@ -10,7 +10,6 @@ import {
   RecordSchemaDefinition,
   Statement,
 } from '../language/generated/ast.js';
-import { readFile } from '../utils/fs-utils.js';
 import { logger } from './logger.js';
 
 export const QuerySuffix = '?';
@@ -18,6 +17,7 @@ export const QuerySuffix = '?';
 // Conditionally import Node.js specific modules
 let exec: any = undefined;
 let promisify: any = undefined;
+let readFile: any = undefined;
 if (isNodeEnv) {
   // Dynamic import for node:child_process to avoid browser compatibility issues
   const childProcess = await import('node:child_process');
@@ -25,6 +25,9 @@ if (isNodeEnv) {
 
   const nu = await import('node:util');
   promisify = nu.promisify;
+
+  const fsu = await import('../utils/fs-utils.js');
+  readFile = fsu.readFile;
 }
 
 const importedModules = new Map<string, any>();

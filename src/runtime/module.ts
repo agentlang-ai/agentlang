@@ -36,9 +36,16 @@ import {
   isPath,
   findUqCompositeAttributes,
 } from './util.js';
-import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
 import { DefaultIdAttributeName } from './defs.js';
+import { isNodeEnv } from '../utils/runtime.js';
+
+let parseStatement: any = undefined;
+if (isNodeEnv) {
+  // Dynamic import for node:child_process to avoid browser compatibility issues
+  const p = await import('../language/parser.js');
+  parseStatement = p.parseStatement;
+}
 
 export class ModuleEntry {
   name: string;
