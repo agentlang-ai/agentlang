@@ -193,6 +193,8 @@ importers:
 
   example/support_agent: {}
 
+  example/timer: {}
+
 packages:
 
   '@aws-crypto/sha256-browser@5.2.0':
