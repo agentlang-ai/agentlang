@@ -47,27 +47,47 @@ export async function maybeCancelTimer(name: string, timer: NodeJS.Timeout, env:
   );
 }
 
-async function addAudit(env: Environment, action: "c" | "d" | "u", resource: string, user: string,
-  token?: string, previuos_value?: Instance) {
-  const r: any = await parseAndEvaluateStatement(`{agentlang/auditlog {
+async function addAudit(
+  env: Environment,
+  action: 'c' | 'd' | 'u',
+  resource: string,
+  previuos_value?: Instance
+) {
+  const user = env.getActiveUser();
+  const token = env.getActiveToken();
+  const r: any = await parseAndEvaluateStatement(
+    `{agentlang/auditlog {
         action "${action}",
         previous_value "${previuos_value ? JSON.stringify(previuos_value.asObject()) : ''}",
         user "${user}",
         token "${token ? token : ''}"
-}}`, undefined, env)
+}}`,
+    undefined,
+    env
+  );
   if (!isInstanceOfType(r, 'agentlang/auditlog')) {
-    logger.warn(`Failed to create auditlog for action ${action} and resource ${resource} for user ${user}`)
+    logger.warn(
+      `Failed to create auditlog for action ${action} and resource ${resource} for user ${user}`
+    );
   }
 }
 
-export async function addCreateAudit(env: Environment, resource: string, user: string, token?: string) {
-  await addAudit(env, 'c', resource, user, token)
+export async function addCreateAudit(resource: string, env: Environment) {
+  await addAudit(env, 'c', resource);
 }
 
-export async function addDeleteAudit(env: Environment, resource: string, user: string, token?: string, previous_value?: Instance) {
-  await addAudit(env, 'd', resource, user, token, previous_value)
+export async function addDeleteAudit(
+  resource: string,
+  previous_value: Instance | undefined,
+  env: Environment
+) {
+  await addAudit(env, 'd', resource, previous_value);
 }
 
-export async function addUpdateAudit(env: Environment, resource: string, user: string, token?: string, previous_value?: Instance) {
-  await addAudit(env, 'u', resource, user, token, previous_value)
+export async function addUpdateAudit(
+  resource: string,
+  previous_value: Instance | undefined,
+  env: Environment
+) {
+  await addAudit(env, 'u', resource, previous_value);
 }

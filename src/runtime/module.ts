@@ -38,7 +38,7 @@ import {
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
-import { DefaultIdAttributeName } from './defs.js';
+import { DefaultIdAttributeName, PathAttributeName } from './defs.js';
 
 export class ModuleEntry {
   name: string;
@@ -1766,8 +1766,16 @@ export class Instance {
     return attrs;
   }
 
+  requireAudit(): boolean {
+    return this.record.getMeta('audit');
+  }
+
   lookup(k: string): any | undefined {
     return this.attributes.get(k);
+  }
+
+  getPath(): string {
+    return this.lookup(PathAttributeName);
   }
 
   asObject(): object {
