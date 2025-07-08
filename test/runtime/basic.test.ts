@@ -398,7 +398,7 @@ describe('Path reference tests', () => {
     await doInternModule('PathRefs',
       `entity E {
         id Int @id,
-        f Path,
+        f @ref(PathRefs/F),
         v Int
       }
       entity F {
