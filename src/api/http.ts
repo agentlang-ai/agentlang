@@ -112,7 +112,7 @@ function patternFromAttributes(
   attrs.forEach((v: any, n: string) => {
     let av = isString(v) ? `"${v}"` : v;
     if (av instanceof Object) {
-      av =  `#${JSON.stringify(av)}`
+      av = JSON.stringify(av);
     }
     attrsStrs.push(`${n} ${av}`);
   });
@@ -219,7 +219,7 @@ async function handleEntityGet(
       let entityName = r[1];
       const id = r[2];
       const parts = r[3];
-      if (parts.length == 2) {
+      if (parts.length == 2 && id == undefined) {
         pattern = `{${moduleName}/${entityName}? {}}`;
       } else {
         moduleName = restoreFqName(moduleName);
@@ -349,6 +349,9 @@ function normalizedResult(r: Result): Result {
     });
     return r.asObject();
   } else {
+    if (r instanceof Map) {
+      return Object.fromEntries(r.entries());
+    }
     return r;
   }
 }

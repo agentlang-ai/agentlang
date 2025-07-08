@@ -116,10 +116,10 @@ export function newRecordSchema(): RecordSchema {
   return new Map<string, AttributeSpec>();
 }
 
-type Meta = Map<string, any>;
+type Meta = Map<any, any>;
 
 export function newMeta(): Meta {
-  return new Map<string, any>();
+  return new Map<any, any>();
 }
 
 export enum RecordType {
@@ -143,7 +143,7 @@ function normalizeMetaValue(metaValue: any): any {
   } else if (v.id) {
     return v.id;
   } else if (v.map) {
-    const result = new Map<string, any>();
+    const result = new Map<any, any>();
     v.map.entries.forEach((value: MapEntry) => {
       result.set(value.key, normalizeMetaValue(value.value));
     });
@@ -271,14 +271,14 @@ export class Record extends ModuleEntry {
     return undefined;
   }
 
-  addMeta(k: string, v: any): void {
+  addMeta(k: any, v: any): void {
     if (!this.meta) {
       this.meta = newMeta();
     }
     this.meta.set(k, v);
   }
 
-  getMeta(k: string): any {
+  getMeta(k: any): any {
     if (this.meta) {
       return this.meta.get(k);
     } else {
@@ -1232,7 +1232,7 @@ const builtInChecks = new Map([
   [
     'Map',
     (obj: any) => {
-      return obj instanceof Map;
+      return obj instanceof Object || obj instanceof Map;
     },
   ],
   [
@@ -1758,10 +1758,7 @@ export class Instance {
       const attrSpec = this.record.schema.get(k);
       if (attrSpec) {
         if ((isArrayAttribute(attrSpec) || isObjectAttribute(attrSpec)) && isString(v)) {
-          let obj: any = JSON.parse(v);
-          if (attrSpec.type == 'Map') {
-            obj = new Map(Object.entries(obj));
-          }
+          const obj: any = JSON.parse(v);
           attrs.set(k, obj);
         }
       }
@@ -1932,7 +1929,7 @@ export class Instance {
 export function objectAsInstanceAttributes(obj: object): InstanceAttributes {
   const attrs: InstanceAttributes = newInstanceAttributes();
   Object.entries(obj).forEach((v: [string, any]) => {
-    let obj = v[1]
+    const obj = v[1];
     attrs.set(v[0], obj);
   });
   return attrs;

@@ -16,7 +16,7 @@ entity User {
     name String @indexed,
     @rbac [(roles: [manager], allow: [create]),
            (allow: [read], where: auth.user = this.id)],
-    @meta #{"fullTextSearch": "*"}
+    @meta {"fullTextSearch": "*"}
 }
 
 relationship UserProfile between (Blog/User, Blog/Profile) @one_one

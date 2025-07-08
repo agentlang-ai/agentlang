@@ -480,12 +480,13 @@ export function walkDownInstancePath(path: string): [string, string, string | un
   const parts = path.split('/').filter((n: string) => {
     return n.length > 0;
   });
-  if (parts.length == 2) {
-    return [parts[0], parts[1], undefined, parts];
+  const nameParts = parts[0].split('$');
+  const hasParts = nameParts.length == 2;
+  let moduleName = hasParts ? nameParts[0] : parts[0];
+  let entryName = hasParts ? nameParts[1] : parts[1];
+  if (!hasParts && parts.length == 2) {
+    return [moduleName, entryName, undefined, parts];
   }
-  const n = parts[0];
-  let moduleName = n;
-  let entryName = maybeExtractEntryName(n);
   if (parts.length > 1) {
     let id: string | undefined = parts[1];
     if (parts.length > 2) {

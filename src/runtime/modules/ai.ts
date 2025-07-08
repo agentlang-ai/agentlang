@@ -49,7 +49,7 @@ workflow saveAgentChatSession {
 entity document {
   title String @id,
   content String,
-  @meta #{"fullTextSearch": "*"}
+  @meta {"fullTextSearch": "*"}
 }
 `;
 

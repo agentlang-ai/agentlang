@@ -18,7 +18,6 @@ export const AgentlangTerminals = {
 export type AgentlangTerminalNames = keyof typeof AgentlangTerminals;
 
 export type AgentlangKeywordNames =
-    | "#"
     | "("
     | ")"
     | "*"
@@ -494,7 +493,7 @@ export function isLiteral(item: unknown): item is Literal {
 export interface MapEntry extends langium.AstNode {
     readonly $container: MapLiteral;
     readonly $type: 'MapEntry';
-    key: string;
+    key: MapKey;
     value: Literal;
 }
 
@@ -502,6 +501,20 @@ export const MapEntry = 'MapEntry';
 
 export function isMapEntry(item: unknown): item is MapEntry {
     return reflection.isInstance(item, MapEntry);
+}
+
+export interface MapKey extends langium.AstNode {
+    readonly $container: MapEntry;
+    readonly $type: 'MapKey';
+    bool?: Boolean;
+    num?: Decimal;
+    str?: string;
+}
+
+export const MapKey = 'MapKey';
+
+export function isMapKey(item: unknown): item is MapKey {
+    return reflection.isInstance(item, MapKey);
 }
 
 export interface MapLiteral extends langium.AstNode {
@@ -976,6 +989,7 @@ export type AgentlangAstType = {
     KvPairs: KvPairs
     Literal: Literal
     MapEntry: MapEntry
+    MapKey: MapKey
     MapLiteral: MapLiteral
     MetaDefinition: MetaDefinition
     ModuleDefinition: ModuleDefinition
@@ -1017,7 +1031,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
+        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1303,6 +1317,16 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'key' },
                         { name: 'value' }
+                    ]
+                };
+            }
+            case MapKey: {
+                return {
+                    name: MapKey,
+                    properties: [
+                        { name: 'bool' },
+                        { name: 'num' },
+                        { name: 'str' }
                     ]
                 };
             }

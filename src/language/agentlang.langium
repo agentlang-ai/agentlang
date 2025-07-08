@@ -67,9 +67,11 @@ CompositeUniqueDefinition: '@with_unique' '(' attrs+=ID (',' attrs+=ID)* ')';
 
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 
-MapLiteral: '#' '{' entries+=MapEntry (',' entries+=MapEntry)* '}';
+MapLiteral: '{' entries+=MapEntry (',' entries+=MapEntry)* '}';
 
-MapEntry: key=STRING ':' value=Literal;
+MapEntry: key=MapKey ':' value=Literal;
+
+MapKey: str=STRING | num=Decimal | bool=Boolean;
 
 FnCall: name=(ID | Ref) (('(' ')') | ('(' (args+=Literal (',' args+=Literal)*)+ ')'));
 

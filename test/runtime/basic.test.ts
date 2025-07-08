@@ -308,14 +308,14 @@ describe('Map attribute tests', () => {
         id Int @id,
         v Map
       }`)
-    await parseAndEvaluateStatement(`{MapTest/E {id 1, v #{"a": 1, "b": 2}}}`)
+    await parseAndEvaluateStatement(`{MapTest/E {id 1, v {"a": 1, "b": 2}}}`)
       .then((result: Instance) => {
         assert(isInstanceOfType(result, 'MapTest/E'))
       })
     await parseAndEvaluateStatement(`{MapTest/E {id? 1}}`)
       .then((result: Instance[]) => {
         const v = result[0].lookup('v')
-        assert(v.get('a') == 1)
+        assert(v['a'] == 1)
       })
   })
 })
