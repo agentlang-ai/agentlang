@@ -187,6 +187,7 @@ export class Record extends ModuleEntry {
   afterTriggers: Map<CrudType, TriggerInfo> | undefined;
   beforeTriggers: Map<CrudType, TriggerInfo> | undefined;
   compositeUqAttributes: Array<string> | undefined;
+  oneOfRefAttributes: Array<string> | undefined;
 
   constructor(
     name: string,
@@ -219,9 +220,10 @@ export class Record extends ModuleEntry {
           props.set('ref', escapeFqName(fp));
           t = 'Path';
         }
-        const oneOfValues: string[] | undefined = a.oneOfSpec ? a.oneOfSpec.values : undefined;
+        const enumValues: string[] | undefined = a.enumSpec?.values;
+        const oneOfRef: string | undefined = a.oneOfSpec?.ref;
         if (!t) {
-          if (oneOfValues) {
+          if (enumValues || oneOfRef) {
             t = 'String';
           } else {
             throw new Error(`Attribute ${a.name} requires a type`);
@@ -234,13 +236,17 @@ export class Record extends ModuleEntry {
           props.set('expr', a.expr).set('optional', true);
         }
         const isObjectType: boolean = t == 'Map' || !isBuiltInType(t);
-        if (isArrayType || isObjectType) {
+        if (isArrayType || isObjectType || enumValues || oneOfRef) {
           if (props == undefined) {
             props = new Map<string, any>();
           }
           if (isArrayType) props.set('array', true);
           if (isObjectType) props.set('object', true);
-          if (oneOfValues) props.set('one-of', new Set(oneOfValues));
+          if (enumValues) props.set('one-of', new Set(enumValues));
+          if (oneOfRef) {
+            props.set('one-of-ref', oneOfRef);
+            this.addOneOfRefAttribute(a.name);
+          }
         }
         this.schema.set(a.name, { type: t, properties: props });
       });
@@ -276,6 +282,14 @@ export class Record extends ModuleEntry {
       });
     }
     this.compositeUqAttributes = findUqCompositeAttributes(scm);
+  }
+
+  private addOneOfRefAttribute(s: string): Record {
+    if (this.oneOfRefAttributes == undefined) {
+      this.oneOfRefAttributes = [];
+    }
+    this.oneOfRefAttributes.push(s);
+    return this;
   }
 
   getCompositeUniqueAttributes(): Array<string> | undefined {
@@ -1313,7 +1327,7 @@ function validateProperties(props: PropertyDefinition[] | undefined): void {
 
 function verifyAttribute(attr: AttributeDefinition): void {
   if (attr.expr) return;
-  if (!attr.oneOfSpec && !attr.refSpec) checkType(attr.type || attr.arrayType);
+  if (!attr.enumSpec && !attr.oneOfSpec && !attr.refSpec) checkType(attr.type || attr.arrayType);
   validateProperties(attr.properties);
 }
 
@@ -1386,6 +1400,10 @@ export function getAttributeExpr(attrSpec: AttributeSpec): Expr | undefined {
 
 export function getOneOfValues(attrSpec: AttributeSpec): Set<string> | undefined {
   return getAnyProperty('one-of', attrSpec);
+}
+
+export function getOneOfRef(attrSpec: AttributeSpec): string | undefined {
+  return getAnyProperty('one-of-ref', attrSpec);
 }
 
 export function getAttributeDefaultValue(attrSpec: AttributeSpec): any | undefined {
@@ -1702,6 +1720,9 @@ function getAttributeSpec(attrsSpec: RecordSchema, attrName: string): AttributeS
 }
 
 function checkOneOfValue(attrSpec: AttributeSpec, attrName: string, attrValue: any): boolean {
+  if (getOneOfRef(attrSpec)) {
+    return true;
+  }
   const vals: Set<string> | undefined = getOneOfValues(attrSpec);
   if (vals) {
     if (!vals.has(attrValue as string)) {

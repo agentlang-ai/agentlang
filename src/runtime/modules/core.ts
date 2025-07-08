@@ -9,14 +9,14 @@ const CoreModuleDefinition = `module ${DefaultModuleName}
 entity timer {
   name String @id,
   duration Int,
-  unit @oneof("millisecond", "second", "minute", "hour") @default("second"),
+  unit @enum("millisecond", "second", "minute", "hour") @default("second"),
   trigger String,
-  status @oneof("I", "C", "R") @default("I") // Inited, Cancelled, Running
+  status @enum("I", "C", "R") @default("I") // Inited, Cancelled, Running
 }
 
 entity auditlog {
   id UUID @id @default(uuid()),
-  action @oneof("c", "d", "u"), // Create, Delete, Update
+  action @enum("c", "d", "u"), // Create, Delete, Update
   resource String, // __path__
   timestamp DateTime @default(now()),
   previous_value Any @optional,
