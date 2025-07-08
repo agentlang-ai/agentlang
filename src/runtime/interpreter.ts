@@ -14,6 +14,7 @@ import {
   isNegExpr,
   isNotExpr,
   Literal,
+  MapKey,
   MapLiteral,
   Pattern,
   Purge,
@@ -630,6 +631,12 @@ async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
   else if (lit.bool != undefined) env.setLastResult(lit.bool == 'true' ? true : false);
 }
 
+function getMapKey(k: MapKey): Result {
+  if (k.str != undefined) return k.str;
+  else if (k.num != undefined) return k.num;
+  else if (k.bool != undefined) k.bool == 'true' ? true : false;
+}
+
 const DefaultResolverName: string = '--default-resolver--';
 
 async function getResolverForPath(
@@ -1217,10 +1224,11 @@ async function realizeMap(mapLiteral: MapLiteral, env: Environment): Promise<voi
   const result: Map<string, Result> = new Map();
   for (let i = 0; i < mapLiteral.entries.length; ++i) {
     const entry = mapLiteral.entries[i];
+    const k = getMapKey(entry.key);
     await evaluateLiteral(entry.value, env);
-    result.set(entry.key, env.getLastResult());
+    result.set(k, env.getLastResult());
   }
-  env.setLastResult(result);
+  env.setLastResult(Object.fromEntries(result.entries()));
 }
 
 async function runPrePostEvents(

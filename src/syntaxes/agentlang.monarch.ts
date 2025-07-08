@@ -4,9 +4,9 @@ export default {
         '@after','@async','@before','@expr','@meta','@oneof','@rbac','@with_unique','allow','and','as','await','between','catch','contains','create','delete','else','entity','error','event','extends','false','for','if','import','in','into','like','module','not','not_found','or','purge','read','record','relationship','roles','true','update','upsert','where','workflow'
     ],
     operators: [
-        '#','*','+',',','-','.','/',':',';','<','<=','<>','=','>','>=','?','@'
+        '*','+',',','-','.','/',':',';','<','<=','<>','=','>','>=','?','@'
     ],
-    symbols: /#|\(|\)|\*|\+|,|-|\.|\/|:|;|<|<=|<>|=|>|>=|\?|@|\[|\]|\{|\}/,
+    symbols: /\(|\)|\*|\+|,|-|\.|\/|:|;|<|<=|<>|=|>|>=|\?|@|\[|\]|\{|\}/,
 
     tokenizer: {
         initial: [
