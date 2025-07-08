@@ -258,9 +258,17 @@ describe('Array and one-of tests', () => {
       `entity E {
         id Int @id,
         vals String[],
-        x @oneof("123", "456")
-      }`)
-    await parseAndEvaluateStatement(`{ArrayTest/E {id 1, vals ["a", "b"], x "123"}}`)
+        x @enum("123", "456"),
+        y @oneof(ArrayTest/F.v)
+      }
+      entity F { v String @id }
+      `)
+    const crf = async (v: string) => {
+      const inst: Instance = await parseAndEvaluateStatement(`{ArrayTest/F {v "${v}"}}`)
+      assert(isInstanceOfType(inst, "ArrayTest/F"))
+    }
+    await crf("a"); await crf("b")
+    await parseAndEvaluateStatement(`{ArrayTest/E {id 1, vals ["a", "b"], x "123", y "a"}}`)
       .then((result: Instance) => {
         assert(isInstanceOfType(result, 'ArrayTest/E'))
       })
@@ -272,11 +280,20 @@ describe('Array and one-of tests', () => {
         assert(vals.length == 2)
         assert(vals[1] == 'b')
         assert(result[0].lookup('x') == '123')
+        assert(result[0].lookup('y') == 'a')
       })
     let err = false
-    await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "678"}}`)
+    await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "678", y "b"}}`)
       .catch(() => err = true)
-    assert(err == false, 'Failed to enforce one-of check')
+    assert(err, 'Failed to enforce one-of check')
+    err = false
+    await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "456", y "c"}}`)
+      .catch(() => err = true)
+    assert(err, 'Failed to enforce one-of-ref check')
+    await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "456", y "b"}}`)
+      .then((result: Instance) => {
+        assert(isInstanceOfType(result, 'ArrayTest/E'))
+      })
   })
 })
 
@@ -703,25 +720,25 @@ describe('Between operator test', () => {
         x Int,
         y DateTime
       }`)
-      const ise = (r: any) => isInstanceOfType(r, 'BetOpr/E')
-      const cre = async (id: number, x: number, y: string) => {
-        const r = await parseAndEvaluateStatement(`{BetOpr/E {id ${id}, x ${x}, y "${y}"}}`)
-        assert(ise(r))
-        return r
-      }
-      await cre(1, 10, '2025-01-02')
-      await cre(2, 20, '2025-02-20')
-      await cre(3, 30, '2025-03-01')
-      await cre(4, 40, '2025-03-12')
-      let result: Instance[] = await parseAndEvaluateStatement(`{BetOpr/E {x?between [20, 40]}}`)
-      assert(result.length == 3)
-      assert(result.every((inst: Instance) => {
-        return inst.lookup('x') > 10
-      }))
-      result = await parseAndEvaluateStatement(`{BetOpr/E {y?between ["2025-01-01", "2025-03-05"]}}`)
-      assert(result.length == 3)
-      assert(result.every((inst: Instance) => {
-        return inst.lookup('x') < 40
-      }))
-    })
+    const ise = (r: any) => isInstanceOfType(r, 'BetOpr/E')
+    const cre = async (id: number, x: number, y: string) => {
+      const r = await parseAndEvaluateStatement(`{BetOpr/E {id ${id}, x ${x}, y "${y}"}}`)
+      assert(ise(r))
+      return r
+    }
+    await cre(1, 10, '2025-01-02')
+    await cre(2, 20, '2025-02-20')
+    await cre(3, 30, '2025-03-01')
+    await cre(4, 40, '2025-03-12')
+    let result: Instance[] = await parseAndEvaluateStatement(`{BetOpr/E {x?between [20, 40]}}`)
+    assert(result.length == 3)
+    assert(result.every((inst: Instance) => {
+      return inst.lookup('x') > 10
+    }))
+    result = await parseAndEvaluateStatement(`{BetOpr/E {y?between ["2025-01-01", "2025-03-05"]}}`)
+    assert(result.length == 3)
+    assert(result.every((inst: Instance) => {
+      return inst.lookup('x') < 40
+    }))
   })
+})
