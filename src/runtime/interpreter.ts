@@ -70,7 +70,13 @@ import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 import { Agent, AgentFqName, findAgentByName } from './modules/ai.js';
 import { logger } from './logger.js';
 import { ParentAttributeName, PathAttributeName, PathAttributeNameQuery } from './defs.js';
-import { maybeCancelTimer, setTimerRunning } from './modules/core.js';
+import {
+  addCreateAudit,
+  addDeleteAudit,
+  addUpdateAudit,
+  maybeCancelTimer,
+  setTimerRunning,
+} from './modules/core.js';
 
 export type Result = any;
 
@@ -196,6 +202,16 @@ export class Environment extends Instance {
   getActiveAuthContext(): ActiveSessionInfo | undefined {
     if (this.activeEventInstance) {
       return this.activeEventInstance.getAuthContext();
+    }
+    return undefined;
+  }
+
+  getActiveToken(): string | undefined {
+    if (this.activeEventInstance) {
+      const sess = this.activeEventInstance.getAuthContext();
+      if (sess) {
+        return sess.sessionId;
+      }
     }
     return undefined;
   }
@@ -1270,6 +1286,9 @@ async function runPreCreateEvents(inst: Instance, env: Environment) {
 }
 
 async function runPostCreateEvents(inst: Instance, env: Environment) {
+  if (inst.requireAudit()) {
+    await addCreateAudit(inst.getPath(), env);
+  }
   await runPrePostEvents(CrudType.CREATE, false, inst, env);
 }
 
@@ -1278,6 +1297,9 @@ async function runPreUpdateEvents(inst: Instance, env: Environment) {
 }
 
 async function runPostUpdateEvents(inst: Instance, env: Environment) {
+  if (inst.requireAudit()) {
+    await addUpdateAudit(inst.getPath(), undefined, env);
+  }
   await runPrePostEvents(CrudType.UPDATE, false, inst, env);
 }
 
@@ -1286,5 +1308,8 @@ async function runPreDeleteEvents(inst: Instance, env: Environment) {
 }
 
 async function runPostDeleteEvents(inst: Instance, env: Environment) {
+  if (inst.requireAudit()) {
+    await addDeleteAudit(inst.getPath(), undefined, env);
+  }
   await runPrePostEvents(CrudType.DELETE, false, inst, env);
 }
