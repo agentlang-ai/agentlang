@@ -116,10 +116,10 @@ export function newRecordSchema(): RecordSchema {
   return new Map<string, AttributeSpec>();
 }
 
-type Meta = Map<any, any>;
+type Meta = Map<string, any>;
 
 export function newMeta(): Meta {
-  return new Map<any, any>();
+  return new Map<string, any>();
 }
 
 export enum RecordType {
@@ -227,7 +227,11 @@ export class Record extends ModuleEntry {
     const meta: MetaDefinition | undefined = findMetaSchema(scm);
     if (meta) {
       meta.spec.entries.forEach((entry: MapEntry) => {
-        this.addMeta(entry.key, normalizeMetaValue(entry.value));
+        if (entry.key.str) this.addMeta(entry.key.str, normalizeMetaValue(entry.value));
+        else
+          throw new Error(
+            `Key must be a string for meta-definition in ${this.moduleName}/${this.name}`
+          );
       });
     }
     const prepostTrigs: PrePostTriggerDefinition[] | undefined = findAllPrePostTriggerSchema(scm);
@@ -271,14 +275,14 @@ export class Record extends ModuleEntry {
     return undefined;
   }
 
-  addMeta(k: any, v: any): void {
+  addMeta(k: string, v: any): void {
     if (!this.meta) {
       this.meta = newMeta();
     }
     this.meta.set(k, v);
   }
 
-  getMeta(k: any): any {
+  getMeta(k: string): any {
     if (this.meta) {
       return this.meta.get(k);
     } else {

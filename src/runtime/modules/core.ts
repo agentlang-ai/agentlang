@@ -55,15 +55,17 @@ async function addAudit(
 ) {
   const user = env.getActiveUser();
   const token = env.getActiveToken();
+  const newEnv = new Environment('auditlog', env).setInKernelMode(true);
   const r: any = await parseAndEvaluateStatement(
     `{agentlang/auditlog {
         action "${action}",
+        resource "${resource}",
         previous_value "${previuos_value ? JSON.stringify(previuos_value.asObject()) : ''}",
         user "${user}",
         token "${token ? token : ''}"
 }}`,
     undefined,
-    env
+    newEnv
   );
   if (!isInstanceOfType(r, 'agentlang/auditlog')) {
     logger.warn(
