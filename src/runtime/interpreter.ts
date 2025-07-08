@@ -28,6 +28,7 @@ import {
 } from '../language/generated/ast.js';
 import {
   defineAgentEvent,
+  getOneOfRef,
   getRelationship,
   getWorkflow,
   Instance,
@@ -687,6 +688,10 @@ async function getResolverForPath(
   return res.setAuthInfo(authInfo);
 }
 
+async function lookupOneOfVals(fqName: string, env: Environment): Promise<Instance[] | null> {
+  return await parseAndEvaluateStatement(`{${fqName}? {}}`, undefined, env);
+}
+
 async function patternToInstance(
   entryName: string,
   attributes: SetAttribute[],
@@ -726,6 +731,35 @@ async function patternToInstance(
   return makeInstance(moduleName, entryName, attrs, qattrs, qattrVals, isQueryAll);
 }
 
+async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
+  const attrs = inst.record.oneOfRefAttributes;
+  if (!attrs) return;
+  for (let i = 0; i < attrs.length; ++i) {
+    const n = attrs[i];
+    const v = inst.lookup(n);
+    if (v == undefined) continue;
+    const attrSpec = inst.record.schema.get(n);
+    if (!attrSpec) continue;
+    const r = getOneOfRef(attrSpec);
+    if (!r) throw new Error(`Failed to fetch one-of-ref for ${n}`);
+    if (r) {
+      const parts = r.split('.');
+      const insts = await lookupOneOfVals(parts[0], env);
+      if (!insts || insts.length == 0) {
+        logger.warn(`No enum values set for ${n}`);
+        continue;
+      }
+      if (
+        !insts.some((i: Instance) => {
+          return i.lookup(parts[1]) == v;
+        })
+      ) {
+        throw new Error(`Invalid enum-value ${v} for ${n}`);
+      }
+    }
+  }
+}
+
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   const inst: Instance = await patternToInstance(crud.name, crud.attributes, env);
   const entryName = inst.name;
@@ -733,6 +767,9 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   const attrs = inst.attributes;
   const qattrs = inst.queryAttributes;
   const isQueryAll = crud.name.endsWith(QuerySuffix);
+  if (attrs.size > 0) {
+    await maybeValidateOneOfRefs(inst, env);
+  }
   if (crud.into) {
     if (attrs.size > 0) {
       throw new Error(

@@ -25,7 +25,7 @@ entity llm {
 
 entity agent {
     name String @id,
-    type @oneof("chat", "planner") @default("chat"),
+    type @enum("chat", "planner") @default("chat"),
     instruction String @optional,
     tools String[] @optional,
     documents String[] @optional,

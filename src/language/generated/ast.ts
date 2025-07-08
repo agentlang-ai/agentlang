@@ -39,6 +39,7 @@ export type AgentlangKeywordNames =
     | "@after"
     | "@async"
     | "@before"
+    | "@enum"
     | "@expr"
     | "@meta"
     | "@oneof"
@@ -210,6 +211,7 @@ export interface AttributeDefinition extends langium.AstNode {
     readonly $container: RecordSchemaDefinition;
     readonly $type: 'AttributeDefinition';
     arrayType?: string;
+    enumSpec?: EnumSpec;
     expr?: Expr;
     name: string;
     oneOfSpec?: OneOfSpec;
@@ -326,6 +328,18 @@ export const EntityDefinition = 'EntityDefinition';
 
 export function isEntityDefinition(item: unknown): item is EntityDefinition {
     return reflection.isInstance(item, EntityDefinition);
+}
+
+export interface EnumSpec extends langium.AstNode {
+    readonly $container: AttributeDefinition;
+    readonly $type: 'EnumSpec';
+    values: Array<string>;
+}
+
+export const EnumSpec = 'EnumSpec';
+
+export function isEnumSpec(item: unknown): item is EnumSpec {
+    return reflection.isInstance(item, EnumSpec);
 }
 
 export interface EventDefinition extends langium.AstNode {
@@ -596,7 +610,7 @@ export function isNotExpr(item: unknown): item is NotExpr {
 export interface OneOfSpec extends langium.AstNode {
     readonly $container: AttributeDefinition;
     readonly $type: 'OneOfSpec';
-    values: Array<string>;
+    ref: Ref;
 }
 
 export const OneOfSpec = 'OneOfSpec';
@@ -989,6 +1003,7 @@ export type AgentlangAstType = {
     Delete: Delete
     Else: Else
     EntityDefinition: EntityDefinition
+    EnumSpec: EnumSpec
     EventDefinition: EventDefinition
     Expr: Expr
     ExtendsClause: ExtendsClause
@@ -1046,7 +1061,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
+        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, Definition, Delete, Else, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1130,6 +1145,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: AttributeDefinition,
                     properties: [
                         { name: 'arrayType' },
+                        { name: 'enumSpec' },
                         { name: 'expr' },
                         { name: 'name' },
                         { name: 'oneOfSpec' },
@@ -1208,6 +1224,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'extends' },
                         { name: 'name' },
                         { name: 'schema' }
+                    ]
+                };
+            }
+            case EnumSpec: {
+                return {
+                    name: EnumSpec,
+                    properties: [
+                        { name: 'values', defaultValue: [] }
                     ]
                 };
             }
@@ -1401,7 +1425,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: OneOfSpec,
                     properties: [
-                        { name: 'values', defaultValue: [] }
+                        { name: 'ref' }
                     ]
                 };
             }
