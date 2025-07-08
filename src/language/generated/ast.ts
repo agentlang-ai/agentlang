@@ -43,6 +43,7 @@ export type AgentlangKeywordNames =
     | "@meta"
     | "@oneof"
     | "@rbac"
+    | "@ref"
     | "@with_unique"
     | "["
     | "]"
@@ -213,6 +214,7 @@ export interface AttributeDefinition extends langium.AstNode {
     name: string;
     oneOfSpec?: OneOfSpec;
     properties: Array<PropertyDefinition>;
+    refSpec?: RefSpec;
     type?: string;
 }
 
@@ -789,6 +791,18 @@ export function isRecordSchemaDefinition(item: unknown): item is RecordSchemaDef
     return reflection.isInstance(item, RecordSchemaDefinition);
 }
 
+export interface RefSpec extends langium.AstNode {
+    readonly $container: AttributeDefinition;
+    readonly $type: 'RefSpec';
+    ref: string;
+}
+
+export const RefSpec = 'RefSpec';
+
+export function isRefSpec(item: unknown): item is RefSpec {
+    return reflection.isInstance(item, RefSpec);
+}
+
 export interface RelationshipDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'RelationshipDefinition';
@@ -1012,6 +1026,7 @@ export type AgentlangAstType = {
     RecordDefinition: RecordDefinition
     RecordExtraDefinition: RecordExtraDefinition
     RecordSchemaDefinition: RecordSchemaDefinition
+    RefSpec: RefSpec
     RelNodes: RelNodes
     RelationshipDefinition: RelationshipDefinition
     RelationshipPattern: RelationshipPattern
@@ -1031,7 +1046,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
+        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, Definition, Delete, Else, EntityDefinition, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1119,6 +1134,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'name' },
                         { name: 'oneOfSpec' },
                         { name: 'properties', defaultValue: [] },
+                        { name: 'refSpec' },
                         { name: 'type' }
                     ]
                 };
@@ -1516,6 +1532,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'attributes', defaultValue: [] },
                         { name: 'extras', defaultValue: [] }
+                    ]
+                };
+            }
+            case RefSpec: {
+                return {
+                    name: RefSpec,
+                    properties: [
+                        { name: 'ref' }
                     ]
                 };
             }

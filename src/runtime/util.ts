@@ -415,10 +415,14 @@ export function asCrudType(s: string): CrudType {
   return r;
 }
 
-export function isPath(obj: any): boolean {
+export function isPath(obj: any, ref?: string): boolean {
   if (isString(obj)) {
     const s = obj as string;
-    return s.indexOf('/') > 0;
+    const r = s.indexOf('/') > 0;
+    if (r && ref) {
+      return s.indexOf(ref) >= 0;
+    }
+    return r;
   } else {
     return false;
   }

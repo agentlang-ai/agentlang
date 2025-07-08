@@ -35,6 +35,7 @@ import {
   asCrudType,
   isPath,
   findUqCompositeAttributes,
+  escapeFqName,
 } from './util.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
 import { DefaultIdAttributeName, PathAttributeName } from './defs.js';
@@ -202,8 +203,22 @@ export class Record extends ModuleEntry {
     if (attributes != undefined) {
       attributes.forEach((a: AttributeDefinition) => {
         verifyAttribute(a);
+        let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
         const isArrayType: boolean = a.arrayType ? true : false;
         let t: string | undefined = isArrayType ? a.arrayType : a.type;
+        if (a.refSpec) {
+          let fp = a.refSpec.ref;
+          const rp = splitFqName(fp);
+          if (!rp.hasModule()) {
+            rp.setModuleName(this.moduleName);
+            fp = rp.asFqName();
+          }
+          if (props == undefined) {
+            props = new Map();
+          }
+          props.set('ref', escapeFqName(fp));
+          t = 'Path';
+        }
         const oneOfValues: string[] | undefined = a.oneOfSpec ? a.oneOfSpec.values : undefined;
         if (!t) {
           if (oneOfValues) {
@@ -212,7 +227,6 @@ export class Record extends ModuleEntry {
             throw new Error(`Attribute ${a.name} requires a type`);
           }
         }
-        let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
         if (a.expr) {
           if (props == undefined) {
             props = new Map();
@@ -1264,6 +1278,7 @@ export const propertyNames = new Set([
   '@autoincrement',
   '@array',
   '@object',
+  '@fk',
   '@ref',
   '@readonly',
 ]);
@@ -1298,7 +1313,7 @@ function validateProperties(props: PropertyDefinition[] | undefined): void {
 
 function verifyAttribute(attr: AttributeDefinition): void {
   if (attr.expr) return;
-  if (!attr.oneOfSpec) checkType(attr.type || attr.arrayType);
+  if (!attr.oneOfSpec && !attr.refSpec) checkType(attr.type || attr.arrayType);
   validateProperties(attr.properties);
 }
 
@@ -1382,7 +1397,11 @@ export function getAttributeLength(attrSpec: AttributeSpec): number | undefined 
 }
 
 export function getFkSpec(attrSpec: AttributeSpec): string | undefined {
-  return getAnyProperty('ref', attrSpec);
+  return getAnyProperty('fk', attrSpec) as string;
+}
+
+export function getRefSpec(attrSpec: AttributeSpec): string | undefined {
+  return getAnyProperty('ref', attrSpec) as string;
 }
 
 export function addEntity(
@@ -1694,6 +1713,11 @@ function checkOneOfValue(attrSpec: AttributeSpec, attrName: string, attrValue: a
 }
 
 function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec) {
+  if (attrSpec.type == 'Path') {
+    if (!isPath(attrValue, getRefSpec(attrSpec))) {
+      throw new Error(`Failed to validate Path ${attrValue} passed to ${attrName}`);
+    }
+  }
   const predic = builtInChecks.get(attrSpec.type);
   if (predic != undefined) {
     if (isArrayAttribute(attrSpec)) {
