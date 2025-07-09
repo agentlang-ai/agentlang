@@ -1,3 +1,4 @@
+import { logger } from '../logger.js';
 import { Instance, InstanceAttributes, Relationship } from '../module.js';
 
 export class ResolverAuthInfo {
@@ -31,6 +32,10 @@ export class Resolver {
 
   static Default = new Resolver();
 
+  constructor(name?: string) {
+    if (name) this.name = name;
+  }
+
   public setAuthInfo(authInfo: ResolverAuthInfo): Resolver {
     this.authInfo = authInfo;
     return this;
@@ -49,8 +54,8 @@ export class Resolver {
     return this.name;
   }
 
-  private notImpl(method: string) {
-    throw new Error(`Resolver method ${method} not implemented`);
+  protected notImpl(method: string) {
+    logger.warn(`Method ${method} not implemented in resolver ${this.name}`);
   }
 
   public onSetPath(moduleName: string, entryName: string): any {
@@ -147,7 +152,8 @@ export class Resolver {
 
   // Return a transactionId
   public async startTransaction(): Promise<any> {
-    return this.notImpl('startTransaction()');
+    this.notImpl('startTransaction()');
+    return 1;
   }
 
   public async commitTransaction(txnId: string): Promise<any> {
