@@ -70,8 +70,8 @@ function pathQueryValue(inst) {
     return undefined
 }
 
-function asIncidentInstance(data) {
-    return makeInstance('servicenow', 'incident', new Map().set('data', data).set('sys_id', data.sys_id))
+function asIncidentInstance(data, sys_id) {
+    return makeInstance('servicenow', 'incident', new Map().set('data', data).set('sys_id', data.sys_id || sys_id))
 }
 
 class ServiceNowResolver extends Resolver {
@@ -82,7 +82,9 @@ class ServiceNowResolver extends Resolver {
 
     async updateInstance(inst, newAttrs) {
         if (isIncident(inst)) {
-            return await updateIncident(getSysId(inst), newAttrs).map(asIncidentInstance)
+            const sys_id = getSysId(inst)
+            let r = await updateIncident(sys_id, newAttrs.get('data'))
+            return asIncidentInstance(r, sys_id)
         } else {
             throw new Error(`Cannot update instance ${inst}`)
         }
