@@ -148,6 +148,10 @@ function pathFromRequest(moduleName: string, entryName: string, req: Request): s
   } else {
     p = path.toString();
   }
+  p = p.trim();
+  if (p.endsWith('/')) {
+    p = p.substring(0, p.length - 1);
+  }
   return `${escapeFqName(makeFqName(moduleName, entryName))}/${p}`;
 }
 
