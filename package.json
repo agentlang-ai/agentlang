@@ -34,7 +34,8 @@
     "repl": "deno task repl",
     "run": "deno task run",
     "test": "vitest run",
-    "test:deno": "deno test -A scripts/"
+    "test:deno": "deno test -A scripts/",
+    "prepublishOnly": "tsc -p ./ --outDir out/"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity": "^3.828.0",
