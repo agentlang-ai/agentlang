@@ -48,7 +48,7 @@ export type AgentlangKeywordNames =
     | "@with_unique"
     | "["
     | "]"
-    | "ai/agent"
+    | "agent"
     | "allow"
     | "and"
     | "as"
@@ -109,7 +109,7 @@ export function isDecimal(item: unknown): item is Decimal {
     return typeof item === 'number';
 }
 
-export type Definition = RelationshipDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
+export type Definition = AgentDefinition | RelationshipDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = 'Definition';
 
@@ -172,7 +172,7 @@ export function isAfterTriggerDefinition(item: unknown): item is AfterTriggerDef
 }
 
 export interface AgentDefinition extends langium.AstNode {
-    readonly $container: Pattern;
+    readonly $container: ModuleDefinition;
     readonly $type: 'AgentDefinition';
     body: CrudMapBody;
     name: string;
@@ -648,7 +648,6 @@ export function isOneOfSpec(item: unknown): item is OneOfSpec {
 export interface Pattern extends langium.AstNode {
     readonly $container: Delete | ForEach | Purge | RelationshipPattern | Statement;
     readonly $type: 'Pattern';
-    agentDef?: AgentDefinition;
     crudMap?: CrudMap;
     delete?: Delete;
     forEach?: ForEach;
@@ -1095,6 +1094,13 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
         switch (subtype) {
+            case AgentDefinition:
+            case RelationshipDefinition:
+            case SchemaDefinition:
+            case StandaloneStatement:
+            case WorkflowDefinition: {
+                return this.isSubtype(Definition, supertype);
+            }
             case BinExpr:
             case PrimExpr: {
                 return this.isSubtype(Expr, supertype);
@@ -1112,12 +1118,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case NegExpr:
             case NotExpr: {
                 return this.isSubtype(PrimExpr, supertype);
-            }
-            case RelationshipDefinition:
-            case SchemaDefinition:
-            case StandaloneStatement:
-            case WorkflowDefinition: {
-                return this.isSubtype(Definition, supertype);
             }
             default: {
                 return false;
@@ -1479,7 +1479,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: Pattern,
                     properties: [
-                        { name: 'agentDef' },
                         { name: 'crudMap' },
                         { name: 'delete' },
                         { name: 'forEach' },

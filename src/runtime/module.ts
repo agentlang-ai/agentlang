@@ -626,6 +626,15 @@ export class RbacSpecification {
   }
 }
 
+export class AgentEntry extends ModuleEntry {
+  attributes: InstanceAttributes;
+
+  constructor(name: string, moduleName: string, attrs: InstanceAttributes) {
+    super(name, moduleName);
+    this.attributes = attrs;
+  }
+}
+
 export class Entity extends Record {
   override type: RecordType = RecordType.ENTITY;
   rbac: RbacSpecification[] | undefined;
@@ -1001,6 +1010,7 @@ export function isEmptyWorkflow(wf: Workflow): boolean {
 export class Module {
   name: string;
   entries: ModuleEntry[];
+  agents: Map<string, AgentEntry> | undefined;
   entriesByTypeCache: Map<RecordType, ModuleEntry[]> | null;
 
   constructor(name: string) {
@@ -1013,6 +1023,22 @@ export class Module {
     this.entries.push(entry);
     if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
     return entry;
+  }
+
+  addAgent(agentEntry: AgentEntry): AgentEntry {
+    if (this.agents == undefined) {
+      this.agents = new Map();
+    }
+    this.agents.set(agentEntry.name, agentEntry);
+    return agentEntry;
+  }
+
+  removeAgent(agentName: string): boolean {
+    if (this.agents) {
+      this.agents.delete(agentName);
+      return true;
+    }
+    return false;
   }
 
   private getEntryIndex(entryName: string): number {
@@ -1076,6 +1102,13 @@ export class Module {
 
   getRecordEntries(): Record[] {
     return this.getEntriesOfType(RecordType.RECORD) as Record[];
+  }
+
+  getAgentNames(): string[] | undefined {
+    if (this.agents) {
+      return [...this.agents.keys()];
+    }
+    return undefined;
   }
 
   getRelationshipEntries(): Relationship[] {
@@ -1484,6 +1517,11 @@ export function addContainsRelationship(
   nodes: RelationshipNode[]
 ): Relationship {
   return addRelationship(name, 'contains', nodes, moduleName);
+}
+
+export function addAgent(name: string, attrs: InstanceAttributes, moduleName: string): AgentEntry {
+  const m = fetchModule(moduleName);
+  return m.addAgent(new AgentEntry(name, moduleName, attrs)) as AgentEntry;
 }
 
 function asWorkflowName(n: string): string {

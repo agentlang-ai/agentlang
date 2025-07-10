@@ -1,5 +1,4 @@
 import {
-  AgentDefinition,
   ArrayLiteral,
   CrudMap,
   Delete,
@@ -69,14 +68,7 @@ import {
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
-import {
-  Agent,
-  AgentEntityName,
-  AgentFqName,
-  CoreAIModuleName,
-  findAgentByName,
-  LlmEntityName,
-} from './modules/ai.js';
+import { Agent, AgentEntityName, AgentFqName, findAgentByName } from './modules/ai.js';
 import { logger } from './logger.js';
 import { ParentAttributeName, PathAttributeName, PathAttributeNameQuery } from './defs.js';
 import {
@@ -608,43 +600,12 @@ async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
     await evaluateIf(pat.if, env);
   } else if (pat.delete) {
     await evaluateDelete(pat.delete, env);
-  } else if (pat.agentDef) {
-    await evaluateAgentDefinition(pat.agentDef, env);
   } else if (pat.purge) {
     await evaluatePurge(pat.purge, env);
   } else if (pat.upsert) {
     await evaluateUpsert(pat.upsert, env);
   } else if (pat.fullTextSearch) {
     await evaluateFullTextSearch(pat.fullTextSearch, env);
-  }
-}
-
-async function evaluateAgentDefinition(agentDef: AgentDefinition, env: Environment): Promise<void> {
-  const attrs = newInstanceAttributes();
-  const s_attrs = agentDef.body.attributes;
-  for (let i = 0; i < s_attrs.length; ++i) {
-    const sa = s_attrs[i];
-    await evaluateExpression(sa.value, env);
-    attrs.set(sa.name, env.getLastResult());
-  }
-  await maybeCreateLlm(attrs.get('llm'), env);
-  attrs.set('name', agentDef.name);
-  const inst = makeInstance(CoreAIModuleName, AgentEntityName, attrs);
-  const res: Resolver = await getResolverForPath(AgentEntityName, CoreAIModuleName, env);
-  await runPreCreateEvents(inst, env);
-  await res.createInstance(inst);
-  await runPostCreateEvents(inst, env);
-  defineAgentEvent(env.getActiveModuleName(), agentDef.name);
-  env.setLastResult(inst);
-}
-
-async function maybeCreateLlm(llmName: string | undefined, env: Environment): Promise<void> {
-  if (llmName) {
-    await parseAndEvaluateStatement(
-      `upsert {${CoreAIModuleName}/${LlmEntityName} {name "${llmName}"}}`,
-      undefined,
-      env
-    );
   }
 }
 
@@ -843,7 +804,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         r = await res.createInstance(inst);
         await runPostCreateEvents(inst, env);
       }
-      if (r && entryName == 'agent') {
+      if (r && entryName == AgentEntityName) {
         defineAgentEvent(env.getActiveModuleName(), r.lookup('name'));
       }
       env.setLastResult(r);
