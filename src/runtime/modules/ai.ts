@@ -14,16 +14,18 @@ import { PlannerInstructions } from '../agents/common.js';
 import { PathAttributeNameQuery } from '../defs.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
+export const AgentEntityName = 'agent';
+export const LlmEntityName = 'llm';
 
 export default `module ${CoreAIModuleName}
 
-entity llm {
+entity ${LlmEntityName} {
     name String @id,
     service String @default("openai"),
     config Map @optional
 }
 
-entity agent {
+entity ${AgentEntityName} {
     name String @id,
     type @enum("chat", "planner") @default("chat"),
     instruction String @optional,

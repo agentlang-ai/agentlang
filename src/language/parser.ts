@@ -190,13 +190,17 @@ function introspectPattern(pat: Pattern): BasePattern {
 function isQueryPattern(pat: Pattern): boolean {
   if (pat.crudMap) {
     const crudMap: CrudMap = pat.crudMap;
-    return (
-      crudMap.name.endsWith(QuerySuffix) ||
-      (crudMap.attributes.length > 0 &&
-        crudMap.attributes.every((v: SetAttribute) => {
+    const r = crudMap.name.endsWith(QuerySuffix);
+    if (!r && crudMap.body) {
+      return (
+        crudMap.body.attributes.length > 0 &&
+        crudMap.body.attributes.every((v: SetAttribute) => {
           return v.name.endsWith(QuerySuffix);
-        }))
-    );
+        })
+      );
+    } else {
+      return r;
+    }
   }
   return false;
 }
@@ -240,7 +244,7 @@ function introspectExpression(expr: Expr | Expr): BasePattern {
 function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
   if (crudMap) {
     const cp: CrudPattern = new CrudPattern(crudMap.name);
-    crudMap.attributes.forEach((sa: SetAttribute) => {
+    crudMap.body?.attributes.forEach((sa: SetAttribute) => {
       cp.addAttribute(sa.name, introspectExpression(sa.value), sa.op);
     });
     crudMap.relationships.forEach((rp: RelationshipPattern) => {
@@ -255,7 +259,7 @@ function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
 function introspectCreatePattern(crudMap: CrudMap): CrudPattern {
   if (crudMap) {
     const cp: CrudPattern = new CrudPattern(crudMap.name);
-    crudMap.attributes.forEach((sa: SetAttribute) => {
+    crudMap.body?.attributes.forEach((sa: SetAttribute) => {
       if (!cp.isQueryUpdate && sa.name.endsWith(QuerySuffix)) {
         cp.isQueryUpdate = true;
       }
