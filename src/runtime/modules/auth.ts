@@ -126,6 +126,7 @@ entity Session {
   isActive Boolean
 }
 
+
 workflow CreateSession {
   {Session {id CreateSession.id, userId CreateSession.userId,
             authToken CreateSession.authToken, isActive true}}
@@ -144,6 +145,7 @@ workflow FindUserSession {
 workflow RemoveSession {
   purge {Session {id? RemoveSession.id}}
 }
+
 
 workflow signup {
   await Auth.signUpUser(signup.email, signup.password, signup.userData)
@@ -513,6 +515,65 @@ export async function loginUser(
 
 export async function verifySession(token: string, env?: Environment): Promise<ActiveSessionInfo> {
   if (!isAuthEnabled()) return BypassSession;
+
+  // Check if token is a JWT (Cognito ID token) or userId/sessionId format
+  if (isJwtToken(token)) {
+    return await verifyJwtToken(token, env);
+  } else {
+    return await verifySessionToken(token, env);
+  }
+}
+
+function isJwtToken(token: string): boolean {
+  // Simple JWT structure check - JWT tokens have 3 parts separated by dots
+  return !!(token && typeof token === 'string' && token.split('.').length === 3);
+}
+
+async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveSessionInfo> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    try {
+      // Validate JWT structure first
+      if (!isJwtToken(token)) {
+        throw new UnauthorisedError('Invalid JWT token structure');
+      }
+
+      // Verify the JWT token directly with Cognito
+      await fetchAuthImpl().verifyToken(token, env);
+
+      // Extract user information from JWT payload
+      const parts = token.split('.');
+      const payload = JSON.parse(atob(parts[1]));
+
+      // Extract user ID from standard JWT claims (sub or cognito:username)
+      const userId = payload.sub || payload['cognito:username'];
+
+      if (!userId) {
+        throw new UnauthorisedError('Invalid JWT token: missing user identifier');
+      }
+
+      // For JWT tokens, we use the token itself as sessionId for tracking
+      return { sessionId: token.substring(0, 32), userId: userId };
+    } catch (err: any) {
+      if (err instanceof UnauthorisedError) {
+        throw err;
+      }
+      logger.error(`JWT token verification failed:`, {
+        errorName: err.name,
+        errorMessage: err.message,
+      });
+      throw new UnauthorisedError('JWT token verification failed');
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
+async function verifySessionToken(token: string, env?: Environment): Promise<ActiveSessionInfo> {
   const parts = token.split('/');
   const sessId = parts[1];
   const needCommit = env ? false : true;
