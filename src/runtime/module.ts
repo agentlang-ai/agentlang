@@ -1536,6 +1536,28 @@ export function getEntity(name: string, moduleName: string): Entity {
   throw new Error(`Entity ${fr.entryName} not found in module ${fr.moduleName}`);
 }
 
+function isEntryOfType(t: RecordType, fqName: string): boolean {
+  const path = splitFqName(fqName);
+  const mod = fetchModule(path.getModuleName());
+  return mod.isEntryOfType(t, path.getEntryName());
+}
+
+export function isEntity(fqName: string): boolean {
+  return isEntryOfType(RecordType.ENTITY, fqName);
+}
+
+export function isEvent(fqName: string): boolean {
+  return isEntryOfType(RecordType.EVENT, fqName);
+}
+
+export function isRecord(fqName: string): boolean {
+  return isEntryOfType(RecordType.RECORD, fqName);
+}
+
+export function isRelationship(fqName: string): boolean {
+  return isEntryOfType(RecordType.RELATIONSHIP, fqName);
+}
+
 export function getEvent(name: string, moduleName: string): Event {
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(name, moduleName);
   if (fr.module.isEvent(fr.entryName)) {
