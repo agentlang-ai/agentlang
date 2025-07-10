@@ -2697,7 +2697,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           },
           {
             "$type": "Assignment",
-            "feature": "agent",
+            "feature": "agentDef",
             "operator": "=",
             "terminal": {
               "$type": "RuleCall",
@@ -3282,7 +3282,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
     },
     {
       "$type": "ParserRule",
-      "name": "Agent",
+      "name": "AgentDefinition",
       "definition": {
         "$type": "Group",
         "elements": [

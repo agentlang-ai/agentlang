@@ -35,7 +35,8 @@ NodeDefinition: name=ID | name=ID 'as' alias=ID;
 
 RelNodes: '(' node1=NodeDefinition ',' node2=NodeDefinition ')';
 
-AttributeDefinition: name=ID (type=ID | arrayType=ID '['']' | oneOfSpec=OneOfSpec | enumSpec=EnumSpec | refSpec=RefSpec) ('@expr' '(' expr=Expr ')')? properties+=PropertyDefinition*;
+AttributeDefinition: name=ID (type=ID | arrayType=ID '['']' | oneOfSpec=OneOfSpec | enumSpec=EnumSpec 
+| refSpec=RefSpec) ('@expr' '(' expr=Expr ')')? properties+=PropertyDefinition*;
 
 EnumSpec: '@enum' '(' values+=STRING (',' values+=STRING)* ')';
 
@@ -88,7 +89,7 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 WorkflowDefinition: 'workflow' name=ID Body;
 
 Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
-| upsert=Upsert | agent=Agent | fullTextSearch=FullTextSearch;
+| upsert=Upsert | agentDef=AgentDefinition | fullTextSearch=FullTextSearch;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 
@@ -108,7 +109,7 @@ SelectIntoEntry: alias=ID attribute=Ref;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
-Agent: 'ai/agent' name=(ID | STRING) body=CrudMapBody;
+AgentDefinition: 'ai/agent' name=(ID | STRING) body=CrudMapBody;
 
 RelationshipPattern: name=ID pattern=Pattern;
 
