@@ -87,7 +87,8 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 
 WorkflowDefinition: 'workflow' name=ID Body;
 
-Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | upsert=Upsert | fullTextSearch=FullTextSearch;
+Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
+| upsert=Upsert | agent=Agent | fullTextSearch=FullTextSearch;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 
@@ -95,15 +96,19 @@ RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec;
 
 AliasSpec: ('as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
 
-CrudMap: '{' (name=QueryId '{''}' | name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}')
+CrudMap: '{' (name=QueryId '{''}' | name=ID body=CrudMapBody)
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? 
              (',' into=SelectIntoSpec)? '}';
+
+CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}';
 
 SelectIntoSpec: 'into' '{' entries+=SelectIntoEntry (',' entries+=SelectIntoEntry)* '}';
 
 SelectIntoEntry: alias=ID attribute=Ref;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
+
+Agent: 'ai/agent' name=(ID | STRING) body=CrudMapBody;
 
 RelationshipPattern: name=ID pattern=Pattern;
 

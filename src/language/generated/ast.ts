@@ -48,6 +48,7 @@ export type AgentlangKeywordNames =
     | "@with_unique"
     | "["
     | "]"
+    | "ai/agent"
     | "allow"
     | "and"
     | "as"
@@ -170,6 +171,19 @@ export function isAfterTriggerDefinition(item: unknown): item is AfterTriggerDef
     return reflection.isInstance(item, AfterTriggerDefinition);
 }
 
+export interface Agent extends langium.AstNode {
+    readonly $container: Pattern;
+    readonly $type: 'Agent';
+    body: CrudMapBody;
+    name: string;
+}
+
+export const Agent = 'Agent';
+
+export function isAgent(item: unknown): item is Agent {
+    return reflection.isInstance(item, Agent);
+}
+
 export interface AliasSpec extends langium.AstNode {
     readonly $container: RuntimeHint;
     readonly $type: 'AliasSpec';
@@ -279,10 +293,9 @@ export function isCompositeUniqueDefinition(item: unknown): item is CompositeUni
 export interface CrudMap extends langium.AstNode {
     readonly $container: Pattern | Upsert;
     readonly $type: 'CrudMap';
-    attributes: Array<SetAttribute>;
+    body?: CrudMapBody;
     into?: SelectIntoSpec;
     name: QueryId | string;
-    properties: Array<PropertyDefinition>;
     relationships: Array<RelationshipPattern>;
 }
 
@@ -290,6 +303,19 @@ export const CrudMap = 'CrudMap';
 
 export function isCrudMap(item: unknown): item is CrudMap {
     return reflection.isInstance(item, CrudMap);
+}
+
+export interface CrudMapBody extends langium.AstNode {
+    readonly $container: Agent | CrudMap;
+    readonly $type: 'CrudMapBody';
+    attributes: Array<SetAttribute>;
+    properties: Array<PropertyDefinition>;
+}
+
+export const CrudMapBody = 'CrudMapBody';
+
+export function isCrudMapBody(item: unknown): item is CrudMapBody {
+    return reflection.isInstance(item, CrudMapBody);
 }
 
 export interface Delete extends langium.AstNode {
@@ -622,6 +648,7 @@ export function isOneOfSpec(item: unknown): item is OneOfSpec {
 export interface Pattern extends langium.AstNode {
     readonly $container: Delete | ForEach | Purge | RelationshipPattern | Statement;
     readonly $type: 'Pattern';
+    agent?: Agent;
     crudMap?: CrudMap;
     delete?: Delete;
     forEach?: ForEach;
@@ -652,7 +679,7 @@ export function isPrePostTriggerDefinition(item: unknown): item is PrePostTrigge
 }
 
 export interface PropertyDefinition extends langium.AstNode {
-    readonly $container: AttributeDefinition | CrudMap | RelationshipDefinition;
+    readonly $container: AttributeDefinition | CrudMapBody | RelationshipDefinition;
     readonly $type: 'PropertyDefinition';
     name: TaggedId;
     value?: KvPairs;
@@ -898,7 +925,7 @@ export function isSelectIntoSpec(item: unknown): item is SelectIntoSpec {
 }
 
 export interface SetAttribute extends langium.AstNode {
-    readonly $container: CrudMap;
+    readonly $container: CrudMapBody;
     readonly $type: 'SetAttribute';
     name: QueryId;
     op?: '<' | '<=' | '<>' | '=' | '>' | '>=' | 'between' | 'in' | 'like';
@@ -989,6 +1016,7 @@ export function isWorkflowDefinition(item: unknown): item is WorkflowDefinition 
 
 export type AgentlangAstType = {
     AfterTriggerDefinition: AfterTriggerDefinition
+    Agent: Agent
     AliasSpec: AliasSpec
     ArrayLiteral: ArrayLiteral
     AsyncFnCall: AsyncFnCall
@@ -999,6 +1027,7 @@ export type AgentlangAstType = {
     CatchSpec: CatchSpec
     CompositeUniqueDefinition: CompositeUniqueDefinition
     CrudMap: CrudMap
+    CrudMapBody: CrudMapBody
     Definition: Definition
     Delete: Delete
     Else: Else
@@ -1061,7 +1090,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, Definition, Delete, Else, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
+        return [AfterTriggerDefinition, Agent, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1112,6 +1141,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: AfterTriggerDefinition,
                     properties: [
                         { name: 'triggers' }
+                    ]
+                };
+            }
+            case Agent: {
+                return {
+                    name: Agent,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'name' }
                     ]
                 };
             }
@@ -1193,11 +1231,19 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: CrudMap,
                     properties: [
-                        { name: 'attributes', defaultValue: [] },
+                        { name: 'body' },
                         { name: 'into' },
                         { name: 'name' },
-                        { name: 'properties', defaultValue: [] },
                         { name: 'relationships', defaultValue: [] }
+                    ]
+                };
+            }
+            case CrudMapBody: {
+                return {
+                    name: CrudMapBody,
+                    properties: [
+                        { name: 'attributes', defaultValue: [] },
+                        { name: 'properties', defaultValue: [] }
                     ]
                 };
             }
@@ -1433,6 +1479,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: Pattern,
                     properties: [
+                        { name: 'agent' },
                         { name: 'crudMap' },
                         { name: 'delete' },
                         { name: 'forEach' },
