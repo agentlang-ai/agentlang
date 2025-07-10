@@ -1,0 +1,12 @@
+packages:
+  - .
+  - example/*
+
+onlyBuiltDependencies:
+  - esbuild
+  - sqlite3
+
+scripts:
+  approval:
+    esbuild: true
+    sqlite3: true
