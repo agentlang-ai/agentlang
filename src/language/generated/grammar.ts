@@ -149,6 +149,13 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
               "$ref": "#/rules@3"
             },
             "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@54"
+            },
+            "arguments": []
           }
         ]
       },
@@ -2697,18 +2704,6 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           },
           {
             "$type": "Assignment",
-            "feature": "agentDef",
-            "operator": "=",
-            "terminal": {
-              "$type": "RuleCall",
-              "rule": {
-                "$ref": "#/rules@54"
-              },
-              "arguments": []
-            }
-          },
-          {
-            "$type": "Assignment",
             "feature": "fullTextSearch",
             "operator": "=",
             "terminal": {
@@ -3288,7 +3283,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
         "elements": [
           {
             "$type": "Keyword",
-            "value": "ai/agent"
+            "value": "agent"
           },
           {
             "$type": "Assignment",

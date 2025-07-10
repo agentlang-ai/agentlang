@@ -14,8 +14,8 @@ import { PlannerInstructions } from '../agents/common.js';
 import { PathAttributeNameQuery } from '../defs.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
-export const AgentEntityName = 'agent';
-export const LlmEntityName = 'llm';
+export const AgentEntityName = 'Agent';
+export const LlmEntityName = 'LLM';
 
 export default `module ${CoreAIModuleName}
 
@@ -29,8 +29,8 @@ entity ${AgentEntityName} {
     name String @id,
     type @enum("chat", "planner") @default("chat"),
     instruction String @optional,
-    tools String[] @optional,
-    documents String[] @optional,
+    tools String @optional, // comma-separated values
+    documents String @optional, // comma-separated values
     llm String
 }
 
@@ -48,14 +48,14 @@ workflow saveAgentChatSession {
   upsert {agentChatSession {id saveAgentChatSession.id, messages saveAgentChatSession.messages}}
 }
 
-entity document {
+entity Document {
   title String @id,
   content String,
   @meta {"fullTextSearch": "*"}
 }
 `;
 
-export const AgentFqName = makeFqName(CoreAIModuleName, 'agent');
+export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
 const ProviderDb = new Map<string, AgentServiceProvider>();
 
@@ -65,8 +65,8 @@ export class Agent {
   chatId: string | undefined;
   instruction: string = '';
   type: string = 'chat';
-  tools: string[] | undefined;
-  documents: string[] | undefined;
+  tools: string | undefined;
+  documents: string | undefined;
 
   private constructor() {}
 
@@ -113,14 +113,14 @@ export class Agent {
 
   private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
     if (this.documents && this.documents.length > 0) {
-      const s = `${message}. Relevant documents are: ${this.documents.join(',')}`;
-      const result: any[] = await parseHelper(`{agentlang_ai/document? "${s}"}`, env);
+      const s = `${message}. Relevant documents are: ${this.documents}`;
+      const result: any[] = await parseHelper(`{agentlang_ai/Document? "${s}"}`, env);
       if (result && result.length > 0) {
         const docs: Instance[] = [];
         for (let i = 0; i < result.length; ++i) {
           const v: any = result[i];
           const r: Instance[] = await parseHelper(
-            `{agentlang_ai/document {${PathAttributeNameQuery} "${v.id}"}}`,
+            `{agentlang_ai/Document {${PathAttributeNameQuery} "${v.id}"}}`,
             env
           );
           if (r && r.length > 0) {
@@ -144,6 +144,7 @@ export class Agent {
   private toolsAsString(): string {
     if (this.tools) {
       return this.tools
+        .split(',')
         .filter((s: string) => {
           return isModule(s);
         })
@@ -163,7 +164,7 @@ async function parseHelper(stmt: string, env: Environment): Promise<any> {
 }
 
 export async function findAgentByName(name: string, env: Environment): Promise<Agent> {
-  const result = await parseHelper(`{agentlang_ai/agent {name? "${name}"}}`, env);
+  const result = await parseHelper(`{${AgentFqName} {name? "${name}"}}`, env);
   if (result instanceof Array && result.length > 0) {
     const agentInstance: Instance = result[0];
     return Agent.FromInstance(agentInstance);
@@ -179,7 +180,7 @@ export async function findProviderForLLM(
   let p: AgentServiceProvider | undefined = ProviderDb.get(llmName);
   if (p == undefined) {
     const result: Instance[] = await parseAndEvaluateStatement(
-      `{${CoreAIModuleName}/llm {name? "${llmName}"}}`,
+      `{${CoreAIModuleName}/${LlmEntityName} {name? "${llmName}"}}`,
       undefined,
       env
     );

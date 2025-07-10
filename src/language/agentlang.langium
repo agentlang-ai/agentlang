@@ -4,7 +4,7 @@ entry ModuleDefinition: 'module' name=ID (imports+=Import)* (defs+=Definition)*;
 
 Import: 'import' path=STRING 'as' name=ID;
 
-Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement;
+Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement | AgentDefinition;
 
 StandaloneStatement: stmt=Statement;
 
@@ -89,7 +89,7 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 WorkflowDefinition: 'workflow' name=ID Body;
 
 Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
-| upsert=Upsert | agentDef=AgentDefinition | fullTextSearch=FullTextSearch;
+| upsert=Upsert | fullTextSearch=FullTextSearch;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 
@@ -109,7 +109,7 @@ SelectIntoEntry: alias=ID attribute=Ref;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
-AgentDefinition: 'ai/agent' name=(ID | STRING) body=CrudMapBody;
+AgentDefinition: 'agent' name=(ID | STRING) body=CrudMapBody;
 
 RelationshipPattern: name=ID pattern=Pattern;
 
