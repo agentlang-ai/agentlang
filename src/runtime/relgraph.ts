@@ -1,9 +1,9 @@
 import {
   fetchModule,
-  getUserModuleNames,
   Relationship,
   RelationshipNode,
   Module,
+  getModuleNames,
 } from './module.js';
 import { DefaultModuleName, Path } from './util.js';
 
@@ -86,7 +86,7 @@ export function buildGraph(moduleName: string): RelationshipGraph {
   const inRels: Set<string> = new Set();
   const nodes: Array<RelationshipGraphNode> = [];
   let localMod: Module | undefined;
-  getUserModuleNames().forEach((n: string) => {
+  getModuleNames().forEach((n: string) => {
     const m: Module = fetchModule(n);
     if (n == moduleName) localMod = m;
     const rels: Relationship[] = m.getRelationshipEntries();
