@@ -1,10 +1,4 @@
-import {
-  fetchModule,
-  Relationship,
-  RelationshipNode,
-  Module,
-  getModuleNames,
-} from './module.js';
+import { fetchModule, Relationship, RelationshipNode, Module, getModuleNames } from './module.js';
 import { DefaultModuleName, Path } from './util.js';
 
 export type RelationshipGraphNode = {
