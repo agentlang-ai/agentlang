@@ -16,7 +16,7 @@ const standardHeaders = {
 async function getIncidents(sysId, count) {
     const apiUrl = sysId ?
         `${instanceUrl}/api/now/table/incident/${sysId}` :
-        `${instanceUrl}/api/now/table/incident?sysparm_limit=${count}`;
+        `${instanceUrl}/api/now/table/incident?sysparm_limit=${count}&sysparm_query=active=true^ORDERBYDESCsys_updated_on`;
     try {
         const response = await fetch(apiUrl, {
             method: 'GET',
