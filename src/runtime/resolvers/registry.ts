@@ -1,11 +1,12 @@
-import { Resolver } from './interface.js';
+import { Resolver, setSubscriptionEvent } from './interface.js';
 
 type MakeResolver = () => Resolver;
 const resolverDb: Map<string, MakeResolver> = new Map<string, MakeResolver>();
 const resolverPathMappings: Map<string, string> = new Map<string, string>();
 
-export function registerResolver(name: string, r: MakeResolver) {
+export function registerResolver(name: string, r: MakeResolver): string {
   resolverDb.set(name, r);
+  return name;
 }
 
 export function setResolver(fqEntryName: string, resolverName: string) {
@@ -15,6 +16,8 @@ export function setResolver(fqEntryName: string, resolverName: string) {
     throw new Error(`Resolver not found - ${resolverName}`);
   }
 }
+
+export const setSubscription = setSubscriptionEvent;
 
 export function getResolverNameForPath(fqEntryName: string): string | undefined {
   return resolverPathMappings.get(fqEntryName);

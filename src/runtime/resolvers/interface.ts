@@ -1,5 +1,7 @@
+import { parseAndEvaluateStatement } from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Instance, InstanceAttributes, Relationship } from '../module.js';
+import { sleepMilliseconds } from '../util.js';
 
 export class ResolverAuthInfo {
   userId: string;
@@ -25,6 +27,16 @@ export type JoinInfo = {
   subJoins: JoinInfo[] | undefined;
 };
 
+const subscriptionEvents: Map<string, string> = new Map<string, string>();
+
+export function setSubscriptionEvent(fqEventName: string, resolverName: string) {
+  subscriptionEvents.set(resolverName, fqEventName);
+}
+
+export function getSubscriptionEvent(resolverName: string): string | undefined {
+  return subscriptionEvents.get(resolverName);
+}
+
 export class Resolver {
   protected authInfo: ResolverAuthInfo = DefaultAuthInfo;
   protected userData: any;
@@ -34,6 +46,7 @@ export class Resolver {
 
   constructor(name?: string) {
     if (name) this.name = name;
+    this.startSubscription();
   }
 
   public setAuthInfo(authInfo: ResolverAuthInfo): Resolver {
@@ -162,5 +175,30 @@ export class Resolver {
 
   public async rollbackTransaction(txtIn: string): Promise<any> {
     return this.notImpl(`rollbackTransaction(${txtIn})`);
+  }
+
+  public async subscribe(): Promise<any> {
+    return [undefined, -1];
+  }
+
+  private async startSubscription(): Promise<any> {
+    const eventName = getSubscriptionEvent(this.name);
+    if (eventName) {
+      let waitMillis = 5000;
+      while (true) {
+        sleepMilliseconds(waitMillis);
+        this.subscribe().then(async (value: any) => {
+          const [result, nextWaitMillis] = value;
+          if (nextWaitMillis && nextWaitMillis <= 0) {
+            return;
+          } else {
+            waitMillis = nextWaitMillis;
+            if (result != undefined) {
+              await parseAndEvaluateStatement(`{${eventName} {data ${result}}}`);
+            }
+          }
+        });
+      }
+    }
   }
 }

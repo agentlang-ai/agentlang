@@ -1,6 +1,6 @@
 import { encodeForBasicAuth } from '../../out/utils/http.js'
 import { Resolver } from '../../out/runtime/resolvers/interface.js'
-import { registerResolver, setResolver } from "../../out/runtime/resolvers/registry.js"
+import { registerResolver, setResolver, setSubscription } from "../../out/runtime/resolvers/registry.js"
 import { makeInstance, isInstanceOfType } from "../../out/runtime/module.js"
 
 const instanceUrl = process.env['SERVICENOW_URL']
@@ -103,5 +103,6 @@ class ServiceNowResolver extends Resolver {
     }
 }
 
-registerResolver('servicenow', () => { return new ServiceNowResolver("servicenow") })
-setResolver('servicenow/incident', 'servicenow')
+const resolver = registerResolver('servicenow', () => { return new ServiceNowResolver("servicenow") })
+setResolver('servicenow/incident', resolver)
+setSubscription('servicenow/onIncidents', resolver)

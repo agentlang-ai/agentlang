@@ -10,3 +10,7 @@ entity incident {
 workflow getIncidents {
     {incident? {}}
 }
+
+workflow onIncidents {
+    console.log(onIncidents.data)
+}
