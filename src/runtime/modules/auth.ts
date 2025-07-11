@@ -4,7 +4,13 @@ import { Instance, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
-import { ActiveSessionInfo, AdminUserId, BypassSession, isAuthEnabled } from '../auth/defs.js';
+import {
+  ActiveSessionInfo,
+  AdminUserId,
+  BypassSession,
+  isAuthEnabled,
+  isRbacEnabled,
+} from '../auth/defs.js';
 import { isNodeEnv } from '../../utils/runtime.js';
 import { CognitoAuth, getHttpStatusForError } from '../auth/cognito.js';
 import {
@@ -363,7 +369,7 @@ export async function userHasPermissions(
   perms: Set<RbacPermissionFlag>,
   env: Environment
 ): Promise<boolean> {
-  if (userId == AdminUserId) {
+  if (userId == AdminUserId || !isRbacEnabled()) {
     return true;
   }
   let userRoles: string[] | undefined = UserRoleCache.get(userId);

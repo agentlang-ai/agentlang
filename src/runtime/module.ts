@@ -128,6 +128,7 @@ export enum RecordType {
   ENTITY,
   EVENT,
   RELATIONSHIP,
+  AGENT,
 }
 
 function normalizeMetaValue(metaValue: any): any {
@@ -626,12 +627,41 @@ export class RbacSpecification {
   }
 }
 
-export class AgentEntry extends ModuleEntry {
+export class AgentEntry extends Record {
+  override type: RecordType = RecordType.AGENT;
   attributes: InstanceAttributes;
 
   constructor(name: string, moduleName: string, attrs: InstanceAttributes) {
-    super(name, moduleName);
+    super(AgentEntry.EscapeName(name), moduleName);
     this.attributes = attrs;
+  }
+
+  override toString(): string {
+    const attrs = new Array<string>();
+    this.attributes.forEach((value: any, key: string) => {
+      attrs.push(`    ${key} ${value}`);
+    });
+    return `agent ${AgentEntry.NormalizeName(this.name)}
+{
+${attrs.join(',\n')}
+}`;
+  }
+
+  static Suffix = '__agent';
+
+  static EscapeName(n: string): string {
+    if (n.endsWith(AgentEntry.Suffix)) {
+      return n;
+    }
+    return `${n}${AgentEntry.Suffix}`;
+  }
+
+  static NormalizeName(n: string): string {
+    if (n.endsWith(AgentEntry.Suffix)) {
+      return n.substring(0, n.lastIndexOf(AgentEntry.Suffix));
+    } else {
+      return n;
+    }
   }
 }
 
@@ -1010,7 +1040,6 @@ export function isEmptyWorkflow(wf: Workflow): boolean {
 export class Module {
   name: string;
   entries: ModuleEntry[];
-  agents: Map<string, AgentEntry> | undefined;
   entriesByTypeCache: Map<RecordType, ModuleEntry[]> | null;
 
   constructor(name: string) {
@@ -1026,19 +1055,19 @@ export class Module {
   }
 
   addAgent(agentEntry: AgentEntry): AgentEntry {
-    if (this.agents == undefined) {
-      this.agents = new Map();
+    return this.addEntry(agentEntry) as AgentEntry;
+  }
+
+  getAgent(agentName: string): AgentEntry | undefined {
+    const n = AgentEntry.EscapeName(agentName);
+    if (this.hasEntry(n)) {
+      return this.getEntry(n) as AgentEntry;
     }
-    this.agents.set(agentEntry.name, agentEntry);
-    return agentEntry;
+    return undefined;
   }
 
   removeAgent(agentName: string): boolean {
-    if (this.agents) {
-      this.agents.delete(agentName);
-      return true;
-    }
-    return false;
+    return this.removeEntry(AgentEntry.EscapeName(agentName));
   }
 
   private getEntryIndex(entryName: string): number {
@@ -1104,11 +1133,14 @@ export class Module {
     return this.getEntriesOfType(RecordType.RECORD) as Record[];
   }
 
-  getAgentNames(): string[] | undefined {
-    if (this.agents) {
-      return [...this.agents.keys()];
-    }
-    return undefined;
+  getAgents(): AgentEntry[] {
+    return this.getEntriesOfType(RecordType.AGENT) as AgentEntry[];
+  }
+
+  getAgentNames(): string[] {
+    return this.getAgents().map((ae: AgentEntry) => {
+      return AgentEntry.NormalizeName(ae.name);
+    });
   }
 
   getRelationshipEntries(): Relationship[] {

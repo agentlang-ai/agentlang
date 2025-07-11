@@ -39,6 +39,7 @@ export const ConfigSchema = z.object({
     })
     .optional(),
   rbacEnabled: z.boolean().optional(),
+  authEnabled: z.boolean().optional(),
   auditTrail: z
     .object({
       enabled: z.boolean().default(false),
