@@ -10,6 +10,7 @@ export default {
   service: {
     port: parseInt(process.env.SERVICE_PORT || '8080')
   },
+  authEnabled: process.env.AUTH_ENABLED === 'true',
   rbacEnabled: process.env.RBAC_ENABLED === 'true',
   graphql: {
     enabled: process.env.GRAPHQL_ENABLED === 'true'
