@@ -1,7 +1,7 @@
 {
   "name": "agentlang",
   "description": "Please enter a brief description here",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "files": [
     "bin",
     "out",
@@ -10,7 +10,7 @@
   "type": "module",
   "scripts": {
     "install:pnpm": "pnpm install --prefer-offline",
-    "build": "tsc -b tsconfig.src.json && node esbuild.mjs",
+    "build": "tsc -b tsconfig.src.json && tsc -b tsconfig.declarations.json && node esbuild.mjs",
     "build:deno": "deno run -A scripts/build.ts",
     "build:ts": "tsc -b tsconfig.src.json",
     "build:vite": "vite build --emptyOutDir",
@@ -141,6 +141,7 @@
     "onLanguage:agentlang"
   ],
   "main": "./out/extension/main.cjs",
+  "types": "./out/index.d.ts",
   "bin": {
     "agentlang-cli": "./bin/cli.js"
   },
