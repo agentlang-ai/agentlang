@@ -68,7 +68,7 @@ import {
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
-import { Agent, AgentFqName, findAgentByName } from './modules/ai.js';
+import { Agent, AgentEntityName, AgentFqName, findAgentByName } from './modules/ai.js';
 import { logger } from './logger.js';
 import { ParentAttributeName, PathAttributeName, PathAttributeNameQuery } from './defs.js';
 import {
@@ -694,7 +694,7 @@ async function lookupOneOfVals(fqName: string, env: Environment): Promise<Instan
 
 async function patternToInstance(
   entryName: string,
-  attributes: SetAttribute[],
+  attributes: SetAttribute[] | undefined,
   env: Environment
 ): Promise<Instance> {
   const attrs: InstanceAttributes = newInstanceAttributes();
@@ -704,22 +704,24 @@ async function patternToInstance(
   if (isQueryAll) {
     entryName = entryName.slice(0, entryName.length - 1);
   }
-  for (let i = 0; i < attributes.length; ++i) {
-    const a: SetAttribute = attributes[i];
-    await evaluateExpression(a.value, env);
-    const v: Result = env.getLastResult();
-    let aname: string = a.name;
-    if (aname.endsWith(QuerySuffix)) {
-      if (isQueryAll) {
-        throw new Error(`Cannot specifiy query attribute ${aname} here`);
+  if (attributes) {
+    for (let i = 0; i < attributes.length; ++i) {
+      const a: SetAttribute = attributes[i];
+      await evaluateExpression(a.value, env);
+      const v: Result = env.getLastResult();
+      let aname: string = a.name;
+      if (aname.endsWith(QuerySuffix)) {
+        if (isQueryAll) {
+          throw new Error(`Cannot specifiy query attribute ${aname} here`);
+        }
+        if (qattrs == undefined) qattrs = newInstanceAttributes();
+        if (qattrVals == undefined) qattrVals = newInstanceAttributes();
+        aname = aname.slice(0, aname.length - 1);
+        qattrs.set(aname, a.op == undefined ? '=' : a.op);
+        qattrVals.set(aname, v);
+      } else {
+        attrs.set(aname, v);
       }
-      if (qattrs == undefined) qattrs = newInstanceAttributes();
-      if (qattrVals == undefined) qattrVals = newInstanceAttributes();
-      aname = aname.slice(0, aname.length - 1);
-      qattrs.set(aname, a.op == undefined ? '=' : a.op);
-      qattrVals.set(aname, v);
-    } else {
-      attrs.set(aname, v);
     }
   }
   let moduleName = env.getActiveModuleName();
@@ -761,7 +763,7 @@ async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
 }
 
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
-  const inst: Instance = await patternToInstance(crud.name, crud.attributes, env);
+  const inst: Instance = await patternToInstance(crud.name, crud.body?.attributes, env);
   const entryName = inst.name;
   const moduleName = inst.moduleName;
   const attrs = inst.attributes;
@@ -802,7 +804,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         r = await res.createInstance(inst);
         await runPostCreateEvents(inst, env);
       }
-      if (r && entryName == 'agent') {
+      if (r && entryName == AgentEntityName) {
         defineAgentEvent(env.getActiveModuleName(), r.lookup('name'));
       }
       env.setLastResult(r);
@@ -1029,7 +1031,7 @@ async function walkJoinQueryPattern(
         await walkJoinQueryPattern(crudMap.relationships[i], subJoins, env);
       }
     }
-    const qInst = await patternToInstance(crudMap.name, crudMap.attributes, env);
+    const qInst = await patternToInstance(crudMap.name, crudMap.body?.attributes, env);
     joinsSpec.push({
       relationship: getRelationship(rp.name, qInst.moduleName),
       queryInstance: qInst,

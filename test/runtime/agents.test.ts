@@ -25,10 +25,9 @@ if (process.env.AL_TEST) {
   describe('Basic agent', () => {
     test('Simple chat agent', async () => {
       await doInternModule('SimpleAIChat',
-        `{agentlang_ai/llm {name "simpleChatLLM"}}
-          {agentlang_ai/agent {name "simpleChatAgent",
-                              instruction "Is the following number odd? Answer YES or NO.",
-                              llm "simpleChatLLM"}}
+        `agent simpleChatAgent
+          {instruction "Is the following number odd? Answer YES or NO.",
+           llm "simpleChatLLM"}
           workflow chat {
             {simpleChatAgent {message chat.N}}
           }
@@ -42,11 +41,10 @@ if (process.env.AL_TEST) {
     test('Simple planner agent', async () => {
       await doInternModule('SPA', `entity Person {id Int @id, name String, age Int}`)
       await doInternModule('SimplePlannerAgent',
-        `{agentlang_ai/llm {name "planner01_llm"}}
-          {agentlang_ai/agent {name "planner01",
-                              instruction "Based on the user request, create appropriate patterns based on the SPA module.",
-                              tools ["SPA"],
-                              llm "planner01_llm"}}
+        `agent planner01
+          {instruction "Based on the user request, create appropriate patterns based on the SPA module.",
+           tools "SPA",
+           llm "planner01_llm"}
           workflow chat {{planner01 {message chat.msg}}}
           `)
       const k = async (ins: string) => {

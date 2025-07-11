@@ -6,7 +6,18 @@ import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
 import { ActiveSessionInfo, AdminUserId, BypassSession, isAuthEnabled } from '../auth/defs.js';
 import { isNodeEnv } from '../../utils/runtime.js';
-import { CognitoAuth } from '../auth/cognito.js';
+import { CognitoAuth, getHttpStatusForError } from '../auth/cognito.js';
+import {
+  UnauthorisedError,
+  UserNotFoundError,
+  UserNotConfirmedError,
+  PasswordResetRequiredError,
+  TooManyRequestsError,
+  InvalidParameterError,
+  ExpiredCodeError,
+  CodeMismatchError,
+  BadRequestError,
+} from '../defs.js';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
 
@@ -134,6 +145,14 @@ workflow signup {
 
 workflow login {
   await Auth.loginUser(login.email, login.password)
+}
+
+workflow getUser {
+  await Auth.getUserInfo(getUser.userId)
+}
+
+workflow getUserByEmail {
+  await Auth.getUserInfoByEmail(getUserByEmail.email)
 }
 `;
 
@@ -437,28 +456,53 @@ export async function signUpUser(
   env: Environment
 ): Promise<UserInfo> {
   let result: any;
-  await fetchAuthImpl().signUp(
-    username,
-    password,
-    userData ? new Map(Object.entries(userData)) : undefined,
-    env,
-    (userInfo: UserInfo) => {
-      result = userInfo;
-    }
-  );
-  return result as UserInfo;
+  try {
+    await fetchAuthImpl().signUp(
+      username,
+      password,
+      userData ? new Map(Object.entries(userData)) : undefined,
+      env,
+      (userInfo: UserInfo) => {
+        result = userInfo;
+      }
+    );
+    return result as UserInfo;
+  } catch (err: any) {
+    logger.error(`Signup failed for ${username}: ${err.message}`);
+    throw err; // Re-throw to preserve error type for HTTP status mapping
+  }
 }
 
 export async function loginUser(
   username: string,
   password: string,
   env: Environment
-): Promise<string> {
-  let result: string = '';
-  await fetchAuthImpl().login(username, password, env, (r: SessionInfo) => {
-    result = `${r.userId}/${r.sessionId}`;
-  });
-  return result;
+): Promise<string | object> {
+  let result: string | object = '';
+  try {
+    await fetchAuthImpl().login(username, password, env, (r: SessionInfo) => {
+      // Check if Cognito is configured by checking if we have the tokens
+      if (r.idToken && r.accessToken && r.refreshToken) {
+        // Return full token response for Cognito
+        result = {
+          id_token: r.idToken,
+          access_token: r.accessToken,
+          refresh_token: r.refreshToken,
+          token_type: 'Bearer',
+          expires_in: 3600,
+          userId: r.userId,
+          sessionId: r.sessionId,
+        };
+      } else {
+        // Return string format for non-Cognito authentication
+        result = `${r.userId}/${r.sessionId}`;
+      }
+    });
+    return result;
+  } catch (err: any) {
+    logger.error(`Login failed for ${username}: ${err.message}`);
+    throw err; // Re-throw to preserve error type for HTTP status mapping
+  }
 }
 
 export async function verifySession(token: string, env?: Environment): Promise<ActiveSessionInfo> {
@@ -468,12 +512,62 @@ export async function verifySession(token: string, env?: Environment): Promise<A
   const needCommit = env ? false : true;
   env = env ? env : new Environment();
   const f = async () => {
-    const sess: Instance = await findSession(sessId, env);
-    if (sess != undefined) {
-      await fetchAuthImpl().verifyToken(sess.lookup('authToken'), env);
-      return { sessionId: sessId, userId: parts[0] };
-    } else {
-      throw new Error(`No active session for user '${parts[0]}'`);
+    try {
+      const sess: Instance = await findSession(sessId, env);
+      if (sess != undefined) {
+        await fetchAuthImpl().verifyToken(sess.lookup('authToken'), env);
+        return { sessionId: sessId, userId: parts[0] };
+      } else {
+        logger.warn(`No active session found for user '${parts[0]}'`);
+        throw new UnauthorisedError(`No active session for user '${parts[0]}'`);
+      }
+    } catch (err: any) {
+      if (err instanceof UnauthorisedError) {
+        throw err;
+      }
+      // Log error details for debugging
+      logger.error(`Session verification failed for user '${parts[0]}':`, {
+        errorName: err.name,
+        errorMessage: err.message,
+        sessionId: sessId,
+      });
+      throw new UnauthorisedError('Session verification failed');
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
+export async function getUserInfo(userId: string, env: Environment): Promise<UserInfo> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    try {
+      return await fetchAuthImpl().getUser(userId, env);
+    } catch (err: any) {
+      logger.error(`Failed to get user info for ${userId}: ${err.message}`);
+      throw err; // Re-throw to preserve error type
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
+export async function getUserInfoByEmail(email: string, env: Environment): Promise<UserInfo> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    try {
+      return await fetchAuthImpl().getUserByEmail(email, env);
+    } catch (err: any) {
+      logger.error(`Failed to get user info for email ${email}: ${err.message}`);
+      throw err; // Re-throw to preserve error type
     }
   };
   if (needCommit) {
@@ -486,4 +580,100 @@ export async function verifySession(token: string, env?: Environment): Promise<A
 export function requireAuth(moduleName: string, eventName: string): boolean {
   const f = moduleName == CoreAuthModuleName && (eventName == 'login' || eventName == 'signup');
   return !f;
+}
+
+// Export getHttpStatusForError for use in HTTP handlers
+export { getHttpStatusForError };
+
+// Helper function to create standardized error responses
+export function createAuthErrorResponse(error: Error): {
+  error: string;
+  message: string;
+  statusCode: number;
+} {
+  const statusCode = getHttpStatusForError(error);
+  let errorType = 'AUTHENTICATION_ERROR';
+
+  if (error instanceof UserNotFoundError) {
+    errorType = 'USER_NOT_FOUND';
+  } else if (error instanceof UnauthorisedError) {
+    errorType = 'UNAUTHORIZED';
+  } else if (error instanceof UserNotConfirmedError) {
+    errorType = 'USER_NOT_CONFIRMED';
+  } else if (error instanceof PasswordResetRequiredError) {
+    errorType = 'PASSWORD_RESET_REQUIRED';
+  } else if (error instanceof TooManyRequestsError) {
+    errorType = 'TOO_MANY_REQUESTS';
+  } else if (error instanceof InvalidParameterError) {
+    errorType = 'INVALID_PARAMETER';
+  } else if (error instanceof ExpiredCodeError) {
+    errorType = 'EXPIRED_CODE';
+  } else if (error instanceof CodeMismatchError) {
+    errorType = 'CODE_MISMATCH';
+  } else if (error instanceof BadRequestError) {
+    errorType = 'BAD_REQUEST';
+  }
+
+  // Log error creation for debugging purposes
+  logger.debug(`Creating auth error response:`, {
+    errorType: errorType,
+    statusCode: statusCode,
+    originalError: error.name,
+  });
+
+  return {
+    error: errorType,
+    message: error.message,
+    statusCode: statusCode,
+  };
+}
+
+// Helper function to check if an error is a known auth error
+export function isAuthError(error: any): boolean {
+  return (
+    error instanceof UnauthorisedError ||
+    error instanceof UserNotFoundError ||
+    error instanceof UserNotConfirmedError ||
+    error instanceof PasswordResetRequiredError ||
+    error instanceof TooManyRequestsError ||
+    error instanceof InvalidParameterError ||
+    error instanceof ExpiredCodeError ||
+    error instanceof CodeMismatchError ||
+    error instanceof BadRequestError
+  );
+}
+
+// Helper function to sanitize error details before logging
+export function sanitizeErrorForLogging(error: Error): {
+  name: string;
+  message: string;
+  sanitizedMessage: string;
+} {
+  const sanitizedMessage = error.message
+    .replace(/password/gi, '[REDACTED]')
+    .replace(/token/gi, '[REDACTED]')
+    .replace(/secret/gi, '[REDACTED]')
+    .replace(/key/gi, '[REDACTED]')
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '[EMAIL_REDACTED]')
+    .replace(/\b[A-Fa-f0-9]{32,}\b/g, '[TOKEN_REDACTED]')
+    .replace(/\b\d{4,}\b/g, '[NUMBER_REDACTED]');
+
+  return {
+    name: error.name,
+    message: error.message,
+    sanitizedMessage: sanitizedMessage,
+  };
+}
+
+// Helper function to determine if an error should be retried
+export function isRetryableError(error: Error): boolean {
+  // Only retry on certain types of errors
+  return (
+    error instanceof TooManyRequestsError ||
+    (error.message
+      ? error.message.includes('temporarily unavailable') ||
+        error.message.includes('service error') ||
+        error.message.includes('timeout')
+      : false)
+  );
 }

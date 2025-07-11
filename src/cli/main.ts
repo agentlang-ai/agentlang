@@ -140,7 +140,7 @@ export async function internAndRunModule(
   if (!r) {
     throw new Error('Failed to initialize runtime');
   }
-  const rm: Module = internModule(module);
+  const rm: Module = await internModule(module);
   await runPostInitTasks(appSpec);
   return rm;
 }
