@@ -19,6 +19,10 @@ import {
   Statement,
   isStandaloneStatement,
   SchemaDefinition,
+  isAgentDefinition,
+  AgentDefinition,
+  SetAttribute,
+  isLiteral,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -36,6 +40,8 @@ import {
   isModule,
   getUserModuleNames,
   removeModule,
+  newInstanceAttributes,
+  addAgent,
 } from './module.js';
 import {
   findRbacSchema,
@@ -51,10 +57,11 @@ import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules, registerCoreModules } from './modules/core.js';
-import { parse, parseModule } from '../language/parser.js';
+import { parse, parseModule, parseWorkflow } from '../language/parser.js';
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
+import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
 
 export async function extractDocument(
   fileName: string,
@@ -231,7 +238,7 @@ export async function loadCoreModules() {
     registerCoreModules();
   }
   for (let i = 0; i < CoreModules.length; ++i) {
-    internModule(await parseModule(CoreModules[i]));
+    await internModule(await parseModule(CoreModules[i]));
   }
 }
 
@@ -248,7 +255,7 @@ async function loadModule(fileName: string, fsOptions?: any, callback?: Function
 
   // Extract the AST node
   const module = await extractAstNode<ModuleDefinition>(fileName, services);
-  const result: Module = internModule(module);
+  const result: Module = await internModule(module);
   console.log(chalk.green(`Module ${chalk.bold(result.name)} loaded`));
   logger.info(`Module ${result.name} loaded`);
   if (callback) {
@@ -414,12 +421,52 @@ export async function runStandaloneStatements() {
   }
 }
 
-export function addFromDef(def: Definition, moduleName: string) {
+async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
+  let llmName: string | undefined = undefined;
+  const name = def.name;
+  const attrsStrs = new Array<string>();
+  attrsStrs.push(`name "${name}"`);
+  const attrs = newInstanceAttributes();
+  def.body.attributes.forEach((sa: SetAttribute) => {
+    let v: any = undefined;
+    if (isLiteral(sa.value)) {
+      v = sa.value.str || sa.value.id || sa.value.num;
+      if (v == undefined) {
+        v = sa.value.bool;
+      }
+    }
+    if (v == undefined) {
+      throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
+    }
+    if (llmName == undefined && sa.name == 'llm') {
+      llmName = v;
+    }
+    if (isLiteral(sa.value) && (sa.value.str || sa.value.id)) {
+      v = `"${v}"`;
+    }
+    attrsStrs.push(`${sa.name} ${v}`);
+    attrs.set(sa.name, v);
+  });
+  const createAgent = `{${CoreAIModuleName}/${AgentEntityName} {
+    ${attrsStrs.join(',')}
+  }}`;
+  let wf = createAgent;
+  if (llmName) {
+    wf = `upsert {${CoreAIModuleName}/${LlmEntityName} {name "${llmName}"}}; ${wf}`;
+  }
+  (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
+    addStandaloneStatement(stmt, moduleName);
+  });
+  addAgent(def.name, attrs, moduleName);
+}
+
+export async function addFromDef(def: Definition, moduleName: string) {
   if (isEntityDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isEventDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isRecordDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isRelationshipDefinition(def)) addRelationshipFromDef(def, moduleName);
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
+  else if (isAgentDefinition(def)) await addAgentDefinition(def, moduleName);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
 }
 
@@ -434,17 +481,18 @@ export async function parseAndIntern(code: string, moduleName?: string) {
   if (r.parseResult.parserErrors.length > 0) {
     throw new Error(`Parser errors: ${r.parseResult.parserErrors.join('\n')}`);
   }
-  internModule(r.parseResult.value);
+  await internModule(r.parseResult.value);
 }
 
-export function internModule(module: ModuleDefinition): Module {
+export async function internModule(module: ModuleDefinition): Promise<Module> {
   const mn = module.name;
   const r = addModule(mn);
   module.imports.forEach(async (imp: Import) => {
     await importModule(imp.path, imp.name);
   });
-  module.defs.forEach((def: Definition) => {
-    addFromDef(def, mn);
-  });
+  for (let i = 0; i < module.defs.length; ++i) {
+    const def = module.defs[i];
+    await addFromDef(def, mn);
+  }
   return r;
 }

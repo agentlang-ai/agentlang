@@ -48,6 +48,7 @@ export type AgentlangKeywordNames =
     | "@with_unique"
     | "["
     | "]"
+    | "agent"
     | "allow"
     | "and"
     | "as"
@@ -108,7 +109,7 @@ export function isDecimal(item: unknown): item is Decimal {
     return typeof item === 'number';
 }
 
-export type Definition = RelationshipDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
+export type Definition = AgentDefinition | RelationshipDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = 'Definition';
 
@@ -168,6 +169,19 @@ export const AfterTriggerDefinition = 'AfterTriggerDefinition';
 
 export function isAfterTriggerDefinition(item: unknown): item is AfterTriggerDefinition {
     return reflection.isInstance(item, AfterTriggerDefinition);
+}
+
+export interface AgentDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'AgentDefinition';
+    body: CrudMapBody;
+    name: string;
+}
+
+export const AgentDefinition = 'AgentDefinition';
+
+export function isAgentDefinition(item: unknown): item is AgentDefinition {
+    return reflection.isInstance(item, AgentDefinition);
 }
 
 export interface AliasSpec extends langium.AstNode {
@@ -279,10 +293,9 @@ export function isCompositeUniqueDefinition(item: unknown): item is CompositeUni
 export interface CrudMap extends langium.AstNode {
     readonly $container: Pattern | Upsert;
     readonly $type: 'CrudMap';
-    attributes: Array<SetAttribute>;
+    body?: CrudMapBody;
     into?: SelectIntoSpec;
     name: QueryId | string;
-    properties: Array<PropertyDefinition>;
     relationships: Array<RelationshipPattern>;
 }
 
@@ -290,6 +303,19 @@ export const CrudMap = 'CrudMap';
 
 export function isCrudMap(item: unknown): item is CrudMap {
     return reflection.isInstance(item, CrudMap);
+}
+
+export interface CrudMapBody extends langium.AstNode {
+    readonly $container: AgentDefinition | CrudMap;
+    readonly $type: 'CrudMapBody';
+    attributes: Array<SetAttribute>;
+    properties: Array<PropertyDefinition>;
+}
+
+export const CrudMapBody = 'CrudMapBody';
+
+export function isCrudMapBody(item: unknown): item is CrudMapBody {
+    return reflection.isInstance(item, CrudMapBody);
 }
 
 export interface Delete extends langium.AstNode {
@@ -652,7 +678,7 @@ export function isPrePostTriggerDefinition(item: unknown): item is PrePostTrigge
 }
 
 export interface PropertyDefinition extends langium.AstNode {
-    readonly $container: AttributeDefinition | CrudMap | RelationshipDefinition;
+    readonly $container: AttributeDefinition | CrudMapBody | RelationshipDefinition;
     readonly $type: 'PropertyDefinition';
     name: TaggedId;
     value?: KvPairs;
@@ -898,7 +924,7 @@ export function isSelectIntoSpec(item: unknown): item is SelectIntoSpec {
 }
 
 export interface SetAttribute extends langium.AstNode {
-    readonly $container: CrudMap;
+    readonly $container: CrudMapBody;
     readonly $type: 'SetAttribute';
     name: QueryId;
     op?: '<' | '<=' | '<>' | '=' | '>' | '>=' | 'between' | 'in' | 'like';
@@ -989,6 +1015,7 @@ export function isWorkflowDefinition(item: unknown): item is WorkflowDefinition 
 
 export type AgentlangAstType = {
     AfterTriggerDefinition: AfterTriggerDefinition
+    AgentDefinition: AgentDefinition
     AliasSpec: AliasSpec
     ArrayLiteral: ArrayLiteral
     AsyncFnCall: AsyncFnCall
@@ -999,6 +1026,7 @@ export type AgentlangAstType = {
     CatchSpec: CatchSpec
     CompositeUniqueDefinition: CompositeUniqueDefinition
     CrudMap: CrudMap
+    CrudMapBody: CrudMapBody
     Definition: Definition
     Delete: Delete
     Else: Else
@@ -1061,11 +1089,18 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [AfterTriggerDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, Definition, Delete, Else, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
+        return [AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
         switch (subtype) {
+            case AgentDefinition:
+            case RelationshipDefinition:
+            case SchemaDefinition:
+            case StandaloneStatement:
+            case WorkflowDefinition: {
+                return this.isSubtype(Definition, supertype);
+            }
             case BinExpr:
             case PrimExpr: {
                 return this.isSubtype(Expr, supertype);
@@ -1083,12 +1118,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case NegExpr:
             case NotExpr: {
                 return this.isSubtype(PrimExpr, supertype);
-            }
-            case RelationshipDefinition:
-            case SchemaDefinition:
-            case StandaloneStatement:
-            case WorkflowDefinition: {
-                return this.isSubtype(Definition, supertype);
             }
             default: {
                 return false;
@@ -1112,6 +1141,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: AfterTriggerDefinition,
                     properties: [
                         { name: 'triggers' }
+                    ]
+                };
+            }
+            case AgentDefinition: {
+                return {
+                    name: AgentDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'name' }
                     ]
                 };
             }
@@ -1193,11 +1231,19 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: CrudMap,
                     properties: [
-                        { name: 'attributes', defaultValue: [] },
+                        { name: 'body' },
                         { name: 'into' },
                         { name: 'name' },
-                        { name: 'properties', defaultValue: [] },
                         { name: 'relationships', defaultValue: [] }
+                    ]
+                };
+            }
+            case CrudMapBody: {
+                return {
+                    name: CrudMapBody,
+                    properties: [
+                        { name: 'attributes', defaultValue: [] },
+                        { name: 'properties', defaultValue: [] }
                     ]
                 };
             }

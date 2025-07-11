@@ -4,7 +4,7 @@ entry ModuleDefinition: 'module' name=ID (imports+=Import)* (defs+=Definition)*;
 
 Import: 'import' path=STRING 'as' name=ID;
 
-Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement;
+Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement | AgentDefinition;
 
 StandaloneStatement: stmt=Statement;
 
@@ -35,7 +35,8 @@ NodeDefinition: name=ID | name=ID 'as' alias=ID;
 
 RelNodes: '(' node1=NodeDefinition ',' node2=NodeDefinition ')';
 
-AttributeDefinition: name=ID (type=ID | arrayType=ID '['']' | oneOfSpec=OneOfSpec | enumSpec=EnumSpec | refSpec=RefSpec) ('@expr' '(' expr=Expr ')')? properties+=PropertyDefinition*;
+AttributeDefinition: name=ID (type=ID | arrayType=ID '['']' | oneOfSpec=OneOfSpec | enumSpec=EnumSpec 
+| refSpec=RefSpec) ('@expr' '(' expr=Expr ')')? properties+=PropertyDefinition*;
 
 EnumSpec: '@enum' '(' values+=STRING (',' values+=STRING)* ')';
 
@@ -87,7 +88,8 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 
 WorkflowDefinition: 'workflow' name=ID Body;
 
-Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | upsert=Upsert | fullTextSearch=FullTextSearch;
+Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
+| upsert=Upsert | fullTextSearch=FullTextSearch;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 
@@ -95,15 +97,19 @@ RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec;
 
 AliasSpec: ('as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
 
-CrudMap: '{' (name=QueryId '{''}' | name=ID '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}')
+CrudMap: '{' (name=QueryId '{''}' | name=ID body=CrudMapBody)
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? 
              (',' into=SelectIntoSpec)? '}';
+
+CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}';
 
 SelectIntoSpec: 'into' '{' entries+=SelectIntoEntry (',' entries+=SelectIntoEntry)* '}';
 
 SelectIntoEntry: alias=ID attribute=Ref;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
+
+AgentDefinition: 'agent' name=(ID | STRING) body=CrudMapBody;
 
 RelationshipPattern: name=ID pattern=Pattern;
 

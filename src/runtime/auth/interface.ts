@@ -10,6 +10,9 @@ export type SessionInfo = {
   sessionId: string; // a UUID
   userId: string; // UUID
   authToken: string;
+  idToken?: string;
+  accessToken?: string;
+  refreshToken?: string;
   systemSesionInfo?: any;
 };
 
@@ -27,5 +30,7 @@ export interface AgentlangAuth {
   ): any;
   login(username: string, password: string, env: Environment, cb: LoginCallback): any;
   logout(sessionInfo: SessionInfo, env: Environment, cb?: LogoutCallback): any;
-  verifyToken(token: string, env: Environment): any;
+  verifyToken(token: string, env?: Environment): any;
+  getUser(userId: string, env: Environment): Promise<UserInfo>;
+  getUserByEmail(email: string, env: Environment): Promise<UserInfo>;
 }

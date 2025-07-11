@@ -31,3 +31,48 @@ export class BadRequestError extends Error {
     super(message ? asUnauthMessage(message) : 'BadRequest', options);
   }
 }
+
+export class UserNotFoundError extends Error {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message || 'User not found', options);
+  }
+}
+
+export class UserNotConfirmedError extends Error {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(
+      message || 'User account is not confirmed. Please check your email for verification code.',
+      options
+    );
+  }
+}
+
+export class PasswordResetRequiredError extends Error {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message || 'Password reset is required for this account', options);
+  }
+}
+
+export class TooManyRequestsError extends Error {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message || 'Too many requests. Please try again later.', options);
+  }
+}
+
+export class InvalidParameterError extends Error {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message || 'Invalid parameters provided', options);
+  }
+}
+
+export class ExpiredCodeError extends Error {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message || 'The verification code has expired. Please request a new one.', options);
+  }
+}
+
+export class CodeMismatchError extends Error {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message || 'The verification code is incorrect. Please try again.', options);
+  }
+}
