@@ -256,7 +256,7 @@ export function arrayEquals(a: Array<any>, b: Array<any>) {
 }
 
 export const DefaultModuleName = 'agentlang';
-export const DefaultModules = new Set(['agentlang', 'agentlang_auth', 'agentlang_ai']);
+export const DefaultModules = new Set();
 
 export function makeCoreModuleName(n: string): string {
   return DefaultModuleName + '_' + n;
