@@ -101,8 +101,16 @@ class ServiceNowResolver extends Resolver {
             return []
         }
     }
-}
 
-const resolver = registerResolver('servicenow', () => { return new ServiceNowResolver("servicenow") })
-setResolver('servicenow/incident', resolver)
-setSubscription('servicenow/onIncidents', resolver)
+    async subscribe() {
+        setInterval(async () => {
+            const result = await getIncidents(undefined, 5)
+            await this.onSubscription(result)
+        }, 10000)
+    }
+}
+const serviceNowResolver = new ServiceNowResolver("servicenow")
+registerResolver('servicenow', () => { return serviceNowResolver })
+setResolver('servicenow/incident', serviceNowResolver.name)
+setSubscription('servicenow/onIncidents', serviceNowResolver.name)
+serviceNowResolver.subscribe()
