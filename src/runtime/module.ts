@@ -666,7 +666,7 @@ ${attrs.join(',\n')}
   }
 
   getName(): string {
-    return Agent.NormalizeName(this.name)
+    return Agent.NormalizeName(this.name);
   }
 }
 
