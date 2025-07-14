@@ -636,6 +636,61 @@ export class Agent extends Record {
     this.attributes = attrs ? attrs : newInstanceAttributes();
   }
 
+  setName(n: string): Agent {
+    this.name = Agent.EscapeName(n);
+    return this;
+  }
+
+  setLLM(llm: string): Agent {
+    this.attributes.set('llm', llm);
+    return this;
+  }
+
+  private removeAgentAttribute(n: string): Agent {
+    this.attributes.delete(n);
+    return this;
+  }
+
+  removeLLM(): Agent {
+    return this.removeAgentAttribute('llm');
+  }
+
+  setInstruction(s: string): Agent {
+    this.attributes.set('instruction', s);
+    return this;
+  }
+
+  removeInstruction(): Agent {
+    return this.removeAgentAttribute('instruction');
+  }
+
+  setType(type: 'chat' | 'planner'): Agent {
+    this.attributes.set('type', type);
+    return this;
+  }
+
+  removeType(): Agent {
+    return this.removeAgentAttribute('type');
+  }
+
+  setTools(tools: string[]): Agent {
+    this.attributes.set('tools', tools.join(','));
+    return this;
+  }
+
+  removeTools(): Agent {
+    return this.removeAgentAttribute('tools');
+  }
+
+  setDocuments(docs: string[]): Agent {
+    this.attributes.set('documents', docs.join(','));
+    return this;
+  }
+
+  removeDocuments(): Agent {
+    return this.removeAgentAttribute('documents');
+  }
+
   override toString(): string {
     const attrs = new Array<string>();
     this.attributes.forEach((value: any, key: string) => {
