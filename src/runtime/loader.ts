@@ -449,7 +449,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   });
   if (!attrs.has('llm')) {
     llmName = `${name}_llm`;
-    attrsStrs.push(`llm ${llmName}`);
+    attrsStrs.push(`llm "${llmName}"`);
     attrs.set('llm', llmName);
   }
   const createAgent = `{${CoreAIModuleName}/${AgentEntityName} {
