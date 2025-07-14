@@ -73,6 +73,7 @@ export type AgentlangKeywordNames =
     | "module"
     | "not"
     | "not_found"
+    | "onSubscription"
     | "or"
     | "purge"
     | "query"
@@ -902,10 +903,22 @@ export function isResolverDefinition(item: unknown): item is ResolverDefinition 
     return reflection.isInstance(item, ResolverDefinition);
 }
 
+export interface ResolverFnName extends langium.AstNode {
+    readonly $container: ResolverMethodSpec;
+    readonly $type: 'ResolverFnName';
+    name: Ref | string;
+}
+
+export const ResolverFnName = 'ResolverFnName';
+
+export function isResolverFnName(item: unknown): item is ResolverFnName {
+    return reflection.isInstance(item, ResolverFnName);
+}
+
 export interface ResolverMethodName extends langium.AstNode {
     readonly $container: ResolverMethodSpec;
     readonly $type: 'ResolverMethodName';
-    name: 'create' | 'delete' | 'query' | 'subscribe' | 'update' | 'upsert';
+    name: 'create' | 'delete' | 'onSubscription' | 'query' | 'subscribe' | 'update' | 'upsert';
 }
 
 export const ResolverMethodName = 'ResolverMethodName';
@@ -917,8 +930,7 @@ export function isResolverMethodName(item: unknown): item is ResolverMethodName 
 export interface ResolverMethodSpec extends langium.AstNode {
     readonly $container: ResolverDefinition;
     readonly $type: 'ResolverMethodSpec';
-    event?: string;
-    fn: string;
+    fn: ResolverFnName;
     key: ResolverMethodName;
 }
 
@@ -1117,6 +1129,7 @@ export type AgentlangAstType = {
     RelationshipDefinition: RelationshipDefinition
     RelationshipPattern: RelationshipPattern
     ResolverDefinition: ResolverDefinition
+    ResolverFnName: ResolverFnName
     ResolverMethodName: ResolverMethodName
     ResolverMethodSpec: ResolverMethodSpec
     RuntimeHint: RuntimeHint
@@ -1135,7 +1148,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverMethodName, ResolverMethodSpec, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
+        return [AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1700,6 +1713,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case ResolverFnName: {
+                return {
+                    name: ResolverFnName,
+                    properties: [
+                        { name: 'name' }
+                    ]
+                };
+            }
             case ResolverMethodName: {
                 return {
                     name: ResolverMethodName,
@@ -1712,7 +1733,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: ResolverMethodSpec,
                     properties: [
-                        { name: 'event' },
                         { name: 'fn' },
                         { name: 'key' }
                     ]

@@ -205,11 +205,11 @@ export class Resolver {
 type MaybeFunction = Function | undefined;
 
 export type GenericResolverMethods = {
-  createInstance: MaybeFunction;
-  upsertInstance: MaybeFunction;
-  updateInstance: MaybeFunction;
-  queryInstances: MaybeFunction;
-  deleteInstance: MaybeFunction;
+  create: MaybeFunction;
+  upsert: MaybeFunction;
+  update: MaybeFunction;
+  query: MaybeFunction;
+  delete: MaybeFunction;
   startTransaction: MaybeFunction;
   commitTransaction: MaybeFunction;
   rollbackTransaction: MaybeFunction;
@@ -230,65 +230,65 @@ export class GenericResolver extends Resolver {
   }
 
   public override async createInstance(inst: Instance): Promise<any> {
-    if (this.implementation?.createInstance) {
-      return await this.implementation.createInstance(inst);
+    if (this.implementation?.create) {
+      return await this.implementation.create(this, inst);
     } else {
       return await super.createInstance(inst);
     }
   }
 
   public override async upsertInstance(inst: Instance): Promise<any> {
-    if (this.implementation?.upsertInstance) {
-      return await this.implementation.upsertInstance(inst);
+    if (this.implementation?.upsert) {
+      return await this.implementation.upsert(this, inst);
     }
     return await super.upsertInstance(inst);
   }
 
   public override async updateInstance(inst: Instance, newAttrs: InstanceAttributes): Promise<any> {
-    if (this.implementation?.updateInstance) {
-      return await this.implementation.updateInstance(inst, newAttrs);
+    if (this.implementation?.update) {
+      return await this.implementation.update(this, inst, newAttrs);
     }
     return await super.updateInstance(inst, newAttrs);
   }
 
   public override async queryInstances(inst: Instance, queryAll: boolean): Promise<any> {
-    if (this.implementation?.queryInstances) {
-      return await this.implementation.queryInstances(inst, queryAll);
+    if (this.implementation?.query) {
+      return await this.implementation.query(this, inst, queryAll);
     }
     return await super.queryInstances(inst, queryAll);
   }
 
   public override async deleteInstance(inst: Instance | Instance[], purge: boolean): Promise<any> {
-    if (this.implementation?.deleteInstance) {
-      return await this.implementation.deleteInstance(inst, purge);
+    if (this.implementation?.delete) {
+      return await this.implementation.delete(this, inst, purge);
     }
     return await super.deleteInstance(inst, purge);
   }
 
   public override async startTransaction(): Promise<any> {
     if (this.implementation?.startTransaction) {
-      return await this.implementation.startTransaction();
+      return await this.implementation.startTransaction(this);
     }
     return await super.startTransaction();
   }
 
   public override async commitTransaction(txnId: string): Promise<any> {
     if (this.implementation?.commitTransaction) {
-      return await this.implementation.commitTransaction(txnId);
+      return await this.implementation.commitTransaction(this, txnId);
     }
     return await super.commitTransaction(txnId);
   }
 
   public override async rollbackTransaction(txnId: string): Promise<any> {
     if (this.implementation?.rollbackTransaction) {
-      return await this.implementation.rollbackTransaction(txnId);
+      return await this.implementation.rollbackTransaction(this, txnId);
     }
     return await super.rollbackTransaction(txnId);
   }
 
   override async subscribe() {
     if (this.subs?.subscribe) {
-      await this.subs.subscribe();
+      await this.subs.subscribe(this);
     }
     await super.subscribe();
   }

@@ -14,3 +14,10 @@ workflow getIncidents {
 workflow onIncidents {
     console.log(onIncidents.data)
 }
+
+resolver servicenow ["servicenow/incident"] {
+    update r.updateInstance,
+    query r.queryInstances,
+    subscribe r.subs,
+    onSubscription "servicenow/onIncidents"
+}

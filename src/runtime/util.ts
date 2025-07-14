@@ -88,6 +88,14 @@ export async function invokeModuleFn(
   }
 }
 
+export function getModuleFn(fqFnName: string): Function | undefined {
+  const refs: string[] = splitRefs(fqFnName);
+  const m = importedModules.get(refs[0]);
+  if (m != undefined) {
+    return m[refs[1]];
+  } else return undefined;
+}
+
 export function isNumber(x: any): boolean {
   return typeof x === 'number';
 }

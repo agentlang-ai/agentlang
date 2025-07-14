@@ -1,6 +1,4 @@
 import { encodeForBasicAuth } from '../../out/utils/http.js'
-import { Resolver } from '../../out/runtime/resolvers/interface.js'
-import { registerResolver, setResolver, setSubscription } from "../../out/runtime/resolvers/registry.js"
 import { makeInstance, isInstanceOfType } from "../../out/runtime/module.js"
 
 const instanceUrl = process.env['SERVICENOW_URL']
@@ -74,43 +72,32 @@ function asIncidentInstance(data, sys_id) {
     return makeInstance('servicenow', 'incident', new Map().set('data', data).set('sys_id', data.sys_id || sys_id))
 }
 
-class ServiceNowResolver extends Resolver {
 
-    constructor(name) {
-        super(name)
-    }
-
-    async updateInstance(inst, newAttrs) {
-        if (isIncident(inst)) {
-            const sys_id = getSysId(inst)
-            let r = await updateIncident(sys_id, newAttrs.get('data'))
-            return asIncidentInstance(r, sys_id)
-        } else {
-            throw new Error(`Cannot update instance ${inst}`)
-        }
-    }
-
-    async queryInstances(inst, queryAll) {
-        if (isIncident(inst)) {
-            let r = await getIncidents(pathQueryValue(inst), queryAll ? 100 : 5)
-            if (!(r instanceof Array)) {
-                r = [r]
-            }
-            return r.map(asIncidentInstance)
-        } else {
-            return []
-        }
-    }
-
-    async subscribe() {
-        setInterval(async () => {
-            const result = await getIncidents(undefined, 5)
-            await this.onSubscription(result)
-        }, 10000)
+export async function updateInstance(resolver, newAttrs) {
+    if (isIncident(inst)) {
+        const sys_id = getSysId(inst)
+        let r = await updateIncident(sys_id, newAttrs.get('data'))
+        return asIncidentInstance(r, sys_id)
+    } else {
+        throw new Error(`Cannot update instance ${inst}`)
     }
 }
-const serviceNowResolver = new ServiceNowResolver("servicenow")
-registerResolver('servicenow', () => { return serviceNowResolver })
-setResolver('servicenow/incident', serviceNowResolver.name)
-setSubscription('servicenow/onIncidents', serviceNowResolver.name)
-serviceNowResolver.subscribe()
+
+export async function queryInstances(resolver, inst, queryAll) {
+    if (isIncident(inst)) {
+        let r = await getIncidents(pathQueryValue(inst), queryAll ? 100 : 5)
+        if (!(r instanceof Array)) {
+            r = [r]
+        }
+        return r.map(asIncidentInstance)
+    } else {
+        return []
+    }
+}
+
+export async function subs(resolver) {
+    setInterval(async () => {
+        const result = await getIncidents(undefined, 5)
+        await resolver.onSubscription(result)
+    }, 10000)
+}

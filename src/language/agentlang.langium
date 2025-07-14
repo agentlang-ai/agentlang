@@ -112,12 +112,14 @@ FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
 AgentDefinition: 'agent' name=(ID | STRING) (body=CrudMapBody? | '{''}');
 
-ResolverDefinition: 'resolver' name=(ID | STRING) '[' paths+=STRING (',' paths+=STRING)* ']'
-'{' methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)* '}';
+ResolverDefinition: 'resolver' name=(ID | STRING) '[' (paths+=STRING (',' paths+=STRING)*)+ ']'
+'{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
 
-ResolverMethodSpec: key=ResolverMethodName (fn=ID | ( '[' fn=ID ',' event=STRING ']' ));
+ResolverMethodSpec: key=ResolverMethodName fn=ResolverFnName;
 
-ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe');
+ResolverFnName: name=(ID | Ref | STRING);
+
+ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe' | 'onSubscription');
 
 RelationshipPattern: name=ID pattern=Pattern;
 

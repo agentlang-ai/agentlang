@@ -48,6 +48,7 @@ import {
 } from './module.js';
 import {
   findRbacSchema,
+  getModuleFn,
   importModule,
   makeFqName,
   maybeExtends,
@@ -477,22 +478,20 @@ function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
     logger.warn(`Resolver has no associated paths - ${resolverName}`);
     return;
   }
-  const methods = new Map<string, Function>();
-  let subsFn: Function | undefined;
-  let subsEvent: string | undefined;
-  def.methods.forEach((spec: ResolverMethodSpec) => {
-    const n = spec.key.name;
-    if (n == 'subscribe') {
-      if (spec.event == undefined) {
-        throw new Error(`Event required for subscription in resolver ${resolverName}`);
-      }
-      subsFn = asResolverFn(spec.fn);
-      subsEvent = spec.event;
-    } else {
-      methods.set(n, asResolverFn(spec.fn));
-    }
-  });
   registerInitFunction(() => {
+    const methods = new Map<string, Function>();
+    let subsFn: Function | undefined;
+    let subsEvent: string | undefined;
+    def.methods.forEach((spec: ResolverMethodSpec) => {
+      const n = spec.key.name;
+      if (n == 'subscribe') {
+        subsFn = asResolverFn(spec.fn.name);
+      } else if (n == 'onSubscription') {
+        subsEvent = spec.fn.name;
+      } else {
+        methods.set(n, asResolverFn(spec.fn.name));
+      }
+    });
     const methodsObj = Object.fromEntries(methods.entries()) as GenericResolverMethods;
     const resolver = new GenericResolver(resolverName, methodsObj);
     registerResolver(resolverName, () => {
@@ -512,10 +511,12 @@ function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
   });
 }
 
-function asResolverFn(fName: string): Function {
-  const fn = eval(fName);
+function asResolverFn(fname: string): Function {
+  let fn = getModuleFn(fname);
+  if (fn) return fn;
+  fn = eval(fname);
   if (!(fn instanceof Function)) {
-    throw new Error(`${fName} is not a function`);
+    throw new Error(`${fname} is not a function`);
   }
   return fn as Function;
 }
