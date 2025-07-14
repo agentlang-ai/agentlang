@@ -202,95 +202,94 @@ export class Resolver {
   }
 }
 
-type MaybeFunction = Function | undefined
+type MaybeFunction = Function | undefined;
 
 export type GenericResolverMethods = {
-  createInstance: MaybeFunction
-  upsertInstance: MaybeFunction
-  updateInstance: MaybeFunction
-  queryInstances: MaybeFunction
-  deleteInstance: MaybeFunction
-  startTransaction: MaybeFunction
-  commitTransaction: MaybeFunction
-  rollbackTransaction: MaybeFunction
-}
+  createInstance: MaybeFunction;
+  upsertInstance: MaybeFunction;
+  updateInstance: MaybeFunction;
+  queryInstances: MaybeFunction;
+  deleteInstance: MaybeFunction;
+  startTransaction: MaybeFunction;
+  commitTransaction: MaybeFunction;
+  rollbackTransaction: MaybeFunction;
+};
 
 export type GenericResolverSubscription = {
-  subscribe: MaybeFunction,
-  onSubscriptionEvent: string
-}
+  subscribe: MaybeFunction;
+  onSubscriptionEvent: string;
+};
 
 export class GenericResolver extends Resolver {
-
-  implementation: GenericResolverMethods | undefined
-  subs: GenericResolverSubscription | undefined
+  implementation: GenericResolverMethods | undefined;
+  subs: GenericResolverSubscription | undefined;
 
   constructor(name: string, implementation?: GenericResolverMethods) {
-    super(name)
-    this.implementation = implementation
+    super(name);
+    this.implementation = implementation;
   }
 
   public override async createInstance(inst: Instance): Promise<any> {
     if (this.implementation?.createInstance) {
-      return await this.implementation.createInstance(inst)
+      return await this.implementation.createInstance(inst);
     } else {
-      return await super.createInstance(inst)
+      return await super.createInstance(inst);
     }
   }
 
   public override async upsertInstance(inst: Instance): Promise<any> {
     if (this.implementation?.upsertInstance) {
-      return await this.implementation.upsertInstance(inst)
+      return await this.implementation.upsertInstance(inst);
     }
-    return await super.upsertInstance(inst)
+    return await super.upsertInstance(inst);
   }
 
   public override async updateInstance(inst: Instance, newAttrs: InstanceAttributes): Promise<any> {
     if (this.implementation?.updateInstance) {
-      return await this.implementation.updateInstance(inst, newAttrs)
+      return await this.implementation.updateInstance(inst, newAttrs);
     }
-    return await super.updateInstance(inst, newAttrs)
+    return await super.updateInstance(inst, newAttrs);
   }
 
   public override async queryInstances(inst: Instance, queryAll: boolean): Promise<any> {
-     if (this.implementation?.queryInstances) {
-      return await this.implementation.queryInstances(inst, queryAll)
+    if (this.implementation?.queryInstances) {
+      return await this.implementation.queryInstances(inst, queryAll);
     }
-    return await super.queryInstances(inst, queryAll)
+    return await super.queryInstances(inst, queryAll);
   }
 
   public override async deleteInstance(inst: Instance | Instance[], purge: boolean): Promise<any> {
     if (this.implementation?.deleteInstance) {
-      return await this.implementation.deleteInstance(inst, purge)
+      return await this.implementation.deleteInstance(inst, purge);
     }
-    return await super.deleteInstance(inst, purge)
+    return await super.deleteInstance(inst, purge);
   }
 
   public override async startTransaction(): Promise<any> {
     if (this.implementation?.startTransaction) {
-      return await this.implementation.startTransaction()
+      return await this.implementation.startTransaction();
     }
-    return await super.startTransaction()
+    return await super.startTransaction();
   }
 
   public override async commitTransaction(txnId: string): Promise<any> {
     if (this.implementation?.commitTransaction) {
-      return await this.implementation.commitTransaction(txnId)
+      return await this.implementation.commitTransaction(txnId);
     }
-    return await super.commitTransaction(txnId)
+    return await super.commitTransaction(txnId);
   }
 
   public override async rollbackTransaction(txnId: string): Promise<any> {
     if (this.implementation?.rollbackTransaction) {
-      return await this.implementation.rollbackTransaction(txnId)
+      return await this.implementation.rollbackTransaction(txnId);
     }
-    return await super.rollbackTransaction(txnId)
+    return await super.rollbackTransaction(txnId);
   }
 
   override async subscribe() {
     if (this.subs?.subscribe) {
-      await this.subs.subscribe()
+      await this.subs.subscribe();
     }
-    await super.subscribe()
+    await super.subscribe();
   }
 }
