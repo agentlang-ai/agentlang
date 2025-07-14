@@ -5,7 +5,7 @@ import { parseHelper } from 'langium/test';
 import { createAgentlangServices } from '../../src/language/agentlang-module.js';
 import { Definition, isModuleDefinition, isStandaloneStatement, ModuleDefinition } from '../../src/language/generated/ast.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
-import { AgentDefinition, fetchModule } from '../../src/runtime/module.js';
+import { Agent, fetchModule } from '../../src/runtime/module.js';
 import { doInternModule } from '../util.js';
 
 let services: ReturnType<typeof createAgentlangServices>;
@@ -137,7 +137,7 @@ describe('Module toString tests', () => {
       }
       `)
     const m = fetchModule('MtoStr')
-    m.addAgent(new AgentDefinition('agent01', 'MtoStr'))
+    m.addAgent(new Agent('agent01', 'MtoStr'))
     assert(m.toString() == `module MtoStr
 
 entity E

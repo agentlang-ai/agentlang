@@ -627,12 +627,12 @@ export class RbacSpecification {
   }
 }
 
-export class AgentDefinition extends Record {
+export class Agent extends Record {
   override type: RecordType = RecordType.AGENT;
   attributes: InstanceAttributes;
 
   constructor(name: string, moduleName: string, attrs?: InstanceAttributes) {
-    super(AgentDefinition.EscapeName(name), moduleName);
+    super(Agent.EscapeName(name), moduleName);
     this.attributes = attrs ? attrs : newInstanceAttributes();
   }
 
@@ -642,7 +642,7 @@ export class AgentDefinition extends Record {
       const v = isString(value) ? `"${value}"` : value;
       attrs.push(`    ${key} ${v}`);
     });
-    return `agent ${AgentDefinition.NormalizeName(this.name)}
+    return `agent ${Agent.NormalizeName(this.name)}
 {
 ${attrs.join(',\n')}
 }`;
@@ -651,18 +651,22 @@ ${attrs.join(',\n')}
   static Suffix = '__agent';
 
   static EscapeName(n: string): string {
-    if (n.endsWith(AgentDefinition.Suffix)) {
+    if (n.endsWith(Agent.Suffix)) {
       return n;
     }
-    return `${n}${AgentDefinition.Suffix}`;
+    return `${n}${Agent.Suffix}`;
   }
 
   static NormalizeName(n: string): string {
-    if (n.endsWith(AgentDefinition.Suffix)) {
-      return n.substring(0, n.lastIndexOf(AgentDefinition.Suffix));
+    if (n.endsWith(Agent.Suffix)) {
+      return n.substring(0, n.lastIndexOf(Agent.Suffix));
     } else {
       return n;
     }
+  }
+
+  getName(): string {
+    return Agent.NormalizeName(this.name);
   }
 }
 
@@ -1055,20 +1059,20 @@ export class Module {
     return entry;
   }
 
-  addAgent(agentEntry: AgentDefinition): AgentDefinition {
-    return this.addEntry(agentEntry) as AgentDefinition;
+  addAgent(agentEntry: Agent): Agent {
+    return this.addEntry(agentEntry) as Agent;
   }
 
-  getAgent(agentName: string): AgentDefinition | undefined {
-    const n = AgentDefinition.EscapeName(agentName);
+  getAgent(agentName: string): Agent | undefined {
+    const n = Agent.EscapeName(agentName);
     if (this.hasEntry(n)) {
-      return this.getEntry(n) as AgentDefinition;
+      return this.getEntry(n) as Agent;
     }
     return undefined;
   }
 
   removeAgent(agentName: string): boolean {
-    return this.removeEntry(AgentDefinition.EscapeName(agentName));
+    return this.removeEntry(Agent.EscapeName(agentName));
   }
 
   private getEntryIndex(entryName: string): number {
@@ -1134,13 +1138,13 @@ export class Module {
     return this.getEntriesOfType(RecordType.RECORD) as Record[];
   }
 
-  getAgents(): AgentDefinition[] {
-    return this.getEntriesOfType(RecordType.AGENT) as AgentDefinition[];
+  getAgents(): Agent[] {
+    return this.getEntriesOfType(RecordType.AGENT) as Agent[];
   }
 
   getAgentNames(): string[] {
-    return this.getAgents().map((ae: AgentDefinition) => {
-      return AgentDefinition.NormalizeName(ae.name);
+    return this.getAgents().map((ae: Agent) => {
+      return Agent.NormalizeName(ae.name);
     });
   }
 
@@ -1552,13 +1556,9 @@ export function addContainsRelationship(
   return addRelationship(name, 'contains', nodes, moduleName);
 }
 
-export function addAgent(
-  name: string,
-  attrs: InstanceAttributes,
-  moduleName: string
-): AgentDefinition {
+export function addAgent(name: string, attrs: InstanceAttributes, moduleName: string): Agent {
   const m = fetchModule(moduleName);
-  return m.addAgent(new AgentDefinition(name, moduleName, attrs)) as AgentDefinition;
+  return m.addAgent(new Agent(name, moduleName, attrs)) as Agent;
 }
 
 function asWorkflowName(n: string): string {
