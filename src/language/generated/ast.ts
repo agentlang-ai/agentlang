@@ -174,7 +174,7 @@ export function isAfterTriggerDefinition(item: unknown): item is AfterTriggerDef
 export interface AgentDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'AgentDefinition';
-    body: CrudMapBody;
+    body?: CrudMapBody;
     name: string;
 }
 

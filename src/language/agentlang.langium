@@ -109,7 +109,7 @@ SelectIntoEntry: alias=ID attribute=Ref;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
-AgentDefinition: 'agent' name=(ID | STRING) body=CrudMapBody;
+AgentDefinition: 'agent' name=(ID | STRING) (body=CrudMapBody? | '{''}');
 
 RelationshipPattern: name=ID pattern=Pattern;
 
