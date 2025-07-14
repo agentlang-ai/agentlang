@@ -664,6 +664,10 @@ ${attrs.join(',\n')}
       return n;
     }
   }
+
+  getName(): string {
+    return Agent.NormalizeName(this.name)
+  }
 }
 
 export class Entity extends Record {
