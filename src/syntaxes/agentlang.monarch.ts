@@ -1,7 +1,7 @@
 // Monarch syntax highlighting for the agentlang language.
 export default {
     keywords: [
-        '@after','@async','@before','@enum','@expr','@meta','@oneof','@rbac','@ref','@with_unique','agent','allow','and','as','await','between','catch','contains','create','delete','else','entity','error','event','extends','false','for','if','import','in','into','like','module','not','not_found','or','purge','read','record','relationship','roles','true','update','upsert','where','workflow'
+        '@after','@async','@before','@enum','@expr','@meta','@oneof','@rbac','@ref','@with_unique','agent','allow','and','as','await','between','catch','contains','create','delete','else','entity','error','event','extends','false','for','if','import','in','into','like','module','not','not_found','or','purge','query','read','record','relationship','resolver','roles','subscribe','true','update','upsert','where','workflow'
     ],
     operators: [
         '*','+',',','-','.','/',':',';','<','<=','<>','=','>','>=','?','@'

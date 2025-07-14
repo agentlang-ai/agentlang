@@ -23,6 +23,9 @@ import {
   AgentDefinition,
   SetAttribute,
   isLiteral,
+  isResolverDefinition,
+  ResolverDefinition,
+  ResolverMethodSpec,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -62,6 +65,8 @@ import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
 import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
+import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
+import { registerResolver, setResolver, setSubscription } from './resolvers/registry.js';
 
 export async function extractDocument(
   fileName: string,
@@ -122,9 +127,8 @@ export async function extractDocument(
     );
 
     for (const validationError of validationErrors) {
-      const errorMsg = `line ${validationError.range.start.line + 1}: ${
-        validationError.message
-      } [${document.textDocument.getText(validationError.range)}]`;
+      const errorMsg = `line ${validationError.range.start.line + 1}: ${validationError.message
+        } [${document.textDocument.getText(validationError.range)}]`;
       if (isNodeEnv && chalk) {
         console.error(chalk.red(errorMsg));
       } else {
@@ -465,6 +469,54 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   addAgent(def.name, attrs, moduleName);
 }
 
+function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
+  const resolverName = def.name
+  const paths = def.paths
+  if (paths.length == 0) {
+    logger.warn(`Resolver has no associated paths - ${resolverName}`)
+    return
+  }
+  const methods = new Map<string, Function>()
+  let subsFn: Function | undefined
+  let subsEvent: string | undefined
+  def.methods.forEach((spec: ResolverMethodSpec) => {
+    const n = spec.key.name
+    if (n == 'subscribe') {
+      if (spec.event == undefined) {
+        throw new Error(`Event required for subscription in resolver ${resolverName}`)
+      }
+      subsFn = asResolverFn(spec.fn)
+      subsEvent = spec.event
+    } else {
+      methods.set(n, asResolverFn(spec.fn))
+    }
+  })
+  registerInitFunction(() => {
+    const methodsObj = Object.fromEntries(methods.entries()) as GenericResolverMethods
+    const resolver = new GenericResolver(resolverName, methodsObj)
+    registerResolver(resolverName, () => { return resolver })
+    paths.forEach((path: string) => {
+      setResolver(path, resolverName)
+    })
+    if (subsFn && subsEvent) {
+      resolver.subs = {
+        subscribe: subsFn,
+        onSubscriptionEvent: subsEvent
+      }
+      setSubscription(subsEvent, resolverName)
+      resolver.subscribe()
+    }
+  })
+}
+
+function asResolverFn(fName: string): Function {
+  const fn = eval(fName)
+  if (!(fn instanceof Function)) {
+    throw new Error(`${fName} is not a function`)
+  }
+  return fn as Function
+}
+
 export async function addFromDef(def: Definition, moduleName: string) {
   if (isEntityDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isEventDefinition(def)) addSchemaFromDef(def, moduleName);
@@ -473,6 +525,7 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
   else if (isAgentDefinition(def)) await addAgentDefinition(def, moduleName);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
+  else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName)
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {

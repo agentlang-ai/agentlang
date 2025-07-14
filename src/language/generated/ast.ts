@@ -3,7 +3,7 @@
  * DO NOT EDIT MANUALLY!
  ******************************************************************************/
 
- 
+/* eslint-disable */
 import * as langium from 'langium';
 
 export const AgentlangTerminals = {
@@ -75,10 +75,13 @@ export type AgentlangKeywordNames =
     | "not_found"
     | "or"
     | "purge"
+    | "query"
     | "read"
     | "record"
     | "relationship"
+    | "resolver"
     | "roles"
+    | "subscribe"
     | "true"
     | "update"
     | "upsert"
@@ -109,7 +112,7 @@ export function isDecimal(item: unknown): item is Decimal {
     return typeof item === 'number';
 }
 
-export type Definition = AgentDefinition | RelationshipDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
+export type Definition = AgentDefinition | RelationshipDefinition | ResolverDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = 'Definition';
 
@@ -885,6 +888,46 @@ export function isRelNodes(item: unknown): item is RelNodes {
     return reflection.isInstance(item, RelNodes);
 }
 
+export interface ResolverDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'ResolverDefinition';
+    methods: Array<ResolverMethodSpec>;
+    name: string;
+    paths: Array<string>;
+}
+
+export const ResolverDefinition = 'ResolverDefinition';
+
+export function isResolverDefinition(item: unknown): item is ResolverDefinition {
+    return reflection.isInstance(item, ResolverDefinition);
+}
+
+export interface ResolverMethodName extends langium.AstNode {
+    readonly $container: ResolverMethodSpec;
+    readonly $type: 'ResolverMethodName';
+    name: 'create' | 'delete' | 'query' | 'subscribe' | 'update' | 'upsert';
+}
+
+export const ResolverMethodName = 'ResolverMethodName';
+
+export function isResolverMethodName(item: unknown): item is ResolverMethodName {
+    return reflection.isInstance(item, ResolverMethodName);
+}
+
+export interface ResolverMethodSpec extends langium.AstNode {
+    readonly $container: ResolverDefinition;
+    readonly $type: 'ResolverMethodSpec';
+    event?: string;
+    fn: string;
+    key: ResolverMethodName;
+}
+
+export const ResolverMethodSpec = 'ResolverMethodSpec';
+
+export function isResolverMethodSpec(item: unknown): item is ResolverMethodSpec {
+    return reflection.isInstance(item, ResolverMethodSpec);
+}
+
 export interface RuntimeHint extends langium.AstNode {
     readonly $container: Statement;
     readonly $type: 'RuntimeHint';
@@ -1073,6 +1116,9 @@ export type AgentlangAstType = {
     RelNodes: RelNodes
     RelationshipDefinition: RelationshipDefinition
     RelationshipPattern: RelationshipPattern
+    ResolverDefinition: ResolverDefinition
+    ResolverMethodName: ResolverMethodName
+    ResolverMethodSpec: ResolverMethodSpec
     RuntimeHint: RuntimeHint
     SchemaDefinition: SchemaDefinition
     SelectIntoEntry: SelectIntoEntry
@@ -1089,13 +1135,14 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
+        return [AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverMethodName, ResolverMethodSpec, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, Upsert, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
         switch (subtype) {
             case AgentDefinition:
             case RelationshipDefinition:
+            case ResolverDefinition:
             case SchemaDefinition:
             case StandaloneStatement:
             case WorkflowDefinition: {
@@ -1640,6 +1687,34 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'node1' },
                         { name: 'node2' }
+                    ]
+                };
+            }
+            case ResolverDefinition: {
+                return {
+                    name: ResolverDefinition,
+                    properties: [
+                        { name: 'methods', defaultValue: [] },
+                        { name: 'name' },
+                        { name: 'paths', defaultValue: [] }
+                    ]
+                };
+            }
+            case ResolverMethodName: {
+                return {
+                    name: ResolverMethodName,
+                    properties: [
+                        { name: 'name' }
+                    ]
+                };
+            }
+            case ResolverMethodSpec: {
+                return {
+                    name: ResolverMethodSpec,
+                    properties: [
+                        { name: 'event' },
+                        { name: 'fn' },
+                        { name: 'key' }
                     ]
                 };
             }

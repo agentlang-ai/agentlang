@@ -4,7 +4,8 @@ entry ModuleDefinition: 'module' name=ID (imports+=Import)* (defs+=Definition)*;
 
 Import: 'import' path=STRING 'as' name=ID;
 
-Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement | AgentDefinition;
+Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
+| AgentDefinition | ResolverDefinition ;
 
 StandaloneStatement: stmt=Statement;
 
@@ -110,6 +111,13 @@ SelectIntoEntry: alias=ID attribute=Ref;
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
 AgentDefinition: 'agent' name=(ID | STRING) (body=CrudMapBody? | '{''}');
+
+ResolverDefinition: 'resolver' name=(ID | STRING) '[' paths+=STRING (',' paths+=STRING)* ']'
+'{' methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)* '}';
+
+ResolverMethodSpec: key=ResolverMethodName (fn=ID | ( '[' fn=ID ',' event=STRING ']' ));
+
+ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe');
 
 RelationshipPattern: name=ID pattern=Pattern;
 
