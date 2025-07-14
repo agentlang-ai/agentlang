@@ -35,6 +35,8 @@
     "repl": "deno task repl",
     "run": "deno task run",
     "test": "vitest run",
+    "test:verbose": "VITEST_VERBOSE=true vitest run",
+    "test:debug": "DEBUG=true vitest run",
     "test:deno": "deno test -A scripts/"
   },
   "dependencies": {
