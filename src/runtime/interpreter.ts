@@ -68,7 +68,7 @@ import {
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
-import { Agent, AgentEntityName, AgentFqName, findAgentByName } from './modules/ai.js';
+import { AgentInstance, AgentEntityName, AgentFqName, findAgentByName } from './modules/ai.js';
 import { logger } from './logger.js';
 import { ParentAttributeName, PathAttributeName, PathAttributeNameQuery } from './defs.js';
 import {
@@ -1044,7 +1044,7 @@ async function walkJoinQueryPattern(
 }
 
 async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
-  const agent: Agent = await findAgentByName(agentEventInst.name, env);
+  const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
   await agent.invoke(agentEventInst.lookup('message'), env);
   const result: string = env.getLastResult();
   if (agent.isPlanner()) {

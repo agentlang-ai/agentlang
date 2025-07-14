@@ -427,7 +427,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   const attrsStrs = new Array<string>();
   attrsStrs.push(`name "${name}"`);
   const attrs = newInstanceAttributes();
-  def.body.attributes.forEach((sa: SetAttribute) => {
+  def.body?.attributes.forEach((sa: SetAttribute) => {
     let v: any = undefined;
     if (isLiteral(sa.value)) {
       v = sa.value.str || sa.value.id || sa.value.num;
@@ -447,6 +447,11 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     attrsStrs.push(`${sa.name} ${v}`);
     attrs.set(sa.name, v);
   });
+  if (!attrs.has('llm')) {
+    llmName = `${name}_llm`;
+    attrsStrs.push(`llm "${llmName}"`);
+    attrs.set('llm', llmName);
+  }
   const createAgent = `{${CoreAIModuleName}/${AgentEntityName} {
     ${attrsStrs.join(',')}
   }}`;

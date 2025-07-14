@@ -5,7 +5,8 @@ import { parseHelper } from 'langium/test';
 import { createAgentlangServices } from '../../src/language/agentlang-module.js';
 import { Definition, isModuleDefinition, isStandaloneStatement, ModuleDefinition } from '../../src/language/generated/ast.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
-import { fetchModule } from '../../src/runtime/module.js';
+import { Agent, fetchModule } from '../../src/runtime/module.js';
+import { doInternModule } from '../util.js';
 
 let services: ReturnType<typeof createAgentlangServices>;
 let parse: ReturnType<typeof parseHelper<ModuleDefinition>>;
@@ -121,6 +122,37 @@ describe('Workflow update tests', () => {
     }
     };
     users
+}`)
+  })
+})
+
+describe('Module toString tests', () => {
+  test('Code generation from Modules', async () => {
+    await doInternModule('MtoStr', `
+      entity E {
+        name String @id
+      }
+      entity F {
+        Id UUID @default(uuid()) @id
+      }
+      `)
+    const m = fetchModule('MtoStr')
+    m.addAgent(new Agent('agent01', 'MtoStr'))
+    assert(m.toString() == `module MtoStr
+
+entity E
+{ 
+    name String @id 
+}
+
+entity F
+{ 
+    Id UUID @default(uuid())  @id 
+}
+
+agent agent01
+{
+
 }`)
   })
 })

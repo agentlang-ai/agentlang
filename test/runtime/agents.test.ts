@@ -3,7 +3,7 @@ import { provider } from "../../src/runtime/agents/registry.js"
 import { AgentServiceProvider, AIResponse, humanMessage, systemMessage } from "../../src/runtime/agents/provider.js"
 import { doInternModule } from "../util.js"
 import { parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
-import { AgentEntry, fetchModule, Instance, isInstanceOfType, newInstanceAttributes } from "../../src/runtime/module.js"
+import { Agent, fetchModule, Instance, isInstanceOfType, newInstanceAttributes } from "../../src/runtime/module.js"
 import { WorkflowDefinition } from "../../src/language/generated/ast.js"
 import { parseWorkflow } from "../../src/language/parser.js"
 import { addWorkflowFromDef } from "../../src/runtime/loader.js"
@@ -12,9 +12,9 @@ describe('Agent API', () => {
   test('Test Agent APIs for modules', async () => {
     await doInternModule('AAPI', `entity E {id Int @id}`)
     const m = fetchModule('AAPI')
-    const ae01 = new AgentEntry('agent01', m.name, newInstanceAttributes().set('llm', 'llm01').set('tools', 'X, Y'))
+    const ae01 = new Agent('agent01', m.name, newInstanceAttributes().set('llm', 'llm01').set('tools', 'X, Y'))
     m.addAgent(ae01)
-    const ae02 = new AgentEntry('agent02', m.name, newInstanceAttributes().set('llm', 'llm02'))
+    const ae02 = new Agent('agent02', m.name, newInstanceAttributes().set('llm', 'llm02'))
     m.addAgent(ae02)
     let agentNames = m.getAgentNames()
     assert(agentNames.length == 2)
@@ -30,13 +30,13 @@ describe('Agent API', () => {
 
 entity E
 { 
-    id Int@id 
+    id Int @id 
 }
 
 agent agent02
 {
-    llm llm02,
-    tools A, B
+    llm "llm02",
+    tools "A, B"
 }`)
   })
 })

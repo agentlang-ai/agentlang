@@ -59,7 +59,7 @@ export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
 const ProviderDb = new Map<string, AgentServiceProvider>();
 
-export class Agent {
+export class AgentInstance {
   llm: string = '';
   name: string = '';
   chatId: string | undefined;
@@ -70,8 +70,8 @@ export class Agent {
 
   private constructor() {}
 
-  static FromInstance(agentInstance: Instance): Agent {
-    return instanceToObject<Agent>(agentInstance, new Agent());
+  static FromInstance(agentInstance: Instance): AgentInstance {
+    return instanceToObject<AgentInstance>(agentInstance, new AgentInstance());
   }
 
   isPlanner(): boolean {
@@ -163,11 +163,11 @@ async function parseHelper(stmt: string, env: Environment): Promise<any> {
   return env.getLastResult();
 }
 
-export async function findAgentByName(name: string, env: Environment): Promise<Agent> {
+export async function findAgentByName(name: string, env: Environment): Promise<AgentInstance> {
   const result = await parseHelper(`{${AgentFqName} {name? "${name}"}}`, env);
   if (result instanceof Array && result.length > 0) {
     const agentInstance: Instance = result[0];
-    return Agent.FromInstance(agentInstance);
+    return AgentInstance.FromInstance(agentInstance);
   } else {
     throw new Error(`Failed to fine agent ${name}`);
   }
