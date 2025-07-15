@@ -430,6 +430,7 @@ export async function runStandaloneStatements() {
 async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   let llmName: string | undefined = undefined;
   const name = def.name;
+  let hasUserLlm = false;
   const attrsStrs = new Array<string>();
   attrsStrs.push(`name "${name}"`);
   const attrs = newInstanceAttributes();
@@ -446,17 +447,19 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     }
     if (llmName == undefined && sa.name == 'llm') {
       llmName = v;
+      hasUserLlm = true;
     }
+    const ov = v;
     if (isLiteral(sa.value) && (sa.value.str || sa.value.id)) {
       v = `"${v}"`;
     }
     attrsStrs.push(`${sa.name} ${v}`);
-    attrs.set(sa.name, v);
+    attrs.set(sa.name, ov);
   });
   if (!attrs.has('llm')) {
     llmName = `${name}_llm`;
     attrsStrs.push(`llm "${llmName}"`);
-    attrs.set('llm', llmName);
+    if (hasUserLlm) attrs.set('llm', llmName);
   }
   const createAgent = `{${CoreAIModuleName}/${AgentEntityName} {
     ${attrsStrs.join(',')}

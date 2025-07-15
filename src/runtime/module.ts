@@ -646,6 +646,10 @@ export class Agent extends Record {
     return this;
   }
 
+  getLLM(): string {
+    return this.attributes.get('llm');
+  }
+
   private removeAgentAttribute(n: string): Agent {
     this.attributes.delete(n);
     return this;
@@ -660,6 +664,10 @@ export class Agent extends Record {
     return this;
   }
 
+  getInstruction(): string {
+    return this.attributes.get('instruction');
+  }
+
   removeInstruction(): Agent {
     return this.removeAgentAttribute('instruction');
   }
@@ -667,6 +675,10 @@ export class Agent extends Record {
   setType(type: 'chat' | 'planner'): Agent {
     this.attributes.set('type', type);
     return this;
+  }
+
+  getType(): string {
+    return this.attributes.get('type');
   }
 
   removeType(): Agent {
@@ -678,6 +690,10 @@ export class Agent extends Record {
     return this;
   }
 
+  getTools(): string {
+    return this.attributes.get('tools');
+  }
+
   removeTools(): Agent {
     return this.removeAgentAttribute('tools');
   }
@@ -685,6 +701,10 @@ export class Agent extends Record {
   setDocuments(docs: string[]): Agent {
     this.attributes.set('documents', docs.join(','));
     return this;
+  }
+
+  getDocuments(): string {
+    return this.attributes.get('documents');
   }
 
   removeDocuments(): Agent {
@@ -1307,6 +1327,9 @@ export class Module {
   toString(): string {
     const ss: Array<string> = [];
     this.entries.forEach((me: ModuleEntry) => {
+      if (me instanceof Event && isAgentEvent(me)) {
+        return;
+      }
       ss.push(me.toString());
     });
     return `module ${this.name}\n\n${ss.join('\n')}`;
@@ -2327,9 +2350,13 @@ export function isTimer(eventInst: Instance): boolean {
   return eventInst.getFqName() == 'agentlang/timer';
 }
 
-export function isAgentEvent(eventInst: Instance): boolean {
-  const flag = eventInst.record.getMeta(IsAgentEventMeta);
+export function isAgentEvent(record: Record): boolean {
+  const flag = record.getMeta(IsAgentEventMeta);
   return flag != undefined && flag == 'y';
+}
+
+export function isAgentEventInstance(eventInst: Instance): boolean {
+  return isAgentEvent(eventInst.record);
 }
 
 export function eventAgentName(eventInst: Instance): string | undefined {
