@@ -36,6 +36,7 @@ export type AgentlangKeywordNames =
     | ">="
     | "?"
     | "@"
+    | "@actions"
     | "@after"
     | "@async"
     | "@before"
@@ -162,6 +163,19 @@ export type TaggedId = string;
 
 export function isTaggedId(item: unknown): item is TaggedId {
     return typeof item === 'string';
+}
+
+export interface ActionEntry extends langium.AstNode {
+    readonly $container: EntityActionsDefinitions;
+    readonly $type: 'ActionEntry';
+    event: string;
+    name: string;
+}
+
+export const ActionEntry = 'ActionEntry';
+
+export function isActionEntry(item: unknown): item is ActionEntry {
+    return reflection.isInstance(item, ActionEntry);
 }
 
 export interface AfterTriggerDefinition extends langium.AstNode {
@@ -346,6 +360,18 @@ export const Else = 'Else';
 
 export function isElse(item: unknown): item is Else {
     return reflection.isInstance(item, Else);
+}
+
+export interface EntityActionsDefinitions extends langium.AstNode {
+    readonly $container: RecordExtraDefinition;
+    readonly $type: 'EntityActionsDefinitions';
+    entries: Array<ActionEntry>;
+}
+
+export const EntityActionsDefinitions = 'EntityActionsDefinitions';
+
+export function isEntityActionsDefinitions(item: unknown): item is EntityActionsDefinitions {
+    return reflection.isInstance(item, EntityActionsDefinitions);
 }
 
 export interface EntityDefinition extends langium.AstNode {
@@ -811,6 +837,7 @@ export function isRecordDefinition(item: unknown): item is RecordDefinition {
 export interface RecordExtraDefinition extends langium.AstNode {
     readonly $container: RecordSchemaDefinition;
     readonly $type: 'RecordExtraDefinition';
+    actions?: EntityActionsDefinitions;
     meta?: MetaDefinition;
     prePost?: PrePostTriggerDefinition;
     rbacSpec?: RbacSpecDefinition;
@@ -1058,6 +1085,7 @@ export function isWorkflowDefinition(item: unknown): item is WorkflowDefinition 
 }
 
 export type AgentlangAstType = {
+    ActionEntry: ActionEntry
     AfterTriggerDefinition: AfterTriggerDefinition
     AgentDefinition: AgentDefinition
     AliasSpec: AliasSpec
@@ -1074,6 +1102,7 @@ export type AgentlangAstType = {
     Definition: Definition
     Delete: Delete
     Else: Else
+    EntityActionsDefinitions: EntityActionsDefinitions
     EntityDefinition: EntityDefinition
     EnumSpec: EnumSpec
     EventDefinition: EventDefinition
@@ -1136,7 +1165,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, WorkflowDefinition];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1184,6 +1213,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getTypeMetaData(type: string): langium.TypeMetaData {
         switch (type) {
+            case ActionEntry: {
+                return {
+                    name: ActionEntry,
+                    properties: [
+                        { name: 'event' },
+                        { name: 'name' }
+                    ]
+                };
+            }
             case AfterTriggerDefinition: {
                 return {
                     name: AfterTriggerDefinition,
@@ -1309,6 +1347,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: Else,
                     properties: [
                         { name: 'statements', defaultValue: [] }
+                    ]
+                };
+            }
+            case EntityActionsDefinitions: {
+                return {
+                    name: EntityActionsDefinitions,
+                    properties: [
+                        { name: 'entries', defaultValue: [] }
                     ]
                 };
             }
@@ -1637,6 +1683,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: RecordExtraDefinition,
                     properties: [
+                        { name: 'actions' },
                         { name: 'meta' },
                         { name: 'prePost' },
                         { name: 'rbacSpec' },
