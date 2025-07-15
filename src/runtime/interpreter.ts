@@ -33,7 +33,7 @@ import {
   getWorkflow,
   Instance,
   InstanceAttributes,
-  isAgentEvent,
+  isAgentEventInstance,
   isBetweenRelationship,
   isContainsRelationship,
   isEmptyWorkflow,
@@ -924,7 +924,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
     }
   } else if (isEventInstance(inst)) {
-    if (isAgentEvent(inst)) await handleAgentInvocation(inst, env);
+    if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
     else await evaluate(inst, (result: Result) => env.setLastResult(result), env);
   } else {
     env.setLastResult(inst);
