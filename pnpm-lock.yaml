@@ -191,6 +191,8 @@ importers:
 
   example/family: {}
 
+  example/servicenow: {}
+
   example/support_agent: {}
 
   example/timer: {}

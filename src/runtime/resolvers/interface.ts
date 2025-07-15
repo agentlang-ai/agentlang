@@ -1,4 +1,13 @@
-import { Instance, InstanceAttributes, Relationship } from '../module.js';
+import { evaluate } from '../interpreter.js';
+import { logger } from '../logger.js';
+import {
+  Instance,
+  InstanceAttributes,
+  makeInstance,
+  newInstanceAttributes,
+  Relationship,
+} from '../module.js';
+import { splitFqName } from '../util.js';
 
 export class ResolverAuthInfo {
   userId: string;
@@ -24,12 +33,26 @@ export type JoinInfo = {
   subJoins: JoinInfo[] | undefined;
 };
 
+const subscriptionEvents: Map<string, string> = new Map<string, string>();
+
+export function setSubscriptionEvent(fqEventName: string, resolverName: string) {
+  subscriptionEvents.set(resolverName, fqEventName);
+}
+
+export function getSubscriptionEvent(resolverName: string): string | undefined {
+  return subscriptionEvents.get(resolverName);
+}
+
 export class Resolver {
   protected authInfo: ResolverAuthInfo = DefaultAuthInfo;
   protected userData: any;
   protected name: string = 'default';
 
   static Default = new Resolver();
+
+  constructor(name?: string) {
+    if (name) this.name = name;
+  }
 
   public setAuthInfo(authInfo: ResolverAuthInfo): Resolver {
     this.authInfo = authInfo;
@@ -49,8 +72,8 @@ export class Resolver {
     return this.name;
   }
 
-  private notImpl(method: string) {
-    throw new Error(`Resolver method ${method} not implemented`);
+  protected notImpl(method: string) {
+    logger.warn(`Method ${method} not implemented in resolver ${this.name}`);
   }
 
   public onSetPath(moduleName: string, entryName: string): any {
@@ -147,14 +170,126 @@ export class Resolver {
 
   // Return a transactionId
   public async startTransaction(): Promise<any> {
-    return this.notImpl('startTransaction()');
+    this.notImpl('startTransaction()');
+    return 1;
   }
 
   public async commitTransaction(txnId: string): Promise<any> {
     return this.notImpl(`commitTransaction(${txnId})`);
   }
 
-  public async rollbackTransaction(txtIn: string): Promise<any> {
-    return this.notImpl(`rollbackTransaction(${txtIn})`);
+  public async rollbackTransaction(txnId: string): Promise<any> {
+    return this.notImpl(`rollbackTransaction(${txnId})`);
+  }
+
+  public async subscribe(): Promise<any> {
+    return undefined;
+  }
+
+  public async onSubscription(result: any): Promise<any> {
+    if (result != undefined) {
+      const eventName = getSubscriptionEvent(this.name);
+      if (eventName) {
+        const path = splitFqName(eventName);
+        const inst = makeInstance(
+          path.getModuleName(),
+          path.getEntryName(),
+          newInstanceAttributes().set('data', result)
+        );
+        return await evaluate(inst);
+      }
+    }
+  }
+}
+
+type MaybeFunction = Function | undefined;
+
+export type GenericResolverMethods = {
+  create: MaybeFunction;
+  upsert: MaybeFunction;
+  update: MaybeFunction;
+  query: MaybeFunction;
+  delete: MaybeFunction;
+  startTransaction: MaybeFunction;
+  commitTransaction: MaybeFunction;
+  rollbackTransaction: MaybeFunction;
+};
+
+export type GenericResolverSubscription = {
+  subscribe: MaybeFunction;
+  onSubscriptionEvent: string;
+};
+
+export class GenericResolver extends Resolver {
+  implementation: GenericResolverMethods | undefined;
+  subs: GenericResolverSubscription | undefined;
+
+  constructor(name: string, implementation?: GenericResolverMethods) {
+    super(name);
+    this.implementation = implementation;
+  }
+
+  public override async createInstance(inst: Instance): Promise<any> {
+    if (this.implementation?.create) {
+      return await this.implementation.create(this, inst);
+    } else {
+      return await super.createInstance(inst);
+    }
+  }
+
+  public override async upsertInstance(inst: Instance): Promise<any> {
+    if (this.implementation?.upsert) {
+      return await this.implementation.upsert(this, inst);
+    }
+    return await super.upsertInstance(inst);
+  }
+
+  public override async updateInstance(inst: Instance, newAttrs: InstanceAttributes): Promise<any> {
+    if (this.implementation?.update) {
+      return await this.implementation.update(this, inst, newAttrs);
+    }
+    return await super.updateInstance(inst, newAttrs);
+  }
+
+  public override async queryInstances(inst: Instance, queryAll: boolean): Promise<any> {
+    if (this.implementation?.query) {
+      return await this.implementation.query(this, inst, queryAll);
+    }
+    return await super.queryInstances(inst, queryAll);
+  }
+
+  public override async deleteInstance(inst: Instance | Instance[], purge: boolean): Promise<any> {
+    if (this.implementation?.delete) {
+      return await this.implementation.delete(this, inst, purge);
+    }
+    return await super.deleteInstance(inst, purge);
+  }
+
+  public override async startTransaction(): Promise<any> {
+    if (this.implementation?.startTransaction) {
+      return await this.implementation.startTransaction(this);
+    }
+    return await super.startTransaction();
+  }
+
+  public override async commitTransaction(txnId: string): Promise<any> {
+    if (this.implementation?.commitTransaction) {
+      return await this.implementation.commitTransaction(this, txnId);
+    }
+    return await super.commitTransaction(txnId);
+  }
+
+  public override async rollbackTransaction(txnId: string): Promise<any> {
+    if (this.implementation?.rollbackTransaction) {
+      return await this.implementation.rollbackTransaction(this, txnId);
+    }
+    return await super.rollbackTransaction(txnId);
+  }
+
+  override async subscribe() {
+    if (this.subs?.subscribe) {
+      await this.subs.subscribe(this);
+    }
+    await super.subscribe();
   }
 }

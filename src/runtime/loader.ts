@@ -23,6 +23,9 @@ import {
   AgentDefinition,
   SetAttribute,
   isLiteral,
+  isResolverDefinition,
+  ResolverDefinition,
+  ResolverMethodSpec,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -45,6 +48,7 @@ import {
 } from './module.js';
 import {
   findRbacSchema,
+  getModuleFn,
   importModule,
   makeFqName,
   maybeExtends,
@@ -62,6 +66,8 @@ import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
 import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
+import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
+import { registerResolver, setResolver, setSubscription } from './resolvers/registry.js';
 
 export async function extractDocument(
   fileName: string,
@@ -468,6 +474,56 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   addAgent(def.name, attrs, moduleName);
 }
 
+function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
+  const resolverName = `${moduleName}/${def.name}`;
+  const paths = def.paths;
+  if (paths.length == 0) {
+    logger.warn(`Resolver has no associated paths - ${resolverName}`);
+    return;
+  }
+  registerInitFunction(() => {
+    const methods = new Map<string, Function>();
+    let subsFn: Function | undefined;
+    let subsEvent: string | undefined;
+    def.methods.forEach((spec: ResolverMethodSpec) => {
+      const n = spec.key.name;
+      if (n == 'subscribe') {
+        subsFn = asResolverFn(spec.fn.name);
+      } else if (n == 'onSubscription') {
+        subsEvent = spec.fn.name;
+      } else {
+        methods.set(n, asResolverFn(spec.fn.name));
+      }
+    });
+    const methodsObj = Object.fromEntries(methods.entries()) as GenericResolverMethods;
+    const resolver = new GenericResolver(resolverName, methodsObj);
+    registerResolver(resolverName, () => {
+      return resolver;
+    });
+    paths.forEach((path: string) => {
+      setResolver(path, resolverName);
+    });
+    if (subsFn && subsEvent) {
+      resolver.subs = {
+        subscribe: subsFn,
+        onSubscriptionEvent: subsEvent,
+      };
+      setSubscription(subsEvent, resolverName);
+      resolver.subscribe();
+    }
+  });
+}
+
+function asResolverFn(fname: string): Function {
+  let fn = getModuleFn(fname);
+  if (fn) return fn;
+  fn = eval(fname);
+  if (!(fn instanceof Function)) {
+    throw new Error(`${fname} is not a function`);
+  }
+  return fn as Function;
+}
+
 export async function addFromDef(def: Definition, moduleName: string) {
   if (isEntityDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isEventDefinition(def)) addSchemaFromDef(def, moduleName);
@@ -476,6 +532,7 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
   else if (isAgentDefinition(def)) await addAgentDefinition(def, moduleName);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
+  else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {

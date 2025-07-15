@@ -4,7 +4,8 @@ entry ModuleDefinition: 'module' name=ID (imports+=Import)* (defs+=Definition)*;
 
 Import: 'import' path=STRING 'as' name=ID;
 
-Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement | AgentDefinition;
+Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
+| AgentDefinition | ResolverDefinition ;
 
 StandaloneStatement: stmt=Statement;
 
@@ -111,6 +112,15 @@ FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
 AgentDefinition: 'agent' name=(ID | STRING) (body=CrudMapBody? | '{''}');
 
+ResolverDefinition: 'resolver' name=(ID | STRING) '[' (paths+=STRING (',' paths+=STRING)*)+ ']'
+'{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
+
+ResolverMethodSpec: key=ResolverMethodName fn=ResolverFnName;
+
+ResolverFnName: name=(ID | Ref | STRING);
+
+ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe' | 'onSubscription');
+
 RelationshipPattern: name=ID pattern=Pattern;
 
 CatchSpec: 'catch' '{' (handlers+=Handler)+ '}';
@@ -172,7 +182,7 @@ terminal ID returns string: NAME ('/' NAME)?;
 terminal NAME returns string: /[_a-zA-Z][\w_]*/;
 
 // quoted strings
-terminal STRING returns string: /(["'])((\\{2})*|(.*?[^\\](\\{2})*))\1/;
+terminal STRING returns string:  '"' ( '\\' . | !('\\' | '"' | '\r' | '\n') | '\r'? '\n' )* '"';
 
 // recognize an Integer (but represented via a 'number' type)
 terminal INT returns number: /-?[0-9]+/;

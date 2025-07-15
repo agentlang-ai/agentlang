@@ -1994,8 +1994,12 @@ export class Instance {
     return this.record.getMeta('audit');
   }
 
-  lookup(k: string): any | undefined {
+  lookup(k: string): any {
     return this.attributes.get(k);
+  }
+
+  lookupQueryVal(k: string): any {
+    return this.queryAttributeValues?.get(k);
   }
 
   getPath(): string {
