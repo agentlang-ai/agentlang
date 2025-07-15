@@ -1327,6 +1327,9 @@ export class Module {
   toString(): string {
     const ss: Array<string> = [];
     this.entries.forEach((me: ModuleEntry) => {
+      if (me instanceof Event && isAgentEvent(me)) {
+        return;
+      }
       ss.push(me.toString());
     });
     return `module ${this.name}\n\n${ss.join('\n')}`;
@@ -2343,9 +2346,13 @@ export function isTimer(eventInst: Instance): boolean {
   return eventInst.getFqName() == 'agentlang/timer';
 }
 
-export function isAgentEvent(eventInst: Instance): boolean {
-  const flag = eventInst.record.getMeta(IsAgentEventMeta);
+export function isAgentEvent(record: Record): boolean {
+  const flag = record.getMeta(IsAgentEventMeta);
   return flag != undefined && flag == 'y';
+}
+
+export function isAgentEventInstance(eventInst: Instance): boolean {
+  return isAgentEvent(eventInst.record);
 }
 
 export function eventAgentName(eventInst: Instance): string | undefined {

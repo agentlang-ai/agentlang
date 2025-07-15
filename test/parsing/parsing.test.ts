@@ -156,3 +156,50 @@ agent agent01
 }`)
   })
 })
+
+describe('Agent toString test', () => {
+  test('Code generation for agent', async () => {
+    await doInternModule('AtoStr', `
+      entity E {
+        name String @id
+      }
+      entity F {
+        Id UUID @default(uuid()) @id
+      }
+
+      agent Agent1 {
+        instruction "This Agent will solve higher ordered equation"
+      }
+
+      agent Agent2 {
+        instruction "This Agent will solve any math problem",
+        tools "a,b",
+        llm "agent2_llm"
+      }
+      `)
+    const m = fetchModule('AtoStr')
+    const str = m.toString()
+    assert(str === `module AtoStr
+
+entity E
+{ 
+    name String @id 
+}
+
+entity F
+{ 
+    Id UUID @default(uuid())  @id 
+}
+
+agent Agent1
+{
+    instruction "This Agent will solve higher ordered equation"
+}
+agent Agent2
+{
+    instruction "This Agent will solve any math problem",
+    tools "a,b",
+    llm "agent2_llm"
+}`)
+  })
+})
