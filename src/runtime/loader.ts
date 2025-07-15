@@ -461,12 +461,12 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     attrsStrs.push(`llm "${llmName}"`);
     if (hasUserLlm) attrs.set('llm', llmName);
   }
-  const createAgent = `upsert {${CoreAIModuleName}/${AgentEntityName} {
+  const createAgent = `{${CoreAIModuleName}/${AgentEntityName} {
     ${attrsStrs.join(',')}
-  }}`;
+  }, @upsert}`;
   let wf = createAgent;
   if (llmName) {
-    wf = `upsert {${CoreAIModuleName}/${LlmEntityName} {name "${llmName}"}}; ${wf}`;
+    wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}"}, @upsert}; ${wf}`;
   }
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
     addStandaloneStatement(stmt, moduleName);

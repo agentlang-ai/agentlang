@@ -90,7 +90,7 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 WorkflowDefinition: 'workflow' name=ID Body;
 
 Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
-| upsert=Upsert | fullTextSearch=FullTextSearch;
+| fullTextSearch=FullTextSearch;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 
@@ -100,7 +100,9 @@ AliasSpec: ('as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
 
 CrudMap: '{' (name=QueryId '{''}' | name=ID body=CrudMapBody)
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? 
-             (',' into=SelectIntoSpec)? '}';
+             (',' into=SelectIntoSpec)? 
+             (',' upsert='@upsert')?
+             '}';
 
 CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}';
 
@@ -136,8 +138,6 @@ ForEach: 'for' var=ID 'in' src=Pattern Body;
 Delete: 'delete' pattern=Pattern;
 
 Purge: 'purge' pattern=Pattern;
-
-Upsert: 'upsert' pattern=CrudMap;
 
 SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')? value=AttributeValueExpression;
 
