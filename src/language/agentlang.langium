@@ -182,7 +182,7 @@ terminal ID returns string: NAME ('/' NAME)?;
 terminal NAME returns string: /[_a-zA-Z][\w_]*/;
 
 // quoted strings
-terminal STRING returns string: /(["'])((\\{2})*|(.*?[^\\](\\{2})*))\1/;
+terminal STRING returns string: /"[^"]*"/;
 
 // recognize an Integer (but represented via a 'number' type)
 terminal INT returns number: /-?[0-9]+/;

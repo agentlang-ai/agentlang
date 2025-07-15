@@ -92,7 +92,7 @@ export class AgentInstance {
     }
     if (msgs) {
       const sysMsg = msgs[0];
-      if (isplnr) {
+      if (isplnr && !sess) {
         const newSysMsg = systemMessage(
           `${PlannerInstructions}\n${this.toolsAsString()}\n${this.instruction}`
         );

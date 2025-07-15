@@ -7,12 +7,26 @@ entity incident {
     data Any @optional
 }
 
+event assignIncident {
+    sys_id String,
+    user Email
+}
+
+workflow assignIncident {
+    r.assignIncident(assignIncident.sys_id, assignIncident.user)
+}
+
 workflow getIncidents {
     {incident? {}}
 }
 
 workflow onIncidents {
-    console.log(onIncidents.data)
+    {incidentManagerAgent {message onIncidents.data}}
+}
+
+agent incidentManagerAgent {
+    instruction "Assign the incoming incident to one of ['jake@acme.com', 'tom@acme.com', 'sam@acme.com']",
+    tools "servicenow"
 }
 
 resolver servicenow ["servicenow/incident"] {

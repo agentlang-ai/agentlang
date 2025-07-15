@@ -98,6 +98,16 @@ export async function queryInstances(resolver, inst, queryAll) {
 export async function subs(resolver) {
     setInterval(async () => {
         const result = await getIncidents(undefined, 5)
-        await resolver.onSubscription(result)
+        if (result instanceof Array) {
+            for (let i = 0; i < result.length; ++i) {
+                const incident = result[i]
+                const s = `Incident sys_id is ${incident.sys_id}`
+                await resolver.onSubscription(s)
+            }
+        }
     }, 10000)
+}
+
+export function assignIncident(sys_id, userEmail) {
+    console.log(`Incident ${sys_id} assigned to ${userEmail}`)
 }

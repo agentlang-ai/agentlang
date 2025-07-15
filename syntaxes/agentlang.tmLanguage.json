@@ -11,6 +11,16 @@
     {
       "name": "keyword.control.agentlang",
       "match": "\\b(agent|allow|and|as|await|between|catch|contains|create|delete|else|entity|error|event|extends|false|for|if|import|in|into|like|module|not|not_found|onSubscription|or|purge|query|read|record|relationship|resolver|roles|subscribe|true|update|upsert|where|workflow)\\b|\\B(@after|@async|@before|@enum|@expr|@meta|@oneof|@rbac|@ref|@with_unique)\\b"
+    },
+    {
+      "name": "string.quoted.double.agentlang",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "include": "#string-character-escape"
+        }
+      ]
     }
   ],
   "repository": {
