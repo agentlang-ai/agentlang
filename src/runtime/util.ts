@@ -119,6 +119,14 @@ function asString(s: MaybeString): string {
   else return s;
 }
 
+export function restoreSpecialChars(s: string) {
+  return s.replaceAll('&quote;', '"')
+}
+
+export function escapeSpecialChars(s: string) {
+  return s.replaceAll('"', '&quote;')
+}
+
 export class Path {
   private moduleName: MaybeString;
   private entryName: MaybeString;

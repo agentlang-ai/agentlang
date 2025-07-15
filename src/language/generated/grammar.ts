@@ -4799,8 +4799,115 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
         "name": "string"
       },
       "definition": {
-        "$type": "RegexToken",
-        "regex": "/\\"[^\\"]*\\"/"
+        "$type": "TerminalGroup",
+        "elements": [
+          {
+            "$type": "CharacterRange",
+            "left": {
+              "$type": "Keyword",
+              "value": "\\""
+            }
+          },
+          {
+            "$type": "TerminalAlternatives",
+            "elements": [
+              {
+                "$type": "TerminalAlternatives",
+                "elements": [
+                  {
+                    "$type": "TerminalGroup",
+                    "elements": [
+                      {
+                        "$type": "CharacterRange",
+                        "left": {
+                          "$type": "Keyword",
+                          "value": "\\\\"
+                        }
+                      },
+                      {
+                        "$type": "Wildcard"
+                      }
+                    ]
+                  },
+                  {
+                    "$type": "NegatedToken",
+                    "terminal": {
+                      "$type": "TerminalAlternatives",
+                      "elements": [
+                        {
+                          "$type": "TerminalAlternatives",
+                          "elements": [
+                            {
+                              "$type": "TerminalAlternatives",
+                              "elements": [
+                                {
+                                  "$type": "CharacterRange",
+                                  "left": {
+                                    "$type": "Keyword",
+                                    "value": "\\\\"
+                                  }
+                                },
+                                {
+                                  "$type": "CharacterRange",
+                                  "left": {
+                                    "$type": "Keyword",
+                                    "value": "\\""
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "$type": "CharacterRange",
+                              "left": {
+                                "$type": "Keyword",
+                                "value": "\\r"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "$type": "CharacterRange",
+                          "left": {
+                            "$type": "Keyword",
+                            "value": "\\n"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "$type": "TerminalGroup",
+                "elements": [
+                  {
+                    "$type": "CharacterRange",
+                    "left": {
+                      "$type": "Keyword",
+                      "value": "\\r"
+                    },
+                    "cardinality": "?"
+                  },
+                  {
+                    "$type": "CharacterRange",
+                    "left": {
+                      "$type": "Keyword",
+                      "value": "\\n"
+                    }
+                  }
+                ]
+              }
+            ],
+            "cardinality": "*"
+          },
+          {
+            "$type": "CharacterRange",
+            "left": {
+              "$type": "Keyword",
+              "value": "\\""
+            }
+          }
+        ]
       },
       "fragment": false,
       "hidden": false

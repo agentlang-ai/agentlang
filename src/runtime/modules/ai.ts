@@ -1,4 +1,4 @@
-import { makeCoreModuleName, makeFqName } from '../util.js';
+import { isFqName, makeCoreModuleName, makeFqName, splitFqName } from '../util.js';
 import { Environment, makeEventEvaluator, parseAndEvaluateStatement } from '../interpreter.js';
 import { fetchModule, Instance, instanceToObject, isModule } from '../module.js';
 import { provider } from '../agents/registry.js';
@@ -68,7 +68,7 @@ export class AgentInstance {
   tools: string | undefined;
   documents: string | undefined;
 
-  private constructor() {}
+  private constructor() { }
 
   static FromInstance(agentInstance: Instance): AgentInstance {
     return instanceToObject<AgentInstance>(agentInstance, new AgentInstance());
@@ -92,7 +92,7 @@ export class AgentInstance {
     }
     if (msgs) {
       const sysMsg = msgs[0];
-      if (isplnr && !sess) {
+      if (isplnr) {
         const newSysMsg = systemMessage(
           `${PlannerInstructions}\n${this.toolsAsString()}\n${this.instruction}`
         );
@@ -143,15 +143,38 @@ export class AgentInstance {
 
   private toolsAsString(): string {
     if (this.tools) {
-      return this.tools
+      const tooldefs = new Array<string>()
+      const slimModules = new Map<string, string[]>()
+      this.tools
         .split(',')
-        .filter((s: string) => {
-          return isModule(s);
+        .forEach((n: string) => {
+          let moduleName: string | undefined
+          let entryName: string | undefined
+          if (isFqName(n)) {
+            const parts = splitFqName(n)
+            moduleName = parts.getModuleName()
+            entryName = parts.getEntryName()
+          } else {
+            moduleName = n
+          }
+          if (isModule(moduleName)) {
+            const m = fetchModule(moduleName)
+            if (entryName) {
+              const hasmod = slimModules.has(moduleName)
+              const defs = hasmod ? slimModules.get(moduleName) : new Array<string>()
+              defs?.push(m.getEntry(entryName).toString())
+              if (!hasmod && defs) {
+                slimModules.set(moduleName, defs)
+              }
+            } else {
+              tooldefs.push(fetchModule(moduleName).toString());
+            }
+          }
         })
-        .map((moduleName: string) => {
-          return fetchModule(moduleName).toString();
+        slimModules.forEach((defs: string[], modName: string) => {
+          tooldefs.push(`module ${modName}\n${defs.join('\n')}`)
         })
-        .join('\n');
+        return tooldefs.join('\n')
     } else {
       return '';
     }

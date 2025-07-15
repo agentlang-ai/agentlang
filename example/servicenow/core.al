@@ -25,8 +25,9 @@ workflow onIncidents {
 }
 
 agent incidentManagerAgent {
-    instruction "Assign the incoming incident to one of ['jake@acme.com', 'tom@acme.com', 'sam@acme.com']",
-    tools "servicenow"
+    instruction "Assign the following incident to any one of the following emails: jake@acme.com, tom@acme.com, sam@acme.com. 
+    An example assignment is {servicenow/assignIncident {sys_id &quote;f12ca184735123002728660c4cf6a7ef&quote;, user &quote;tom@acme.com&quote;}}",
+    tools "servicenow/assignIncident"
 }
 
 resolver servicenow ["servicenow/incident"] {
