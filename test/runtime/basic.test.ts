@@ -14,7 +14,7 @@ import {
   Record,
   removeModule,
   Module,
-  isModule
+  isModule,
 } from '../../src/runtime/module.js';
 import {
   buildGraph,
@@ -26,6 +26,7 @@ import {
 import { arrayEquals } from '../../src/runtime/util.js';
 import { assert, describe, test } from 'vitest';
 import { doInternModule, doPreInit, expectError } from '../util.js';
+import { testLogger } from '../test-logger.js';
 import { DefaultIdAttributeName, PathAttributeName } from '../../src/runtime/defs.js';
 
 function createTestModule(): Module | undefined {
@@ -33,7 +34,7 @@ function createTestModule(): Module | undefined {
   try {
     return fetchModule('Acme');
   } catch (err) {
-    console.log('ERROR - ' + err);
+    testLogger.verboseError('ERROR - ' + err);
     return undefined;
   }
 }
@@ -80,9 +81,9 @@ describe('Basic module operations', () => {
 
 describe('Basic loader test', () => {
   test('Check loader with graph', async () => {
-    await doPreInit()
+    await doPreInit();
     await load('example/blog/blog.al').then((appSpec: ApplicationSpec) => {
-      assert(appSpec.name, 'Invalid application spec')
+      assert(appSpec.name, 'Invalid application spec');
       const m: Module = fetchModule('Blog');
       try {
         assert(m.name == 'Blog', 'Failed to load Blog module');
@@ -161,7 +162,8 @@ describe('Basic loader test', () => {
 
 describe('Basic CRUD tests', () => {
   test('Check CRUD patterns', async () => {
-    await doInternModule('Blogger',
+    await doInternModule(
+      'Blogger',
       `entity User {
         email Email @id,
         name String
@@ -171,90 +173,102 @@ describe('Basic CRUD tests', () => {
         title String
       }
       relationship UserPost between(User, Post) @one_many
-      `)
+      `
+    );
     const isUser = (inst: Instance): boolean => {
-      return isInstanceOfType(inst, 'Blogger/User')
-    }
+      return isInstanceOfType(inst, 'Blogger/User');
+    };
     const isPost = (inst: Instance): boolean => {
-      return isInstanceOfType(inst, 'Blogger/Post')
-    }
+      return isInstanceOfType(inst, 'Blogger/Post');
+    };
     const createUser = async (name: string, email: string) => {
-      await parseAndEvaluateStatement(`{Blogger/User {email "${email}", name "${name}"}}`)
-        .then((result: Instance) => {
-          assert(isUser(result), "Failed to create Blogger/User")
-        })
-    }
+      await parseAndEvaluateStatement(`{Blogger/User {email "${email}", name "${name}"}}`).then(
+        (result: Instance) => {
+          assert(isUser(result), 'Failed to create Blogger/User');
+        }
+      );
+    };
     const hasUser = (result: Instance[], email: string) => {
-      assert(result.find((inst: Instance) => {
-        return inst.attributes.get('email') == email
-      }), `Failed to find Blogger/User with email ${email}`)
-    }
+      assert(
+        result.find((inst: Instance) => {
+          return inst.attributes.get('email') == email;
+        }),
+        `Failed to find Blogger/User with email ${email}`
+      );
+    };
     const hasPost = (result: Instance[], id: number) => {
-      assert(result.find((inst: Instance) => {
-        return inst.attributes.get('id') == id
-      }), `Failed to find Blogger/Post with id ${id}`)
-    }
-    await createUser('Joe', 'j@b.com')
-    await createUser('Tom', 't@b.com')
+      assert(
+        result.find((inst: Instance) => {
+          return inst.attributes.get('id') == id;
+        }),
+        `Failed to find Blogger/Post with id ${id}`
+      );
+    };
+    await createUser('Joe', 'j@b.com');
+    await createUser('Tom', 't@b.com');
     await parseAndEvaluateStatement(`{Blogger/User? {}}`).then((result: Instance[]) => {
-      assert(result.length == 2, "Invalid result count")
-      assert(result.every(isUser), "Query result is not a Blogger/User")
-      hasUser(result, 'j@b.com')
-      hasUser(result, 't@b.com')
-    })
+      assert(result.length == 2, 'Invalid result count');
+      assert(result.every(isUser), 'Query result is not a Blogger/User');
+      hasUser(result, 'j@b.com');
+      hasUser(result, 't@b.com');
+    });
     const withPosts = async (pat: string, email: string, postIds: number[]) => {
       await parseAndEvaluateStatement(pat).then((result: Instance[]) => {
-        assert(result.length == 1, 'Only one Blogger/User expected')
-        hasUser(result, email)
-        const inst: Instance = result[0]
-        const posts = inst.getRelatedInstances('UserPost')
+        assert(result.length == 1, 'Only one Blogger/User expected');
+        hasUser(result, email);
+        const inst: Instance = result[0];
+        const posts = inst.getRelatedInstances('UserPost');
         if (posts) {
-          assert(posts.length == postIds.length, `Only ${postIds.length} Blogger/Posts expected, ${posts.length} found`)
-          assert(posts.every(isPost), 'Invalid Blogger/Post instance')
+          assert(
+            posts.length == postIds.length,
+            `Only ${postIds.length} Blogger/Posts expected, ${posts.length} found`
+          );
+          assert(posts.every(isPost), 'Invalid Blogger/Post instance');
           postIds.forEach((id: number) => {
-            hasPost(posts, id)
-          })
+            hasPost(posts, id);
+          });
         } else {
-          assert(posts, `Blogger/Posts not found for ${email}`)
+          assert(posts, `Blogger/Posts not found for ${email}`);
         }
-      })
-    }
-    let email = "j@b.com"
+      });
+    };
+    let email = 'j@b.com';
     let pat = `{Blogger/User {email? "${email}"},
                 UserPost [{Blogger/Post {id 1, title "Post One"}}, 
-                          {Blogger/Post {id 2, title "Post Two"}}]}`
-    await withPosts(pat, email, [1, 2])
+                          {Blogger/Post {id 2, title "Post Two"}}]}`;
+    await withPosts(pat, email, [1, 2]);
     pat = `{Blogger/User {email? "${email}"},
-            UserPost {Blogger/Post? {}}}`
-    await withPosts(pat, email, [1, 2])
-    email = 't@b.com'
+            UserPost {Blogger/Post? {}}}`;
+    await withPosts(pat, email, [1, 2]);
+    email = 't@b.com';
     pat = `{Blogger/User {email? "${email}"},
-            UserPost [{Blogger/Post {id 3, title "Post Three"}}]}`
-    await withPosts(pat, email, [3])
+            UserPost [{Blogger/Post {id 3, title "Post Three"}}]}`;
+    await withPosts(pat, email, [3]);
     pat = `{Blogger/User {email? "${email}"},
-            UserPost {Blogger/Post? {}}}`
-    await withPosts(pat, email, [3])
+            UserPost {Blogger/Post? {}}}`;
+    await withPosts(pat, email, [3]);
     const jq = async (email: string) => {
       return await parseAndEvaluateStatement(`{Blogger/User {email? "${email}"}, 
       Blogger/UserPost {Blogger/Post? {}}, 
-      into {e Blogger/User.email, t Blogger/Post.title}}`)
-    }
-    let jr: any[] = await jq(email)
-    assert(jr.length == 1)
-    assert(jr[0].e == email)
-    assert(jr[0].t == 'Post Three')
-    email = 'j@b.com'
-    jr = await jq(email)
-    assert(jr.length == 2)
-    assert(jr[0].e == jr[1].e)
-    assert(jr[0].e == email)
-    assert(jr[0].t == 'Post One' || jr[1].t == 'Post One')
-  })
-})
+      into {e Blogger/User.email, t Blogger/Post.title}}`);
+    };
+    let jr: any[] = await jq(email);
+    assert(jr.length == 1);
+    assert(jr[0].e == email);
+    assert(jr[0].t == 'Post Three');
+    email = 'j@b.com';
+    jr = await jq(email);
+    assert(jr.length == 2);
+    assert(jr[0].e == jr[1].e);
+    assert(jr[0].e == email);
+    assert(jr[0].t == 'Post One' || jr[1].t == 'Post One');
+  });
+});
 
 describe('Array and one-of tests', () => {
   test('Check array and one-of attribute types', async () => {
-    await doInternModule('ArrayTest',
+    await doInternModule(
+      'ArrayTest',
       `entity E {
         id Int @id,
         vals String[],
@@ -262,106 +276,114 @@ describe('Array and one-of tests', () => {
         y @oneof(ArrayTest/F.v)
       }
       entity F { v String @id }
-      `)
+      `
+    );
     const crf = async (v: string) => {
-      const inst: Instance = await parseAndEvaluateStatement(`{ArrayTest/F {v "${v}"}}`)
-      assert(isInstanceOfType(inst, "ArrayTest/F"))
-    }
-    await crf("a"); await crf("b")
-    await parseAndEvaluateStatement(`{ArrayTest/E {id 1, vals ["a", "b"], x "123", y "a"}}`)
-      .then((result: Instance) => {
-        assert(isInstanceOfType(result, 'ArrayTest/E'))
-      })
-    await parseAndEvaluateStatement(`{ArrayTest/E {id? 1}}`)
-      .then((result: Instance[]) => {
-        assert(result.length == 1)
-        const vals = result[0].lookup('vals')
-        assert(vals instanceof Array)
-        assert(vals.length == 2)
-        assert(vals[1] == 'b')
-        assert(result[0].lookup('x') == '123')
-        assert(result[0].lookup('y') == 'a')
-      })
-    let err = false
-    await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "678", y "b"}}`)
-      .catch(() => err = true)
-    assert(err, 'Failed to enforce one-of check')
-    err = false
-    await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "456", y "c"}}`)
-      .catch(() => err = true)
-    assert(err, 'Failed to enforce one-of-ref check')
-    await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "456", y "b"}}`)
-      .then((result: Instance) => {
-        assert(isInstanceOfType(result, 'ArrayTest/E'))
-      })
-  })
-})
+      const inst: Instance = await parseAndEvaluateStatement(`{ArrayTest/F {v "${v}"}}`);
+      assert(isInstanceOfType(inst, 'ArrayTest/F'));
+    };
+    await crf('a');
+    await crf('b');
+    await parseAndEvaluateStatement(`{ArrayTest/E {id 1, vals ["a", "b"], x "123", y "a"}}`).then(
+      (result: Instance) => {
+        assert(isInstanceOfType(result, 'ArrayTest/E'));
+      }
+    );
+    await parseAndEvaluateStatement(`{ArrayTest/E {id? 1}}`).then((result: Instance[]) => {
+      assert(result.length == 1);
+      const vals = result[0].lookup('vals');
+      assert(vals instanceof Array);
+      assert(vals.length == 2);
+      assert(vals[1] == 'b');
+      assert(result[0].lookup('x') == '123');
+      assert(result[0].lookup('y') == 'a');
+    });
+    let err = false;
+    await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "678", y "b"}}`).catch(
+      () => (err = true)
+    );
+    assert(err, 'Failed to enforce one-of check');
+    err = false;
+    await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "456", y "c"}}`).catch(
+      () => (err = true)
+    );
+    assert(err, 'Failed to enforce one-of-ref check');
+    await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "456", y "b"}}`).then(
+      (result: Instance) => {
+        assert(isInstanceOfType(result, 'ArrayTest/E'));
+      }
+    );
+  });
+});
 
 describe('Default date-time test', () => {
   test('Check date-time', async () => {
-    await doInternModule('DtTest',
+    await doInternModule(
+      'DtTest',
       `entity E {
         id Int @id,
         dt DateTime @default(now())
-      }`)
-    let dt = ''
-    await parseAndEvaluateStatement(`{DtTest/E {id 1}}`)
-      .then((result: Instance) => {
-        assert(isInstanceOfType(result, 'DtTest/E'))
-        dt = result.lookup('dt')
-        assert(dt.indexOf('T') > 0 && dt.endsWith('Z'))
-      })
-    await parseAndEvaluateStatement(`{DtTest/E {id? 1}}`)
-      .then((result: Instance[]) => {
-        result[0].lookup('dt') == '2025-06-18T10:51:31.633Z'
-      })
-  })
-})
+      }`
+    );
+    let dt = '';
+    await parseAndEvaluateStatement(`{DtTest/E {id 1}}`).then((result: Instance) => {
+      assert(isInstanceOfType(result, 'DtTest/E'));
+      dt = result.lookup('dt');
+      assert(dt.indexOf('T') > 0 && dt.endsWith('Z'));
+    });
+    await parseAndEvaluateStatement(`{DtTest/E {id? 1}}`).then((result: Instance[]) => {
+      result[0].lookup('dt') == '2025-06-18T10:51:31.633Z';
+    });
+  });
+});
 
 describe('Map attribute tests', () => {
   test('Check Map attributes', async () => {
-    await doInternModule('MapTest',
+    await doInternModule(
+      'MapTest',
       `entity E {
         id Int @id,
         v Map
-      }`)
-    await parseAndEvaluateStatement(`{MapTest/E {id 1, v {"a": 1, "b": 2}}}`)
-      .then((result: Instance) => {
-        assert(isInstanceOfType(result, 'MapTest/E'))
-      })
-    await parseAndEvaluateStatement(`{MapTest/E {id? 1}}`)
-      .then((result: Instance[]) => {
-        const v = result[0].lookup('v')
-        assert(v['a'] == 1)
-      })
-  })
-})
+      }`
+    );
+    await parseAndEvaluateStatement(`{MapTest/E {id 1, v {"a": 1, "b": 2}}}`).then(
+      (result: Instance) => {
+        assert(isInstanceOfType(result, 'MapTest/E'));
+      }
+    );
+    await parseAndEvaluateStatement(`{MapTest/E {id? 1}}`).then((result: Instance[]) => {
+      const v = result[0].lookup('v');
+      assert(v['a'] == 1);
+    });
+  });
+});
 
 describe('Expression tests', () => {
   test('Check expression attributes', async () => {
-    await doInternModule('ExprTest',
+    await doInternModule(
+      'ExprTest',
       `entity E {
         id Int @id,
         v Int
       }
       workflow CrE {
           {E {id CrE.id, v CrE.v + 2 * 10}}
-      }`)
-    await parseAndEvaluateStatement(`{ExprTest/CrE {id 1, v 10}}`)
-      .then((result: Instance) => {
-        assert(isInstanceOfType(result, 'ExprTest/E'))
-      })
-    await parseAndEvaluateStatement(`{ExprTest/E {id? 1}}`)
-      .then((result: Instance[]) => {
-        const v = result[0].lookup('v')
-        assert(v == 30, 'Invalid value for v')
-      })
-  })
-})
+      }`
+    );
+    await parseAndEvaluateStatement(`{ExprTest/CrE {id 1, v 10}}`).then((result: Instance) => {
+      assert(isInstanceOfType(result, 'ExprTest/E'));
+    });
+    await parseAndEvaluateStatement(`{ExprTest/E {id? 1}}`).then((result: Instance[]) => {
+      const v = result[0].lookup('v');
+      assert(v == 30, 'Invalid value for v');
+    });
+  });
+});
 
 describe('Pre-Post trigger tests', () => {
   test('Check pre-post event triggers', async () => {
-    await doInternModule('PrePostEvents',
+    await doInternModule(
+      'PrePostEvents',
       `entity E {
         id Int @id,
         v Int,
@@ -381,38 +403,35 @@ describe('Pre-Post trigger tests', () => {
       workflow BeforeDelete {
         delete {F {id? BeforeDelete.E.id}}
       }
-     `)
-    await parseAndEvaluateStatement(`{PrePostEvents/CrE {id 1, v 10}}`)
-      .then((result: Instance) => {
-        assert(isInstanceOfType(result, 'PrePostEvents/E'))
-      })
-    await parseAndEvaluateStatement(`{PrePostEvents/CrE {id 2, v 20}}`)
-      .then((result: Instance) => {
-        assert(isInstanceOfType(result, 'PrePostEvents/E'))
-      })
-    await parseAndEvaluateStatement(`{PrePostEvents/F {id? 1}}`)
-      .then((result: Instance[]) => {
-        assert(result.length == 1)
-        assert(isInstanceOfType(result[0], 'PrePostEvents/F'))
-        assert(result[0].lookup('w') == 100)
-      })
-    await parseAndEvaluateStatement(`delete {PrePostEvents/E {id? 1}}`)
-    await parseAndEvaluateStatement(`{PrePostEvents/F {id? 1}}`)
-      .then((result: Instance[]) => {
-        assert(result.length == 0)
-      })
-    await parseAndEvaluateStatement(`{PrePostEvents/F {id? 2}}`)
-      .then((result: Instance[]) => {
-        assert(result.length == 1)
-        assert(isInstanceOfType(result[0], 'PrePostEvents/F'))
-        assert(result[0].lookup('w') == 200)
-      })
-  })
-})
+     `
+    );
+    await parseAndEvaluateStatement(`{PrePostEvents/CrE {id 1, v 10}}`).then((result: Instance) => {
+      assert(isInstanceOfType(result, 'PrePostEvents/E'));
+    });
+    await parseAndEvaluateStatement(`{PrePostEvents/CrE {id 2, v 20}}`).then((result: Instance) => {
+      assert(isInstanceOfType(result, 'PrePostEvents/E'));
+    });
+    await parseAndEvaluateStatement(`{PrePostEvents/F {id? 1}}`).then((result: Instance[]) => {
+      assert(result.length == 1);
+      assert(isInstanceOfType(result[0], 'PrePostEvents/F'));
+      assert(result[0].lookup('w') == 100);
+    });
+    await parseAndEvaluateStatement(`delete {PrePostEvents/E {id? 1}}`);
+    await parseAndEvaluateStatement(`{PrePostEvents/F {id? 1}}`).then((result: Instance[]) => {
+      assert(result.length == 0);
+    });
+    await parseAndEvaluateStatement(`{PrePostEvents/F {id? 2}}`).then((result: Instance[]) => {
+      assert(result.length == 1);
+      assert(isInstanceOfType(result[0], 'PrePostEvents/F'));
+      assert(result[0].lookup('w') == 200);
+    });
+  });
+});
 
 describe('Path reference tests', () => {
   test('Check path references', async () => {
-    await doInternModule('PathRefs',
+    await doInternModule(
+      'PathRefs',
       `entity E {
         id Int @id,
         f @ref(PathRefs/F),
@@ -425,24 +444,26 @@ describe('Path reference tests', () => {
       workflow CrE {
         {E {id CrE.id, f CrE.f, v CrE.f.w * 10}}
       }
-     `)
-    let fpath = ''
-    await parseAndEvaluateStatement(`{PathRefs/F {id 1, w 2}}`)
-      .then((result: Instance) => {
-        assert(isInstanceOfType(result, 'PathRefs/F'))
-        fpath = result.lookup(PathAttributeName)
-      })
-    await parseAndEvaluateStatement(`{PathRefs/CrE {id 1, f "${fpath}"}}`)
-      .then((result: Instance) => {
-        assert(isInstanceOfType(result, 'PathRefs/E'))
-        assert(result.lookup('v') == 20)
-      })
-  })
-})
+     `
+    );
+    let fpath = '';
+    await parseAndEvaluateStatement(`{PathRefs/F {id 1, w 2}}`).then((result: Instance) => {
+      assert(isInstanceOfType(result, 'PathRefs/F'));
+      fpath = result.lookup(PathAttributeName);
+    });
+    await parseAndEvaluateStatement(`{PathRefs/CrE {id 1, f "${fpath}"}}`).then(
+      (result: Instance) => {
+        assert(isInstanceOfType(result, 'PathRefs/E'));
+        assert(result.lookup('v') == 20);
+      }
+    );
+  });
+});
 
 describe('Nested query-into tests', () => {
   test('Check nested into-queries', async () => {
-    await doInternModule('NestedInto',
+    await doInternModule(
+      'NestedInto',
       `entity A {
         id Int @id
         x Int
@@ -457,179 +478,188 @@ describe('Nested query-into tests', () => {
       }
       relationship AB contains(A, B)
       relationship BC contains(B, C)
-      `)
-    const isa = ((obj: any) => isInstanceOfType(obj, 'NestedInto/A'))
-    const isb = ((obj: any) => isInstanceOfType(obj, 'NestedInto/B'))
-    const isc = ((obj: any) => isInstanceOfType(obj, 'NestedInto/C'))
+      `
+    );
+    const isa = (obj: any) => isInstanceOfType(obj, 'NestedInto/A');
+    const isb = (obj: any) => isInstanceOfType(obj, 'NestedInto/B');
+    const isc = (obj: any) => isInstanceOfType(obj, 'NestedInto/C');
     const cra = async (id: number, x: number) => {
-      await parseAndEvaluateStatement(`{NestedInto/A {id ${id}, x ${x}}}`)
-        .then((result: any) => {
-          assert(isa(result))
-        })
-    }
+      await parseAndEvaluateStatement(`{NestedInto/A {id ${id}, x ${x}}}`).then((result: any) => {
+        assert(isa(result));
+      });
+    };
     const crb = async (id: number, y: number, aid: number) => {
       await parseAndEvaluateStatement(`{NestedInto/A {id? ${aid}},
-        NestedInto/AB {NestedInto/B {id ${id}, y ${y}}}}`)
-        .then((results: Instance[]) => {
-          assert(results.length == 1)
-          const result: Instance = results[0]
-          assert(isa(result), 'Not an instance of A')
-          const relInsts = result.relatedInstances
-          assert(relInsts)
-          if (relInsts) {
-            const bs = relInsts.get('NestedInto/AB')
-            assert(bs)
-            if (bs) {
-              assert(bs.length > 0)
-              bs.forEach((inst: Instance) => {
-                assert(isb(inst))
-              })
-            }
+        NestedInto/AB {NestedInto/B {id ${id}, y ${y}}}}`).then((results: Instance[]) => {
+        assert(results.length == 1);
+        const result: Instance = results[0];
+        assert(isa(result), 'Not an instance of A');
+        const relInsts = result.relatedInstances;
+        assert(relInsts);
+        if (relInsts) {
+          const bs = relInsts.get('NestedInto/AB');
+          assert(bs);
+          if (bs) {
+            assert(bs.length > 0);
+            bs.forEach((inst: Instance) => {
+              assert(isb(inst));
+            });
           }
-        })
-    }
+        }
+      });
+    };
     const crc = async (id: number, z: number, aid: number, bid: number) => {
       await parseAndEvaluateStatement(`{NestedInto/A {id? ${aid}},
         NestedInto/AB {NestedInto/B {id? ${bid}},
-                       NestedInto/BC {NestedInto/C {id ${id}, z ${z}}}}}`)
-        .then((results: Instance[]) => {
-          assert(results.length == 1)
-          const result: Instance = results[0]
-          assert(isa(result))
-          let relInsts = result.relatedInstances
-          assert(relInsts)
+                       NestedInto/BC {NestedInto/C {id ${id}, z ${z}}}}}`).then(
+        (results: Instance[]) => {
+          assert(results.length == 1);
+          const result: Instance = results[0];
+          assert(isa(result));
+          let relInsts = result.relatedInstances;
+          assert(relInsts);
           if (relInsts) {
-            const bs = relInsts.get('NestedInto/AB')
-            assert(bs)
+            const bs = relInsts.get('NestedInto/AB');
+            assert(bs);
             if (bs) {
-              assert(bs.length == 1)
-              const b: Instance = bs[0]
-              assert(isb(b))
-              relInsts = b.relatedInstances
-              assert(relInsts)
+              assert(bs.length == 1);
+              const b: Instance = bs[0];
+              assert(isb(b));
+              relInsts = b.relatedInstances;
+              assert(relInsts);
               if (relInsts) {
-                const cs = relInsts.get('NestedInto/BC')
-                assert(cs)
+                const cs = relInsts.get('NestedInto/BC');
+                assert(cs);
                 if (cs) {
-                  assert(cs.length == 1)
-                  assert(isc(cs[0]))
+                  assert(cs.length == 1);
+                  assert(isc(cs[0]));
                 }
               }
             }
           }
-        })
-    }
-    await cra(1, 10)
-    await cra(2, 20)
-    await crb(10, 100, 1)
-    await crb(20, 200, 1)
-    await crb(30, 300, 2)
-    await crc(100, 1000, 1, 10)
-    await crc(200, 2000, 2, 30)
-    await crc(300, 3000, 2, 30)
+        }
+      );
+    };
+    await cra(1, 10);
+    await cra(2, 20);
+    await crb(10, 100, 1);
+    await crb(20, 200, 1);
+    await crb(30, 300, 2);
+    await crc(100, 1000, 1, 10);
+    await crc(200, 2000, 2, 30);
+    await crc(300, 3000, 2, 30);
     const f = async (aid: number, check: (value: any) => any) => {
       await parseAndEvaluateStatement(`{NestedInto/A {id? ${aid}},
       NestedInto/AB {NestedInto/B? {},
                      NestedInto/BC {NestedInto/C? {}}},
-      into {ax NestedInto/A.x, by NestedInto/B.y, cz NestedInto/C.z}}`)
-        .then(check)
-    }
+      into {ax NestedInto/A.x, by NestedInto/B.y, cz NestedInto/C.z}}`).then(check);
+    };
     await f(1, (result: any[]) => {
-      assert(result.length == 1)
-      assert(result[0].ax == 10)
-      assert(result[0].by == 100)
-      assert(result[0].cz == 1000)
-    })
+      assert(result.length == 1);
+      assert(result[0].ax == 10);
+      assert(result[0].by == 100);
+      assert(result[0].cz == 1000);
+    });
     await f(2, (result: any[]) => {
-      assert(result.length == 2)
-      assert(result[0].ax == 20)
-      assert(result[1].ax == 20)
-      assert(result[0].by == 300)
-      assert(result[1].by == 300)
-      assert(result[0].cz == 2000)
-      assert(result[1].cz == 3000)
-    })
-  })
-})
+      assert(result.length == 2);
+      assert(result[0].ax == 20);
+      assert(result[1].ax == 20);
+      assert(result[0].by == 300);
+      assert(result[1].by == 300);
+      assert(result[0].cz == 2000);
+      assert(result[1].cz == 3000);
+    });
+  });
+});
 
 describe('Default id attribute test', () => {
   test('Check default id attribute', async () => {
-    await doInternModule('DefId',
+    await doInternModule(
+      'DefId',
       `entity E {
         x Int
-      }`)
-    const m = fetchModule('DefId')
-    const e = m.getEntry('E')
-    assert((e as Record).getIdAttributeName() == DefaultIdAttributeName)
-    await parseAndEvaluateStatement(`{DefId/E {x 10}}`)
-      .then((result: Instance) => {
-        assert(isInstanceOfType(result, 'DefId/E'))
-        const id: string = result.lookup(DefaultIdAttributeName)
-        assert(id.length > 0)
-        const path: string = result.lookup(PathAttributeName)
-        assert(path.indexOf(id) > 0)
-      })
-  })
-})
+      }`
+    );
+    const m = fetchModule('DefId');
+    const e = m.getEntry('E');
+    assert((e as Record).getIdAttributeName() == DefaultIdAttributeName);
+    await parseAndEvaluateStatement(`{DefId/E {x 10}}`).then((result: Instance) => {
+      assert(isInstanceOfType(result, 'DefId/E'));
+      const id: string = result.lookup(DefaultIdAttributeName);
+      assert(id.length > 0);
+      const path: string = result.lookup(PathAttributeName);
+      assert(path.indexOf(id) > 0);
+    });
+  });
+});
 
 describe('Multiple module loading tests', () => {
   test('Check multiple file-based module loading and isolation', async () => {
-    await doPreInit()
+    await doPreInit();
 
     try {
       // Load Blog module first
       await load('example/blog/blog.al').then(async (appSpec: ApplicationSpec) => {
-        assert(appSpec.name, 'Invalid Blog application spec')
-        const blogModule: Module = fetchModule('Blog')
-        assert(blogModule.name == 'Blog', 'Failed to load Blog module')
-        assert(blogModule.hasEntry('User'), 'Blog module missing User entity')
-        assert(blogModule.hasEntry('Post'), 'Blog module missing Post entity')
+        assert(appSpec.name, 'Invalid Blog application spec');
+        const blogModule: Module = fetchModule('Blog');
+        assert(blogModule.name == 'Blog', 'Failed to load Blog module');
+        assert(blogModule.hasEntry('User'), 'Blog module missing User entity');
+        assert(blogModule.hasEntry('Post'), 'Blog module missing Post entity');
 
         // Load second module and verify if Blog is still accessible
-        await flushAllAndLoad('example/family/family.al').then(async (erpAppSpec: ApplicationSpec) => {
-          assert(erpAppSpec.name, 'Invalid Family application spec')
-          const familyModule: Module = fetchModule('Family')
-          assert(familyModule.name == 'Family', 'Failed to load Family module')
-          assert(familyModule.hasEntry('Member'), 'Family module missing Member entity')
+        await flushAllAndLoad('example/family/family.al').then(
+          async (erpAppSpec: ApplicationSpec) => {
+            assert(erpAppSpec.name, 'Invalid Family application spec');
+            const familyModule: Module = fetchModule('Family');
+            assert(familyModule.name == 'Family', 'Failed to load Family module');
+            assert(familyModule.hasEntry('Member'), 'Family module missing Member entity');
 
-          // Critical test: Blog module should not still be accessible after Family load
-          assert(!isModule('Blog'), 'Blog module not removed before ErpCore load')
-          assert(isModule('Family'), 'Family module not registered')
+            // Critical test: Blog module should not still be accessible after Family load
+            assert(!isModule('Blog'), 'Blog module not removed before ErpCore load');
+            assert(isModule('Family'), 'Family module not registered');
 
-          removeModule('Family')
-          assert(!isModule('Family'), 'Family module not removed')
-        })
-      })
+            removeModule('Family');
+            assert(!isModule('Family'), 'Family module not removed');
+          }
+        );
+      });
     } finally {
-      try { removeModule('Blog') } catch { }
-      try { removeModule('Family') } catch { }
+      try {
+        removeModule('Blog');
+      } catch {}
+      try {
+        removeModule('Family');
+      } catch {}
     }
-  })
-})
+  });
+});
 
 describe('Catch test', () => {
   test('Check catch handlers', async () => {
-    await doInternModule('Catch',
+    await doInternModule(
+      'Catch',
       `entity E {
         id Int @id,
         x Int
-      }`)
+      }`
+    );
     const chk = (result: Instance) => {
-      assert(isInstanceOfType(result, 'Catch/E'))
-      assert(result.lookup('x') == 100)
-    }
+      assert(isInstanceOfType(result, 'Catch/E'));
+      assert(result.lookup('x') == 100);
+    };
     await parseAndEvaluateStatement(`{Catch/E {id? 1}} as [E]
                                         catch {not_found {Catch/E {id 1, x 100}}
-                                               error {Catch/E {id -1, x -1}}}`)
-      .then(chk)
-    await parseAndEvaluateStatement(`{Catch/E {id? 1}} as [E]`)
-      .then((result: Instance[]) => chk(result[0]))
-  })
-})
+                                               error {Catch/E {id -1, x -1}}}`).then(chk);
+    await parseAndEvaluateStatement(`{Catch/E {id? 1}} as [E]`).then((result: Instance[]) =>
+      chk(result[0])
+    );
+  });
+});
 
 describe('Expression attributes', () => {
   test('Check expression attributes', async () => {
-    await doInternModule('ExprAttr',
+    await doInternModule(
+      'ExprAttr',
       `entity E {
         id Int @id,
         x Int,
@@ -642,103 +672,113 @@ describe('Expression attributes', () => {
         a Int @expr(e.y + 10 - k),
         k Int
       }
-      `)
-    const ise = (r: any) => isInstanceOfType(r, 'ExprAttr/E')
+      `
+    );
+    const ise = (r: any) => isInstanceOfType(r, 'ExprAttr/E');
     const cre = async (id: number, x: number): Promise<Instance> => {
-      const r: any = await parseAndEvaluateStatement(`{ExprAttr/E {id ${id}, x ${x}}}`)
-      assert(ise(r))
-      return r as Instance
-    }
-    const e1 = await cre(1, 10)
-    await cre(2, 20)
-    await parseAndEvaluateStatement(`{ExprAttr/E {id? 1}}`)
-      .then((result: Instance[]) => {
-        assert(result.length == 1)
-        assert(result.every(ise))
-        const r: Instance = result[0]
-        assert(r.lookup('id') == 1 && r.lookup('x') == 10 && r.lookup('y') == 100 && r.lookup('z') == 101)
-      })
-    await parseAndEvaluateStatement(`{ExprAttr/E? {}}`)
-      .then((result: Instance[]) => {
-        assert(result.length == 2)
-        assert(result.every(ise))
-        let ys = 0
-        let zs = 0
-        result.forEach((r: Instance) => {
-          ys += r.lookup('y')
-          zs += r.lookup('z')
-        })
-        assert(ys == 300)
-        assert(zs == 302)
-      })
+      const r: any = await parseAndEvaluateStatement(`{ExprAttr/E {id ${id}, x ${x}}}`);
+      assert(ise(r));
+      return r as Instance;
+    };
+    const e1 = await cre(1, 10);
+    await cre(2, 20);
+    await parseAndEvaluateStatement(`{ExprAttr/E {id? 1}}`).then((result: Instance[]) => {
+      assert(result.length == 1);
+      assert(result.every(ise));
+      const r: Instance = result[0];
+      assert(
+        r.lookup('id') == 1 && r.lookup('x') == 10 && r.lookup('y') == 100 && r.lookup('z') == 101
+      );
+    });
+    await parseAndEvaluateStatement(`{ExprAttr/E? {}}`).then((result: Instance[]) => {
+      assert(result.length == 2);
+      assert(result.every(ise));
+      let ys = 0;
+      let zs = 0;
+      result.forEach((r: Instance) => {
+        ys += r.lookup('y');
+        zs += r.lookup('z');
+      });
+      assert(ys == 300);
+      assert(zs == 302);
+    });
     const crf = async (id: number, e: string, k: number): Promise<Instance> => {
-      const f = await parseAndEvaluateStatement(`{ExprAttr/F {id ${id}, e "${e}", k ${k}}}`)
-      assert(isInstanceOfType(f, "ExprAttr/F"))
-      return f as Instance
-    }
-    const f = await crf(11, e1.lookup(PathAttributeName), 5)
-    assert(f.lookup('a') == 105)
-  })
-})
+      const f = await parseAndEvaluateStatement(`{ExprAttr/F {id ${id}, e "${e}", k ${k}}}`);
+      assert(isInstanceOfType(f, 'ExprAttr/F'));
+      return f as Instance;
+    };
+    const f = await crf(11, e1.lookup(PathAttributeName), 5);
+    assert(f.lookup('a') == 105);
+  });
+});
 
 describe('Composite unique attributes', () => {
   test('Check composite uniques', async () => {
-    await doInternModule('Cuq',
+    await doInternModule(
+      'Cuq',
       `entity E {
         id Int @id,
         x Int,
         y Int,
         @with_unique(x, y)
-      }`)
-    const ee = expectError()
+      }`
+    );
+    const ee = expectError();
     const cre = async (id: number, x: number, y: number, err: boolean = false) => {
-      const r: any = await parseAndEvaluateStatement(`{Cuq/E {id ${id}, x ${x}, y ${y}}}`)
-        .catch((reason: any) => {
+      const r: any = await parseAndEvaluateStatement(`{Cuq/E {id ${id}, x ${x}, y ${y}}}`).catch(
+        (reason: any) => {
           if (err) {
-            ee.f()(reason)
+            ee.f()(reason);
           } else {
-            throw new Error(reason)
+            throw new Error(reason);
           }
-        })
+        }
+      );
       if (!err) {
-        assert(isInstanceOfType(r, 'Cuq/E'))
-        assert(r.lookup('id') == id && r.lookup('x') == x && r.lookup('y') == y)
+        assert(isInstanceOfType(r, 'Cuq/E'));
+        assert(r.lookup('id') == id && r.lookup('x') == x && r.lookup('y') == y);
       }
-    }
-    await cre(1, 10, 20)
-    await cre(2, 10, 30)
-    await cre(3, 10, 20, true)
-    await cre(4, 20, 10)
-  })
-})
+    };
+    await cre(1, 10, 20);
+    await cre(2, 10, 30);
+    await cre(3, 10, 20, true);
+    await cre(4, 20, 10);
+  });
+});
 
 describe('Between operator test', () => {
   test('Check between operator', async () => {
-    await doInternModule('BetOpr',
+    await doInternModule(
+      'BetOpr',
       `entity E {
         id Int @id,
         x Int,
         y DateTime
-      }`)
-    const ise = (r: any) => isInstanceOfType(r, 'BetOpr/E')
+      }`
+    );
+    const ise = (r: any) => isInstanceOfType(r, 'BetOpr/E');
     const cre = async (id: number, x: number, y: string) => {
-      const r = await parseAndEvaluateStatement(`{BetOpr/E {id ${id}, x ${x}, y "${y}"}}`)
-      assert(ise(r))
-      return r
-    }
-    await cre(1, 10, '2025-01-02')
-    await cre(2, 20, '2025-02-20')
-    await cre(3, 30, '2025-03-01')
-    await cre(4, 40, '2025-03-12')
-    let result: Instance[] = await parseAndEvaluateStatement(`{BetOpr/E {x?between [20, 40]}}`)
-    assert(result.length == 3)
-    assert(result.every((inst: Instance) => {
-      return inst.lookup('x') > 10
-    }))
-    result = await parseAndEvaluateStatement(`{BetOpr/E {y?between ["2025-01-01", "2025-03-05"]}}`)
-    assert(result.length == 3)
-    assert(result.every((inst: Instance) => {
-      return inst.lookup('x') < 40
-    }))
-  })
-})
+      const r = await parseAndEvaluateStatement(`{BetOpr/E {id ${id}, x ${x}, y "${y}"}}`);
+      assert(ise(r));
+      return r;
+    };
+    await cre(1, 10, '2025-01-02');
+    await cre(2, 20, '2025-02-20');
+    await cre(3, 30, '2025-03-01');
+    await cre(4, 40, '2025-03-12');
+    let result: Instance[] = await parseAndEvaluateStatement(`{BetOpr/E {x?between [20, 40]}}`);
+    assert(result.length == 3);
+    assert(
+      result.every((inst: Instance) => {
+        return inst.lookup('x') > 10;
+      })
+    );
+    result = await parseAndEvaluateStatement(`{BetOpr/E {y?between ["2025-01-01", "2025-03-05"]}}`);
+    assert(result.length == 3);
+    assert(
+      result.every((inst: Instance) => {
+        return inst.lookup('x') < 40;
+      })
+    );
+  });
+});

@@ -548,13 +548,33 @@ async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveS
 
       // Extract user ID from standard JWT claims (sub or cognito:username)
       const userId = payload.sub || payload['cognito:username'];
+      const email = payload.email || payload['cognito:username'];
 
       if (!userId) {
         throw new UnauthorisedError('Invalid JWT token: missing user identifier');
       }
 
+      let localUser = null;
+      if (email) {
+        localUser = await findUserByEmail(email, env);
+      }
+
+      if (!localUser && userId) {
+        localUser = await findUser(userId, env);
+      }
+
+      if (!localUser) {
+        logger.warn(
+          `User not found in local database for JWT token. Email: ${email}, UserId: ${userId}`
+        );
+        throw new UnauthorisedError(`User not found in local database`);
+      }
+
+      // Use the local user's ID for consistency
+      const localUserId = localUser.lookup('id');
+
       // For JWT tokens, we use the token itself as sessionId for tracking
-      return { sessionId: token.substring(0, 32), userId: userId };
+      return { sessionId: token.substring(0, 32), userId: localUserId };
     } catch (err: any) {
       if (err instanceof UnauthorisedError) {
         throw err;
