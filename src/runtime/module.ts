@@ -646,6 +646,10 @@ export class Agent extends Record {
     return this;
   }
 
+  getLLM(): string {
+    return this.attributes.get('llm');
+  }
+
   private removeAgentAttribute(n: string): Agent {
     this.attributes.delete(n);
     return this;
@@ -660,6 +664,10 @@ export class Agent extends Record {
     return this;
   }
 
+  getInstruction(): string {
+    return this.attributes.get('instruction');
+  }
+
   removeInstruction(): Agent {
     return this.removeAgentAttribute('instruction');
   }
@@ -667,6 +675,10 @@ export class Agent extends Record {
   setType(type: 'chat' | 'planner'): Agent {
     this.attributes.set('type', type);
     return this;
+  }
+
+  getType(): string {
+    return this.attributes.get('type');
   }
 
   removeType(): Agent {
@@ -678,6 +690,10 @@ export class Agent extends Record {
     return this;
   }
 
+  getTools(): string {
+    return this.attributes.get('tools');
+  }
+
   removeTools(): Agent {
     return this.removeAgentAttribute('tools');
   }
@@ -685,6 +701,10 @@ export class Agent extends Record {
   setDocuments(docs: string[]): Agent {
     this.attributes.set('documents', docs.join(','));
     return this;
+  }
+
+  getDocuments(): string {
+    return this.attributes.get('documents');
   }
 
   removeDocuments(): Agent {
