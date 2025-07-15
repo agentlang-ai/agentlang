@@ -120,11 +120,11 @@ function asString(s: MaybeString): string {
 }
 
 export function restoreSpecialChars(s: string) {
-  return s.replaceAll('&quote;', '"')
+  return s.replaceAll('&quote;', '"');
 }
 
 export function escapeSpecialChars(s: string) {
-  return s.replaceAll('"', '&quote;')
+  return s.replaceAll('"', '&quote;');
 }
 
 export class Path {

@@ -26,7 +26,7 @@ workflow onIncidents {
 
 agent incidentManagerAgent {
     instruction "Assign the following incident to any one of the following emails: jake@acme.com, tom@acme.com, sam@acme.com. 
-    An example assignment is {servicenow/assignIncident {sys_id &quote;f12ca184735123002728660c4cf6a7ef&quote;, user &quote;tom@acme.com&quote;}}",
+    For example, if the Incident sys_id is &quote;f12ca184735123002728660c4cf6a7ef&quote;, you may return {servicenow/assignIncident {sys_id &quote;f12ca184735123002728660c4cf6a7ef&quote;, user &quote;tom@acme.com&quote;}}",
     tools "servicenow/assignIncident"
 }
 
