@@ -461,7 +461,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     attrsStrs.push(`llm "${llmName}"`);
     if (hasUserLlm) attrs.set('llm', llmName);
   }
-  const createAgent = `{${CoreAIModuleName}/${AgentEntityName} {
+  const createAgent = `upsert {${CoreAIModuleName}/${AgentEntityName} {
     ${attrsStrs.join(',')}
   }}`;
   let wf = createAgent;
