@@ -16,8 +16,6 @@ import {
   PrePostTriggerDefinition,
   TriggerEntry,
   Expr,
-  RecordExtraDefinition,
-  RbacSpecDefinition,
   RbacSpecEntry,
   RbacSpecEntries,
   RbacOpr,
@@ -281,7 +279,6 @@ export class Record extends ModuleEntry {
         }
       });
     }
-    this.rbac = findAllRbacSpecs(scm)
     this.compositeUqAttributes = findUqCompositeAttributes(scm);
   }
 
@@ -424,9 +421,9 @@ export class Record extends ModuleEntry {
     let scms = recordSchemaToString(this.schema);
     if (this.rbac && this.rbac.length > 0) {
       const rbs = this.rbac.map((rs: RbacSpecification) => {
-        return rs.toString()
-      })
-      scms = `${scms}\n@rbac [${rbs.join(',\n')}]`
+        return rs.toString();
+      });
+      scms = `${scms}    @rbac [${rbs.join(',\n')}]`;
     }
     return s.concat('\n{', scms, '}\n');
   }
@@ -466,26 +463,6 @@ function fetchModuleByEntryName(
     entryName: entryName,
     moduleName: suspectModuleName,
   };
-}
-
-function findAllRbacSpecs(
-  scm: RecordSchemaDefinition | undefined
-): RbacSpecification[] | undefined {
-  if (scm && scm.extras) {
-    let result: RbacSpecification[] | undefined;
-    for (let i = 0; i < scm.extras.length; ++i) {
-      const rex: RecordExtraDefinition = scm.extras[i];
-      if (rex.rbacSpec) {
-        if (result == undefined) {
-          result = new Array<RbacSpecification>();
-        }
-        const spec = RbacSpecification.from(rex.rbacSpec)
-        result.push(spec);
-      }
-    }
-    return result;
-  }
-  return undefined;
 }
 
 function cloneParentSchema(parentName: string, currentModuleName: string): RecordSchema {
@@ -596,22 +573,22 @@ export class RbacSpecification {
     this.permissions = new Set();
   }
 
-  static from(def: RbacSpecDefinition): RbacSpecification {
-    const result = new RbacSpecification
-    def.specEntries.forEach((ses: RbacSpecEntries) => {
-      ses.entries.forEach((se: RbacSpecEntry) => {
-        if (se.role) {
-        result.setRoles(se.role.roles)
-        } else if (se.allow) {
-          result.setPermissions(se.allow.oprs.map((opr: RbacOpr) => {
-            return opr.value
-          }))
-        } else if (se.expr) {
-          result.setExpression(se.expr.lhs, se.expr.rhs)
-        }
-      })
-    })
-    return result
+  static from(def: RbacSpecEntries): RbacSpecification {
+    const result = new RbacSpecification();
+    def.entries.forEach((se: RbacSpecEntry) => {
+      if (se.role) {
+        result.setRoles(se.role.roles);
+      } else if (se.allow) {
+        result.setPermissions(
+          se.allow.oprs.map((opr: RbacOpr) => {
+            return opr.value;
+          })
+        );
+      } else if (se.expr) {
+        result.setExpression(se.expr.lhs, se.expr.rhs);
+      }
+    });
+    return result;
   }
 
   setResource(s: string): RbacSpecification {
@@ -678,21 +655,21 @@ export class RbacSpecification {
   }
 
   toString(): string {
-    const rs = new Array<string>()
+    const rs = new Array<string>();
     this.roles.forEach((r: string) => {
-      rs.push(r)
-    })
-    let cond = ''
+      rs.push(r);
+    });
+    let cond = '';
     if (this.expression) {
-     cond = `where: ${this.expression.rhs} = ${this.expression.lhs}`
+      cond = `where: ${this.expression.lhs} = ${this.expression.rhs}`;
     } else {
-      const perms = new Array<string>()
-      this.permissions.forEach((p: RbacPermissionFlag) => {
-        perms.push(RbacPermissionFlag[p].toLowerCase())
-      })
-      cond = `allow: [${perms.join(',')}]`
+      cond = `roles: [${rs.join(',')}]`;
     }
-    return `(roles: [${rs.join(',')}], ${cond})`
+    const perms = new Array<string>();
+    this.permissions.forEach((p: RbacPermissionFlag) => {
+      perms.push(RbacPermissionFlag[p].toLowerCase());
+    });
+    return `(${cond}, allow: [${perms.join(',')}])`;
   }
 }
 

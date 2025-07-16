@@ -26,10 +26,11 @@ describe('Agent API', () => {
     assert(agentNames[0] == 'agent02')
     const ae = m.getAgent('agent02')
     ae?.attributes.set('tools', 'A, B')
-    assert(m.toString().trim() == `module AAPI
+    const str = m.toString()
+    assert(str == `module AAPI
 
 entity E
-{ 
+{
     id Int @id 
 }
 
