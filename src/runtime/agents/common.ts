@@ -46,7 +46,7 @@ Other than the create-pattern for entities and events, some of the most useful p
    To lookup all instances of an entity, use the syntax: '{EntityName?: {}}'.
 2. Update - e.g: '{Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24", firstName "Joe"}}'. This pattern updates the firstName of the employee
    with the given employeeId.
-3. Upsert - e.g: upsert '{Erp/Employee {employeeId "56392e13-0d9a-42f7-b556-0d7cd9468a24", firstName "Joe"}}'. The 'upsert' pattern will create a new
+3. Upsert - e.g: '{Erp/Employee {employeeId "56392e13-0d9a-42f7-b556-0d7cd9468a24", firstName "Joe"}, @upsert}'. The 'upsert' pattern will create a new
    instance, if the instance does not already exist.
 4. Delete - e.g: delete '{Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"}}'
 

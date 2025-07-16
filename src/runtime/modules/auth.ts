@@ -1,6 +1,6 @@
 import { Result, Environment, makeEventEvaluator } from '../interpreter.js';
 import { logger } from '../logger.js';
-import { Instance, RbacPermissionFlag } from '../module.js';
+import { Instance, makeInstance, newInstanceAttributes, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
@@ -73,7 +73,7 @@ entity Permission {
 relationship RolePermission between(Role, Permission)
 
 workflow CreateRole {
-    upsert {Role {name CreateRole.name}}
+    {Role {name CreateRole.name}, @upsert}
 }
 
 workflow FindRole {
@@ -84,13 +84,13 @@ workflow FindRole {
 workflow AssignUserToRole {
     {User {id? AssignUserToRole.userId}} as [user];
     {Role {name? AssignUserToRole.roleName}} as [role];
-    upsert {UserRole {User user, Role role}}
+    {UserRole {User user, Role role}, @upsert}
 }
 
 workflow AssignUserToRoleByEmail {
     {User {email? AssignUserToRoleByEmail.email}} as [user];
     {Role {name? AssignUserToRoleByEmail.roleName}} as [role];
-    upsert {UserRole {User user, Role role}}
+    {UserRole {User user, Role role}, @upsert}
 }
 
 workflow FindUserRoles {
@@ -99,19 +99,20 @@ workflow FindUserRoles {
 }
 
 workflow CreatePermission {
-     upsert {Permission {id CreatePermission.id,
-                         resourceFqName CreatePermission.resourceFqName,
-                         c CreatePermission.c,
-                         r CreatePermission.r,
-                         u CreatePermission.u,
-                         d CreatePermission.d},
-             RolePermission {Role {name? CreatePermission.roleName}}}
+     {Permission {id CreatePermission.id,
+                  resourceFqName CreatePermission.resourceFqName,
+                  c CreatePermission.c,
+                  r CreatePermission.r,
+                  u CreatePermission.u,
+                  d CreatePermission.d},
+      RolePermission {Role {name? CreatePermission.roleName}},
+      @upsert}
 }
 
 workflow AddPermissionToRole {
     {Role {name? AddPermissionToRole.roleName}} as role;
     {Permission {id? AddPermissionToRole.permissionId}} as perm;
-    upsert {RolePermission {Role role, Permission perm}}
+    {RolePermission {Role role, Permission perm}, @upsert}
 }
 
 workflow FindRolePermissions {
@@ -325,11 +326,25 @@ export async function assignUserToRole(
   return r;
 }
 
+let DefaultRoleInstance: Instance | undefined;
+
 export async function findUserRoles(userId: string, env: Environment): Promise<Result> {
   const result: any = await evalEvent('FindUserRoles', { userId: userId }, env);
   const inst: Instance | undefined = result ? (result[0] as Instance) : undefined;
   if (inst) {
-    return inst.getRelatedInstances('UserRole');
+    let roles: Instance[] | undefined = inst.getRelatedInstances('UserRole');
+    if (roles == undefined) {
+      roles = [];
+    }
+    if (DefaultRoleInstance == undefined) {
+      DefaultRoleInstance = makeInstance(
+        CoreAuthModuleName,
+        'Role',
+        newInstanceAttributes().set('name', '*')
+      );
+    }
+    roles.push(DefaultRoleInstance);
+    return roles;
   }
   return undefined;
 }

@@ -24,7 +24,6 @@ import {
   SelectIntoSpec,
   SetAttribute,
   Statement,
-  Upsert,
 } from '../language/generated/ast.js';
 import {
   defineAgentEvent,
@@ -603,8 +602,6 @@ async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
     await evaluateDelete(pat.delete, env);
   } else if (pat.purge) {
     await evaluatePurge(pat.purge, env);
-  } else if (pat.upsert) {
-    await evaluateUpsert(pat.upsert, env);
   } else if (pat.fullTextSearch) {
     await evaluateFullTextSearch(pat.fullTextSearch, env);
   }
@@ -764,6 +761,9 @@ async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
 }
 
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
+  if (!env.isInUpsertMode() && crud.upsert) {
+    return await evaluateUpsert(crud, env);
+  }
   const inst: Instance = await patternToInstance(crud.name, crud.body?.attributes, env);
   const entryName = inst.name;
   const moduleName = inst.moduleName;
@@ -1065,10 +1065,10 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
   }
 }
 
-async function evaluateUpsert(upsert: Upsert, env: Environment): Promise<void> {
+async function evaluateUpsert(crud: CrudMap, env: Environment): Promise<void> {
   env.setInUpsertMode(true);
   try {
-    await evaluateCrudMap(upsert.pattern, env);
+    await evaluateCrudMap(crud, env);
   } finally {
     env.setInUpsertMode(false);
   }
