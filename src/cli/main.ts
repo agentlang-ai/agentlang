@@ -42,7 +42,7 @@ export default function (): void {
 
   program
     .command('run')
-    .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+    .argument('[file]', `source file (possible file extensions: ${fileExtensions})`)
     .option('-c, --config <config>', 'configuration file')
     .description('Loads and runs an agentlang module')
     .action(runModule);
@@ -97,7 +97,10 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   if (appSpec) startServer(appSpec, config?.service?.port || 8080);
 }
 
-export const runModule = async (fileName: string, options?: { config?: string }): Promise<void> => {
+export const runModule = async (fileName?: string, options?: { config?: string }): Promise<void> => {
+  if (fileName == undefined) {
+    fileName = '.'
+  }
   const configDir =
     path.dirname(fileName) === '.' ? process.cwd() : path.resolve(process.cwd(), fileName);
 

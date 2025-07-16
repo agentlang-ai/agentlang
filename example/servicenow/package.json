@@ -1,4 +1,7 @@
 {
     "name": "servicenow",
-    "version": "0.0.1"
+    "version": "0.0.1",
+    "dependencies": {
+        "agentlang": "0.0.3"
+    }
 }

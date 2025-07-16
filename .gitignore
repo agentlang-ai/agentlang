@@ -151,3 +151,4 @@ dist
 
 generated/
 db*
+example/blog/package-lock.json

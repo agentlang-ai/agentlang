@@ -128,9 +128,8 @@ export async function extractDocument(
     );
 
     for (const validationError of validationErrors) {
-      const errorMsg = `line ${validationError.range.start.line + 1}: ${
-        validationError.message
-      } [${document.textDocument.getText(validationError.range)}]`;
+      const errorMsg = `line ${validationError.range.start.line + 1}: ${validationError.message
+        } [${document.textDocument.getText(validationError.range)}]`;
       if (isNodeEnv && chalk) {
         console.error(chalk.red(errorMsg));
       } else {
@@ -162,12 +161,10 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
 
-  const appJsonFile = `${appDir}${path.sep}package.json`;
-  const s: string = await fs.readFile(appJsonFile);
-  const appSpec: ApplicationSpec = JSON.parse(s);
   const alFiles: Array<string> = new Array<string>();
   const directoryContents = await fs.readdir(appDir);
-  let lastModuleLoaded: string = '';
+  let appSpec: ApplicationSpec | undefined
+  let result: string = '';
   async function cont2() {
     if (!directoryContents) {
       console.error(chalk.red(`Directory ${appDir} does not exist or is empty.`));
@@ -179,11 +176,16 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
       }
     });
     for (let i = 0; i < alFiles.length; ++i) {
-      lastModuleLoaded = (await loadModule(alFiles[i], fsOptions)).name;
+      result = (await loadModule(alFiles[i], fsOptions)).name;
     }
     if (callback) await callback(appSpec);
   }
-  if (appSpec.dependencies != undefined) {
+
+  const appJsonFile = `${appDir}${path.sep}package.json`;
+  const s: string = await fs.readFile(appJsonFile);
+  appSpec = JSON.parse(s);
+  result = appSpec.name ? appSpec.name : result
+  if ((!(appDir === '.')) && appSpec.dependencies != undefined) {
     if (isNodeEnv) {
       // Only run shell commands in Node.js environment
       for (const [depName, depVer] of Object.entries(appSpec.dependencies)) {
@@ -197,7 +199,7 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   } else {
     await cont2();
   }
-  return appSpec.name || lastModuleLoaded;
+  return result;
 }
 
 /**
