@@ -815,6 +815,10 @@ export class Entity extends Record {
     this.rbac = rbac;
     return this;
   }
+
+  getRbacSpecifications(): RbacSpecification[] | undefined {
+    return this.rbac;
+  }
 }
 
 export class Event extends Record {

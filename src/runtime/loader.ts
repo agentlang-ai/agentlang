@@ -48,6 +48,7 @@ import {
   findRbacSchema,
   getModuleFn,
   importModule,
+  makeFqName,
   maybeExtends,
   registerInitFunction,
   runShellCommand,
@@ -306,7 +307,7 @@ function getFsAdapter(fs: any) {
 
 function setRbacForEntity(entity: Entity, rbacSpec: RbacSpecDefinition) {
   const rbac: RbacSpecification[] = rbacSpec.specEntries.map((rs: RbacSpecEntries) => {
-    return RbacSpecification.from(rs);
+    return RbacSpecification.from(rs).setResource(makeFqName(entity.moduleName, entity.name));
   });
   if (rbac.length > 0) {
     const f = async () => {
