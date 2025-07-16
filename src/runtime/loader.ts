@@ -3,8 +3,6 @@ import { createAgentlangServices } from '../language/agentlang-module.js';
 import {
   Import,
   RbacSpecEntries,
-  RbacSpecEntry,
-  RbacOpr,
   ModuleDefinition,
   Definition,
   isEntityDefinition,
@@ -308,25 +306,8 @@ function getFsAdapter(fs: any) {
 }
 
 function setRbacForEntity(entity: Entity, rbacSpec: RbacSpecDefinition) {
-  const rbac: RbacSpecification[] = new Array<RbacSpecification>();
-  rbacSpec.specEntries.forEach((specEntries: RbacSpecEntries) => {
-    const rs: RbacSpecification = new RbacSpecification().setResource(
-      makeFqName(entity.moduleName, entity.name)
-    );
-    specEntries.entries.forEach((spec: RbacSpecEntry) => {
-      if (spec.allow) {
-        rs.setPermissions(
-          spec.allow.oprs.map((v: RbacOpr) => {
-            return v.value;
-          })
-        );
-      } else if (spec.role) {
-        rs.setRoles(spec.role.roles);
-      } else if (spec.expr) {
-        rs.setExpression(spec.expr.lhs, spec.expr.rhs);
-      }
-    });
-    rbac.push(rs);
+  const rbac: RbacSpecification[] = rbacSpec.specEntries.map((rs: RbacSpecEntries) => {
+    return RbacSpecification.from(rs).setResource(makeFqName(entity.moduleName, entity.name));
   });
   if (rbac.length > 0) {
     const f = async () => {
