@@ -51,7 +51,7 @@ RbacSpecEntry: role=RbacRolesSpec | allow=RbacAllowSpec | expr=RbacExpressionSpe
 
 RbacSpecEntries: '(' (entries+=RbacSpecEntry (',' entries+=RbacSpecEntry)*)+ ')';
 
-RbacRolesSpec: 'roles' ':' '[' (roles+=ID (',' roles+=ID)*)+ ']';
+RbacRolesSpec: 'roles' ':' '[' (roles+=(ID | '*') (',' roles+=(ID | '*'))*)+ ']';
 
 RbacAllowSpec: 'allow' ':' '[' (oprs+=RbacOpr (',' oprs+=RbacOpr)*)+ ']';
 
