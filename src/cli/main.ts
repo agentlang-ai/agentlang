@@ -97,9 +97,12 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   if (appSpec) startServer(appSpec, config?.service?.port || 8080);
 }
 
-export const runModule = async (fileName?: string, options?: { config?: string }): Promise<void> => {
+export const runModule = async (
+  fileName?: string,
+  options?: { config?: string }
+): Promise<void> => {
   if (fileName == undefined) {
-    fileName = '.'
+    fileName = '.';
   }
   const configDir =
     path.dirname(fileName) === '.' ? process.cwd() : path.resolve(process.cwd(), fileName);
