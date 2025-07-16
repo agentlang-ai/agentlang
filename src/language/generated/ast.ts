@@ -3,7 +3,7 @@
  * DO NOT EDIT MANUALLY!
  ******************************************************************************/
 
- 
+/* eslint-disable */
 import * as langium from 'langium';
 
 export const AgentlangTerminals = {
@@ -773,7 +773,7 @@ export function isRbacOpr(item: unknown): item is RbacOpr {
 export interface RbacRolesSpec extends langium.AstNode {
     readonly $container: RbacSpecEntry;
     readonly $type: 'RbacRolesSpec';
-    roles: Array<string>;
+    roles: Array<'*' | string>;
 }
 
 export const RbacRolesSpec = 'RbacRolesSpec';

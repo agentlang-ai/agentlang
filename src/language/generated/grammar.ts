@@ -1468,11 +1468,20 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "feature": "roles",
                 "operator": "+=",
                 "terminal": {
-                  "$type": "RuleCall",
-                  "rule": {
-                    "$ref": "#/rules@85"
-                  },
-                  "arguments": []
+                  "$type": "Alternatives",
+                  "elements": [
+                    {
+                      "$type": "RuleCall",
+                      "rule": {
+                        "$ref": "#/rules@85"
+                      },
+                      "arguments": []
+                    },
+                    {
+                      "$type": "Keyword",
+                      "value": "*"
+                    }
+                  ]
                 }
               },
               {
@@ -1487,11 +1496,20 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "feature": "roles",
                     "operator": "+=",
                     "terminal": {
-                      "$type": "RuleCall",
-                      "rule": {
-                        "$ref": "#/rules@85"
-                      },
-                      "arguments": []
+                      "$type": "Alternatives",
+                      "elements": [
+                        {
+                          "$type": "RuleCall",
+                          "rule": {
+                            "$ref": "#/rules@85"
+                          },
+                          "arguments": []
+                        },
+                        {
+                          "$type": "Keyword",
+                          "value": "*"
+                        }
+                      ]
                     }
                   }
                 ],

@@ -1,6 +1,6 @@
 import { Result, Environment, makeEventEvaluator } from '../interpreter.js';
 import { logger } from '../logger.js';
-import { Instance, RbacPermissionFlag } from '../module.js';
+import { Instance, makeInstance, newInstanceAttributes, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
@@ -326,11 +326,25 @@ export async function assignUserToRole(
   return r;
 }
 
+let DefaultRoleInstance: Instance | undefined;
+
 export async function findUserRoles(userId: string, env: Environment): Promise<Result> {
   const result: any = await evalEvent('FindUserRoles', { userId: userId }, env);
   const inst: Instance | undefined = result ? (result[0] as Instance) : undefined;
   if (inst) {
-    return inst.getRelatedInstances('UserRole');
+    let roles: Instance[] | undefined = inst.getRelatedInstances('UserRole');
+    if (roles == undefined) {
+      roles = [];
+    }
+    if (DefaultRoleInstance == undefined) {
+      DefaultRoleInstance = makeInstance(
+        CoreAuthModuleName,
+        'Role',
+        newInstanceAttributes().set('name', '*')
+      );
+    }
+    roles.push(DefaultRoleInstance);
+    return roles;
   }
   return undefined;
 }
