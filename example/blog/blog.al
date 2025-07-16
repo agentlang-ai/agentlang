@@ -101,5 +101,5 @@ workflow SearchUser {
     {User? SearchUser.q}
 }
 
-//upsert {agentlang_auth/User {email "abc@cc.com", firstName "A", lastName "BC"}}
+//{agentlang_auth/User {email "abc@cc.com", firstName "A", lastName "BC"}, @upsert}
 //{agentlang_auth/AssignUserToRoleByEmail {email "abc@cc.com", roleName "manager"}}
