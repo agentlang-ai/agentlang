@@ -73,7 +73,7 @@ entity Permission {
 relationship RolePermission between(Role, Permission)
 
 workflow CreateRole {
-    upsert {Role {name CreateRole.name}}
+    {Role {name CreateRole.name}, @upsert}
 }
 
 workflow FindRole {
@@ -84,13 +84,13 @@ workflow FindRole {
 workflow AssignUserToRole {
     {User {id? AssignUserToRole.userId}} as [user];
     {Role {name? AssignUserToRole.roleName}} as [role];
-    upsert {UserRole {User user, Role role}}
+    {UserRole {User user, Role role}, @upsert}
 }
 
 workflow AssignUserToRoleByEmail {
     {User {email? AssignUserToRoleByEmail.email}} as [user];
     {Role {name? AssignUserToRoleByEmail.roleName}} as [role];
-    upsert {UserRole {User user, Role role}}
+    {UserRole {User user, Role role}, @upsert}
 }
 
 workflow FindUserRoles {
@@ -99,19 +99,20 @@ workflow FindUserRoles {
 }
 
 workflow CreatePermission {
-     upsert {Permission {id CreatePermission.id,
-                         resourceFqName CreatePermission.resourceFqName,
-                         c CreatePermission.c,
-                         r CreatePermission.r,
-                         u CreatePermission.u,
-                         d CreatePermission.d},
-             RolePermission {Role {name? CreatePermission.roleName}}}
+     {Permission {id CreatePermission.id,
+                  resourceFqName CreatePermission.resourceFqName,
+                  c CreatePermission.c,
+                  r CreatePermission.r,
+                  u CreatePermission.u,
+                  d CreatePermission.d},
+      RolePermission {Role {name? CreatePermission.roleName}},
+      @upsert}
 }
 
 workflow AddPermissionToRole {
     {Role {name? AddPermissionToRole.roleName}} as role;
     {Permission {id? AddPermissionToRole.permissionId}} as perm;
-    upsert {RolePermission {Role role, Permission perm}}
+    {RolePermission {Role role, Permission perm}, @upsert}
 }
 
 workflow FindRolePermissions {

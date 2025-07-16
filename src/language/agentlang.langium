@@ -19,7 +19,8 @@ KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 RecordSchemaDefinition: '{''}' | '{' (attributes+=AttributeDefinition (',' attributes+=AttributeDefinition)*)+
 (',' extras+=RecordExtraDefinition (',' extras+=RecordExtraDefinition)*)? '}';
 
-RecordExtraDefinition: rbacSpec=RbacSpecDefinition | meta=MetaDefinition | prePost=PrePostTriggerDefinition | uq=CompositeUniqueDefinition;
+RecordExtraDefinition: rbacSpec=RbacSpecDefinition | meta=MetaDefinition | prePost=PrePostTriggerDefinition 
+| uq=CompositeUniqueDefinition | actions=EntityActionsDefinitions;
 
 fragment RecDef: name=ID extends=ExtendsClause? schema=RecordSchemaDefinition;
 
@@ -71,6 +72,10 @@ TriggerEntry: on=('create' | 'delete' | 'update') event=ID async='@async'?;
 
 CompositeUniqueDefinition: '@with_unique' '(' attrs+=ID (',' attrs+=ID)* ')';
 
+EntityActionsDefinitions: '@actions' (entries+=ActionEntry (',' entries+=ActionEntry)*)+;
+
+ActionEntry: name=ID event=ID;
+
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 
 MapLiteral: '{' entries+=MapEntry (',' entries+=MapEntry)* '}';
@@ -90,7 +95,7 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 WorkflowDefinition: 'workflow' name=ID Body;
 
 Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
-| upsert=Upsert | fullTextSearch=FullTextSearch;
+| fullTextSearch=FullTextSearch;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 
@@ -100,7 +105,9 @@ AliasSpec: ('as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
 
 CrudMap: '{' (name=QueryId '{''}' | name=ID body=CrudMapBody)
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? 
-             (',' into=SelectIntoSpec)? '}';
+             (',' into=SelectIntoSpec)? 
+             (',' upsert='@upsert')?
+             '}';
 
 CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}';
 
@@ -136,8 +143,6 @@ ForEach: 'for' var=ID 'in' src=Pattern Body;
 Delete: 'delete' pattern=Pattern;
 
 Purge: 'purge' pattern=Pattern;
-
-Upsert: 'upsert' pattern=CrudMap;
 
 SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')? value=AttributeValueExpression;
 

@@ -45,7 +45,7 @@ workflow findAgentChatSession {
 }
 
 workflow saveAgentChatSession {
-  upsert {agentChatSession {id saveAgentChatSession.id, messages saveAgentChatSession.messages}}
+  {agentChatSession {id saveAgentChatSession.id, messages saveAgentChatSession.messages}, @upsert}
 }
 
 entity Document {
