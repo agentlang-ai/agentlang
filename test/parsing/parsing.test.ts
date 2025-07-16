@@ -204,3 +204,23 @@ agent Agent2
 }`)
   })
 })
+
+describe('Rbac toString test', () => {
+  test('Code generation for rbac', async () => {
+    await doInternModule('RbacToStr', `
+      entity E {
+        name String @id,
+        @rbac [(roles: [manager], allow: [create]),
+           (allow: [read], where: auth.user = this.id)]
+      }`)
+      const str = fetchModule('RbacToStr').toString()
+      assert(str == `module RbacToStr
+
+entity E
+{
+    name String @id 
+    @rbac [(roles: [manager], allow: [create]),
+(where: auth.user = this.id, allow: [read])]}
+`)
+    })
+  })
