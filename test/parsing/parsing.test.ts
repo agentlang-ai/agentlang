@@ -138,15 +138,16 @@ describe('Module toString tests', () => {
       `)
     const m = fetchModule('MtoStr')
     m.addAgent(new Agent('agent01', 'MtoStr'))
-    assert(m.toString() == `module MtoStr
+    const str = m.toString()
+    assert(str == `module MtoStr
 
 entity E
-{ 
+{
     name String @id 
 }
 
 entity F
-{ 
+{
     Id UUID @default(uuid())  @id 
 }
 
@@ -182,12 +183,12 @@ describe('Agent toString test', () => {
     assert(str === `module AtoStr
 
 entity E
-{ 
+{
     name String @id 
 }
 
 entity F
-{ 
+{
     Id UUID @default(uuid())  @id 
 }
 

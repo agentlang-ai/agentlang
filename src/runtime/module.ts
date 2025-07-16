@@ -16,6 +16,11 @@ import {
   PrePostTriggerDefinition,
   TriggerEntry,
   Expr,
+  RecordExtraDefinition,
+  RbacSpecDefinition,
+  RbacSpecEntry,
+  RbacSpecEntries,
+  RbacOpr,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -97,7 +102,7 @@ function recordSchemaToString(scm: RecordSchema): string {
       ss.push(`    ${n} ${attributeSpecToString(attrSpec)}`);
     }
   });
-  return `{ \n${ss.join(',\n')} \n}`;
+  return `\n${ss.join(',\n')} \n`;
 }
 
 function attributeSpecToString(attrSpec: AttributeSpec): string {
@@ -182,6 +187,7 @@ export class Record extends ModuleEntry {
   beforeTriggers: Map<CrudType, TriggerInfo> | undefined;
   compositeUqAttributes: Array<string> | undefined;
   oneOfRefAttributes: Array<string> | undefined;
+  protected rbac: RbacSpecification[] | undefined;
 
   constructor(
     name: string,
@@ -275,6 +281,7 @@ export class Record extends ModuleEntry {
         }
       });
     }
+    this.rbac = findAllRbacSpecs(scm)
     this.compositeUqAttributes = findUqCompositeAttributes(scm);
   }
 
@@ -414,8 +421,14 @@ export class Record extends ModuleEntry {
     if (this.parentEntryName) {
       s = s.concat(` extends ${this.parentEntryName}`);
     }
-    const scms = recordSchemaToString(this.schema);
-    return s.concat('\n', scms, '\n');
+    let scms = recordSchemaToString(this.schema);
+    if (this.rbac && this.rbac.length > 0) {
+      const rbs = this.rbac.map((rs: RbacSpecification) => {
+        return rs.toString()
+      })
+      scms = `${scms}\n@rbac [${rbs.join(',\n')}]`
+    }
+    return s.concat('\n{', scms, '}\n');
   }
 
   getUserAttributes(): RecordSchema {
@@ -453,6 +466,26 @@ function fetchModuleByEntryName(
     entryName: entryName,
     moduleName: suspectModuleName,
   };
+}
+
+function findAllRbacSpecs(
+  scm: RecordSchemaDefinition | undefined
+): RbacSpecification[] | undefined {
+  if (scm && scm.extras) {
+    let result: RbacSpecification[] | undefined;
+    for (let i = 0; i < scm.extras.length; ++i) {
+      const rex: RecordExtraDefinition = scm.extras[i];
+      if (rex.rbacSpec) {
+        if (result == undefined) {
+          result = new Array<RbacSpecification>();
+        }
+        const spec = RbacSpecification.from(rex.rbacSpec)
+        result.push(spec);
+      }
+    }
+    return result;
+  }
+  return undefined;
 }
 
 function cloneParentSchema(parentName: string, currentModuleName: string): RecordSchema {
@@ -563,6 +596,24 @@ export class RbacSpecification {
     this.permissions = new Set();
   }
 
+  static from(def: RbacSpecDefinition): RbacSpecification {
+    const result = new RbacSpecification
+    def.specEntries.forEach((ses: RbacSpecEntries) => {
+      ses.entries.forEach((se: RbacSpecEntry) => {
+        if (se.role) {
+        result.setRoles(se.role.roles)
+        } else if (se.allow) {
+          result.setPermissions(se.allow.oprs.map((opr: RbacOpr) => {
+            return opr.value
+          }))
+        } else if (se.expr) {
+          result.setExpression(se.expr.lhs, se.expr.rhs)
+        }
+      })
+    })
+    return result
+  }
+
   setResource(s: string): RbacSpecification {
     this.resource = s;
     return this;
@@ -624,6 +675,24 @@ export class RbacSpecification {
       rhs: rhs,
     };
     return this;
+  }
+
+  toString(): string {
+    const rs = new Array<string>()
+    this.roles.forEach((r: string) => {
+      rs.push(r)
+    })
+    let cond = ''
+    if (this.expression) {
+     cond = `where: ${this.expression.rhs} = ${this.expression.lhs}`
+    } else {
+      const perms = new Array<string>()
+      this.permissions.forEach((p: RbacPermissionFlag) => {
+        perms.push(RbacPermissionFlag[p].toLowerCase())
+      })
+      cond = `allow: [${perms.join(',')}]`
+    }
+    return `(roles: [${rs.join(',')}], ${cond})`
   }
 }
 
@@ -747,7 +816,6 @@ ${attrs.join(',\n')}
 
 export class Entity extends Record {
   override type: RecordType = RecordType.ENTITY;
-  rbac: RbacSpecification[] | undefined;
 
   constructor(
     name: string,
