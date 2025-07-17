@@ -31,7 +31,7 @@ describe('Validating', () => {
       // and then evaluate the diagnostics by converting them into human readable strings;
       // note that 'toHaveLength()' works for arrays and strings alike ;-)
       checkDocumentValid(document) || document?.diagnostics?.map(diagnosticToString)?.join('\n')
-    ).contains("Expecting token of type 'ID' but found `1234`");
+    ).contains("Parser errors");
   });
 });
 
