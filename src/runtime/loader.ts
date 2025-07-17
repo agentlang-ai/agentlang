@@ -48,6 +48,7 @@ import {
   findRbacSchema,
   getModuleFn,
   importModule,
+  isString,
   makeFqName,
   maybeExtends,
   registerInitFunction,
@@ -66,6 +67,7 @@ import { createPermission, createRole } from './modules/auth.js';
 import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver, setSubscription } from './resolvers/registry.js';
+import { ConfigSchema } from './state.js';
 
 export async function extractDocument(
   fileName: string,
@@ -541,4 +543,37 @@ export async function internModule(module: ModuleDefinition): Promise<Module> {
     await addFromDef(def, mn);
   }
   return r;
+}
+
+const JS_PREFIX = '#js';
+
+function preprocessRawConfig(rawConfig: any): any {
+  const keys = Object.keys(rawConfig);
+  keys.forEach((k: any) => {
+    const v = rawConfig[k];
+    if (isString(v) && v.startsWith(JS_PREFIX)) {
+      const s = v.substring(3).trim();
+      rawConfig[k] = eval(s);
+    } else if (typeof v == 'object') {
+      preprocessRawConfig(v);
+    }
+  });
+  return rawConfig;
+}
+
+export async function loadRawConfig(
+  configFileName: string,
+  validate: boolean = true,
+  fsOptions?: any
+): Promise<any> {
+  const fs = await getFileSystem(fsOptions);
+  let rawConfig = preprocessRawConfig(JSON.parse(await fs.readFile(configFileName)));
+  if (validate) {
+    rawConfig = ConfigSchema.parse(rawConfig);
+  }
+  return rawConfig;
+}
+
+export function generateRawConfig(configObj: any): string {
+  return JSON.stringify(configObj);
 }

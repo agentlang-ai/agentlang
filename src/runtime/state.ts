@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { loadConfig } from 'c12';
 
 // Config validation schema
 export const ConfigSchema = z.object({
@@ -39,13 +38,17 @@ export const ConfigSchema = z.object({
       enabled: z.boolean().default(false),
     })
     .optional(),
-  rbac: z.object({
-    enabled: z.boolean().default(false),
-    roles: z.array(z.string()).optional(),
-  }),
-  auth: z.object({
-    enabled: z.boolean().default(false),
-  }),
+  rbac: z
+    .object({
+      enabled: z.boolean().default(false),
+      roles: z.array(z.string()).optional(),
+    })
+    .optional(),
+  auth: z
+    .object({
+      enabled: z.boolean().default(false),
+    })
+    .optional(),
   auditTrail: z
     .object({
       enabled: z.boolean().default(false),
@@ -91,17 +94,4 @@ export let AppConfig: Config | undefined;
 export function setAppConfig(config: Config): Config {
   AppConfig = config;
   return AppConfig;
-}
-
-export async function loadRawConfig(configFileName: string): Promise<any> {
-  const { config: rawConfig } = await loadConfig({
-    name: 'config',
-    configFile: configFileName,
-    dotenv: true,
-  });
-  return ConfigSchema.parse(rawConfig);
-}
-
-export function generateRawConfig(configObj: any): string {
-  return `export default ${JSON.stringify(configObj)}`;
 }
