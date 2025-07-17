@@ -4,7 +4,7 @@ import { AppConfig } from '../state.js';
 export const AdminUserId = '00000000-0000-0000-0000-000000000000';
 
 export function isAuthEnabled(): boolean {
-  if (AppConfig && AppConfig.auth.enabled == true) {
+  if (AppConfig?.auth?.enabled == true) {
     return true;
   } else {
     return false;
@@ -14,7 +14,7 @@ export function isAuthEnabled(): boolean {
 export let InternalRbacEnabled = false;
 
 export function isRbacEnabled(): boolean {
-  return InternalRbacEnabled || (isAuthEnabled() && AppConfig?.rbac.enabled == true);
+  return InternalRbacEnabled || (isAuthEnabled() && AppConfig?.rbac?.enabled == true);
 }
 
 export async function callWithRbac(f: Function): Promise<void> {
