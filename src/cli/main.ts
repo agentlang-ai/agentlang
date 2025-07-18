@@ -7,6 +7,7 @@ import {
   internModule,
   load,
   loadCoreModules,
+  loadRawConfig,
   runStandaloneStatements,
 } from '../runtime/loader.js';
 import { NodeFileSystem } from 'langium/node';
@@ -21,8 +22,7 @@ import { runInitFunctions } from '../runtime/util.js';
 import { Module } from '../runtime/module.js';
 import { ModuleDefinition } from '../language/generated/ast.js';
 import { z } from 'zod';
-import { loadConfig } from 'c12';
-import { Config, ConfigSchema, setAppConfig } from '../runtime/state.js';
+import { Config, setAppConfig } from '../runtime/state.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -97,27 +97,15 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   if (appSpec) startServer(appSpec, config?.service?.port || 8080);
 }
 
-export const runModule = async (
-  fileName?: string,
-  options?: { config?: string }
-): Promise<void> => {
-  if (fileName == undefined) {
-    fileName = '.';
-  }
+export const runModule = async (fileName: string): Promise<void> => {
   const configDir =
     path.dirname(fileName) === '.' ? process.cwd() : path.resolve(process.cwd(), fileName);
 
   let config: Config | undefined;
 
   try {
-    const { config: rawConfig } = await loadConfig({
-      cwd: configDir,
-      name: 'config',
-      configFile: options?.config || 'app.config',
-      dotenv: true,
-    });
-
-    config = setAppConfig(ConfigSchema.parse(rawConfig));
+    const cfg = await loadRawConfig(`${configDir}/app.config.json`);
+    config = setAppConfig(cfg);
   } catch (err) {
     if (err instanceof z.ZodError) {
       console.log(chalk.red('Config validation failed:'));

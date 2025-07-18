@@ -16,6 +16,9 @@ import {
   PrePostTriggerDefinition,
   TriggerEntry,
   Expr,
+  RbacSpecEntry,
+  RbacSpecEntries,
+  RbacOpr,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -97,7 +100,7 @@ function recordSchemaToString(scm: RecordSchema): string {
       ss.push(`    ${n} ${attributeSpecToString(attrSpec)}`);
     }
   });
-  return `{ \n${ss.join(',\n')} \n}`;
+  return `\n${ss.join(',\n')} \n`;
 }
 
 function attributeSpecToString(attrSpec: AttributeSpec): string {
@@ -182,6 +185,7 @@ export class Record extends ModuleEntry {
   beforeTriggers: Map<CrudType, TriggerInfo> | undefined;
   compositeUqAttributes: Array<string> | undefined;
   oneOfRefAttributes: Array<string> | undefined;
+  protected rbac: RbacSpecification[] | undefined;
 
   constructor(
     name: string,
@@ -414,8 +418,14 @@ export class Record extends ModuleEntry {
     if (this.parentEntryName) {
       s = s.concat(` extends ${this.parentEntryName}`);
     }
-    const scms = recordSchemaToString(this.schema);
-    return s.concat('\n', scms, '\n');
+    let scms = recordSchemaToString(this.schema);
+    if (this.rbac && this.rbac.length > 0) {
+      const rbs = this.rbac.map((rs: RbacSpecification) => {
+        return rs.toString();
+      });
+      scms = `${scms}    @rbac [${rbs.join(',\n')}]`;
+    }
+    return s.concat('\n{', scms, '}\n');
   }
 
   getUserAttributes(): RecordSchema {
@@ -563,6 +573,24 @@ export class RbacSpecification {
     this.permissions = new Set();
   }
 
+  static from(def: RbacSpecEntries): RbacSpecification {
+    const result = new RbacSpecification();
+    def.entries.forEach((se: RbacSpecEntry) => {
+      if (se.role) {
+        result.setRoles(se.role.roles);
+      } else if (se.allow) {
+        result.setPermissions(
+          se.allow.oprs.map((opr: RbacOpr) => {
+            return opr.value;
+          })
+        );
+      } else if (se.expr) {
+        result.setExpression(se.expr.lhs, se.expr.rhs);
+      }
+    });
+    return result;
+  }
+
   setResource(s: string): RbacSpecification {
     this.resource = s;
     return this;
@@ -624,6 +652,24 @@ export class RbacSpecification {
       rhs: rhs,
     };
     return this;
+  }
+
+  toString(): string {
+    const rs = new Array<string>();
+    this.roles.forEach((r: string) => {
+      rs.push(r);
+    });
+    let cond = '';
+    if (this.expression) {
+      cond = `where: ${this.expression.lhs} = ${this.expression.rhs}`;
+    } else {
+      cond = `roles: [${rs.join(',')}]`;
+    }
+    const perms = new Array<string>();
+    this.permissions.forEach((p: RbacPermissionFlag) => {
+      perms.push(RbacPermissionFlag[p].toLowerCase());
+    });
+    return `(${cond}, allow: [${perms.join(',')}])`;
   }
 }
 
@@ -747,7 +793,6 @@ ${attrs.join(',\n')}
 
 export class Entity extends Record {
   override type: RecordType = RecordType.ENTITY;
-  rbac: RbacSpecification[] | undefined;
 
   constructor(
     name: string,
@@ -769,6 +814,10 @@ export class Entity extends Record {
   setRbacSpecifications(rbac: RbacSpecification[]): Entity {
     this.rbac = rbac;
     return this;
+  }
+
+  getRbacSpecifications(): RbacSpecification[] | undefined {
+    return this.rbac;
   }
 }
 
