@@ -1,4 +1,4 @@
-module Blog
+module Blog_Core
 
 // Ref: https://www.prisma.io/docs/orm/prisma-schema/data-model/relations
 
@@ -19,7 +19,7 @@ entity User {
     @meta {"fullTextSearch": "*"}
 }
 
-relationship UserProfile between (Blog/User, Blog/Profile) @one_one
+relationship UserProfile between (Blog_Core/User, Blog_Core/Profile) @one_one
 
 entity Post {
     id UUID @id @default(uuid()),
@@ -88,9 +88,9 @@ workflow FindUserProfileAndPosts {
     {User {id? FindUserProfileAndPosts.userId},
      UserProfile {Profile? {}},
      UserPost {Post? {}},
-     into {userName Blog/User.name,
-           userEmail Blog/Profile.email,
-           postTitle Blog/Post.title}}
+     into {userName Blog_Core/User.name,
+           userEmail Blog_Core/Profile.email,
+           postTitle Blog_Core/Post.title}}
 }
 
 workflow UpdateUserName {
@@ -101,5 +101,5 @@ workflow SearchUser {
     {User? SearchUser.q}
 }
 
-//upsert {agentlang_auth/User {email "abc@cc.com", firstName "A", lastName "BC"}}
+//{agentlang_auth/User {email "abc@cc.com", firstName "A", lastName "BC"}, @upsert}
 //{agentlang_auth/AssignUserToRoleByEmail {email "abc@cc.com", roleName "manager"}}

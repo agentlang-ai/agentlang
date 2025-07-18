@@ -3,8 +3,6 @@ import { createAgentlangServices } from '../language/agentlang-module.js';
 import {
   Import,
   RbacSpecEntries,
-  RbacSpecEntry,
-  RbacOpr,
   ModuleDefinition,
   Definition,
   isEntityDefinition,
@@ -23,6 +21,9 @@ import {
   AgentDefinition,
   SetAttribute,
   isLiteral,
+  isResolverDefinition,
+  ResolverDefinition,
+  ResolverMethodSpec,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -45,7 +46,9 @@ import {
 } from './module.js';
 import {
   findRbacSchema,
+  getModuleFn,
   importModule,
+  isString,
   makeFqName,
   maybeExtends,
   registerInitFunction,
@@ -62,6 +65,9 @@ import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
 import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
+import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
+import { registerResolver, setResolver, setSubscription } from './resolvers/registry.js';
+import { ConfigSchema } from './state.js';
 
 export async function extractDocument(
   fileName: string,
@@ -302,25 +308,8 @@ function getFsAdapter(fs: any) {
 }
 
 function setRbacForEntity(entity: Entity, rbacSpec: RbacSpecDefinition) {
-  const rbac: RbacSpecification[] = new Array<RbacSpecification>();
-  rbacSpec.specEntries.forEach((specEntries: RbacSpecEntries) => {
-    const rs: RbacSpecification = new RbacSpecification().setResource(
-      makeFqName(entity.moduleName, entity.name)
-    );
-    specEntries.entries.forEach((spec: RbacSpecEntry) => {
-      if (spec.allow) {
-        rs.setPermissions(
-          spec.allow.oprs.map((v: RbacOpr) => {
-            return v.value;
-          })
-        );
-      } else if (spec.role) {
-        rs.setRoles(spec.role.roles);
-      } else if (spec.expr) {
-        rs.setExpression(spec.expr.lhs, spec.expr.rhs);
-      }
-    });
-    rbac.push(rs);
+  const rbac: RbacSpecification[] = rbacSpec.specEntries.map((rs: RbacSpecEntries) => {
+    return RbacSpecification.from(rs).setResource(makeFqName(entity.moduleName, entity.name));
   });
   if (rbac.length > 0) {
     const f = async () => {
@@ -424,10 +413,11 @@ export async function runStandaloneStatements() {
 async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   let llmName: string | undefined = undefined;
   const name = def.name;
+  let hasUserLlm = false;
   const attrsStrs = new Array<string>();
   attrsStrs.push(`name "${name}"`);
   const attrs = newInstanceAttributes();
-  def.body.attributes.forEach((sa: SetAttribute) => {
+  def.body?.attributes.forEach((sa: SetAttribute) => {
     let v: any = undefined;
     if (isLiteral(sa.value)) {
       v = sa.value.str || sa.value.id || sa.value.num;
@@ -440,24 +430,81 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     }
     if (llmName == undefined && sa.name == 'llm') {
       llmName = v;
+      hasUserLlm = true;
     }
+    const ov = v;
     if (isLiteral(sa.value) && (sa.value.str || sa.value.id)) {
       v = `"${v}"`;
     }
     attrsStrs.push(`${sa.name} ${v}`);
-    attrs.set(sa.name, v);
+    attrs.set(sa.name, ov);
   });
+  if (!attrs.has('llm')) {
+    llmName = `${name}_llm`;
+    attrsStrs.push(`llm "${llmName}"`);
+    if (hasUserLlm) attrs.set('llm', llmName);
+  }
   const createAgent = `{${CoreAIModuleName}/${AgentEntityName} {
     ${attrsStrs.join(',')}
-  }}`;
+  }, @upsert}`;
   let wf = createAgent;
   if (llmName) {
-    wf = `upsert {${CoreAIModuleName}/${LlmEntityName} {name "${llmName}"}}; ${wf}`;
+    wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}"}, @upsert}; ${wf}`;
   }
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
     addStandaloneStatement(stmt, moduleName);
   });
   addAgent(def.name, attrs, moduleName);
+}
+
+function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
+  const resolverName = `${moduleName}/${def.name}`;
+  const paths = def.paths;
+  if (paths.length == 0) {
+    logger.warn(`Resolver has no associated paths - ${resolverName}`);
+    return;
+  }
+  registerInitFunction(() => {
+    const methods = new Map<string, Function>();
+    let subsFn: Function | undefined;
+    let subsEvent: string | undefined;
+    def.methods.forEach((spec: ResolverMethodSpec) => {
+      const n = spec.key.name;
+      if (n == 'subscribe') {
+        subsFn = asResolverFn(spec.fn.name);
+      } else if (n == 'onSubscription') {
+        subsEvent = spec.fn.name;
+      } else {
+        methods.set(n, asResolverFn(spec.fn.name));
+      }
+    });
+    const methodsObj = Object.fromEntries(methods.entries()) as GenericResolverMethods;
+    const resolver = new GenericResolver(resolverName, methodsObj);
+    registerResolver(resolverName, () => {
+      return resolver;
+    });
+    paths.forEach((path: string) => {
+      setResolver(path, resolverName);
+    });
+    if (subsFn && subsEvent) {
+      resolver.subs = {
+        subscribe: subsFn,
+        onSubscriptionEvent: subsEvent,
+      };
+      setSubscription(subsEvent, resolverName);
+      resolver.subscribe();
+    }
+  });
+}
+
+function asResolverFn(fname: string): Function {
+  let fn = getModuleFn(fname);
+  if (fn) return fn;
+  fn = eval(fname);
+  if (!(fn instanceof Function)) {
+    throw new Error(`${fname} is not a function`);
+  }
+  return fn as Function;
 }
 
 export async function addFromDef(def: Definition, moduleName: string) {
@@ -468,6 +515,7 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
   else if (isAgentDefinition(def)) await addAgentDefinition(def, moduleName);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
+  else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {
@@ -495,4 +543,37 @@ export async function internModule(module: ModuleDefinition): Promise<Module> {
     await addFromDef(def, mn);
   }
   return r;
+}
+
+const JS_PREFIX = '#js';
+
+function preprocessRawConfig(rawConfig: any): any {
+  const keys = Object.keys(rawConfig);
+  keys.forEach((k: any) => {
+    const v = rawConfig[k];
+    if (isString(v) && v.startsWith(JS_PREFIX)) {
+      const s = v.substring(3).trim();
+      rawConfig[k] = eval(s);
+    } else if (typeof v == 'object') {
+      preprocessRawConfig(v);
+    }
+  });
+  return rawConfig;
+}
+
+export async function loadRawConfig(
+  configFileName: string,
+  validate: boolean = true,
+  fsOptions?: any
+): Promise<any> {
+  const fs = await getFileSystem(fsOptions);
+  let rawConfig = preprocessRawConfig(JSON.parse(await fs.readFile(configFileName)));
+  if (validate) {
+    rawConfig = ConfigSchema.parse(rawConfig);
+  }
+  return rawConfig;
+}
+
+export function generateRawConfig(configObj: any): string {
+  return JSON.stringify(configObj);
 }

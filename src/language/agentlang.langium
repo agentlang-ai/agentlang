@@ -4,7 +4,8 @@ entry ModuleDefinition: 'module' name=ID (imports+=Import)* (defs+=Definition)*;
 
 Import: 'import' path=STRING 'as' name=ID;
 
-Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement | AgentDefinition;
+Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
+| AgentDefinition | ResolverDefinition ;
 
 StandaloneStatement: stmt=Statement;
 
@@ -18,7 +19,8 @@ KvPairs: pairs+=KvPair | pairs+=KvPair ',' pairs+=KvPair;
 RecordSchemaDefinition: '{''}' | '{' (attributes+=AttributeDefinition (',' attributes+=AttributeDefinition)*)+
 (',' extras+=RecordExtraDefinition (',' extras+=RecordExtraDefinition)*)? '}';
 
-RecordExtraDefinition: rbacSpec=RbacSpecDefinition | meta=MetaDefinition | prePost=PrePostTriggerDefinition | uq=CompositeUniqueDefinition;
+RecordExtraDefinition: rbacSpec=RbacSpecDefinition | meta=MetaDefinition | prePost=PrePostTriggerDefinition 
+| uq=CompositeUniqueDefinition | actions=EntityActionsDefinitions;
 
 fragment RecDef: name=ID extends=ExtendsClause? schema=RecordSchemaDefinition;
 
@@ -50,7 +52,7 @@ RbacSpecEntry: role=RbacRolesSpec | allow=RbacAllowSpec | expr=RbacExpressionSpe
 
 RbacSpecEntries: '(' (entries+=RbacSpecEntry (',' entries+=RbacSpecEntry)*)+ ')';
 
-RbacRolesSpec: 'roles' ':' '[' (roles+=ID (',' roles+=ID)*)+ ']';
+RbacRolesSpec: 'roles' ':' '[' (roles+=(ID | '*') (',' roles+=(ID | '*'))*)+ ']';
 
 RbacAllowSpec: 'allow' ':' '[' (oprs+=RbacOpr (',' oprs+=RbacOpr)*)+ ']';
 
@@ -69,6 +71,10 @@ TriggerDefinition: '{' entries+=TriggerEntry (',' entries+=TriggerEntry)* '}';
 TriggerEntry: on=('create' | 'delete' | 'update') event=ID async='@async'?;
 
 CompositeUniqueDefinition: '@with_unique' '(' attrs+=ID (',' attrs+=ID)* ')';
+
+EntityActionsDefinitions: '@actions' (entries+=ActionEntry (',' entries+=ActionEntry)*)+;
+
+ActionEntry: name=ID event=ID;
 
 ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 
@@ -89,7 +95,7 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 WorkflowDefinition: 'workflow' name=ID Body;
 
 Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
-| upsert=Upsert | fullTextSearch=FullTextSearch;
+| fullTextSearch=FullTextSearch;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 
@@ -99,7 +105,9 @@ AliasSpec: ('as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
 
 CrudMap: '{' (name=QueryId '{''}' | name=ID body=CrudMapBody)
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? 
-             (',' into=SelectIntoSpec)? '}';
+             (',' into=SelectIntoSpec)? 
+             (',' upsert='@upsert')?
+             '}';
 
 CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}';
 
@@ -109,7 +117,16 @@ SelectIntoEntry: alias=ID attribute=Ref;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
-AgentDefinition: 'agent' name=(ID | STRING) body=CrudMapBody;
+AgentDefinition: 'agent' name=(ID | STRING) (body=CrudMapBody? | '{''}');
+
+ResolverDefinition: 'resolver' name=(ID | STRING) '[' (paths+=STRING (',' paths+=STRING)*)+ ']'
+'{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
+
+ResolverMethodSpec: key=ResolverMethodName fn=ResolverFnName;
+
+ResolverFnName: name=(ID | Ref | STRING);
+
+ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe' | 'onSubscription');
 
 RelationshipPattern: name=ID pattern=Pattern;
 
@@ -126,8 +143,6 @@ ForEach: 'for' var=ID 'in' src=Pattern Body;
 Delete: 'delete' pattern=Pattern;
 
 Purge: 'purge' pattern=Pattern;
-
-Upsert: 'upsert' pattern=CrudMap;
 
 SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')? value=AttributeValueExpression;
 
@@ -172,7 +187,7 @@ terminal ID returns string: NAME ('/' NAME)?;
 terminal NAME returns string: /[_a-zA-Z][\w_]*/;
 
 // quoted strings
-terminal STRING returns string: /(["'])((\\{2})*|(.*?[^\\](\\{2})*))\1/;
+terminal STRING returns string:  '"' ( '\\' . | !('\\' | '"' | '\r' | '\n') | '\r'? '\n' )* '"';
 
 // recognize an Integer (but represented via a 'number' type)
 terminal INT returns number: /-?[0-9]+/;

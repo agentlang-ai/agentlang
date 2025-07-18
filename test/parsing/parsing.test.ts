@@ -5,7 +5,8 @@ import { parseHelper } from 'langium/test';
 import { createAgentlangServices } from '../../src/language/agentlang-module.js';
 import { Definition, isModuleDefinition, isStandaloneStatement, ModuleDefinition } from '../../src/language/generated/ast.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
-import { fetchModule } from '../../src/runtime/module.js';
+import { Agent, fetchModule } from '../../src/runtime/module.js';
+import { doInternModule } from '../util.js';
 
 let services: ReturnType<typeof createAgentlangServices>;
 let parse: ReturnType<typeof parseHelper<ModuleDefinition>>;
@@ -124,3 +125,102 @@ describe('Workflow update tests', () => {
 }`)
   })
 })
+
+describe('Module toString tests', () => {
+  test('Code generation from Modules', async () => {
+    await doInternModule('MtoStr', `
+      entity E {
+        name String @id
+      }
+      entity F {
+        Id UUID @default(uuid()) @id
+      }
+      `)
+    const m = fetchModule('MtoStr')
+    m.addAgent(new Agent('agent01', 'MtoStr'))
+    const str = m.toString()
+    assert(str == `module MtoStr
+
+entity E
+{
+    name String @id 
+}
+
+entity F
+{
+    Id UUID @default(uuid())  @id 
+}
+
+agent agent01
+{
+
+}`)
+  })
+})
+
+describe('Agent toString test', () => {
+  test('Code generation for agent', async () => {
+    await doInternModule('AtoStr', `
+      entity E {
+        name String @id
+      }
+      entity F {
+        Id UUID @default(uuid()) @id
+      }
+
+      agent Agent1 {
+        instruction "This Agent will solve higher ordered equation"
+      }
+
+      agent Agent2 {
+        instruction "This Agent will solve any math problem",
+        tools "a,b",
+        llm "agent2_llm"
+      }
+      `)
+    const m = fetchModule('AtoStr')
+    const str = m.toString()
+    assert(str === `module AtoStr
+
+entity E
+{
+    name String @id 
+}
+
+entity F
+{
+    Id UUID @default(uuid())  @id 
+}
+
+agent Agent1
+{
+    instruction "This Agent will solve higher ordered equation"
+}
+agent Agent2
+{
+    instruction "This Agent will solve any math problem",
+    tools "a,b",
+    llm "agent2_llm"
+}`)
+  })
+})
+
+describe('Rbac toString test', () => {
+  test('Code generation for rbac', async () => {
+    await doInternModule('RbacToStr', `
+      entity E {
+        name String @id,
+        @rbac [(roles: [manager], allow: [create]),
+           (allow: [read], where: auth.user = this.id)]
+      }`)
+      const str = fetchModule('RbacToStr').toString()
+      assert(str == `module RbacToStr
+
+entity E
+{
+    name String @id 
+    @rbac [(roles: [manager], allow: [create]),
+(where: auth.user = this.id, allow: [read])]}
+`)
+    })
+  })

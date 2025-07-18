@@ -1,4 +1,4 @@
-import { makeCoreModuleName, makeFqName } from '../util.js';
+import { isFqName, makeCoreModuleName, makeFqName, splitFqName } from '../util.js';
 import { Environment, makeEventEvaluator, parseAndEvaluateStatement } from '../interpreter.js';
 import { fetchModule, Instance, instanceToObject, isModule } from '../module.js';
 import { provider } from '../agents/registry.js';
@@ -45,7 +45,7 @@ workflow findAgentChatSession {
 }
 
 workflow saveAgentChatSession {
-  upsert {agentChatSession {id saveAgentChatSession.id, messages saveAgentChatSession.messages}}
+  {agentChatSession {id saveAgentChatSession.id, messages saveAgentChatSession.messages}, @upsert}
 }
 
 entity Document {
@@ -59,7 +59,7 @@ export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
 const ProviderDb = new Map<string, AgentServiceProvider>();
 
-export class Agent {
+export class AgentInstance {
   llm: string = '';
   name: string = '';
   chatId: string | undefined;
@@ -70,8 +70,8 @@ export class Agent {
 
   private constructor() {}
 
-  static FromInstance(agentInstance: Instance): Agent {
-    return instanceToObject<Agent>(agentInstance, new Agent());
+  static FromInstance(agentInstance: Instance): AgentInstance {
+    return instanceToObject<AgentInstance>(agentInstance, new AgentInstance());
   }
 
   isPlanner(): boolean {
@@ -143,15 +143,36 @@ export class Agent {
 
   private toolsAsString(): string {
     if (this.tools) {
-      return this.tools
-        .split(',')
-        .filter((s: string) => {
-          return isModule(s);
-        })
-        .map((moduleName: string) => {
-          return fetchModule(moduleName).toString();
-        })
-        .join('\n');
+      const tooldefs = new Array<string>();
+      const slimModules = new Map<string, string[]>();
+      this.tools.split(',').forEach((n: string) => {
+        let moduleName: string | undefined;
+        let entryName: string | undefined;
+        if (isFqName(n)) {
+          const parts = splitFqName(n);
+          moduleName = parts.getModuleName();
+          entryName = parts.getEntryName();
+        } else {
+          moduleName = n;
+        }
+        if (isModule(moduleName)) {
+          const m = fetchModule(moduleName);
+          if (entryName) {
+            const hasmod = slimModules.has(moduleName);
+            const defs = hasmod ? slimModules.get(moduleName) : new Array<string>();
+            defs?.push(m.getEntry(entryName).toString());
+            if (!hasmod && defs) {
+              slimModules.set(moduleName, defs);
+            }
+          } else {
+            tooldefs.push(fetchModule(moduleName).toString());
+          }
+        }
+      });
+      slimModules.forEach((defs: string[], modName: string) => {
+        tooldefs.push(`module ${modName}\n${defs.join('\n')}`);
+      });
+      return tooldefs.join('\n');
     } else {
       return '';
     }
@@ -163,11 +184,11 @@ async function parseHelper(stmt: string, env: Environment): Promise<any> {
   return env.getLastResult();
 }
 
-export async function findAgentByName(name: string, env: Environment): Promise<Agent> {
+export async function findAgentByName(name: string, env: Environment): Promise<AgentInstance> {
   const result = await parseHelper(`{${AgentFqName} {name? "${name}"}}`, env);
   if (result instanceof Array && result.length > 0) {
     const agentInstance: Instance = result[0];
-    return Agent.FromInstance(agentInstance);
+    return AgentInstance.FromInstance(agentInstance);
   } else {
     throw new Error(`Failed to fine agent ${name}`);
   }

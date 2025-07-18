@@ -1,10 +1,16 @@
 import { Result, Environment, makeEventEvaluator } from '../interpreter.js';
 import { logger } from '../logger.js';
-import { Instance, RbacPermissionFlag } from '../module.js';
+import { Instance, makeInstance, newInstanceAttributes, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
 import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
-import { ActiveSessionInfo, AdminUserId, BypassSession, isAuthEnabled } from '../auth/defs.js';
+import {
+  ActiveSessionInfo,
+  AdminUserId,
+  BypassSession,
+  isAuthEnabled,
+  isRbacEnabled,
+} from '../auth/defs.js';
 import { isNodeEnv } from '../../utils/runtime.js';
 import { CognitoAuth, getHttpStatusForError } from '../auth/cognito.js';
 import {
@@ -67,7 +73,7 @@ entity Permission {
 relationship RolePermission between(Role, Permission)
 
 workflow CreateRole {
-    upsert {Role {name CreateRole.name}}
+    {Role {name CreateRole.name}, @upsert}
 }
 
 workflow FindRole {
@@ -78,13 +84,13 @@ workflow FindRole {
 workflow AssignUserToRole {
     {User {id? AssignUserToRole.userId}} as [user];
     {Role {name? AssignUserToRole.roleName}} as [role];
-    upsert {UserRole {User user, Role role}}
+    {UserRole {User user, Role role}, @upsert}
 }
 
 workflow AssignUserToRoleByEmail {
     {User {email? AssignUserToRoleByEmail.email}} as [user];
     {Role {name? AssignUserToRoleByEmail.roleName}} as [role];
-    upsert {UserRole {User user, Role role}}
+    {UserRole {User user, Role role}, @upsert}
 }
 
 workflow FindUserRoles {
@@ -93,19 +99,20 @@ workflow FindUserRoles {
 }
 
 workflow CreatePermission {
-     upsert {Permission {id CreatePermission.id,
-                         resourceFqName CreatePermission.resourceFqName,
-                         c CreatePermission.c,
-                         r CreatePermission.r,
-                         u CreatePermission.u,
-                         d CreatePermission.d},
-             RolePermission {Role {name? CreatePermission.roleName}}}
+     {Permission {id CreatePermission.id,
+                  resourceFqName CreatePermission.resourceFqName,
+                  c CreatePermission.c,
+                  r CreatePermission.r,
+                  u CreatePermission.u,
+                  d CreatePermission.d},
+      RolePermission {Role {name? CreatePermission.roleName}},
+      @upsert}
 }
 
 workflow AddPermissionToRole {
     {Role {name? AddPermissionToRole.roleName}} as role;
     {Permission {id? AddPermissionToRole.permissionId}} as perm;
-    upsert {RolePermission {Role role, Permission perm}}
+    {RolePermission {Role role, Permission perm}, @upsert}
 }
 
 workflow FindRolePermissions {
@@ -119,6 +126,7 @@ entity Session {
   authToken String @optional,
   isActive Boolean
 }
+
 
 workflow CreateSession {
   {Session {id CreateSession.id, userId CreateSession.userId,
@@ -138,6 +146,7 @@ workflow FindUserSession {
 workflow RemoveSession {
   purge {Session {id? RemoveSession.id}}
 }
+
 
 workflow signup {
   await Auth.signUpUser(signup.email, signup.password, signup.userData)
@@ -317,11 +326,25 @@ export async function assignUserToRole(
   return r;
 }
 
+let DefaultRoleInstance: Instance | undefined;
+
 export async function findUserRoles(userId: string, env: Environment): Promise<Result> {
   const result: any = await evalEvent('FindUserRoles', { userId: userId }, env);
   const inst: Instance | undefined = result ? (result[0] as Instance) : undefined;
   if (inst) {
-    return inst.getRelatedInstances('UserRole');
+    let roles: Instance[] | undefined = inst.getRelatedInstances('UserRole');
+    if (roles == undefined) {
+      roles = [];
+    }
+    if (DefaultRoleInstance == undefined) {
+      DefaultRoleInstance = makeInstance(
+        CoreAuthModuleName,
+        'Role',
+        newInstanceAttributes().set('name', '*')
+      );
+    }
+    roles.push(DefaultRoleInstance);
+    return roles;
   }
   return undefined;
 }
@@ -363,7 +386,7 @@ export async function userHasPermissions(
   perms: Set<RbacPermissionFlag>,
   env: Environment
 ): Promise<boolean> {
-  if (userId == AdminUserId) {
+  if (userId == AdminUserId || !isRbacEnabled()) {
     return true;
   }
   let userRoles: string[] | undefined = UserRoleCache.get(userId);
@@ -507,6 +530,85 @@ export async function loginUser(
 
 export async function verifySession(token: string, env?: Environment): Promise<ActiveSessionInfo> {
   if (!isAuthEnabled()) return BypassSession;
+
+  // Check if token is a JWT (Cognito ID token) or userId/sessionId format
+  if (isJwtToken(token)) {
+    return await verifyJwtToken(token, env);
+  } else {
+    return await verifySessionToken(token, env);
+  }
+}
+
+function isJwtToken(token: string): boolean {
+  // Simple JWT structure check - JWT tokens have 3 parts separated by dots
+  return !!(token && typeof token === 'string' && token.split('.').length === 3);
+}
+
+async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveSessionInfo> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    try {
+      // Validate JWT structure first
+      if (!isJwtToken(token)) {
+        throw new UnauthorisedError('Invalid JWT token structure');
+      }
+
+      // Verify the JWT token directly with Cognito
+      await fetchAuthImpl().verifyToken(token, env);
+
+      // Extract user information from JWT payload
+      const parts = token.split('.');
+      const payload = JSON.parse(atob(parts[1]));
+
+      // Extract user ID from standard JWT claims (sub or cognito:username)
+      const userId = payload.sub || payload['cognito:username'];
+      const email = payload.email || payload['cognito:username'];
+
+      if (!userId) {
+        throw new UnauthorisedError('Invalid JWT token: missing user identifier');
+      }
+
+      let localUser = null;
+      if (email) {
+        localUser = await findUserByEmail(email, env);
+      }
+
+      if (!localUser && userId) {
+        localUser = await findUser(userId, env);
+      }
+
+      if (!localUser) {
+        logger.warn(
+          `User not found in local database for JWT token. Email: ${email}, UserId: ${userId}`
+        );
+        throw new UnauthorisedError(`User not found in local database`);
+      }
+
+      // Use the local user's ID for consistency
+      const localUserId = localUser.lookup('id');
+
+      // For JWT tokens, we use the token itself as sessionId for tracking
+      return { sessionId: token.substring(0, 32), userId: localUserId };
+    } catch (err: any) {
+      if (err instanceof UnauthorisedError) {
+        throw err;
+      }
+      logger.error(`JWT token verification failed:`, {
+        errorName: err.name,
+        errorMessage: err.message,
+      });
+      throw new UnauthorisedError('JWT token verification failed');
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
+async function verifySessionToken(token: string, env?: Environment): Promise<ActiveSessionInfo> {
   const parts = token.split('/');
   const sessId = parts[1];
   const needCommit = env ? false : true;

@@ -35,6 +35,8 @@
     "repl": "deno task repl",
     "run": "deno task run",
     "test": "vitest run",
+    "test:verbose": "VITEST_VERBOSE=true vitest run",
+    "test:debug": "DEBUG=true vitest run",
     "test:deno": "deno test -A scripts/"
   },
   "dependencies": {
@@ -50,7 +52,6 @@
     "amazon-cognito-identity-js": "^6.3.15",
     "aws-jwt-verify": "^5.1.0",
     "buffer": "^6.0.3",
-    "c12": "^3.0.4",
     "chalk": "~5.3.0",
     "commander": "~11.0.0",
     "dotenv": "^16.5.0",
@@ -153,5 +154,6 @@
     "*.{json,md,yml,yaml}": [
       "prettier --write"
     ]
-  }
+  },
+  "packageManager": "pnpm@10.13.1+sha512.37ebf1a5c7a30d5fabe0c5df44ee8da4c965ca0c5af3dbab28c3a1681b70a256218d05c81c9c0dcf767ef6b8551eb5b960042b9ed4300c59242336377e01cfad"
 }

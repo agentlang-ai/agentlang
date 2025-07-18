@@ -3,10 +3,44 @@ import { provider } from "../../src/runtime/agents/registry.js"
 import { AgentServiceProvider, AIResponse, humanMessage, systemMessage } from "../../src/runtime/agents/provider.js"
 import { doInternModule } from "../util.js"
 import { parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
-import { Instance, isInstanceOfType } from "../../src/runtime/module.js"
+import { Agent, fetchModule, Instance, isInstanceOfType, newInstanceAttributes } from "../../src/runtime/module.js"
 import { WorkflowDefinition } from "../../src/language/generated/ast.js"
 import { parseWorkflow } from "../../src/language/parser.js"
 import { addWorkflowFromDef } from "../../src/runtime/loader.js"
+
+describe('Agent API', () => {
+  test('Test Agent APIs for modules', async () => {
+    await doInternModule('AAPI', `entity E {id Int @id}`)
+    const m = fetchModule('AAPI')
+    const ae01 = new Agent('agent01', m.name, newInstanceAttributes().set('llm', 'llm01').set('tools', 'X, Y'))
+    m.addAgent(ae01)
+    const ae02 = new Agent('agent02', m.name, newInstanceAttributes().set('llm', 'llm02'))
+    m.addAgent(ae02)
+    let agentNames = m.getAgentNames()
+    assert(agentNames.length == 2)
+    assert(agentNames.find((n: string) => { return n == 'agent01' }))
+    assert(agentNames.find((n: string) => { return n == 'agent02' }))
+    m.removeAgent('agent01')
+    agentNames = m.getAgentNames()
+    assert(agentNames.length == 1)
+    assert(agentNames[0] == 'agent02')
+    const ae = m.getAgent('agent02')
+    ae?.attributes.set('tools', 'A, B')
+    const str = m.toString()
+    assert(str == `module AAPI
+
+entity E
+{
+    id Int @id 
+}
+
+agent agent02
+{
+    llm "llm02",
+    tools "A, B"
+}`)
+  })
+})
 
 if (process.env.AL_TEST) {
 
@@ -81,7 +115,6 @@ if (process.env.AL_TEST) {
       chk(r[0], p)
     })
   })
-
 } else {
   describe('Skipping agent tests', () => {
     test('Skipping agent tests', async () => {

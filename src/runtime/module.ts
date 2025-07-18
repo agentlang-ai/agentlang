@@ -16,6 +16,9 @@ import {
   PrePostTriggerDefinition,
   TriggerEntry,
   Expr,
+  RbacSpecEntry,
+  RbacSpecEntries,
+  RbacOpr,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -98,7 +101,7 @@ function recordSchemaToString(scm: RecordSchema): string {
       ss.push(`    ${n} ${attributeSpecToString(attrSpec)}`);
     }
   });
-  return `{ \n${ss.join(',\n')} \n}`;
+  return `\n${ss.join(',\n')} \n`;
 }
 
 function attributeSpecToString(attrSpec: AttributeSpec): string {
@@ -106,8 +109,8 @@ function attributeSpecToString(attrSpec: AttributeSpec): string {
   if (attrSpec.properties) {
     const ps: Array<string> = [];
     attrSpec.properties.forEach((v: any, k: string) => {
-      if (v == true) ps.push(`@${k}`);
-      else ps.push(`@${k}${v}`);
+      if (v == true) ps.push(` @${k}`);
+      else ps.push(` @${k}(${v})`);
     });
     s = s.concat(ps.join(' '));
   }
@@ -129,6 +132,7 @@ export enum RecordType {
   ENTITY,
   EVENT,
   RELATIONSHIP,
+  AGENT,
 }
 
 function normalizeMetaValue(metaValue: any): any {
@@ -182,6 +186,7 @@ export class Record extends ModuleEntry {
   beforeTriggers: Map<CrudType, TriggerInfo> | undefined;
   compositeUqAttributes: Array<string> | undefined;
   oneOfRefAttributes: Array<string> | undefined;
+  protected rbac: RbacSpecification[] | undefined;
 
   constructor(
     name: string,
@@ -414,8 +419,14 @@ export class Record extends ModuleEntry {
     if (this.parentEntryName) {
       s = s.concat(` extends ${this.parentEntryName}`);
     }
-    const scms = recordSchemaToString(this.schema);
-    return s.concat('\n', scms, '\n');
+    let scms = recordSchemaToString(this.schema);
+    if (this.rbac && this.rbac.length > 0) {
+      const rbs = this.rbac.map((rs: RbacSpecification) => {
+        return rs.toString();
+      });
+      scms = `${scms}    @rbac [${rbs.join(',\n')}]`;
+    }
+    return s.concat('\n{', scms, '}\n');
   }
 
   getUserAttributes(): RecordSchema {
@@ -563,6 +574,24 @@ export class RbacSpecification {
     this.permissions = new Set();
   }
 
+  static from(def: RbacSpecEntries): RbacSpecification {
+    const result = new RbacSpecification();
+    def.entries.forEach((se: RbacSpecEntry) => {
+      if (se.role) {
+        result.setRoles(se.role.roles);
+      } else if (se.allow) {
+        result.setPermissions(
+          se.allow.oprs.map((opr: RbacOpr) => {
+            return opr.value;
+          })
+        );
+      } else if (se.expr) {
+        result.setExpression(se.expr.lhs, se.expr.rhs);
+      }
+    });
+    return result;
+  }
+
   setResource(s: string): RbacSpecification {
     this.resource = s;
     return this;
@@ -625,20 +654,146 @@ export class RbacSpecification {
     };
     return this;
   }
+
+  toString(): string {
+    const rs = new Array<string>();
+    this.roles.forEach((r: string) => {
+      rs.push(r);
+    });
+    let cond = '';
+    if (this.expression) {
+      cond = `where: ${this.expression.lhs} = ${this.expression.rhs}`;
+    } else {
+      cond = `roles: [${rs.join(',')}]`;
+    }
+    const perms = new Array<string>();
+    this.permissions.forEach((p: RbacPermissionFlag) => {
+      perms.push(RbacPermissionFlag[p].toLowerCase());
+    });
+    return `(${cond}, allow: [${perms.join(',')}])`;
+  }
 }
 
-export class AgentEntry extends ModuleEntry {
+export class Agent extends Record {
+  override type: RecordType = RecordType.AGENT;
   attributes: InstanceAttributes;
 
-  constructor(name: string, moduleName: string, attrs: InstanceAttributes) {
-    super(name, moduleName);
-    this.attributes = attrs;
+  constructor(name: string, moduleName: string, attrs?: InstanceAttributes) {
+    super(Agent.EscapeName(name), moduleName);
+    this.attributes = attrs ? attrs : newInstanceAttributes();
+  }
+
+  setName(n: string): Agent {
+    this.name = Agent.EscapeName(n);
+    return this;
+  }
+
+  setLLM(llm: string): Agent {
+    this.attributes.set('llm', llm);
+    return this;
+  }
+
+  getLLM(): string {
+    return this.attributes.get('llm');
+  }
+
+  private removeAgentAttribute(n: string): Agent {
+    this.attributes.delete(n);
+    return this;
+  }
+
+  removeLLM(): Agent {
+    return this.removeAgentAttribute('llm');
+  }
+
+  setInstruction(s: string): Agent {
+    this.attributes.set('instruction', s);
+    return this;
+  }
+
+  getInstruction(): string {
+    return this.attributes.get('instruction');
+  }
+
+  removeInstruction(): Agent {
+    return this.removeAgentAttribute('instruction');
+  }
+
+  setType(type: 'chat' | 'planner'): Agent {
+    this.attributes.set('type', type);
+    return this;
+  }
+
+  getType(): string {
+    return this.attributes.get('type');
+  }
+
+  removeType(): Agent {
+    return this.removeAgentAttribute('type');
+  }
+
+  setTools(tools: string[]): Agent {
+    this.attributes.set('tools', tools.join(','));
+    return this;
+  }
+
+  getTools(): string {
+    return this.attributes.get('tools');
+  }
+
+  removeTools(): Agent {
+    return this.removeAgentAttribute('tools');
+  }
+
+  setDocuments(docs: string[]): Agent {
+    this.attributes.set('documents', docs.join(','));
+    return this;
+  }
+
+  getDocuments(): string {
+    return this.attributes.get('documents');
+  }
+
+  removeDocuments(): Agent {
+    return this.removeAgentAttribute('documents');
+  }
+
+  override toString(): string {
+    const attrs = new Array<string>();
+    this.attributes.forEach((value: any, key: string) => {
+      const v = isString(value) ? `"${value}"` : value;
+      attrs.push(`    ${key} ${v}`);
+    });
+    return `agent ${Agent.NormalizeName(this.name)}
+{
+${attrs.join(',\n')}
+}`;
+  }
+
+  static Suffix = '__agent';
+
+  static EscapeName(n: string): string {
+    if (n.endsWith(Agent.Suffix)) {
+      return n;
+    }
+    return `${n}${Agent.Suffix}`;
+  }
+
+  static NormalizeName(n: string): string {
+    if (n.endsWith(Agent.Suffix)) {
+      return n.substring(0, n.lastIndexOf(Agent.Suffix));
+    } else {
+      return n;
+    }
+  }
+
+  getName(): string {
+    return Agent.NormalizeName(this.name);
   }
 }
 
 export class Entity extends Record {
   override type: RecordType = RecordType.ENTITY;
-  rbac: RbacSpecification[] | undefined;
 
   constructor(
     name: string,
@@ -660,6 +815,10 @@ export class Entity extends Record {
   setRbacSpecifications(rbac: RbacSpecification[]): Entity {
     this.rbac = rbac;
     return this;
+  }
+
+  getRbacSpecifications(): RbacSpecification[] | undefined {
+    return this.rbac;
   }
 }
 
@@ -1011,7 +1170,6 @@ export function isEmptyWorkflow(wf: Workflow): boolean {
 export class Module {
   name: string;
   entries: ModuleEntry[];
-  agents: Map<string, AgentEntry> | undefined;
   entriesByTypeCache: Map<RecordType, ModuleEntry[]> | null;
 
   constructor(name: string) {
@@ -1026,20 +1184,20 @@ export class Module {
     return entry;
   }
 
-  addAgent(agentEntry: AgentEntry): AgentEntry {
-    if (this.agents == undefined) {
-      this.agents = new Map();
+  addAgent(agentEntry: Agent): Agent {
+    return this.addEntry(agentEntry) as Agent;
+  }
+
+  getAgent(agentName: string): Agent | undefined {
+    const n = Agent.EscapeName(agentName);
+    if (this.hasEntry(n)) {
+      return this.getEntry(n) as Agent;
     }
-    this.agents.set(agentEntry.name, agentEntry);
-    return agentEntry;
+    return undefined;
   }
 
   removeAgent(agentName: string): boolean {
-    if (this.agents) {
-      this.agents.delete(agentName);
-      return true;
-    }
-    return false;
+    return this.removeEntry(Agent.EscapeName(agentName));
   }
 
   private getEntryIndex(entryName: string): number {
@@ -1105,11 +1263,14 @@ export class Module {
     return this.getEntriesOfType(RecordType.RECORD) as Record[];
   }
 
-  getAgentNames(): string[] | undefined {
-    if (this.agents) {
-      return [...this.agents.keys()];
-    }
-    return undefined;
+  getAgents(): Agent[] {
+    return this.getEntriesOfType(RecordType.AGENT) as Agent[];
+  }
+
+  getAgentNames(): string[] {
+    return this.getAgents().map((ae: Agent) => {
+      return Agent.NormalizeName(ae.name);
+    });
   }
 
   getRelationshipEntries(): Relationship[] {
@@ -1216,6 +1377,9 @@ export class Module {
   toString(): string {
     const ss: Array<string> = [];
     this.entries.forEach((me: ModuleEntry) => {
+      if (me instanceof Event && isAgentEvent(me)) {
+        return;
+      }
       ss.push(me.toString());
     });
     return `module ${this.name}\n\n${ss.join('\n')}`;
@@ -1520,9 +1684,9 @@ export function addContainsRelationship(
   return addRelationship(name, 'contains', nodes, moduleName);
 }
 
-export function addAgent(name: string, attrs: InstanceAttributes, moduleName: string): AgentEntry {
+export function addAgent(name: string, attrs: InstanceAttributes, moduleName: string): Agent {
   const m = fetchModule(moduleName);
-  return m.addAgent(new AgentEntry(name, moduleName, attrs)) as AgentEntry;
+  return m.addAgent(new Agent(name, moduleName, attrs)) as Agent;
 }
 
 function asWorkflowName(n: string): string {
@@ -1880,8 +2044,12 @@ export class Instance {
     return this.record.getMeta('audit');
   }
 
-  lookup(k: string): any | undefined {
+  lookup(k: string): any {
     return this.attributes.get(k);
+  }
+
+  lookupQueryVal(k: string): any {
+    return this.queryAttributeValues?.get(k);
   }
 
   getPath(): string {
@@ -2232,9 +2400,13 @@ export function isTimer(eventInst: Instance): boolean {
   return eventInst.getFqName() == 'agentlang/timer';
 }
 
-export function isAgentEvent(eventInst: Instance): boolean {
-  const flag = eventInst.record.getMeta(IsAgentEventMeta);
+export function isAgentEvent(record: Record): boolean {
+  const flag = record.getMeta(IsAgentEventMeta);
   return flag != undefined && flag == 'y';
+}
+
+export function isAgentEventInstance(eventInst: Instance): boolean {
+  return isAgentEvent(eventInst.record);
 }
 
 export function eventAgentName(eventInst: Instance): string | undefined {
