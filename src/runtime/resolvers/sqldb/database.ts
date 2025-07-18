@@ -14,6 +14,7 @@ import {
   InstanceAttributes,
   newInstanceAttributes,
   RbacPermissionFlag,
+  RbacSpecification,
   Relationship,
 } from '../../module.js';
 import pgvector from 'pgvector';
@@ -29,13 +30,15 @@ export class DbContext {
   resourceFqName: string;
   activeEnv: Environment;
   private needAuthCheckFlag: boolean = true;
+  rbacRules: RbacSpecification[] | undefined;
 
   constructor(
     resourceFqName: string,
     authInfo: ResolverAuthInfo,
     activeEnv: Environment,
     txnId?: string,
-    inKernelMode?: boolean
+    inKernelMode?: boolean,
+    rbacRules?: RbacSpecification[]
   ) {
     this.resourceFqName = resourceFqName;
     this.authInfo = authInfo;
@@ -44,6 +47,7 @@ export class DbContext {
     if (inKernelMode != undefined) {
       this.inKernelMode = inKernelMode;
     }
+    this.rbacRules = rbacRules;
   }
   private static GlobalDbContext: DbContext | undefined;
 
@@ -385,8 +389,29 @@ export async function insertRows(
   }
   if (hasPerm) {
     await insertRowsHelper(tableName, rows, ctx, doUpsert);
-    if (!ctx.isInKernelMode() && !doUpsert) {
-      await createOwnership(tableName, rows, ctx);
+    if (!doUpsert) {
+      if (!ctx.isInKernelMode()) {
+        await createOwnership(tableName, rows, ctx);
+      }
+      if (ctx.rbacRules) {
+        for (let i = 0; i < ctx.rbacRules.length; ++i) {
+          const rbacRule = ctx.rbacRules[i];
+          const e = rbacRule.expression;
+          if (e) {
+            const [selfRef, userRef] = e.lhs.startsWith('this.') ? [e.lhs, e.rhs] : [e.rhs, e.lhs];
+            if (userRef == 'auth.user') {
+              const attr = selfRef.split('.')[1];
+              for (let j = 0; j < rows.length; ++j) {
+                const r: any = rows[j];
+                const userId = r[attr];
+                if (userId) {
+                  await createLimitedOwnership(tableName, [r], userId, rbacRule.permissions, ctx);
+                }
+              }
+            }
+          }
+        }
+      }
     }
   } else {
     throw new UnauthorisedError({ opr: 'insert', entity: tableName });
@@ -436,13 +461,33 @@ export async function insertBetweenRow(
 
 const PathKey = PathAttributeName as keyof object;
 
+const AllPerms = new Set<RbacPermissionFlag>()
+  .add(RbacPermissionFlag.CREATE)
+  .add(RbacPermissionFlag.READ)
+  .add(RbacPermissionFlag.UPDATE)
+  .add(RbacPermissionFlag.DELETE);
+
 async function createOwnership(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
+  await createLimitedOwnership(tableName, rows, ctx.authInfo.userId, AllPerms, ctx);
+}
+
+async function createLimitedOwnership(
+  tableName: string,
+  rows: object[],
+  userId: string,
+  perms: Set<RbacPermissionFlag>,
+  ctx: DbContext
+): Promise<void> {
   const ownerRows: object[] = [];
   rows.forEach((r: object) => {
     ownerRows.push({
       id: crypto.randomUUID(),
       path: r[PathKey],
-      user_id: ctx.authInfo.userId,
+      user_id: userId,
+      c: perms.has(RbacPermissionFlag.CREATE),
+      r: perms.has(RbacPermissionFlag.READ),
+      d: perms.has(RbacPermissionFlag.DELETE),
+      u: perms.has(RbacPermissionFlag.UPDATE),
     });
   });
   const tname = ownersTable(tableName);

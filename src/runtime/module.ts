@@ -39,7 +39,6 @@ import {
   isPath,
   findUqCompositeAttributes,
   escapeFqName,
-  areSetsEqual,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -2420,20 +2419,16 @@ export function instanceToObject<Type>(inst: Instance, obj: any): Type {
   return obj as Type;
 }
 
-export function getEntityRbacRule(
-  moduleName: string,
-  entityName: string,
-  perms: Set<RbacPermissionFlag>
-): RbacSpecification | undefined {
-  const entity = getEntity(entityName, moduleName);
-  const result = entity.getRbacSpecifications()?.filter((spec: RbacSpecification) => {
-    return (
-      spec.expression != undefined && areSetsEqual(spec.permissions.intersection(perms), perms)
-    );
-  });
-  if (result && result.length > 0) {
-    return result[0];
-  } else {
-    return undefined;
+export function getEntityRbacRules(entityFqName: string): RbacSpecification[] | undefined {
+  const p = splitFqName(entityFqName);
+  const mn = p.getModuleName();
+  const en = p.getEntryName();
+  const m = isModule(mn) && fetchModule(mn);
+  if (m && m.isEntity(en)) {
+    const entity = getEntity(en, mn);
+    return entity.getRbacSpecifications()?.filter((spec: RbacSpecification) => {
+      return spec.expression != undefined;
+    });
   }
+  return undefined;
 }
