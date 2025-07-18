@@ -36,7 +36,7 @@ entity User {
     email Email @unique @indexed,
     firstName String,
     lastName String,
-    @rbac [(allow: [read, delete], where: auth.user = this.id)],
+    @rbac [(allow: [read, delete, update, create], where: auth.user = this.id)],
     @after {delete AfterDeleteUser}
 }
 
@@ -131,7 +131,7 @@ entity Session {
   userId UUID @indexed,
   authToken String @optional,
   isActive Boolean,
-  @rbac [(allow: [read, delete], where: auth.user = this.userId)]
+  @rbac [(allow: [read, delete, update, create], where: auth.user = this.userId)]
 }
 
 
