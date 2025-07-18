@@ -6,6 +6,7 @@ import {
   getAllBetweenRelationships,
   getAllOneToOneRelationshipsForEntity,
   getBetweenInstanceNodeValues,
+  getEntityRbacRules,
   Instance,
   InstanceAttributes,
   isBetweenRelationship,
@@ -72,7 +73,8 @@ export class SqlDbResolver extends Resolver {
       this.authInfo,
       activeEnv,
       this.txnId,
-      activeEnv.isInKernelMode()
+      activeEnv.isInKernelMode(),
+      getEntityRbacRules(resourceFqName)
     );
   }
 
@@ -151,12 +153,11 @@ export class SqlDbResolver extends Resolver {
     let result = SqlDbResolver.EmptyResultSet;
 
     const tableName = asTableName(inst.moduleName, inst.name);
-    const rslt: any = await getMany(
-      tableName,
-      queryAll ? undefined : inst.queryAttributesAsObject(),
-      queryAll ? undefined : inst.queryAttributeValuesAsObject(),
-      this.getDbContext(inst.getFqName())
-    );
+    const fqName = inst.getFqName();
+    const ctx = this.getDbContext(fqName);
+    const qattrs: any = queryAll ? undefined : inst.queryAttributesAsObject();
+    const qvals: any = queryAll ? undefined : inst.queryAttributeValuesAsObject();
+    const rslt: any = await getMany(tableName, qattrs, qvals, ctx);
     if (rslt instanceof Array) {
       result = new Array<Instance>();
       rslt.forEach((r: object) => {

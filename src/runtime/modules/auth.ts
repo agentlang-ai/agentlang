@@ -35,7 +35,13 @@ entity User {
     id UUID @id @default(uuid()),
     email Email @unique @indexed,
     firstName String,
-    lastName String
+    lastName String,
+    @rbac [(allow: [read, delete, update, create], where: auth.user = this.id)],
+    @after {delete AfterDeleteUser}
+}
+
+workflow AfterDeleteUser {
+  {RemoveUserSession {id AfterDeleteUser.User.id}}
 }
 
 workflow CreateUser {
@@ -124,7 +130,8 @@ entity Session {
   id UUID @id,
   userId UUID @indexed,
   authToken String @optional,
-  isActive Boolean
+  isActive Boolean,
+  @rbac [(allow: [read, delete, update, create], where: auth.user = this.userId)]
 }
 
 
@@ -147,6 +154,10 @@ workflow RemoveSession {
   purge {Session {id? RemoveSession.id}}
 }
 
+workflow RemoveUserSession {
+  {Session {userId? RemoveUserSession.id}} as [session];
+  purge {Session {id? session.id}}
+}
 
 workflow signup {
   await Auth.signUpUser(signup.email, signup.password, signup.userData)
