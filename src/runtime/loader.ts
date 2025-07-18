@@ -420,9 +420,25 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   def.body?.attributes.forEach((sa: SetAttribute) => {
     let v: any = undefined;
     if (isLiteral(sa.value)) {
-      v = sa.value.str || sa.value.id || sa.value.num;
-      if (v == undefined) {
-        v = sa.value.bool;
+      if (sa.value.array) {
+        v = sa.value.array.vals
+          .map((stmt: Statement) => {
+            if (stmt.pattern.literal) {
+              const s = stmt.pattern.literal.str;
+              if (s == undefined) {
+                throw new Error(`Only arrays of string-literals are to be passed to agent ${name}`);
+              }
+              return s;
+            } else {
+              throw new Error(`Invalid value in array passed to agent ${name}`);
+            }
+          })
+          .join(',');
+      } else {
+        v = sa.value.str || sa.value.id || sa.value.num;
+        if (v == undefined) {
+          v = sa.value.bool;
+        }
       }
     }
     if (v == undefined) {
