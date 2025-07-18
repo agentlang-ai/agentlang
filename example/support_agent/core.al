@@ -2,7 +2,7 @@ module SupportAgent
 
 agent supportAgent {
     instruction "Analyse the user query and give an appropriate response.",
-    documents "price_list,user_manual"
+    documents ["price_list", "user_manual"]
 }
 
 {agentlang_ai/Document {

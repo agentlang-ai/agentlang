@@ -117,7 +117,11 @@ SelectIntoEntry: alias=ID attribute=Ref;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
-AgentDefinition: 'agent' name=(ID | STRING) (body=CrudMapBody? | '{''}');
+AgentDefinition: 'agent' name=(ID | STRING) (body=AgentDefBody? | '{''}');
+
+AgentDefBody: '{' (attributes+=AgentPropertyDef (',' attributes+=AgentPropertyDef)*)+ '}';
+
+AgentPropertyDef: name=ID value=Literal;
 
 ResolverDefinition: 'resolver' name=(ID | STRING) '[' (paths+=STRING (',' paths+=STRING)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
