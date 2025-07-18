@@ -2,6 +2,6 @@
     "name": "Blog",
     "version": "0.0.1",
     "dependencies": {
-        "agentlang": "0.0.3"
+        "agentlang": "file:../../"
     }
 }
