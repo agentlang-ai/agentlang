@@ -19,11 +19,10 @@ import {
   SchemaDefinition,
   isAgentDefinition,
   AgentDefinition,
-  SetAttribute,
-  isLiteral,
   isResolverDefinition,
   ResolverDefinition,
   ResolverMethodSpec,
+  AgentPropertyDef,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -417,43 +416,41 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   const attrsStrs = new Array<string>();
   attrsStrs.push(`name "${name}"`);
   const attrs = newInstanceAttributes();
-  def.body?.attributes.forEach((sa: SetAttribute) => {
+  def.body?.attributes.forEach((apdef: AgentPropertyDef) => {
     let v: any = undefined;
-    if (isLiteral(sa.value)) {
-      if (sa.value.array) {
-        v = sa.value.array.vals
-          .map((stmt: Statement) => {
-            if (stmt.pattern.literal) {
-              const s = stmt.pattern.literal.str;
-              if (s == undefined) {
-                throw new Error(`Only arrays of string-literals are to be passed to agent ${name}`);
-              }
-              return s;
-            } else {
-              throw new Error(`Invalid value in array passed to agent ${name}`);
+    if (apdef.value.array) {
+      v = apdef.value.array.vals
+        .map((stmt: Statement) => {
+          if (stmt.pattern.literal) {
+            const s = stmt.pattern.literal.str;
+            if (s == undefined) {
+              throw new Error(`Only arrays of string-literals are to be passed to agent ${name}`);
             }
-          })
-          .join(',');
-      } else {
-        v = sa.value.str || sa.value.id || sa.value.num;
-        if (v == undefined) {
-          v = sa.value.bool;
-        }
+            return s;
+          } else {
+            throw new Error(`Invalid value in array passed to agent ${name}`);
+          }
+        })
+        .join(',');
+    } else {
+      v = apdef.value.str || apdef.value.id || apdef.value.num;
+      if (v == undefined) {
+        v = apdef.value.bool;
       }
     }
     if (v == undefined) {
       throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
     }
-    if (llmName == undefined && sa.name == 'llm') {
+    if (llmName == undefined && apdef.name == 'llm') {
       llmName = v;
       hasUserLlm = true;
     }
     const ov = v;
-    if (isLiteral(sa.value) && (sa.value.str || sa.value.id)) {
+    if (apdef.value.str || apdef.value.id || apdef.value.array) {
       v = `"${v}"`;
     }
-    attrsStrs.push(`${sa.name} ${v}`);
-    attrs.set(sa.name, ov);
+    attrsStrs.push(`${apdef.name} ${v}`);
+    attrs.set(apdef.name, ov);
   });
   if (!attrs.has('llm')) {
     llmName = `${name}_llm`;

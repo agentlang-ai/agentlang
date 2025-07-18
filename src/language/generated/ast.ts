@@ -190,10 +190,22 @@ export function isAfterTriggerDefinition(item: unknown): item is AfterTriggerDef
     return reflection.isInstance(item, AfterTriggerDefinition);
 }
 
+export interface AgentDefBody extends langium.AstNode {
+    readonly $container: AgentDefinition;
+    readonly $type: 'AgentDefBody';
+    attributes: Array<AgentPropertyDef>;
+}
+
+export const AgentDefBody = 'AgentDefBody';
+
+export function isAgentDefBody(item: unknown): item is AgentDefBody {
+    return reflection.isInstance(item, AgentDefBody);
+}
+
 export interface AgentDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'AgentDefinition';
-    body?: CrudMapBody;
+    body?: AgentDefBody;
     name: string;
 }
 
@@ -201,6 +213,19 @@ export const AgentDefinition = 'AgentDefinition';
 
 export function isAgentDefinition(item: unknown): item is AgentDefinition {
     return reflection.isInstance(item, AgentDefinition);
+}
+
+export interface AgentPropertyDef extends langium.AstNode {
+    readonly $container: AgentDefBody;
+    readonly $type: 'AgentPropertyDef';
+    name: string;
+    value: Literal;
+}
+
+export const AgentPropertyDef = 'AgentPropertyDef';
+
+export function isAgentPropertyDef(item: unknown): item is AgentPropertyDef {
+    return reflection.isInstance(item, AgentPropertyDef);
 }
 
 export interface AliasSpec extends langium.AstNode {
@@ -326,7 +351,7 @@ export function isCrudMap(item: unknown): item is CrudMap {
 }
 
 export interface CrudMapBody extends langium.AstNode {
-    readonly $container: AgentDefinition | CrudMap;
+    readonly $container: CrudMap;
     readonly $type: 'CrudMapBody';
     attributes: Array<SetAttribute>;
     properties: Array<PropertyDefinition>;
@@ -545,7 +570,7 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | FnCall | FullTextSearch | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AgentPropertyDef | AttributeDefinition | BinExpr | FnCall | FullTextSearch | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
@@ -1087,7 +1112,9 @@ export function isWorkflowDefinition(item: unknown): item is WorkflowDefinition 
 export type AgentlangAstType = {
     ActionEntry: ActionEntry
     AfterTriggerDefinition: AfterTriggerDefinition
+    AgentDefBody: AgentDefBody
     AgentDefinition: AgentDefinition
+    AgentPropertyDef: AgentPropertyDef
     AliasSpec: AliasSpec
     ArrayLiteral: ArrayLiteral
     AsyncFnCall: AsyncFnCall
@@ -1165,7 +1192,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, WorkflowDefinition];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefBody, AgentDefinition, AgentPropertyDef, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1230,12 +1257,29 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case AgentDefBody: {
+                return {
+                    name: AgentDefBody,
+                    properties: [
+                        { name: 'attributes', defaultValue: [] }
+                    ]
+                };
+            }
             case AgentDefinition: {
                 return {
                     name: AgentDefinition,
                     properties: [
                         { name: 'body' },
                         { name: 'name' }
+                    ]
+                };
+            }
+            case AgentPropertyDef: {
+                return {
+                    name: AgentPropertyDef,
+                    properties: [
+                        { name: 'name' },
+                        { name: 'value' }
                     ]
                 };
             }
