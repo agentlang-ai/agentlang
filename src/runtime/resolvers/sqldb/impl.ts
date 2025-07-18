@@ -6,10 +6,12 @@ import {
   getAllBetweenRelationships,
   getAllOneToOneRelationshipsForEntity,
   getBetweenInstanceNodeValues,
+  getEntityRbacRule,
   Instance,
   InstanceAttributes,
   isBetweenRelationship,
   newInstanceAttributes,
+  RbacPermissionFlag,
   Relationship,
 } from '../../module.js';
 import { escapeFqName, makeFqName, splitFqName } from '../../util.js';
@@ -151,12 +153,37 @@ export class SqlDbResolver extends Resolver {
     let result = SqlDbResolver.EmptyResultSet;
 
     const tableName = asTableName(inst.moduleName, inst.name);
-    const rslt: any = await getMany(
-      tableName,
-      queryAll ? undefined : inst.queryAttributesAsObject(),
-      queryAll ? undefined : inst.queryAttributeValuesAsObject(),
-      this.getDbContext(inst.getFqName())
-    );
+    const fqName = inst.getFqName();
+    const ctx = this.getDbContext(fqName);
+    let qattrs: any = queryAll ? undefined : inst.queryAttributesAsObject();
+    let qvals: any = queryAll ? undefined : inst.queryAttributeValuesAsObject();
+    let rslt: any = await getMany(tableName, qattrs, qvals, ctx);
+    if (!ctx.isPermitted() && (!rslt || rslt.length == 0)) {
+      const rbacRule = getEntityRbacRule(inst.moduleName, inst.name, permissionsFromContext(ctx));
+      if (rbacRule && rbacRule.expression) {
+        if (queryAll) {
+          qattrs = newInstanceAttributes();
+          qvals = newInstanceAttributes();
+        }
+        const e = rbacRule.expression;
+        const [selfRef, userRef] = e.lhs.startsWith('this.') ? [e.lhs, e.rhs] : [e.rhs, e.lhs];
+        const attr = selfRef.split('.')[1];
+        let canQuery = qattrs[attr] == undefined ? true : false;
+        if (!canQuery && qattrs[attr] == '=' && qvals[attr] == ctx.authInfo.userId) {
+          canQuery = true;
+        }
+        if (canQuery && userRef == 'auth.user') {
+          qattrs[attr] = '=';
+          qvals[attr] = ctx.authInfo.userId;
+          const oldFlag = ctx.switchAuthCheck(false);
+          try {
+            rslt = await getMany(tableName, qattrs, qvals, ctx);
+          } finally {
+            ctx.setNeedAuthCheck(oldFlag);
+          }
+        }
+      }
+    }
     if (rslt instanceof Array) {
       result = new Array<Instance>();
       rslt.forEach((r: object) => {
@@ -468,4 +495,14 @@ function maybeNormalizeAttributeNames(
     });
   }
   return attrs;
+}
+
+function permissionsFromContext(ctx: DbContext): Set<RbacPermissionFlag> {
+  const result = new Set<RbacPermissionFlag>().add(RbacPermissionFlag.READ);
+  if (ctx.isForUpdate()) {
+    result.add(RbacPermissionFlag.UPDATE);
+  } else if (ctx.isForDelete()) {
+    result.add(RbacPermissionFlag.DELETE);
+  }
+  return result;
 }

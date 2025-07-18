@@ -35,7 +35,8 @@ entity User {
     id UUID @id @default(uuid()),
     email Email @unique @indexed,
     firstName String,
-    lastName String
+    lastName String,
+    @rbac [(allow: [read], where: auth.user = this.id)]
 }
 
 workflow CreateUser {

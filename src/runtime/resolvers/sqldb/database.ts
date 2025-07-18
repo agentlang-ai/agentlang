@@ -93,6 +93,12 @@ export class DbContext {
     return this;
   }
 
+  switchAuthCheck(flag: boolean): boolean {
+    const old = this.needAuthCheckFlag;
+    this.needAuthCheckFlag = flag;
+    return old;
+  }
+
   isPermitted(): boolean {
     return this.inKernelMode || !this.needAuthCheckFlag;
   }
