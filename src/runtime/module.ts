@@ -2418,3 +2418,17 @@ export function instanceToObject<Type>(inst: Instance, obj: any): Type {
   });
   return obj as Type;
 }
+
+export function getEntityRbacRules(entityFqName: string): RbacSpecification[] | undefined {
+  const p = splitFqName(entityFqName);
+  const mn = p.getModuleName();
+  const en = p.getEntryName();
+  const m = isModule(mn) && fetchModule(mn);
+  if (m && m.isEntity(en)) {
+    const entity = getEntity(en, mn);
+    return entity.getRbacSpecifications()?.filter((spec: RbacSpecification) => {
+      return spec.expression != undefined;
+    });
+  }
+  return undefined;
+}

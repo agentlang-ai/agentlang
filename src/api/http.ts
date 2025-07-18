@@ -233,28 +233,34 @@ async function handleEntityGet(
     if (req.query.tree) {
       pattern = fetchTreePattern(makeFqName(moduleName, entityName), path);
     } else {
-      const r = walkDownInstancePath(path);
-      let moduleName = r[0];
-      let entityName = r[1];
-      const id = r[2];
-      const parts = r[3];
-      if (parts.length == 2 && id == undefined) {
-        pattern = `{${moduleName}/${entityName}? {}}`;
-      } else {
-        moduleName = restoreFqName(moduleName);
-        entityName = restoreFqName(entityName);
-        if (id == undefined) {
-          pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery}like "${path}%"}}`;
-        } else {
-          pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
-        }
-      }
+      pattern = queryPatternFromPath(path);
     }
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
     res.status(500).send(err.toString());
   }
+}
+
+function queryPatternFromPath(path: string): string {
+  let pattern = '';
+  const r = walkDownInstancePath(path);
+  let moduleName = r[0];
+  let entityName = r[1];
+  const id = r[2];
+  const parts = r[3];
+  if (parts.length == 2 && id == undefined) {
+    pattern = `{${moduleName}/${entityName}? {}}`;
+  } else {
+    moduleName = restoreFqName(moduleName);
+    entityName = restoreFqName(entityName);
+    if (id == undefined) {
+      pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery}like "${path}%"}}`;
+    } else {
+      pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
+    }
+  }
+  return pattern;
 }
 
 async function handleEntityPut(
@@ -272,6 +278,9 @@ async function handleEntityPut(
     }
     const attrs = objectAsInstanceAttributes(req.body);
     attrs.set(PathAttributeNameQuery, path);
+    const r = walkDownInstancePath(path);
+    moduleName = r[0];
+    entityName = r[1];
     const pattern = patternFromAttributes(moduleName, entityName, attrs);
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
@@ -293,7 +302,7 @@ async function handleEntityDelete(
       res.status(401).send('Authorization required');
       return;
     }
-    const pattern = `delete {${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
+    const pattern = `delete ${queryPatternFromPath(path)}`;
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);

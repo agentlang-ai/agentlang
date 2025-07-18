@@ -5,7 +5,7 @@ import { assignUserToRole, createUser } from "../../src/runtime/modules/auth.js"
 import { internAndRunModule } from "../../src/cli/main.js"
 import { Environment, parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
 import { Instance, isInstanceOfType } from "../../src/runtime/module.js"
-import { expectError } from "../util.js"
+import { doInternModule, expectError } from "../util.js"
 import { callWithRbac } from "../../src/runtime/auth/defs.js"
 
 const mod1 = `module Acme
@@ -42,7 +42,7 @@ workflow LookupEmployee {
 
 describe('Basic RBAC checks', () => {
     test('Basic RBAC tests', async () => {
-        callWithRbac(async () => {
+        await callWithRbac(async () => {
             const module: ModuleDefinition = await parseModule(mod1)
             assert(module.name == "Acme", 'failed to parse test module')
             await internAndRunModule(module)
@@ -96,6 +96,60 @@ describe('Basic RBAC checks', () => {
                 assert(emps && emps.length == 1, 'Failed to lookup department-employees')
                 assert(emps[0].get('name') == 'Joe', 'Failed to lookup Joe in department 101')
             }
+        })
+    })
+})
+
+describe('RBAC where-clause test', () => {
+    test('RBAC where-clause', async () => {
+        await callWithRbac(async () => {
+            await doInternModule(`RbacWhere`,
+                `entity User {
+                    id UUID @id,
+                    name String,
+                    @rbac [(roles: [*], allow: [create]),
+                           (allow: [read], where: auth.user = this.id)]
+                }`
+            )
+            const id1 = crypto.randomUUID()
+            const id2 = crypto.randomUUID()
+            const env: Environment = new Environment()
+            async function f1() {
+                await createUser(id1, 'u1@w.com', 'User', '01', env)
+                await createUser(id2, 'u2@w.com', 'User', '02', env)
+            }
+            await env.callInTransaction(f1)
+            //let ee = expectError()
+            async function createLocalUser(userId: string, id: string, name: string): Promise<void> {
+                await parseAndEvaluateStatement(`{RbacWhere/User {id "${id}", name "${name}"}}`, userId).then((r: any) => {
+                    assert(isInstanceOfType(r, 'RbacWhere/User'), 'Failed to create User')
+                })
+            }
+            await createLocalUser(id1, id1, 'A')
+            await createLocalUser(id1, id2, 'B')
+            function chkresult(result: Instance[] | undefined, count: number, ids: string[]) {
+                assert(result)
+                if (result) {
+                    assert(count == result.length)
+                }
+                result.forEach((inst: Instance) => {
+                    assert(ids.find((id: string) => {
+                        return id == inst.lookup('id')
+                    }))
+                })
+            }
+            let r = await parseAndEvaluateStatement(`{RbacWhere/User {id? "${id1}"}}`, id1)
+            chkresult(r, 1, [id1])
+            r = await parseAndEvaluateStatement(`{RbacWhere/User {id? "${id2}"}}`, id1)
+            chkresult(r, 1, [id2])
+            r = await parseAndEvaluateStatement(`{RbacWhere/User {id? "${id1}"}}`, id2)
+            chkresult(r, 0, [])
+            r = await parseAndEvaluateStatement(`{RbacWhere/User {id? "${id2}"}}`, id2)
+            chkresult(r, 1, [id2])
+            r = await parseAndEvaluateStatement(`{RbacWhere/User? {}}`, id1)
+            chkresult(r, 2, [id1, id2])
+            r = await parseAndEvaluateStatement(`{RbacWhere/User? {}}`, id2)
+            chkresult(r, 1, [id2])
         })
     })
 })
