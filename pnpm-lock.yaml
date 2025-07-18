@@ -178,11 +178,7 @@ importers:
         specifier: ^3.1.0
         version: 3.1.0
 
-  example/blog:
-    dependencies:
-      agentlang:
-        specifier: 0.0.3
-        version: 0.0.3(@yeoman/types@1.6.0(@types/node@18.19.119)(mem-fs-editor@11.1.4(mem-fs@4.1.2))(mem-fs@4.1.2))(encoding@0.1.13)(mem-fs@4.1.2)(openai@5.9.2(zod@3.25.76))(reflect-metadata@0.2.2)
+  example/blog: {}
 
   example/erp:
     dependencies:
