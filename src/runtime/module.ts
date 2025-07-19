@@ -29,6 +29,7 @@ import {
   isFqName,
   makeFqName,
   DefaultModuleName,
+  DefaultModules,
   joinStatements,
   isMinusZero,
   now,
@@ -1418,7 +1419,7 @@ export function getModuleNames(): string[] {
 export function getUserModuleNames(): string[] {
   const result: Array<string> = new Array<string>();
   Array.from(moduleDb.keys()).forEach((n: string) => {
-    if (n != DefaultModuleName) {
+    if (!DefaultModules.has(n)) {
       result.push(n);
     }
   });
