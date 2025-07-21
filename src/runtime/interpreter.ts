@@ -590,8 +590,8 @@ export async function parseAndEvaluateStatement(
 }
 
 async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
-  if (pat.literal) {
-    await evaluateLiteral(pat.literal, env);
+  if (pat.expr) {
+    await evaluateExpression(pat.expr, env);
   } else if (pat.crudMap) {
     await evaluateCrudMap(pat.crudMap, env);
   } else if (pat.forEach) {
@@ -1263,7 +1263,12 @@ async function applyFn(fnCall: FnCall, env: Environment, isAsync: boolean): Prom
     if (fnCall.args != undefined) {
       args = new Array<Result>();
       for (let i = 0; i < fnCall.args.length; ++i) {
-        await evaluateLiteral(fnCall.args[i], env);
+        const arg = fnCall.args[i];
+        if (isLiteral(arg)) {
+          await evaluateLiteral(arg, env);
+        } else {
+          await evaluateExpression(arg, env);
+        }
         args.push(env.getLastResult());
       }
       args.push(env);
@@ -1287,7 +1292,7 @@ async function realizeMap(mapLiteral: MapLiteral, env: Environment): Promise<voi
   for (let i = 0; i < mapLiteral.entries.length; ++i) {
     const entry = mapLiteral.entries[i];
     const k = getMapKey(entry.key);
-    await evaluateLiteral(entry.value, env);
+    await evaluateExpression(entry.value, env);
     result.set(k, env.getLastResult());
   }
   env.setLastResult(Object.fromEntries(result.entries()));

@@ -142,7 +142,7 @@ function normalizeMetaValue(metaValue: any): any {
   const v: Literal = metaValue as Literal;
   if (v.array) {
     return v.array.vals.map((value: Statement) => {
-      return normalizeMetaValue(value.pattern.literal);
+      return normalizeMetaValue(value.pattern.expr);
     });
   } else if (v.bool != undefined) {
     return v.bool;
