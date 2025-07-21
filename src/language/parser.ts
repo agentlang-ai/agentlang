@@ -21,6 +21,8 @@ import {
   Pattern,
   PrimExpr,
   RelationshipPattern,
+  SelectIntoEntry,
+  SelectIntoSpec,
   SetAttribute,
   Statement,
   WorkflowDefinition,
@@ -172,6 +174,9 @@ function introspectPattern(pat: Pattern): BasePattern {
     } else {
       r = introspectCreatePattern(pat.crudMap);
     }
+    if (pat.crudMap.into) {
+      r = introspectInto(pat.crudMap.into, r as CrudPattern)
+    }
   } else if (pat.literal) {
     r = introspectLiteral(pat.literal);
   } else if (pat.forEach) {
@@ -185,6 +190,13 @@ function introspectPattern(pat: Pattern): BasePattern {
   else {
     throw new Error(`Failed to introspect pattern: ${pat}`);
   }
+}
+
+function introspectInto(intoSpec: SelectIntoSpec, p: CrudPattern): CrudPattern {
+  intoSpec.entries.forEach((se: SelectIntoEntry) => {
+    p.addInto(se.alias, se.attribute)
+  })
+  return p
 }
 
 function isQueryPattern(pat: Pattern): boolean {
