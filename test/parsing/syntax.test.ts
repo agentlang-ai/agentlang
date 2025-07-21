@@ -225,3 +225,26 @@ describe('Pattern introspection', () => {
     assert(e5.toString() == '((X + 6) or (Y > 5))')
   });
 });
+
+describe('Relationship introspection', () => {
+  test('check relationship query introspection', async () => {
+    const pats = await introspect(`{Allocation? {},
+    ResourceAllocation {Resource? {},
+       TeamResource {Team {Id? GetTeamAllocations.TeamId}}},
+    into {Id Allocation.Id,
+         Project Allocation.Project,
+         ProjectName Allocation.ProjectName,
+         Resource Allocation.Resource,
+         ResourceName Resource.FullName,
+         Manager Resource.Manager,
+         Period Allocation.Period,
+         Duration Allocation.Duration,
+         AllocationEntered Allocation.AllocationEntered,
+         ActualsEntered Allocation.ActualsEntered,
+         Notes Allocation.Notes}}`)
+    const p = pats[0] as CrudPattern
+    assert(p.isQuery)
+    assert(!p.isCreate)
+    assert(!p.isQueryUpdate)
+  })
+})
