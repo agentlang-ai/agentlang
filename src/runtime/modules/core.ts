@@ -1,6 +1,6 @@
 import { default as ai } from './ai.js';
 import { default as auth } from './auth.js';
-import { DefaultModuleName } from '../util.js';
+import { DefaultModuleName, DefaultModules } from '../util.js';
 import { Instance, isInstanceOfType } from '../module.js';
 import { Environment, parseAndEvaluateStatement } from '../interpreter.js';
 import { logger } from '../logger.js';
@@ -27,9 +27,11 @@ entity auditlog {
 export const CoreModules: string[] = [];
 
 export function registerCoreModules() {
+  DefaultModules.add(DefaultModuleName);
   CoreModules.push(CoreModuleDefinition);
   [auth, ai].forEach((mdef: string) => {
     CoreModules.push(mdef);
+    DefaultModules.add(mdef);
   });
 }
 
