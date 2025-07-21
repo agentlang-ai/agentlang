@@ -228,7 +228,7 @@ describe('Pattern introspection', () => {
 
 describe('Relationship introspection', () => {
   test('check relationship query introspection', async () => {
-    const pats = await introspect(`{Allocation? {},
+    let pats = await introspect(`{Allocation? {},
     ResourceAllocation {Resource? {},
        TeamResource {Team {Id? GetTeamAllocations.TeamId}}},
     into {Id Allocation.Id,
@@ -242,9 +242,25 @@ describe('Relationship introspection', () => {
          AllocationEntered Allocation.AllocationEntered,
          ActualsEntered Allocation.ActualsEntered,
          Notes Allocation.Notes}}`)
-    const p = pats[0] as CrudPattern
+    let p = pats[0] as CrudPattern
     assert(p.isQuery)
     assert(!p.isCreate)
+    assert(!p.isQueryUpdate)
+    pats = await introspect(` {Resource {id? CreateAllocation.id},
+    ResAlloc {Allocation {name CreateAllocation.name}}}`)
+    p = pats[0] as CrudPattern
+    assert(!p.isCreate)
+    assert(p.isQuery)
+    assert(!p.isQueryUpdate)
+    const rp = p.relationships?.get('ResAlloc')
+    assert(rp)
+    if (rp instanceof Array) {
+      p = rp[0] as CrudPattern
+    } else {
+      p = rp as CrudPattern
+    }
+    assert(p.isCreate)
+    assert(!p.isQuery)
     assert(!p.isQueryUpdate)
   })
 })
