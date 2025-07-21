@@ -8,6 +8,7 @@ import {
   Group,
   Handler,
   If,
+  isExpr,
   isGroup,
   isLiteral,
   isNegExpr,
@@ -177,8 +178,8 @@ function introspectPattern(pat: Pattern): BasePattern {
     if (pat.crudMap.into) {
       r = introspectInto(pat.crudMap.into, r as CrudPattern);
     }
-  } else if (pat.literal) {
-    r = introspectLiteral(pat.literal);
+  } else if (pat.expr) {
+    r = introspectExpression(pat.expr);
   } else if (pat.forEach) {
     r = introspectForEach(pat.forEach);
   } else if (pat.if) {
@@ -304,8 +305,12 @@ function introspectLiteral(lit: Literal): BasePattern {
   } else if (lit.fnCall) {
     return new FunctionCallPattern(
       lit.fnCall.name,
-      lit.fnCall.args.map((v: Literal) => {
-        return introspectLiteral(v);
+      lit.fnCall.args.map((v: Literal | Expr) => {
+        if (isExpr(v)) {
+          return introspectExpression(v);
+        } else {
+          return introspectLiteral(v);
+        }
       })
     );
   } else if (lit.array) {

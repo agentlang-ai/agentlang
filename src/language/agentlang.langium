@@ -80,11 +80,11 @@ ArrayLiteral: '[' ']' | '[' vals+=Statement (',' vals+=Statement)* ']';
 
 MapLiteral: '{' entries+=MapEntry (',' entries+=MapEntry)* '}';
 
-MapEntry: key=MapKey ':' value=Literal;
+MapEntry: key=MapKey ':' value=Expr;
 
 MapKey: str=STRING | num=Decimal | bool=Boolean;
 
-FnCall: name=(ID | Ref) (('(' ')') | ('(' (args+=Literal (',' args+=Literal)*)+ ')'));
+FnCall: name=(ID | Ref) (('(' ')') | ('(' (args+=Expr (',' args+=Expr)*)+ ')'));
 
 AsyncFnCall: 'await' fnCall=FnCall;
 
@@ -94,8 +94,7 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 
 WorkflowDefinition: 'workflow' name=ID Body;
 
-Pattern: literal=Literal | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
-| fullTextSearch=FullTextSearch;
+Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | fullTextSearch=FullTextSearch;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 

@@ -782,3 +782,16 @@ describe('Between operator test', () => {
     );
   });
 });
+
+describe("Teset string append", () => {
+  test('test01', async () => {
+    await doInternModule(
+      'TestExpr',
+      `workflow T {
+        T.a + ", " + T.b as result;
+        result
+      }`)
+      const r = await parseAndEvaluateStatement(`{TestExpr/T {a "hello", b "world"}}`)
+      assert(r == "hello, world")
+  })
+})

@@ -297,7 +297,7 @@ export function isBeforeTriggerDefinition(item: unknown): item is BeforeTriggerD
 }
 
 export interface BinExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'BinExpr';
     e1: Expr | PrimExpr;
     e2: Expr | PrimExpr;
@@ -454,7 +454,7 @@ export function isExtendsClause(item: unknown): item is ExtendsClause {
 export interface FnCall extends langium.AstNode {
     readonly $container: AsyncFnCall | Literal;
     readonly $type: 'FnCall';
-    args: Array<Literal>;
+    args: Array<Expr>;
     name: Ref | string;
 }
 
@@ -493,7 +493,7 @@ export function isFullTextSearch(item: unknown): item is FullTextSearch {
 }
 
 export interface Group extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'Group';
     ge: Expr;
 }
@@ -593,7 +593,7 @@ export interface MapEntry extends langium.AstNode {
     readonly $container: MapLiteral;
     readonly $type: 'MapEntry';
     key: MapKey;
-    value: Literal;
+    value: Expr;
 }
 
 export const MapEntry = 'MapEntry';
@@ -654,7 +654,7 @@ export function isModuleDefinition(item: unknown): item is ModuleDefinition {
 }
 
 export interface NegExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'NegExpr';
     ne: Expr;
 }
@@ -679,7 +679,7 @@ export function isNodeDefinition(item: unknown): item is NodeDefinition {
 }
 
 export interface NotExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | Group | If | NegExpr | NotExpr | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'NotExpr';
     ne: Expr;
 }
@@ -707,10 +707,10 @@ export interface Pattern extends langium.AstNode {
     readonly $type: 'Pattern';
     crudMap?: CrudMap;
     delete?: Delete;
+    expr?: Expr;
     forEach?: ForEach;
     fullTextSearch?: FullTextSearch;
     if?: If;
-    literal?: Literal;
     purge?: Purge;
 }
 
@@ -1620,10 +1620,10 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'crudMap' },
                         { name: 'delete' },
+                        { name: 'expr' },
                         { name: 'forEach' },
                         { name: 'fullTextSearch' },
                         { name: 'if' },
-                        { name: 'literal' },
                         { name: 'purge' }
                     ]
                 };

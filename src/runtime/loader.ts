@@ -23,6 +23,7 @@ import {
   ResolverDefinition,
   ResolverMethodSpec,
   AgentPropertyDef,
+  isLiteral,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -421,8 +422,8 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     if (apdef.value.array) {
       v = apdef.value.array.vals
         .map((stmt: Statement) => {
-          if (stmt.pattern.literal) {
-            const s = stmt.pattern.literal.str;
+          if (stmt.pattern.expr && isLiteral(stmt.pattern.expr)) {
+            const s = stmt.pattern.expr.str;
             if (s == undefined) {
               throw new Error(`Only arrays of string-literals are to be passed to agent ${name}`);
             }
