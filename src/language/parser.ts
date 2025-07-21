@@ -175,7 +175,7 @@ function introspectPattern(pat: Pattern): BasePattern {
       r = introspectCreatePattern(pat.crudMap);
     }
     if (pat.crudMap.into) {
-      r = introspectInto(pat.crudMap.into, r as CrudPattern)
+      r = introspectInto(pat.crudMap.into, r as CrudPattern);
     }
   } else if (pat.literal) {
     r = introspectLiteral(pat.literal);
@@ -194,9 +194,9 @@ function introspectPattern(pat: Pattern): BasePattern {
 
 function introspectInto(intoSpec: SelectIntoSpec, p: CrudPattern): CrudPattern {
   intoSpec.entries.forEach((se: SelectIntoEntry) => {
-    p.addInto(se.alias, se.attribute)
-  })
-  return p
+    p.addInto(se.alias, se.attribute);
+  });
+  return p;
 }
 
 function isQueryPattern(pat: Pattern): boolean {

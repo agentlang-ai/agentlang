@@ -344,7 +344,7 @@ export class CrudPattern extends BasePattern {
   recordName: string;
   attributes: Array<AttributePattern>;
   relationships: Map<string, CrudPattern[] | CrudPattern> | undefined;
-  into: Map<string, string> | undefined
+  into: Map<string, string> | undefined;
   isQuery: boolean = false;
   isQueryUpdate: boolean = false;
   isCreate: boolean = false;
@@ -382,29 +382,29 @@ export class CrudPattern extends BasePattern {
 
   addInto(alias: string, attr: string): CrudPattern {
     if (this.into == undefined) {
-      this.into = new Map()
+      this.into = new Map();
     }
-    this.into.set(alias, attr)
-    return this
+    this.into.set(alias, attr);
+    return this;
   }
 
   removeInto(alias: string): CrudPattern {
     if (this.into) {
-      this.into.delete(alias)
+      this.into.delete(alias);
     }
-    return this
+    return this;
   }
 
   resetInto(into?: Map<string, string>): CrudPattern {
-    this.into = into
-    return this
+    this.into = into;
+    return this;
   }
 
   hasInto(): boolean {
     if (this.into && this.into.size > 0) {
-      return true
+      return true;
     } else {
-      return false
+      return false;
     }
   }
 
@@ -469,13 +469,13 @@ export class CrudPattern extends BasePattern {
 
   private intoAsString(): string | undefined {
     if (this.into) {
-      let ss = new Array<string>()
+      const ss = new Array<string>();
       this.into.forEach((attr: string, alias: string) => {
-        ss.push(`${alias} ${attr}`)
-      })
-      return ss.join(',\n')
+        ss.push(`${alias} ${attr}`);
+      });
+      return `into { ${ss.join(',\n')} }`;
     }
-    return undefined
+    return undefined;
   }
 
   override toString(): string {
@@ -486,7 +486,7 @@ export class CrudPattern extends BasePattern {
     }
     const ins = this.intoAsString();
     if (ins) {
-      s = s.concat(`,${ins}`)
+      s = s.concat(`,${ins}`);
     }
     return s.concat('}', this.hintsAsString());
   }

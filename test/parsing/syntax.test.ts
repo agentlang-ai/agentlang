@@ -15,7 +15,7 @@ import {
 import { introspect } from '../../src/language/parser.js';
 
 describe('Pattern generation using the syntax API', () => {
-  test('check pattern generation', async () => {
+  test('test01', async () => {
     const crud0: CrudPattern = new CrudPattern('User?');
     assert(crud0.toString() == '{User? {}}')
     assert(isQueryPattern(crud0))
@@ -96,7 +96,7 @@ describe('Pattern generation using the syntax API', () => {
 });
 
 describe('Pattern introspection', () => {
-  test('check pattern introspection', async () => {
+  test('test01', async () => {
     let pats: BasePattern[] = await introspect(
       '{Blog/User {name CreateUser.name, email CreateUser.email}}'
     );
@@ -226,8 +226,8 @@ describe('Pattern introspection', () => {
   });
 });
 
-describe('Relationship introspection', () => {
-  test('check relationship query introspection', async () => {
+describe('Relationship and `into` introspection', () => {
+  test('test01', async () => {
     let pats = await introspect(`{Allocation? {},
     ResourceAllocation {Resource? {},
        TeamResource {Team {Id? GetTeamAllocations.TeamId}}},
@@ -246,6 +246,27 @@ describe('Relationship introspection', () => {
     assert(p.isQuery)
     assert(!p.isCreate)
     assert(!p.isQueryUpdate)
+    assert(p.into != undefined)
+    assert(p.into.get('Project') == 'Allocation.Project')
+    assert(p.into.get('AllocationEntered') == 'Allocation.AllocationEntered')
+    assert(p.into.get('Duration') == 'Allocation.Duration')
+    p.removeInto('Duration')
+    const s = p.toString();
+    assert(s == `{Allocation? {},ResourceAllocation {Resource? {},TeamResource {Team {Id? GetTeamAllocations.TeamId}}},into { Id Allocation.Id,
+Project Allocation.Project,
+ProjectName Allocation.ProjectName,
+Resource Allocation.Resource,
+ResourceName Resource.FullName,
+Manager Resource.Manager,
+Period Allocation.Period,
+AllocationEntered Allocation.AllocationEntered,
+ActualsEntered Allocation.ActualsEntered,
+Notes Allocation.Notes }}`)
+    pats = await introspect(s)
+    assert(p.into != undefined)
+    assert(p.into.get('Project') == 'Allocation.Project')
+    assert(p.into.get('AllocationEntered') == 'Allocation.AllocationEntered')
+    assert(p.into.get('Duration') == undefined)
     pats = await introspect(` {Resource {id? CreateAllocation.id},
     ResAlloc {Allocation {name CreateAllocation.name}}}`)
     p = pats[0] as CrudPattern
