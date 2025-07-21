@@ -262,6 +262,7 @@ function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
     crudMap.relationships.forEach((rp: RelationshipPattern) => {
       cp.addRelationship(rp.name, introspectPattern(rp.pattern) as CrudPattern | CrudPattern[]);
     });
+    cp.isCreate = false;
     cp.isQuery = true;
     return cp;
   }
@@ -271,6 +272,7 @@ function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
 function introspectCreatePattern(crudMap: CrudMap): CrudPattern {
   if (crudMap) {
     const cp: CrudPattern = new CrudPattern(crudMap.name);
+    cp.isCreate = false;
     crudMap.body?.attributes.forEach((sa: SetAttribute) => {
       if (!cp.isQueryUpdate && sa.name.endsWith(QuerySuffix)) {
         cp.isQueryUpdate = true;

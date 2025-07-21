@@ -225,3 +225,42 @@ describe('Pattern introspection', () => {
     assert(e5.toString() == '((X + 6) or (Y > 5))')
   });
 });
+
+describe('Relationship introspection', () => {
+  test('check relationship query introspection', async () => {
+    let pats = await introspect(`{Allocation? {},
+    ResourceAllocation {Resource? {},
+       TeamResource {Team {Id? GetTeamAllocations.TeamId}}},
+    into {Id Allocation.Id,
+         Project Allocation.Project,
+         ProjectName Allocation.ProjectName,
+         Resource Allocation.Resource,
+         ResourceName Resource.FullName,
+         Manager Resource.Manager,
+         Period Allocation.Period,
+         Duration Allocation.Duration,
+         AllocationEntered Allocation.AllocationEntered,
+         ActualsEntered Allocation.ActualsEntered,
+         Notes Allocation.Notes}}`)
+    let p = pats[0] as CrudPattern
+    assert(p.isQuery)
+    assert(!p.isCreate)
+    assert(!p.isQueryUpdate)
+    pats = await introspect(` {Resource {id? CreateAllocation.id},
+    ResAlloc {Allocation {name CreateAllocation.name}}}`)
+    p = pats[0] as CrudPattern
+    assert(!p.isCreate)
+    assert(p.isQuery)
+    assert(!p.isQueryUpdate)
+    const rp = p.relationships?.get('ResAlloc')
+    assert(rp)
+    if (rp instanceof Array) {
+      p = rp[0] as CrudPattern
+    } else {
+      p = rp as CrudPattern
+    }
+    assert(p.isCreate)
+    assert(!p.isQuery)
+    assert(!p.isQueryUpdate)
+  })
+})

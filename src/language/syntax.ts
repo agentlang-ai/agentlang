@@ -647,6 +647,7 @@ export function newCreatePattern(recName: string): CrudPattern {
 export function newQueryPattern(recName: string, forQueryUpdate: boolean = false): CrudPattern {
   recName = recName.charAt(recName.length - 1) == '?' ? recName : recName + '?';
   const cp: CrudPattern = new CrudPattern(recName);
+  cp.isCreate = false;
   if (forQueryUpdate) {
     cp.isQueryUpdate = true;
   } else {
