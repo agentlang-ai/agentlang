@@ -31,7 +31,7 @@ describe('Agent API', () => {
 
 entity E
 {
-    id Int @id 
+    id Int @id
 }
 
 agent agent02
