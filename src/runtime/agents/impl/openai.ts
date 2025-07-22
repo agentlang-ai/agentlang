@@ -6,7 +6,7 @@ export class OpenAIProvider implements AgentServiceProvider {
   private model: ChatOpenAI;
 
   constructor(config?: Map<string, any>) {
-    let modelName = 'gpt-4';
+    let modelName = 'gpt-4.1-2025-04-14';
     if (config) {
       modelName = config.get('model') || modelName;
     }

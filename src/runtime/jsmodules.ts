@@ -1,6 +1,6 @@
 import { logger } from './logger.js';
 import { setSubscription } from './resolvers/registry.js';
-import { splitRefs } from './util.js';
+import { now, splitRefs } from './util.js';
 
 const importedModules = new Map<string, any>();
 
@@ -46,6 +46,27 @@ function invokeReservedFn(moduleName: string, fnName: string, args: Array<any> |
   }
 }
 
+async function invokeBuiltInFn(fnName: string, args: Array<any> | null, isAsync: boolean = false) {
+  if (fnName == 'now') {
+    return now();
+  } else if (fnName == 'uuid') {
+    return crypto.randomUUID();
+  } else {
+    const pf: Function | undefined = maybeEvalFunction(fnName);
+    if (pf instanceof Function) {
+      if (args == null) {
+        if (isAsync) return await pf();
+        else return pf();
+      } else {
+        if (isAsync) return await pf(...args.slice(0, args.length - 1));
+        else return pf(...args.slice(0, args.length - 1));
+      }
+    } else {
+      throw new Error(`Failed to invoke function - ${fnName}`);
+    }
+  }
+}
+
 export async function invokeModuleFn(
   fqFnName: string,
   args: Array<any> | null,
@@ -53,6 +74,13 @@ export async function invokeModuleFn(
 ): Promise<any> {
   try {
     const refs: string[] = splitRefs(fqFnName);
+    if (refs.length == 1) {
+      if (isAsync) {
+        return await invokeBuiltInFn(refs[0], args, isAsync);
+      } else {
+        return invokeBuiltInFn(refs[0], args);
+      }
+    }
     const mname = refs[0];
     if (ReservedImports.has(mname)) {
       return invokeReservedFn(mname, refs[1], args);

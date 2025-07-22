@@ -402,7 +402,7 @@ export async function runStandaloneStatements() {
           GlobalEnvironment.switchActiveModuleName(oldModule);
         }
       }
-      logger.info(`Init eval result: ${GlobalEnvironment.getLastResult()}`);
+      logger.debug(`Init eval result: ${GlobalEnvironment.getLastResult()}`);
     });
     StandaloneStatements.clear();
   }
