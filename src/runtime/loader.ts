@@ -423,9 +423,11 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
       v = apdef.value.array.vals
         .map((stmt: Statement) => {
           if (stmt.pattern.expr && isLiteral(stmt.pattern.expr)) {
-            const s = stmt.pattern.expr.str;
+            const s = stmt.pattern.expr.str || stmt.pattern.expr.id;
             if (s == undefined) {
-              throw new Error(`Only arrays of string-literals are to be passed to agent ${name}`);
+              throw new Error(
+                `Only arrays of string-literals or identifiers should be passed to agent ${name}`
+              );
             }
             return s;
           } else {
