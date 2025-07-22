@@ -11,7 +11,6 @@ import {
   Statement,
 } from '../language/generated/ast.js';
 import { readFile } from '../utils/fs-utils.js';
-import { logger } from './logger.js';
 
 export const QuerySuffix = '?';
 
@@ -25,75 +24,6 @@ if (isNodeEnv) {
 
   const nu = await import('node:util');
   promisify = nu.promisify;
-}
-
-const importedModules = new Map<string, any>();
-
-// Usage: importModule("./mymodels/acme.js")
-export async function importModule(path: string, name: string) {
-  const m = await import(/* @vite-ignore */ path);
-  importedModules.set(name, m);
-  // e.g of dynamic fn-call:
-  //// let f = eval("(a, b) => m.add(a, b)");
-  //// console.log(f(10, 20))
-  return m;
-}
-
-export function moduleImported(moduleName: string): boolean {
-  return importedModules.has(moduleName);
-}
-
-function maybeEvalFunction(fnName: string): Function | undefined {
-  try {
-    return eval(fnName);
-  } catch (reason: any) {
-    logger.debug(reason);
-    return undefined;
-  }
-}
-
-export async function invokeModuleFn(
-  fqFnName: string,
-  args: Array<any> | null,
-  isAsync: boolean = false
-): Promise<any> {
-  try {
-    const refs: string[] = splitRefs(fqFnName);
-    const m = importedModules.get(refs[0]);
-    if (m != undefined) {
-      const f = m[refs[1]];
-      if (f != undefined) {
-        if (args == null)
-          if (isAsync) {
-            return await f();
-          } else return f();
-        else if (isAsync) {
-          return await f(...args);
-        } else return f(...args);
-      } else throw new Error(`Function not found - ${fqFnName}`);
-    } else throw new Error(`JavaScript module ${refs[0]} not found`);
-  } catch (reason: any) {
-    const pf: Function | undefined = maybeEvalFunction(fqFnName);
-    if (pf instanceof Function) {
-      if (args == null) {
-        if (isAsync) return await pf();
-        else return pf();
-      } else {
-        if (isAsync) return await pf(...args.slice(0, args.length - 1));
-        else return pf(...args.slice(0, args.length - 1));
-      }
-    } else {
-      throw new Error(reason);
-    }
-  }
-}
-
-export function getModuleFn(fqFnName: string): Function | undefined {
-  const refs: string[] = splitRefs(fqFnName);
-  const m = importedModules.get(refs[0]);
-  if (m != undefined) {
-    return m[refs[1]];
-  } else return undefined;
 }
 
 export function isNumber(x: any): boolean {

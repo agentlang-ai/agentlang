@@ -217,7 +217,6 @@ export type GenericResolverMethods = {
 
 export type GenericResolverSubscription = {
   subscribe: MaybeFunction;
-  onSubscriptionEvent: string;
 };
 
 export class GenericResolver extends Resolver {

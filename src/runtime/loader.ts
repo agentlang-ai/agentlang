@@ -46,14 +46,11 @@ import {
 } from './module.js';
 import {
   findRbacSchema,
-  getModuleFn,
-  importModule,
   isString,
   makeFqName,
   maybeExtends,
   registerInitFunction,
   runShellCommand,
-  //runShellCommand,
 } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
@@ -68,6 +65,7 @@ import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.j
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver, setSubscription } from './resolvers/registry.js';
 import { ConfigSchema } from './state.js';
+import { getModuleFn, importModule, valiadteImportName } from './jsmodules.js';
 
 export async function extractDocument(
   fileName: string,
@@ -404,7 +402,7 @@ export async function runStandaloneStatements() {
           GlobalEnvironment.switchActiveModuleName(oldModule);
         }
       }
-      logger.info(`Init eval result: ${GlobalEnvironment.getLastResult().toString()}`);
+      logger.info(`Init eval result: ${GlobalEnvironment.getLastResult()}`);
     });
     StandaloneStatements.clear();
   }
@@ -502,12 +500,11 @@ function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
     paths.forEach((path: string) => {
       setResolver(path, resolverName);
     });
-    if (subsFn && subsEvent) {
+    if (subsFn) {
       resolver.subs = {
         subscribe: subsFn,
-        onSubscriptionEvent: subsEvent,
       };
-      setSubscription(subsEvent, resolverName);
+      if (subsEvent) setSubscription(subsEvent, resolverName);
       resolver.subscribe();
     }
   });
@@ -552,6 +549,7 @@ export async function internModule(module: ModuleDefinition): Promise<Module> {
   const mn = module.name;
   const r = addModule(mn);
   module.imports.forEach(async (imp: Import) => {
+    valiadteImportName(imp.name);
     await importModule(imp.path, imp.name);
   });
   for (let i = 0; i < module.defs.length; ++i) {

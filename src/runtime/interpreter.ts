@@ -54,7 +54,6 @@ import {
   escapeFqName,
   escapeQueryName,
   fqNameFromPath,
-  invokeModuleFn,
   isFqName,
   isPath,
   isString,
@@ -78,6 +77,7 @@ import {
   maybeCancelTimer,
   setTimerRunning,
 } from './modules/core.js';
+import { invokeModuleFn } from './jsmodules.js';
 
 export type Result = any;
 
