@@ -143,12 +143,12 @@ describe('Module toString tests', () => {
 
 entity E
 {
-    name String @id 
+    name String @id
 }
 
 entity F
 {
-    Id UUID @default(uuid())  @id 
+    Id UUID @default(uuid())  @id
 }
 
 agent agent01
@@ -184,12 +184,12 @@ describe('Agent toString test', () => {
 
 entity E
 {
-    name String @id 
+    name String @id
 }
 
 entity F
 {
-    Id UUID @default(uuid())  @id 
+    Id UUID @default(uuid())  @id
 }
 
 agent Agent1
@@ -218,9 +218,10 @@ describe('Rbac toString test', () => {
 
 entity E
 {
-    name String @id 
+    name String @id,
     @rbac [(roles: [manager], allow: [create]),
-(where: auth.user = this.id, allow: [read])]}
+(where: auth.user = this.id, allow: [read])]
+}
 `)
     })
   })
