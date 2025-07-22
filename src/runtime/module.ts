@@ -101,7 +101,7 @@ function recordSchemaToString(scm: RecordSchema): string {
       ss.push(`    ${n} ${attributeSpecToString(attrSpec)}`);
     }
   });
-  return `\n${ss.join(',\n')} \n`;
+  return `\n${ss.join(',\n')}`;
 }
 
 function attributeSpecToString(attrSpec: AttributeSpec): string {
@@ -424,9 +424,9 @@ export class Record extends ModuleEntry {
       const rbs = this.rbac.map((rs: RbacSpecification) => {
         return rs.toString();
       });
-      scms = `${scms}    @rbac [${rbs.join(',\n')}]`;
+      scms = `${scms},\n    @rbac [${rbs.join(',\n')}]`;
     }
-    return s.concat('\n{', scms, '}\n');
+    return s.concat('\n{', scms, '\n}\n');
   }
 
   getUserAttributes(): RecordSchema {
