@@ -657,6 +657,11 @@ export class RbacSpecification {
     return this;
   }
 
+  removeExpression(): RbacSpecification {
+    this.expression = undefined;
+    return this;
+  }
+
   toString(): string {
     const rs = new Array<string>();
     this.roles.forEach((r: string) => {
