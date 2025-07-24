@@ -1595,20 +1595,44 @@ function getAnyProperty(propName: string, attrSpec: AttributeSpec): any | undefi
   return undefined;
 }
 
+function setAnyProperty(propName: string, value: any, attrSpec: AttributeSpec): AttributeSpec {
+  if (attrSpec.properties == undefined) {
+    attrSpec.properties = new Map();
+  }
+  attrSpec.properties.set(propName, value);
+  return attrSpec;
+}
+
 export function isIdAttribute(attrSpec: AttributeSpec): boolean {
   return getBooleanProperty('id', attrSpec);
+}
+
+export function asIdAttribute(attrSpec: AttributeSpec): AttributeSpec {
+  return setAnyProperty('id', true, attrSpec);
 }
 
 export function isUniqueAttribute(attrSpec: AttributeSpec): boolean {
   return getBooleanProperty('unique', attrSpec);
 }
 
+export function asUniqueAttribute(attrSpec: AttributeSpec): AttributeSpec {
+  return setAnyProperty('unique', true, attrSpec);
+}
+
 export function isIndexedAttribute(attrSpec: AttributeSpec): boolean {
   return getBooleanProperty('indexed', attrSpec);
 }
 
+export function asIndexedAttribute(attrSpec: AttributeSpec): AttributeSpec {
+  return setAnyProperty('indexed', true, attrSpec);
+}
+
 export function isOptionalAttribute(attrSpec: AttributeSpec): boolean {
   return getBooleanProperty('optional', attrSpec);
+}
+
+export function asOptionalAttribute(attrSpec: AttributeSpec): AttributeSpec {
+  return setAnyProperty('optional', true, attrSpec);
 }
 
 export function isArrayAttribute(attrSpec: AttributeSpec): boolean {
@@ -1633,6 +1657,10 @@ export function getOneOfRef(attrSpec: AttributeSpec): string | undefined {
 
 export function getAttributeDefaultValue(attrSpec: AttributeSpec): any | undefined {
   return getAnyProperty('default', attrSpec);
+}
+
+export function setDefaultAttributeValue(attrSpec: AttributeSpec, value: any): AttributeSpec {
+  return setAnyProperty('default', value, attrSpec);
 }
 
 export function getAttributeLength(attrSpec: AttributeSpec): number | undefined {
