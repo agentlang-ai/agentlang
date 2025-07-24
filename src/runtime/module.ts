@@ -44,6 +44,7 @@ import {
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
 import { DefaultIdAttributeName, PathAttributeName } from './defs.js';
+import { logger } from './logger.js';
 
 export class ModuleEntry {
   name: string;
@@ -653,7 +654,8 @@ export class RbacSpecification {
 
   setExpression(lhs: string, rhs: string): RbacSpecification {
     if (this.roles != RbacSpecification.EmptyRoles) {
-      throw new Error('Cannot set `where` expression along with roles');
+      logger.warn('Cannot set `where` expression along with roles, removing roles');
+      this.removeRoles();
     }
     this.expression = {
       lhs: lhs,
