@@ -44,6 +44,7 @@ import {
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
 import { DefaultIdAttributeName, PathAttributeName } from './defs.js';
+import { logger } from './logger.js';
 
 export class ModuleEntry {
   name: string;
@@ -177,6 +178,23 @@ function asTriggerInfo(te: TriggerEntry): TriggerInfo {
   };
 }
 
+const EnumPropertyName = 'one-of';
+const OneOfPropertyName = 'one-of-ref';
+
+export function enumAttributeSpec(values: Set<string>): AttributeSpec {
+  return {
+    type: 'String',
+    properties: new Map().set(EnumPropertyName, values),
+  };
+}
+
+export function oneOfAttributeSpec(ref: string): AttributeSpec {
+  return {
+    type: 'String',
+    properties: new Map().set(OneOfPropertyName, ref),
+  };
+}
+
 export class Record extends ModuleEntry {
   schema: RecordSchema;
   meta: Meta | undefined;
@@ -241,9 +259,9 @@ export class Record extends ModuleEntry {
           }
           if (isArrayType) props.set('array', true);
           if (isObjectType) props.set('object', true);
-          if (enumValues) props.set('one-of', new Set(enumValues));
+          if (enumValues) props.set(EnumPropertyName, new Set(enumValues));
           if (oneOfRef) {
-            props.set('one-of-ref', oneOfRef);
+            props.set(OneOfPropertyName, oneOfRef);
             this.addOneOfRefAttribute(a.name);
           }
         }
@@ -602,14 +620,16 @@ export class RbacSpecification {
   }
 
   setPermissions(perms: Array<string>): RbacSpecification {
+    const ps = new Set<RbacPermissionFlag>();
     perms.forEach((v: string) => {
       const idx: any = v.toUpperCase();
       const a: any = RbacPermissionFlag[idx];
       if (a == undefined) {
         throw new Error(`Not a valid RBAC permission - ${v}`);
       }
-      this.permissions.add(a);
+      ps.add(a);
     });
+    this.permissions = ps;
     return this;
   }
 
@@ -644,9 +664,15 @@ export class RbacSpecification {
     return this;
   }
 
+  removeRoles(): RbacSpecification {
+    this.roles = RbacSpecification.EmptyRoles;
+    return this;
+  }
+
   setExpression(lhs: string, rhs: string): RbacSpecification {
     if (this.roles != RbacSpecification.EmptyRoles) {
-      throw new Error('Cannot set `where` expression along with roles');
+      logger.warn('Cannot set `where` expression along with roles, removing roles');
+      this.removeRoles();
     }
     this.expression = {
       lhs: lhs,
@@ -655,7 +681,15 @@ export class RbacSpecification {
     return this;
   }
 
+  removeExpression(): RbacSpecification {
+    this.expression = undefined;
+    return this;
+  }
+
   toString(): string {
+    if (this.permissions.size <= 0) {
+      throw new Error(`Cannot emit RbacSpecification, no permissions are set`);
+    }
     const rs = new Array<string>();
     this.roles.forEach((r: string) => {
       rs.push(r);
