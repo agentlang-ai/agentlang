@@ -178,6 +178,23 @@ function asTriggerInfo(te: TriggerEntry): TriggerInfo {
   };
 }
 
+const EnumPropertyName = 'one-of';
+const OneOfPropertyName = 'one-of-ref';
+
+export function enumAttributeSpec(values: Set<string>): AttributeSpec {
+  return {
+    type: 'String',
+    properties: new Map().set(EnumPropertyName, values),
+  };
+}
+
+export function oneOfAttributeSpec(ref: string): AttributeSpec {
+  return {
+    type: 'String',
+    properties: new Map().set(OneOfPropertyName, ref),
+  };
+}
+
 export class Record extends ModuleEntry {
   schema: RecordSchema;
   meta: Meta | undefined;
@@ -242,9 +259,9 @@ export class Record extends ModuleEntry {
           }
           if (isArrayType) props.set('array', true);
           if (isObjectType) props.set('object', true);
-          if (enumValues) props.set('one-of', new Set(enumValues));
+          if (enumValues) props.set(EnumPropertyName, new Set(enumValues));
           if (oneOfRef) {
-            props.set('one-of-ref', oneOfRef);
+            props.set(OneOfPropertyName, oneOfRef);
             this.addOneOfRefAttribute(a.name);
           }
         }
