@@ -687,6 +687,9 @@ export class RbacSpecification {
   }
 
   toString(): string {
+    if (this.permissions.size <= 0) {
+      throw new Error(`Cannot emit RbacSpecification, no permissions are set`);
+    }
     const rs = new Array<string>();
     this.roles.forEach((r: string) => {
       rs.push(r);
