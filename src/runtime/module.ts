@@ -602,14 +602,16 @@ export class RbacSpecification {
   }
 
   setPermissions(perms: Array<string>): RbacSpecification {
+    const ps = new Set<RbacPermissionFlag>();
     perms.forEach((v: string) => {
       const idx: any = v.toUpperCase();
       const a: any = RbacPermissionFlag[idx];
       if (a == undefined) {
         throw new Error(`Not a valid RBAC permission - ${v}`);
       }
-      this.permissions.add(a);
+      ps.add(a);
     });
+    this.permissions = ps;
     return this;
   }
 

@@ -42,7 +42,7 @@ agent agent02
   })
 })
 
-if (process.env.AL_TEST) {
+if (process.env.AL_TEST === 'true') {
 
   describe('Basic module operations', () => {
     test('check create module', async () => {
