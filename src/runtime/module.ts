@@ -646,6 +646,11 @@ export class RbacSpecification {
     return this;
   }
 
+  removeRoles(): RbacSpecification {
+    this.roles = RbacSpecification.EmptyRoles;
+    return this;
+  }
+
   setExpression(lhs: string, rhs: string): RbacSpecification {
     if (this.roles != RbacSpecification.EmptyRoles) {
       throw new Error('Cannot set `where` expression along with roles');
