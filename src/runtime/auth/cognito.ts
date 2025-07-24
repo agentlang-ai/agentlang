@@ -6,14 +6,7 @@ import {
   SignUpCallback,
   UserInfo,
 } from './interface.js';
-import {
-  ensureUser,
-  ensureUserSession,
-  findUser,
-  findUserByEmail,
-  findUserSession,
-  removeSession,
-} from '../modules/auth.js';
+import { ensureUser, ensureUserSession, findUser, findUserByEmail } from '../modules/auth.js';
 import { logger } from '../logger.js';
 import { sleepMilliseconds } from '../util.js';
 import { Instance } from '../module.js';
@@ -39,6 +32,10 @@ let AdminGetUserCommand: any = undefined;
 let AuthenticationDetails: any = undefined;
 let CognitoUser: any = undefined;
 let CognitoUserPool: any = undefined;
+let CognitoUserSession: any = undefined;
+let CognitoIdToken: any = undefined;
+let CognitoAccessToken: any = undefined;
+let CognitoRefreshToken: any = undefined;
 
 if (isNodeEnv) {
   const cp = await import('@aws-sdk/credential-providers');
@@ -53,6 +50,10 @@ if (isNodeEnv) {
   AuthenticationDetails = ci.AuthenticationDetails;
   CognitoUser = ci.CognitoUser;
   CognitoUserPool = ci.CognitoUserPool;
+  CognitoUserSession = ci.CognitoUserSession;
+  CognitoIdToken = ci.CognitoIdToken;
+  CognitoAccessToken = ci.CognitoAccessToken;
+  CognitoRefreshToken = ci.CognitoRefreshToken;
 }
 
 const defaultConfig = isNodeEnv
@@ -441,7 +442,13 @@ export class CognitoAuth implements AgentlangAuth {
         const idToken = result.getIdToken().getJwtToken();
         const accessToken = result.getAccessToken().getJwtToken();
         const refreshToken = result.getRefreshToken().getToken();
-        const localSess: Instance = await ensureUserSession(userid, idToken, env);
+        const localSess: Instance = await ensureUserSession(
+          userid,
+          idToken,
+          accessToken,
+          refreshToken,
+          env
+        );
         const sessInfo: SessionInfo = {
           sessionId: localSess.lookup('id'),
           userId: userid,
@@ -513,7 +520,13 @@ export class CognitoAuth implements AgentlangAuth {
         const idToken = result.getIdToken().getJwtToken();
         const accessToken = result.getAccessToken().getJwtToken();
         const refreshToken = result.getRefreshToken().getToken();
-        const localSess: Instance = await ensureUserSession(userid, idToken, env);
+        const localSess: Instance = await ensureUserSession(
+          userid,
+          idToken,
+          accessToken,
+          refreshToken,
+          env
+        );
         const sessInfo: SessionInfo = {
           sessionId: localSess.lookup('id'),
           userId: userid,
@@ -540,25 +553,33 @@ export class CognitoAuth implements AgentlangAuth {
         return;
       }
       const user = new CognitoUser({
-        Username: localUser.email,
+        Username: localUser.lookup('email'),
         Pool: this.fetchUserPool(),
       });
+
       let done = false;
       let logoutError: any;
-      user.signOut(() => {
-        done = true;
+
+      const session = new CognitoUserSession({
+        IdToken: new CognitoIdToken({ IdToken: sessionInfo.idToken }),
+        AccessToken: new CognitoAccessToken({ AccessToken: sessionInfo.accessToken }),
+        RefreshToken: new CognitoRefreshToken({ RefreshToken: sessionInfo.refreshToken }),
       });
-      // Add error handling for signOut
-      user.signOut((err: any) => {
-        if (err) {
+      user.setSignInUserSession(session);
+      user.globalSignOut({
+        onSuccess: function () {
+          done = true;
+        },
+        onFailure: function (err: any) {
+          done = true;
           logger.error(`Cognito signOut error for user ${sessionInfo.userId}:`, {
             errorName: err.name,
             errorMessage: sanitizeErrorMessage(err.message),
           });
           logoutError = err;
-        }
-        done = true;
+        },
       });
+
       while (!done) {
         await sleepMilliseconds(100);
       }
@@ -567,10 +588,6 @@ export class CognitoAuth implements AgentlangAuth {
           `Error during Cognito logout for user ${sessionInfo.userId}: ${logoutError.message}`
         );
         // Continue with local session cleanup even if Cognito logout fails
-      }
-      const sess = await findUserSession(localUser.id, env);
-      if (sess) {
-        await removeSession(sess.id, env);
       }
       logger.debug(`Successfully logged out user ${sessionInfo.userId}`);
       if (cb) cb(true);
