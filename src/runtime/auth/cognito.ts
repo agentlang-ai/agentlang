@@ -598,6 +598,50 @@ export class CognitoAuth implements AgentlangAuth {
     }
   }
 
+  async changePassword(
+    sessionInfo: SessionInfo,
+    newPassword: string,
+    oldPassword: string,
+    env: Environment
+  ): Promise<boolean> {
+    const localUser = await findUser(sessionInfo.userId, env);
+    if (!localUser) {
+      logger.warn(`User ${sessionInfo.userId} not found for password-change`);
+      return false;
+    }
+    const email = localUser.lookup('email');
+    const user = new CognitoUser({
+      Username: email,
+      Pool: this.fetchUserPool(),
+    });
+    const session = new CognitoUserSession({
+      IdToken: new CognitoIdToken({ IdToken: sessionInfo.idToken }),
+      AccessToken: new CognitoAccessToken({ AccessToken: sessionInfo.accessToken }),
+      RefreshToken: new CognitoRefreshToken({ RefreshToken: sessionInfo.refreshToken }),
+    });
+    user.setSignInUserSession(session);
+    let done = false;
+    let cpErr: any = undefined;
+    user.changePassword(oldPassword, newPassword, (err: any, _: any) => {
+      if (err) {
+        done = true;
+        cpErr = err;
+      } else {
+        done = true;
+      }
+    });
+
+    while (!done) {
+      await sleepMilliseconds(100);
+    }
+
+    if (cpErr) {
+      logger.warn(`Failed to change the password for ${email} - ${cpErr.message}`);
+      return false;
+    }
+    return true;
+  }
+
   private fetchUserPool() {
     if (this.userPool) {
       return this.userPool;

@@ -176,6 +176,10 @@ workflow logout {
   await Auth.logoutUser()
 }
 
+workflow changePassword {
+  await Auth.changePassword(changePassword.newPassword, changePassword.password)
+}
+
 workflow getUser {
   await Auth.getUserInfo(getUser.userId)
 }
@@ -558,27 +562,59 @@ export async function loginUser(
   }
 }
 
+async function logoutSession(userId: string, sess: Instance, env: Environment): Promise<string> {
+  const sessId = sess.lookup('id');
+  const tok = sess.lookup('authToken');
+  await fetchAuthImpl().logout(
+    {
+      sessionId: sessId,
+      userId: userId,
+      authToken: tok,
+      idToken: tok,
+      accessToken: sess.lookup('accessToken'),
+      refreshToken: sess.lookup('refreshToken'),
+    },
+    env
+  );
+  await removeSession(sessId, env);
+  return userId;
+}
+
 export async function logoutUser(env: Environment): Promise<string | undefined> {
+  const user = env.getActiveUser();
+  const sess = await findUserSession(user, env);
+  if (sess) {
+    return await logoutSession(user, sess, env);
+  }
+  return undefined;
+}
+
+export async function changePassword(
+  newPassword: string,
+  password: string,
+  env: Environment
+): Promise<string | undefined> {
   const user = env.getActiveUser();
   const sess = await findUserSession(user, env);
   if (sess) {
     const sessId = sess.lookup('id');
     const tok = sess.lookup('authToken');
-    await fetchAuthImpl().logout(
-      {
-        sessionId: sessId,
-        userId: user,
-        authToken: tok,
-        idToken: tok,
-        accessToken: sess.lookup('accessToken'),
-        refreshToken: sess.lookup('refreshToken'),
-      },
-      env
-    );
-    await removeSession(sessId, env);
-    return user;
+    const sessInfo = {
+      sessionId: sessId,
+      userId: user,
+      authToken: tok,
+      idToken: tok,
+      accessToken: sess.lookup('accessToken'),
+      refreshToken: sess.lookup('refreshToken'),
+    };
+    if (await fetchAuthImpl().changePassword(sessInfo, newPassword, password, env)) {
+      return await logoutSession(user, sess, env);
+    } else {
+      return undefined;
+    }
+  } else {
+    throw new UnauthorisedError(`No active session for user ${user}`);
   }
-  return undefined;
 }
 
 export async function verifySession(token: string, env?: Environment): Promise<ActiveSessionInfo> {

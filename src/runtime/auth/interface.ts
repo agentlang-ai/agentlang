@@ -33,4 +33,10 @@ export interface AgentlangAuth {
   verifyToken(token: string, env?: Environment): any;
   getUser(userId: string, env: Environment): Promise<UserInfo>;
   getUserByEmail(email: string, env: Environment): Promise<UserInfo>;
+  changePassword(
+    sessionInfo: SessionInfo,
+    newPassword: string,
+    oldPassword: string,
+    env: Environment
+  ): Promise<boolean>;
 }
