@@ -145,6 +145,14 @@ workflow CreateSession {
             isActive true}}
 }
 
+workflow UpdateSession {
+  {Session {id? UpdateSession.id,
+            authToken UpdateSession.authToken,
+            accessToken UpdateSession.accessToken,
+            refreshToken UpdateSession.refreshToken,
+            isActive true}, @upsert}
+}
+
 workflow FindSession {
   {Session {id? FindSession.id}} as [session];
   session
@@ -178,6 +186,10 @@ workflow logout {
 
 workflow changePassword {
   await Auth.changePassword(changePassword.newPassword, changePassword.password)
+}
+
+workflow refreshToken {
+  await Auth.refreshUserToken(refreshToken.refreshToken)
 }
 
 workflow getUser {
@@ -249,12 +261,18 @@ export async function ensureUserSession(
   accessToken: string,
   refreshToken: string,
   env: Environment
-) {
+): Promise<Instance> {
   const sess: Instance = await findUserSession(userId, env);
   if (sess) {
-    await removeSession(sess.lookup('id'), env);
+    // Update existing session instead of deleting and recreating
+    await updateSession(sess.lookup('id'), token, accessToken, refreshToken, env);
+    // Return the updated session by finding it again
+    return await findUserSession(userId, env);
   }
-  return await createSession(crypto.randomUUID(), userId, token, accessToken, refreshToken, env);
+  const sessionId = crypto.randomUUID();
+  await createSession(sessionId, userId, token, accessToken, refreshToken, env);
+  // Return the created session by finding it
+  return await findSession(sessionId, env);
 }
 
 export async function createSession(
@@ -293,6 +311,25 @@ export async function findUserSession(userId: string, env: Environment): Promise
     'FindUserSession',
     {
       userId: userId,
+    },
+    env
+  );
+}
+
+export async function updateSession(
+  id: string,
+  token: string,
+  accessToken: string,
+  refreshToken: string,
+  env: Environment
+): Promise<Result> {
+  return await evalEvent(
+    'UpdateSession',
+    {
+      id: id,
+      authToken: token,
+      accessToken: accessToken,
+      refreshToken: refreshToken,
     },
     env
   );
@@ -771,8 +808,38 @@ export async function getUserInfoByEmail(email: string, env: Environment): Promi
   }
 }
 
+export async function refreshUserToken(refreshToken: string, env: Environment): Promise<object> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    try {
+      const sessionInfo = await fetchAuthImpl().refreshToken(refreshToken, env);
+
+      return {
+        id_token: sessionInfo.idToken,
+        access_token: sessionInfo.accessToken,
+        refresh_token: sessionInfo.refreshToken,
+        token_type: 'Bearer',
+        expires_in: 3600,
+        userId: sessionInfo.userId,
+        sessionId: sessionInfo.sessionId,
+      };
+    } catch (err: any) {
+      logger.error(`Token refresh failed: ${err.message}`);
+      throw err;
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
 export function requireAuth(moduleName: string, eventName: string): boolean {
-  const f = moduleName == CoreAuthModuleName && (eventName == 'login' || eventName == 'signup');
+  const f =
+    moduleName == CoreAuthModuleName &&
+    (eventName == 'login' || eventName == 'signup' || eventName == 'refreshToken');
   return !f;
 }
 
