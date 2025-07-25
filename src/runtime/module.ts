@@ -2274,12 +2274,14 @@ export class Instance {
   }
 }
 
-export function objectAsInstanceAttributes(obj: object): InstanceAttributes {
+export function objectAsInstanceAttributes(obj: object | undefined): InstanceAttributes {
   const attrs: InstanceAttributes = newInstanceAttributes();
-  Object.entries(obj).forEach((v: [string, any]) => {
-    const obj = v[1];
-    attrs.set(v[0], obj);
-  });
+  if (obj) {
+    Object.entries(obj).forEach((v: [string, any]) => {
+      const obj = v[1];
+      attrs.set(v[0], obj);
+    });
+  }
   return attrs;
 }
 

@@ -40,6 +40,7 @@ import { Environment } from '../../interpreter.js';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { Embeddings } from '@langchain/core/embeddings';
 import { DeletedFlagAttributeName, ParentAttributeName, PathAttributeName } from '../../defs.js';
+import { logger } from '../../logger.js';
 
 function maybeFindIdAttributeName(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
@@ -108,9 +109,13 @@ export class SqlDbResolver extends Resolver {
       await insertRow(n, rowObj, ctx, orUpdate);
       if (inst.record.getFullTextSearchAttributes()) {
         const path = attrs.get(PathAttributeName);
-        if (!(await vectorStoreSearchEntryExists(n, path, ctx))) {
-          const res = await this.embeddings.embedQuery(JSON.stringify(rowObj));
-          await addRowForFullTextSearch(n, path, res, ctx);
+        try {
+          if (!(await vectorStoreSearchEntryExists(n, path, ctx))) {
+            const res = await this.embeddings.embedQuery(JSON.stringify(rowObj));
+            await addRowForFullTextSearch(n, path, res, ctx);
+          }
+        } catch (reason: any) {
+          logger.warn(`Full text indexing failed for ${path} - ${reason}`);
         }
       }
       return inst;
