@@ -1052,12 +1052,18 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
     if (agent.isPlanner()) {
       logger.debug(`Agent ${agent.name} generated pattern: ${result}`);
       try {
-        if (result.trimStart().startsWith('workflow')) {
-          await parseWorkflow(result);
-          env.setLastResult(result);
-          return;
+        let rs = result.trim();
+        if (rs.startsWith('[')) {
+          const stmts = rs.substring(1, rs.length - 1);
+          rs = `workflow T {${stmts}}`;
+        }
+        if (rs.startsWith('workflow')) {
+          const wf = await parseWorkflow(rs);
+          if (agent.runWorkflows) {
+            await evaluateStatements(wf.statements, env);
+          }
         } else {
-          env.setLastResult(await parseAndEvaluateStatement(result, undefined, env));
+          env.setLastResult(await parseAndEvaluateStatement(rs, undefined, env));
         }
       } catch (err: any) {
         logger.error(
@@ -1072,7 +1078,11 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
 
 function cleanupAgentResponse(response: string | undefined): string | undefined {
   if (response) {
-    const parts = response.split('\n');
+    const resp = response.trim();
+    if (resp.startsWith('[') && resp.endsWith(']')) {
+      return resp;
+    }
+    const parts = resp.split('\n');
     const validated = parts.filter((s: string) => {
       const stmt = s.trim();
       const r =

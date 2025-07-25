@@ -78,6 +78,7 @@ if (process.env.AL_TEST === 'true') {
         `agent planner01
           {instruction "Based on the user request, create appropriate patterns based on the SPA module.",
            tools "SPA",
+           runWorkflows false,
            llm "planner01_llm"}
           workflow chat {{planner01 {message chat.msg}}}
           `)

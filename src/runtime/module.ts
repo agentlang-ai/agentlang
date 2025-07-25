@@ -550,7 +550,7 @@ function normalizeKvPairValue(kvp: KvPair): any | null {
   } else if (v.num != undefined) {
     return v.num;
   } else if (v.bool != undefined) {
-    return v.bool;
+    return v.bool == 'true' ? true : false;
   } else if (v.id != undefined) {
     return v.id;
   } else if (v.ref != undefined) {
