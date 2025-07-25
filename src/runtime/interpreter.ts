@@ -1053,8 +1053,8 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
       logger.debug(`Agent ${agent.name} generated pattern: ${result}`);
       try {
         if (result.trimStart().startsWith('workflow')) {
-          const wf = await parseWorkflow(result);
-          await evaluateStatements(wf.statements, env);
+          await parseWorkflow(result);
+          env.setLastResult(result);
           return;
         } else {
           env.setLastResult(await parseAndEvaluateStatement(result, undefined, env));
