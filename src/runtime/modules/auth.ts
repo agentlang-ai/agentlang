@@ -577,7 +577,7 @@ async function logoutSession(userId: string, sess: Instance, env: Environment): 
     env
   );
   await removeSession(sessId, env);
-  return userId;
+  return 'ok';
 }
 
 export async function logoutUser(env: Environment): Promise<string | undefined> {
