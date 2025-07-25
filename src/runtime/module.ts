@@ -909,6 +909,10 @@ function asRelNodeEntry(n: NodeDefinition): RelationshipNode {
   };
 }
 
+const OneToOne = 'one_one';
+const OneToMany = 'one_many';
+const ManyToMany = 'many_many';
+
 export class Relationship extends Record {
   override type: RecordType = RecordType.RELATIONSHIP;
   relType: RelType = RelType.CONTAINS;
@@ -987,23 +991,50 @@ export class Relationship extends Record {
     return false;
   }
 
+  private setProperty(p: string, v: any): Relationship {
+    if (this.properties == undefined) {
+      this.properties = new Map();
+    }
+    this.properties.set(p, v);
+    return this;
+  }
+
   isOneToOne(): boolean {
-    return this.isBetween() && this.hasBooleanFlagSet('one_one');
+    return this.isBetween() && this.hasBooleanFlagSet(OneToOne);
   }
 
   isOneToMany(): boolean {
-    return this.isBetween() && this.hasBooleanFlagSet('one_many');
+    return this.isBetween() && this.hasBooleanFlagSet(OneToMany);
   }
 
   isManyToMany(): boolean {
     if (this.isBetween()) {
       return (
-        this.hasBooleanFlagSet('many_many') ||
-        (!this.hasBooleanFlagSet('one_one') && !this.hasBooleanFlagSet('one_many'))
+        this.hasBooleanFlagSet(ManyToMany) ||
+        (!this.hasBooleanFlagSet(OneToOne) && !this.hasBooleanFlagSet(OneToMany))
       );
     } else {
       return false;
     }
+  }
+
+  setOneToOne(flag: boolean = true): Relationship {
+    if (flag) {
+      this.setOneToMany(false).setManyToMany(false);
+    }
+    return this.setProperty(OneToOne, flag);
+  }
+
+  setOneToMany(flag: boolean = true): Relationship {
+    if (flag) {
+      this.setOneToOne(false).setManyToMany(false);
+    }
+    return this.setProperty(OneToMany, flag);
+  }
+
+  setManyToMany(flag: boolean = true): Relationship {
+    this.setOneToOne(false).setOneToMany(false);
+    return this.setProperty(ManyToMany, flag);
   }
 
   isFirstNode(inst: Instance): boolean {
