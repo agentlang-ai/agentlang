@@ -29,6 +29,7 @@ entity ${LlmEntityName} {
 entity ${AgentEntityName} {
     name String @id,
     type @enum("chat", "planner") @default("chat"),
+    runWorkflows Boolean @default(true),
     instruction String @optional,
     tools String @optional, // comma-separated values
     documents String @optional, // comma-separated values
@@ -68,6 +69,7 @@ export class AgentInstance {
   type: string = 'chat';
   tools: string | undefined;
   documents: string | undefined;
+  runWorkflows: boolean = true;
 
   private constructor() {}
 

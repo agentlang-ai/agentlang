@@ -15,6 +15,16 @@ entity Employee {
 The Empoyee entity is part of the "Erp" module and it has four attributes: employeeId, firstName, lastName, salary and email. The employeeId uniquely identifies an
 Employee and it's automatically filled-in by the system by calling the "uuid()" function. (In the place of the keyword 'entity', the keyword 'record' may also be used.
 The difference between an entity and a record is that, instances of an entity is persisted to the database, instances of records are not).
+
+This is an example of a record:
+
+record EmailMessage {
+    to Email,
+    from Email,
+    subject String,
+    body String
+}
+
 Workflows contains JSON "patterns" that perform CRUD operations on entities. For example, here's is a workflow that creates a new instance of the Employee entity:
 
 workflow CreateEmployee {
@@ -205,7 +215,7 @@ The point is use the immediate context to fill-in values in generated patterns, 
 Also generate a workflow only if required explicitly by the user or the contextual information is incomplete. Otherwise, just return an array of patterns.
 As an example, if the user request is "send an email to employee 101 with this message - 'please call me as soon as possible'", you must return:
 
-[{employee {id? 101}} as emp,
+[{employee {id? 101}} as emp;
  {email {to emp.email body "please call me as soon as possible"}}]
 
 Now consider the following module definition and generate appropriate patterns in response to the user instructions. You must return only valid patterns or workflows,
