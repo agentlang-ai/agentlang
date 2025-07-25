@@ -6,7 +6,7 @@ import {
   SignUpCallback,
   UserInfo,
 } from './interface.js';
-import { ensureUser, ensureUserSession, findUser, findUserByEmail } from '../modules/auth.js';
+import { ensureUser, ensureUserSession, findUser, findUserByEmail, updateUser } from '../modules/auth.js';
 import { logger } from '../logger.js';
 import { sleepMilliseconds } from '../util.js';
 import { Instance } from '../module.js';
@@ -61,6 +61,7 @@ const defaultConfig = isNodeEnv
       .set('UserPoolId', process.env.COGNITO_USER_POOL_ID)
       .set('ClientId', process.env.COGNITO_CLIENT_ID)
   : new Map();
+
 
 // Helper function to parse Cognito error and throw appropriate custom error
 function handleCognitoError(err: any, context: string): never {
@@ -239,6 +240,7 @@ function handleCognitoError(err: any, context: string): never {
   }
 }
 
+
 // Helper function to sanitize error messages to prevent sensitive information exposure
 function sanitizeErrorMessage(message: string): string {
   if (!message) return '';
@@ -266,6 +268,7 @@ export function getHttpStatusForError(error: Error): number {
   if (error instanceof ExpiredCodeError) return 400;
   if (error instanceof CodeMismatchError) return 400;
 
+
   // Check error message for additional context
   if (error.message) {
     if (
@@ -283,17 +286,88 @@ export function getHttpStatusForError(error: Error): number {
   return 500; // Internal server error for unknown errors
 }
 
+
+import { scryptSync, randomBytes, timingSafeEqual, createHmac } from 'crypto';
+
+const SALT_LENGTH = 32;
+const KEY_LENGTH = 64;
+const TOKEN_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
+const TOKEN_EXPIRY_HOURS = 24;
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(SALT_LENGTH);
+  const hash = scryptSync(password, salt, KEY_LENGTH);
+  return `${salt.toString('hex')}:${hash.toString('hex')}`;
+}
+
+function verifyPassword(password: string, hashedPassword: string): boolean {
+  const [saltHex, hashHex] = hashedPassword.split(':');
+  if (!saltHex || !hashHex) return false;
+  
+  const salt = Buffer.from(saltHex, 'hex');
+  const hash = Buffer.from(hashHex, 'hex');
+  const derivedHash = scryptSync(password, salt, KEY_LENGTH);
+  
+  return timingSafeEqual(hash, derivedHash);
+}
+
+function generateLocalToken(userId: string, email: string): string {
+  const payload = {
+    sub: userId,
+    email: email,
+    type: 'local',
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + (TOKEN_EXPIRY_HOURS * 3600)
+  };
+  
+  const payloadStr = JSON.stringify(payload);
+  const signature = createHmac('sha256', TOKEN_SECRET).update(payloadStr).digest('hex');
+  
+  return `${Buffer.from(payloadStr).toString('base64')}.${signature}`;
+}
+
+function verifyLocalToken(token: string): { userId: string; email: string } {
+  try {
+    const [payloadB64, signature] = token.split('.');
+    if (!payloadB64 || !signature) {
+      throw new Error('Invalid token format');
+    }
+    
+    const payloadStr = Buffer.from(payloadB64, 'base64').toString();
+    const expectedSignature = createHmac('sha256', TOKEN_SECRET).update(payloadStr).digest('hex');
+    
+    if (!timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expectedSignature, 'hex'))) {
+      throw new Error('Invalid token signature');
+    }
+    
+    const payload = JSON.parse(payloadStr);
+    
+    if (payload.type !== 'local') {
+      throw new Error('Invalid token type');
+    }
+    
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      throw new Error('Token expired');
+    }
+    
+    return { userId: payload.sub, email: payload.email };
+  } catch {
+    throw new UnauthorisedError('Invalid or expired token');
+  }
+}
+
 export class CognitoAuth implements AgentlangAuth {
   config: Map<string, string | undefined>;
   userPool: any;
   constructor(config?: Map<string, string>) {
     this.config = config ? config : defaultConfig;
     const upid = this.config.get('UserPoolId');
-    if (upid)
+    if (upid && isNodeEnv) {
       this.userPool = new CognitoUserPool({
         UserPoolId: upid,
         ClientId: this.fetchClientId(),
       });
+    }
   }
 
   fetchUserPoolId(): string {
@@ -309,7 +383,7 @@ export class CognitoAuth implements AgentlangAuth {
     if (id) {
       return id;
     }
-    throw new Error(`${k} is not set`);
+    throw new Error(`${k} is not set - Cognito is not configured`);
   }
 
   async signUp(
@@ -319,60 +393,87 @@ export class CognitoAuth implements AgentlangAuth {
     env: Environment,
     cb: SignUpCallback
   ): Promise<void> {
-    const client = new CognitoIdentityProviderClient({
-      region: process.env.AWS_REGION || 'us-west-2',
-      credentials: fromEnv(),
-    });
-    const userAttrs = [
-      {
-        Name: 'email',
-        Value: username,
-      },
-      {
-        Name: 'name',
-        Value: username,
-      },
-    ];
-    if (userData) {
-      userData.forEach((v: string, k: string) => {
-        userAttrs.push({ Name: k, Value: v });
-      });
-    }
-    const input = {
-      ClientId: this.config.get('ClientId'),
-      Username: username,
-      Password: password,
-      UserAttributes: userAttrs,
-      ValidationData: userAttrs,
-    };
-    const command = new SignUpCommand(input);
-    try {
-      logger.debug(`Attempting signup for user: ${username}`);
-      const response = await client.send(command);
+    const cognitoConfigured = process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID;
 
-      if (response.$metadata.httpStatusCode == 200) {
-        logger.info(`Signup successful for user: ${username}`);
-        const user = await ensureUser(username, '', '', env);
-        const userInfo: UserInfo = {
-          username: username,
-          id: user.id,
-          systemUserInfo: response.UserSub,
-        };
-        cb(userInfo);
-      } else {
-        logger.error(`Signup failed with HTTP status ${response.$metadata.httpStatusCode}`, {
-          username: username,
-          statusCode: response.$metadata.httpStatusCode,
-        });
-        throw new BadRequestError(`Signup failed with status ${response.$metadata.httpStatusCode}`);
-      }
-    } catch (err: any) {
-      if (err instanceof BadRequestError) throw err;
-      logger.error(`Signup error for user ${username}:`, {
-        errorName: err.name,
-        errorMessage: sanitizeErrorMessage(err.message),
+    if (cognitoConfigured) {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+        credentials: fromEnv(),
       });
-      handleCognitoError(err, 'signUp');
+      const userAttrs = [
+        {
+          Name: 'email',
+          Value: username,
+        },
+        {
+          Name: 'name',
+          Value: username,
+        },
+      ];
+      if (userData) {
+        userData.forEach((v: string, k: string) => {
+          userAttrs.push({ Name: k, Value: v });
+        });
+      }
+      const input = {
+        ClientId: this.config.get('ClientId'),
+        Username: username,
+        Password: password,
+        UserAttributes: userAttrs,
+        ValidationData: userAttrs,
+      };
+      const command = new SignUpCommand(input);
+      try {
+        logger.debug(`Attempting Cognito signup for user: ${username}`);
+        const response = await client.send(command);
+
+        if (response.$metadata.httpStatusCode == 200) {
+          logger.info(`Cognito signup successful for user: ${username}`);
+          const user = await ensureUser(username, '', '', env);
+          const userId = user && user.lookup ? user.lookup('id') : crypto.randomUUID();
+          const userInfo: UserInfo = {
+            username: username,
+            id: userId,
+            systemUserInfo: response.UserSub,
+          };
+          cb(userInfo);
+        } else {
+          logger.error(`Cognito signup failed with HTTP status ${response.$metadata.httpStatusCode}`, {
+            username: username,
+            statusCode: response.$metadata.httpStatusCode,
+          });
+          throw new BadRequestError(`Signup failed with status ${response.$metadata.httpStatusCode}`);
+        }
+      } catch (err: any) {
+        if (err instanceof BadRequestError) throw err;
+        logger.error(`Cognito signup error for user ${username}:`, {
+          errorName: err.name,
+          errorMessage: sanitizeErrorMessage(err.message),
+        });
+        handleCognitoError(err, 'signUp');
+      }
+    } else {
+      logger.debug(`Cognito not configured, using local signup for user: ${username}`);
+      
+      const existingUser = await findUserByEmail(username, env);
+      if (existingUser) {
+        throw new BadRequestError('An account with this email already exists.');
+      }
+
+      const hashedPassword = hashPassword(password);
+      const firstName = userData?.get('firstName') || '';
+      const lastName = userData?.get('lastName') || '';
+      
+      const user = await ensureUser(username, firstName, lastName, env, hashedPassword);
+      const userId = user && user.lookup ? user.lookup('id') : crypto.randomUUID();
+      const userInfo: UserInfo = {
+        username: username,
+        id: userId,
+        systemUserInfo: { type: 'local' },
+      };
+      
+      logger.info(`Local signup successful for user: ${username}`);
+      cb(userInfo);
     }
   }
 
@@ -464,83 +565,48 @@ export class CognitoAuth implements AgentlangAuth {
         throw new UnauthorisedError('Login failed. Please try again.');
       }
     } else {
-      // Cognito not configured, fall back to local authentication
-      let localUser = await findUserByEmail(username, env);
+      logger.debug(`Cognito not configured, using local authentication for user: ${username}`);
+      
+      const localUser = await findUserByEmail(username, env);
       if (!localUser) {
-        logger.warn(`User ${username} not found in local store`);
-        localUser = await ensureUser(username, '', '', env);
+        logger.warn(`User ${username} not found in local store during login`);
+        throw new UserNotFoundError('User account not found. Please check your email or sign up.');
       }
-      const user = new CognitoUser({
-        Username: username,
-        Pool: this.fetchUserPool(),
-      });
-      const authDetails = new AuthenticationDetails({
-        Username: username,
-        Password: password,
-      });
-      let result: any;
-      let authError: any;
-      user.authenticateUser(authDetails, {
-        onSuccess: (session: any) => {
-          result = session;
-        },
-        onFailure: (err: any) => {
-          logger.debug(`Cognito authentication failed for user ${username}:`, {
-            errorName: err.name,
-            errorMessage: sanitizeErrorMessage(err.message),
-          });
-          authError = err;
-        },
-        mfaRequired: (challengeName: any, _challengeParameters: any) => {
-          logger.info(`MFA required for user ${username}: ${challengeName}`);
-          authError = new Error('MFA authentication required');
-        },
-        newPasswordRequired: (_userAttributes: any, _requiredAttributes: any) => {
-          logger.info(`New password required for user ${username}`);
-          authError = new PasswordResetRequiredError(
-            'New password required. Please reset your password.'
-          );
-        },
-      });
-      while (result == undefined && authError == undefined) {
-        await sleepMilliseconds(100);
+
+      const storedPasswordHash = localUser.lookup('passwordHash');
+      if (!storedPasswordHash) {
+        logger.warn(`User ${username} has no password hash - account may be Cognito-only`);
+        throw new UnauthorisedError('Invalid credentials. Please check your email and password.');
       }
-      if (authError) {
-        if (authError instanceof PasswordResetRequiredError) {
-          throw authError;
-        }
-        logger.error(`Login failed for user ${username}:`, {
-          errorName: authError.name,
-          errorMessage: sanitizeErrorMessage(authError.message),
-        });
-        handleCognitoError(authError, 'login');
+
+      if (!verifyPassword(password, storedPasswordHash)) {
+        logger.warn(`Invalid password attempt for user ${username}`);
+        throw new UnauthorisedError('Invalid credentials. Please check your email and password.');
       }
-      if (result) {
-        const userid = localUser.lookup('id');
-        const idToken = result.getIdToken().getJwtToken();
-        const accessToken = result.getAccessToken().getJwtToken();
-        const refreshToken = result.getRefreshToken().getToken();
-        const localSess: Instance = await ensureUserSession(
-          userid,
-          idToken,
-          accessToken,
-          refreshToken,
-          env
-        );
-        const sessInfo: SessionInfo = {
-          sessionId: localSess.lookup('id'),
-          userId: userid,
-          authToken: idToken,
-          idToken: idToken,
-          accessToken: accessToken,
-          refreshToken: refreshToken,
-          systemSesionInfo: result,
-        };
-        cb(sessInfo);
-      } else {
-        logger.error(`Login failed for ${username} - no result received`);
-        throw new UnauthorisedError('Login failed. Please try again.');
-      }
+
+      const userid = localUser.lookup('id');
+      const authToken = generateLocalToken(userid, username);
+      
+      const localSess: Instance = await ensureUserSession(
+        userid,
+        authToken,
+        '',
+        '',
+        env
+      );
+      
+      const sessInfo: SessionInfo = {
+        sessionId: localSess.lookup('id'),
+        userId: userid,
+        authToken: authToken,
+        idToken: authToken,
+        accessToken: undefined,
+        refreshToken: undefined,
+        systemSesionInfo: { type: 'local', userId: userid },
+      };
+      
+      logger.info(`Local authentication successful for user: ${username}`);
+      cb(sessInfo);
     }
   }
 
@@ -552,43 +618,57 @@ export class CognitoAuth implements AgentlangAuth {
         if (cb) cb(true);
         return;
       }
-      const user = new CognitoUser({
-        Username: localUser.lookup('email'),
-        Pool: this.fetchUserPool(),
-      });
 
-      let done = false;
-      let logoutError: any;
+      // Check if Cognito is configured and we have Cognito tokens
+      const cognitoConfigured = process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID;
+      const hasCognitoTokens = sessionInfo.idToken && sessionInfo.accessToken && sessionInfo.refreshToken;
 
-      const session = new CognitoUserSession({
-        IdToken: new CognitoIdToken({ IdToken: sessionInfo.idToken }),
-        AccessToken: new CognitoAccessToken({ AccessToken: sessionInfo.accessToken }),
-        RefreshToken: new CognitoRefreshToken({ RefreshToken: sessionInfo.refreshToken }),
-      });
-      user.setSignInUserSession(session);
-      user.globalSignOut({
-        onSuccess: function () {
-          done = true;
-        },
-        onFailure: function (err: any) {
-          done = true;
-          logger.error(`Cognito signOut error for user ${sessionInfo.userId}:`, {
-            errorName: err.name,
-            errorMessage: sanitizeErrorMessage(err.message),
-          });
-          logoutError = err;
-        },
-      });
+      if (cognitoConfigured && hasCognitoTokens) {
+        // Perform Cognito logout
+        const user = new CognitoUser({
+          Username: localUser.lookup('email'),
+          Pool: this.fetchUserPool(),
+        });
 
-      while (!done) {
-        await sleepMilliseconds(100);
+        let done = false;
+        let logoutError: any;
+
+        const session = new CognitoUserSession({
+          IdToken: new CognitoIdToken({ IdToken: sessionInfo.idToken }),
+          AccessToken: new CognitoAccessToken({ AccessToken: sessionInfo.accessToken }),
+          RefreshToken: new CognitoRefreshToken({ RefreshToken: sessionInfo.refreshToken }),
+        });
+        user.setSignInUserSession(session);
+        user.globalSignOut({
+          onSuccess: function () {
+            done = true;
+          },
+          onFailure: function (err: any) {
+            done = true;
+            logger.error(`Cognito signOut error for user ${sessionInfo.userId}:`, {
+              errorName: err.name,
+              errorMessage: sanitizeErrorMessage(err.message),
+            });
+            logoutError = err;
+          },
+        });
+
+        while (!done) {
+          await sleepMilliseconds(100);
+        }
+        if (logoutError) {
+          logger.error(
+            `Error during Cognito logout for user ${sessionInfo.userId}: ${logoutError.message}`
+          );
+          // Continue with local session cleanup even if Cognito logout fails
+        }
+        logger.debug(`Successfully logged out user ${sessionInfo.userId} from Cognito`);
+      } else {
+        // Local authentication logout - just invalidate the local session
+        logger.debug(`Performing local logout for user ${sessionInfo.userId}`);
       }
-      if (logoutError) {
-        logger.error(
-          `Error during Cognito logout for user ${sessionInfo.userId}: ${logoutError.message}`
-        );
-        // Continue with local session cleanup even if Cognito logout fails
-      }
+      
+      // Always perform local session cleanup
       logger.debug(`Successfully logged out user ${sessionInfo.userId}`);
       if (cb) cb(true);
     } catch (err: any) {
@@ -609,79 +689,134 @@ export class CognitoAuth implements AgentlangAuth {
       logger.warn(`User ${sessionInfo.userId} not found for password-change`);
       return false;
     }
+    
     const email = localUser.lookup('email');
-    const user = new CognitoUser({
-      Username: email,
-      Pool: this.fetchUserPool(),
-    });
-    const session = new CognitoUserSession({
-      IdToken: new CognitoIdToken({ IdToken: sessionInfo.idToken }),
-      AccessToken: new CognitoAccessToken({ AccessToken: sessionInfo.accessToken }),
-      RefreshToken: new CognitoRefreshToken({ RefreshToken: sessionInfo.refreshToken }),
-    });
-    user.setSignInUserSession(session);
-    let done = false;
-    let cpErr: any = undefined;
-    user.changePassword(oldPassword, newPassword, (err: any, _: any) => {
-      if (err) {
-        done = true;
-        cpErr = err;
-      } else {
-        done = true;
+    
+    // Check if Cognito is configured and we have Cognito tokens
+    const cognitoConfigured = process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID;
+    const hasCognitoTokens = sessionInfo.idToken && sessionInfo.accessToken && sessionInfo.refreshToken;
+
+    if (cognitoConfigured && hasCognitoTokens) {
+      // Use Cognito password change
+      const user = new CognitoUser({
+        Username: email,
+        Pool: this.fetchUserPool(),
+      });
+      const session = new CognitoUserSession({
+        IdToken: new CognitoIdToken({ IdToken: sessionInfo.idToken }),
+        AccessToken: new CognitoAccessToken({ AccessToken: sessionInfo.accessToken }),
+        RefreshToken: new CognitoRefreshToken({ RefreshToken: sessionInfo.refreshToken }),
+      });
+      user.setSignInUserSession(session);
+      let done = false;
+      let cpErr: any = undefined;
+      user.changePassword(oldPassword, newPassword, (err: any, _: any) => {
+        if (err) {
+          done = true;
+          cpErr = err;
+        } else {
+          done = true;
+        }
+      });
+
+      while (!done) {
+        await sleepMilliseconds(100);
       }
-    });
 
-    while (!done) {
-      await sleepMilliseconds(100);
-    }
+      if (cpErr) {
+        logger.warn(`Failed to change the password for ${email} - ${cpErr.message}`);
+        return false;
+      }
+      return true;
+    } else {
+      const storedPasswordHash = localUser.lookup('passwordHash');
+      if (!storedPasswordHash) {
+        logger.warn(`User ${email} has no password hash for local password change`);
+        return false;
+      }
 
-    if (cpErr) {
-      logger.warn(`Failed to change the password for ${email} - ${cpErr.message}`);
-      return false;
+      if (!verifyPassword(oldPassword, storedPasswordHash)) {
+        logger.warn(`Invalid old password for user ${email} during password change`);
+        return false;
+      }
+
+      const newPasswordHash = hashPassword(newPassword);
+      
+      try {
+        await updateUser(
+          sessionInfo.userId,
+          undefined,
+          undefined,
+          undefined,
+          newPasswordHash,
+          env
+        );
+        logger.info(`Password changed successfully for user ${email}`);
+        return true;
+      } catch (error) {
+        logger.error(`Failed to update password for user ${email}: ${error}`);
+        return false;
+      }
     }
-    return true;
   }
 
   private fetchUserPool() {
     if (this.userPool) {
       return this.userPool;
     }
-    throw new Error('UserPool not initialized');
+    throw new Error('UserPool not initialized - Cognito is not configured');
   }
 
   async verifyToken(token: string): Promise<void> {
-    try {
-      const verifier = CognitoJwtVerifier.create({
-        userPoolId: this.fetchUserPoolId(),
-        tokenUse: 'id',
-        clientId: this.fetchClientId(),
-      });
+    // Check if Cognito is configured
+    const cognitoConfigured = process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID;
+    
+    if (cognitoConfigured) {
+      // Use Cognito JWT verification
+      try {
+        const verifier = CognitoJwtVerifier.create({
+          userPoolId: this.fetchUserPoolId(),
+          tokenUse: 'id',
+          clientId: this.fetchClientId(),
+        });
 
-      const payload = await verifier.verify(token);
-      logger.debug(`Decoded JWT for ${payload.email}`);
-    } catch (err: any) {
-      logger.error(`Token verification failed:`, {
-        errorName: err.name,
-        errorMessage: sanitizeErrorMessage(err.message),
-      });
+        const payload = await verifier.verify(token);
+        logger.debug(`Decoded JWT for ${payload.email}`);
+      } catch (err: any) {
+        logger.error(`Token verification failed:`, {
+          errorName: err.name,
+          errorMessage: sanitizeErrorMessage(err.message),
+        });
 
-      // Handle specific token verification errors
-      if (err.message && err.message.includes('expired')) {
-        throw new UnauthorisedError('Token has expired. Please login again.');
+        // Handle specific token verification errors
+        if (err.message && err.message.includes('expired')) {
+          throw new UnauthorisedError('Token has expired. Please login again.');
+        }
+        if (err.message && err.message.includes('invalid')) {
+          throw new UnauthorisedError('Invalid token format.');
+        }
+        if (err.message && err.message.includes('not before')) {
+          throw new UnauthorisedError('Token is not yet valid.');
+        }
+        if (err.message && err.message.includes('audience')) {
+          throw new UnauthorisedError('Token audience mismatch.');
+        }
+
+        throw new UnauthorisedError(
+          `Token verification failed: ${sanitizeErrorMessage(err.message) || 'Invalid token'}`
+        );
       }
-      if (err.message && err.message.includes('invalid')) {
+    } else {
+      if (!token || typeof token !== 'string') {
         throw new UnauthorisedError('Invalid token format.');
       }
-      if (err.message && err.message.includes('not before')) {
-        throw new UnauthorisedError('Token is not yet valid.');
+      
+      try {
+        const decoded = verifyLocalToken(token);
+        logger.debug(`Local JWT verified for user: ${decoded.userId}`);
+      } catch (error) {
+        throw error;
       }
-      if (err.message && err.message.includes('audience')) {
-        throw new UnauthorisedError('Token audience mismatch.');
-      }
-
-      throw new UnauthorisedError(
-        `Token verification failed: ${sanitizeErrorMessage(err.message) || 'Invalid token'}`
-      );
     }
   }
 

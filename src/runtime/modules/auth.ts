@@ -36,6 +36,7 @@ entity User {
     email Email @unique @indexed,
     firstName String,
     lastName String,
+    passwordHash String @optional,
     @rbac [(allow: [read, delete, update, create], where: auth.user = this.id)],
     @after {delete AfterDeleteUser}
 }
@@ -48,7 +49,16 @@ workflow CreateUser {
   {User {id CreateUser.id,
          email CreateUser.email,
          firstName CreateUser.firstName,
-         lastName CreateUser.lastName}}
+         lastName CreateUser.lastName,
+         passwordHash? CreateUser.passwordHash}}
+}
+
+workflow UpdateUser {
+  {User {id? UpdateUser.id,
+         email? UpdateUser.email,
+         firstName? UpdateUser.firstName,
+         lastName? UpdateUser.lastName,
+         passwordHash? UpdateUser.passwordHash}}
 }
 
 workflow FindUser {
@@ -196,7 +206,8 @@ export async function createUser(
   email: string,
   firstName: string,
   lastName: string,
-  env: Environment
+  env: Environment,
+  passwordHash?: string
 ): Promise<Result> {
   return await evalEvent(
     'CreateUser',
@@ -205,6 +216,28 @@ export async function createUser(
       email: email,
       firstName: firstName,
       lastName: lastName,
+      passwordHash: passwordHash,
+    },
+    env
+  );
+}
+
+export async function updateUser(
+  id: string,
+  email?: string,
+  firstName?: string,
+  lastName?: string,
+  passwordHash?: string,
+  env?: Environment
+): Promise<Result> {
+  return await evalEvent(
+    'UpdateUser',
+    {
+      id: id,
+      email: email,
+      firstName: firstName,
+      lastName: lastName,
+      passwordHash: passwordHash,
     },
     env
   );
@@ -234,13 +267,14 @@ export async function ensureUser(
   email: string,
   firstName: string,
   lastName: string,
-  env: Environment
+  env: Environment,
+  passwordHash?: string
 ) {
   const user = await findUserByEmail(email, env);
   if (user) {
     return user;
   }
-  return await createUser(crypto.randomUUID(), email, firstName, lastName, env);
+  return await createUser(crypto.randomUUID(), email, firstName, lastName, env, passwordHash);
 }
 
 export async function ensureUserSession(

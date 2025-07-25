@@ -120,6 +120,9 @@ importers:
       '@types/cookie-parser':
         specifier: ^1.4.9
         version: 1.4.9(@types/express@5.0.3)
+      '@types/jsonwebtoken':
+        specifier: ^9.0.10
+        version: 9.0.10
       '@types/node':
         specifier: ^18.19.110
         version: 18.19.115
@@ -1693,6 +1696,9 @@ packages:
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
+  '@types/jsonwebtoken@9.0.10':
+    resolution: {integrity: sha512-asx5hIG9Qmf/1oStypjanR7iKTv0gXQ1Ov/jfrX6kS/EO0OFni8orbmGCn0672NHR3kXHwpAwR+B368ZGN/2rA==}
+
   '@types/lodash-es@4.17.12':
     resolution: {integrity: sha512-0NgftHUcV4v34VhXm8QBSftKVXtbkBG3ViCjs6+eJ5a6y6Mi/jiFGPc1sC7QK+9BFhWrURE3EOggmWaSxL9OzQ==}
 
@@ -1701,6 +1707,9 @@ packages:
 
   '@types/mime@1.3.5':
     resolution: {integrity: sha512-/pyBZWSLD2n0dcHE3hq8s8ZvcETHtEuF+3E7XVt0Ig2nvsVQXdghHVcEkIWjy9A0wKfTn97a/PSDYohKIlnP/w==}
+
+  '@types/ms@2.1.0':
+    resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
 
   '@types/node@18.19.115':
     resolution: {integrity: sha512-kNrFiTgG4a9JAn1LMQeLOv3MvXIPokzXziohMrMsvpYgLpdEt/mMiVYc4sGKtDfyxM5gIDF4VgrPRyCw4fHOYg==}
@@ -7389,6 +7398,11 @@ snapshots:
 
   '@types/json-schema@7.0.15': {}
 
+  '@types/jsonwebtoken@9.0.10':
+    dependencies:
+      '@types/ms': 2.1.0
+      '@types/node': 18.19.115
+
   '@types/lodash-es@4.17.12':
     dependencies:
       '@types/lodash': 4.17.20
@@ -7396,6 +7410,8 @@ snapshots:
   '@types/lodash@4.17.20': {}
 
   '@types/mime@1.3.5': {}
+
+  '@types/ms@2.1.0': {}
 
   '@types/node@18.19.115':
     dependencies:
