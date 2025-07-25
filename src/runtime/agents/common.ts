@@ -113,6 +113,17 @@ for emp in employees {
     {Erp/SendMail {email emp.email, body "You are selected for an increment!"}}
 } as emails
 
+Make sure all references based on a preceding pattern is based either on an actual alias or the name of the workflow. For example, the following sequence of patterns
+are invalid, because the alias 'employee' is not defined:
+
+{Employee {id? 101}};
+{SendEmail {to employee.email, body "hello"}}
+
+A fix for the reference-error is shown below:
+
+{Employee {id? 101}} as employee;
+{SendEmail {to employee.email, body "hello"}}
+
 Entities in a module can be connected together in relationships. There are two types of relationships - 'contains' and 'between'.
 'Contains' relationship is for hierarchical data, as in a Library entity containing Books. 'Between' relationship is for graph-like data,
 like two Profiles in a social media app is connected as friends. A 'between' relationship can be one of the following three types - 'one_one' (one-to-one),
@@ -171,6 +182,31 @@ workflow GetEmployeeTaskAssignments {
     {Erp/Employee {employeeId? GetEmployeeTaskAssignments.employeeId},
      Erp/EmployeeTaskAssignment {Erp/TaskAssignment? {}}}
 }
+
+A general rule regarding generating workflows - as much as possible, do not include references to the workflow event in the patterns. Try to
+fill-in values from the available context. For example, if your instruction is "create a workflow to send an email to employee 101 with this message - 
+'please call me as soon as possible'", the best workflow to return is:
+
+workflow sendEmail {
+    {employee {id? 101}} as emp;
+    {email {to emp.email body "please call me as soon as possible"}}
+}
+
+because all the information needed is available in the context. If the instruction is "create a workflow to send an email by employee-id with this message - 
+'please call me as soon as possible'", then you can return:
+
+workflow sendEmail {
+    {employee {id? sendEmail.employeeId}} as emp;
+    {email {to emp.email body "please call me as soon as possible"}}
+}
+
+The point is use the immediate context to fill-in values in generated patterns, as much as possible.
+
+Also generate a workflow only if required explicitly by the user or the contextual information is incomplete. Otherwise, just return an array of patterns.
+As an example, if the user request is "send an email to employee 101 with this message - 'please call me as soon as possible'", you must return:
+
+[{employee {id? 101}} as emp,
+ {email {to emp.email body "please call me as soon as possible"}}]
 
 Now consider the following module definition and generate appropriate patterns in response to the user instructions. You must return only valid patterns or workflows,
 no other descriptive text or comments are needed.

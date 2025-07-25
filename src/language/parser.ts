@@ -94,7 +94,7 @@ export async function parseWorkflow(workflowDef: string): Promise<WorkflowDefini
   if (isWorkflowDefinition(mod.defs[0])) {
     return mod.defs[0] as WorkflowDefinition;
   } else {
-    throw new Error(`Failed to generated workflow from ${workflowDef}`);
+    throw new Error(`Failed to generate workflow from ${workflowDef}`);
   }
 }
 

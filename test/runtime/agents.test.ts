@@ -9,7 +9,7 @@ import { parseWorkflow } from "../../src/language/parser.js"
 import { addWorkflowFromDef } from "../../src/runtime/loader.js"
 
 describe('Agent API', () => {
-  test('Test Agent APIs for modules', async () => {
+  test('test01', async () => {
     await doInternModule('AAPI', `entity E {id Int @id}`)
     const m = fetchModule('AAPI')
     const ae01 = new Agent('agent01', m.name, newInstanceAttributes().set('llm', 'llm01').set('tools', 'X, Y'))
@@ -45,7 +45,7 @@ agent agent02
 if (process.env.AL_TEST === 'true') {
 
   describe('Basic module operations', () => {
-    test('check create module', async () => {
+    test('test02', async () => {
       const ai: AgentServiceProvider = new (provider("OpenAI"))()
       await ai.invoke([
         systemMessage("Is the following number odd? Answer YES or NO."),
@@ -56,8 +56,8 @@ if (process.env.AL_TEST === 'true') {
     })
   })
 
-  describe('Basic agent', () => {
-    test('Simple chat agent', async () => {
+  describe('Simple chat agent', () => {
+    test('test01', async () => {
       await doInternModule('SimpleAIChat',
         `agent simpleChatAgent
           {instruction "Is the following number odd? Answer YES or NO.",
@@ -71,8 +71,8 @@ if (process.env.AL_TEST === 'true') {
     })
   })
 
-  describe('Basic planner', () => {
-    test('Simple planner agent', async () => {
+  describe('Simple planner agent', () => {
+    test('test01', async () => {
       await doInternModule('SPA', `entity Person {id Int @id, name String, age Int}`)
       await doInternModule('SimplePlannerAgent',
         `agent planner01
@@ -117,7 +117,7 @@ if (process.env.AL_TEST === 'true') {
   })
 } else {
   describe('Skipping agent tests', () => {
-    test('Skipping agent tests', async () => {
+    test('test01', async () => {
     })
   })
 }

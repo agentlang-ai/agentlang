@@ -12,6 +12,7 @@ import {
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
 import { PlannerInstructions } from '../agents/common.js';
 import { PathAttributeNameQuery } from '../defs.js';
+import { logger } from '../logger.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -91,21 +92,26 @@ export class AgentInstance {
       msgs = [systemMessage(this.instruction)];
     }
     if (msgs) {
-      const sysMsg = msgs[0];
-      if (isplnr) {
-        const newSysMsg = systemMessage(
-          `${PlannerInstructions}\n${this.toolsAsString()}\n${this.instruction}`
-        );
-        msgs[0] = newSysMsg;
+      try {
+        const sysMsg = msgs[0];
+        if (isplnr) {
+          const newSysMsg = systemMessage(
+            `${PlannerInstructions}\n${this.toolsAsString()}\n${this.instruction}`
+          );
+          msgs[0] = newSysMsg;
+        }
+        msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
+        const response: AIResponse = await p.invoke(msgs);
+        msgs.push(assistantMessage(response.content));
+        if (isplnr) {
+          msgs[0] = sysMsg;
+        }
+        await saveAgentChatSession(chatId, msgs, env);
+        env.setLastResult(response.content);
+      } catch (err: any) {
+        logger.error(`Error while invoking ${agentName} - ${err}`);
+        env.setLastResult(undefined);
       }
-      msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
-      const response: AIResponse = await p.invoke(msgs);
-      msgs.push(assistantMessage(response.content));
-      if (isplnr) {
-        msgs[0] = sysMsg;
-      }
-      await saveAgentChatSession(chatId, msgs, env);
-      env.setLastResult(response.content);
     } else {
       throw new Error(`failed to initialize messages for agent ${agentName}`);
     }
