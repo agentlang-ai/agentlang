@@ -130,6 +130,8 @@ entity Session {
   id UUID @id,
   userId UUID @indexed,
   authToken String @optional,
+  accessToken String @optional,
+  refreshToken String @optional,
   isActive Boolean,
   @rbac [(allow: [read, delete, update, create], where: auth.user = this.userId)]
 }
@@ -137,7 +139,10 @@ entity Session {
 
 workflow CreateSession {
   {Session {id CreateSession.id, userId CreateSession.userId,
-            authToken CreateSession.authToken, isActive true}}
+            authToken CreateSession.authToken,
+            accessToken CreateSession.accessToken,
+            refreshToken CreateSession.refreshToken,
+            isActive true}}
 }
 
 workflow FindSession {
@@ -146,7 +151,7 @@ workflow FindSession {
 }
 
 workflow FindUserSession {
-  {Session {userId? FindUserSession.id}} as [session];
+  {Session {userId? FindUserSession.userId}} as [session];
   session
 }
 
@@ -165,6 +170,14 @@ workflow signup {
 
 workflow login {
   await Auth.loginUser(login.email, login.password)
+}
+
+workflow logout {
+  await Auth.logoutUser()
+}
+
+workflow changePassword {
+  await Auth.changePassword(changePassword.newPassword, changePassword.password)
 }
 
 workflow getUser {
@@ -230,18 +243,26 @@ export async function ensureUser(
   return await createUser(crypto.randomUUID(), email, firstName, lastName, env);
 }
 
-export async function ensureUserSession(userId: string, token: string, env: Environment) {
+export async function ensureUserSession(
+  userId: string,
+  token: string,
+  accessToken: string,
+  refreshToken: string,
+  env: Environment
+) {
   const sess: Instance = await findUserSession(userId, env);
   if (sess) {
     await removeSession(sess.lookup('id'), env);
   }
-  return await createSession(crypto.randomUUID(), userId, token, env);
+  return await createSession(crypto.randomUUID(), userId, token, accessToken, refreshToken, env);
 }
 
 export async function createSession(
   id: string,
   userId: string,
   token: string,
+  accessToken: string,
+  refreshToken: string,
   env: Environment
 ): Promise<Result> {
   return await evalEvent(
@@ -250,6 +271,8 @@ export async function createSession(
       id: id,
       userId: userId,
       authToken: token,
+      accessToken: accessToken,
+      refreshToken: refreshToken,
     },
     env
   );
@@ -539,6 +562,61 @@ export async function loginUser(
   }
 }
 
+async function logoutSession(userId: string, sess: Instance, env: Environment): Promise<string> {
+  const sessId = sess.lookup('id');
+  const tok = sess.lookup('authToken');
+  await fetchAuthImpl().logout(
+    {
+      sessionId: sessId,
+      userId: userId,
+      authToken: tok,
+      idToken: tok,
+      accessToken: sess.lookup('accessToken'),
+      refreshToken: sess.lookup('refreshToken'),
+    },
+    env
+  );
+  await removeSession(sessId, env);
+  return 'ok';
+}
+
+export async function logoutUser(env: Environment): Promise<string | undefined> {
+  const user = env.getActiveUser();
+  const sess = await findUserSession(user, env);
+  if (sess) {
+    return await logoutSession(user, sess, env);
+  }
+  return undefined;
+}
+
+export async function changePassword(
+  newPassword: string,
+  password: string,
+  env: Environment
+): Promise<string | undefined> {
+  const user = env.getActiveUser();
+  const sess = await findUserSession(user, env);
+  if (sess) {
+    const sessId = sess.lookup('id');
+    const tok = sess.lookup('authToken');
+    const sessInfo = {
+      sessionId: sessId,
+      userId: user,
+      authToken: tok,
+      idToken: tok,
+      accessToken: sess.lookup('accessToken'),
+      refreshToken: sess.lookup('refreshToken'),
+    };
+    if (await fetchAuthImpl().changePassword(sessInfo, newPassword, password, env)) {
+      return await logoutSession(user, sess, env);
+    } else {
+      return undefined;
+    }
+  } else {
+    throw new UnauthorisedError(`No active session for user ${user}`);
+  }
+}
+
 export async function verifySession(token: string, env?: Environment): Promise<ActiveSessionInfo> {
   if (!isAuthEnabled()) return BypassSession;
 
@@ -598,9 +676,12 @@ async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveS
 
       // Use the local user's ID for consistency
       const localUserId = localUser.lookup('id');
-
+      const sess = await findUserSession(localUserId, env);
+      if (!sess) {
+        throw new UnauthorisedError(`No session found for user ${email}, UserId: ${userId}`);
+      }
       // For JWT tokens, we use the token itself as sessionId for tracking
-      return { sessionId: token.substring(0, 32), userId: localUserId };
+      return { sessionId: sess.lookup('id'), userId: localUserId };
     } catch (err: any) {
       if (err instanceof UnauthorisedError) {
         throw err;
