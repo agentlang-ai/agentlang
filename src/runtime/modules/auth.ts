@@ -145,6 +145,14 @@ workflow CreateSession {
             isActive true}}
 }
 
+workflow UpdateSession {
+  {Session {id? UpdateSession.id,
+            authToken UpdateSession.authToken,
+            accessToken UpdateSession.accessToken,
+            refreshToken UpdateSession.refreshToken,
+            isActive true}, @upsert}
+}
+
 workflow FindSession {
   {Session {id? FindSession.id}} as [session];
   session
@@ -181,7 +189,7 @@ workflow changePassword {
 }
 
 workflow refreshToken {
-  await Auth.refreshUserToken(refreshToken.refresh_token)
+  await Auth.refreshUserToken(refreshToken.refreshToken)
 }
 
 workflow getUser {
@@ -253,12 +261,18 @@ export async function ensureUserSession(
   accessToken: string,
   refreshToken: string,
   env: Environment
-) {
+): Promise<Instance> {
   const sess: Instance = await findUserSession(userId, env);
   if (sess) {
-    await removeSession(sess.lookup('id'), env);
+    // Update existing session instead of deleting and recreating
+    await updateSession(sess.lookup('id'), token, accessToken, refreshToken, env);
+    // Return the updated session by finding it again
+    return await findUserSession(userId, env);
   }
-  return await createSession(crypto.randomUUID(), userId, token, accessToken, refreshToken, env);
+  const sessionId = crypto.randomUUID();
+  await createSession(sessionId, userId, token, accessToken, refreshToken, env);
+  // Return the created session by finding it
+  return await findSession(sessionId, env);
 }
 
 export async function createSession(
@@ -297,6 +311,25 @@ export async function findUserSession(userId: string, env: Environment): Promise
     'FindUserSession',
     {
       userId: userId,
+    },
+    env
+  );
+}
+
+export async function updateSession(
+  id: string,
+  token: string,
+  accessToken: string,
+  refreshToken: string,
+  env: Environment
+): Promise<Result> {
+  return await evalEvent(
+    'UpdateSession',
+    {
+      id: id,
+      authToken: token,
+      accessToken: accessToken,
+      refreshToken: refreshToken,
     },
     env
   );
