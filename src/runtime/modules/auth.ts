@@ -180,6 +180,10 @@ workflow changePassword {
   await Auth.changePassword(changePassword.newPassword, changePassword.password)
 }
 
+workflow refreshToken {
+  await Auth.refreshUserToken(refreshToken.refresh_token)
+}
+
 workflow getUser {
   await Auth.getUserInfo(getUser.userId)
 }
@@ -771,8 +775,38 @@ export async function getUserInfoByEmail(email: string, env: Environment): Promi
   }
 }
 
+export async function refreshUserToken(refreshToken: string, env: Environment): Promise<object> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    try {
+      const sessionInfo = await fetchAuthImpl().refreshToken(refreshToken, env);
+
+      return {
+        id_token: sessionInfo.idToken,
+        access_token: sessionInfo.accessToken,
+        refresh_token: sessionInfo.refreshToken,
+        token_type: 'Bearer',
+        expires_in: 3600,
+        userId: sessionInfo.userId,
+        sessionId: sessionInfo.sessionId,
+      };
+    } catch (err: any) {
+      logger.error(`Token refresh failed: ${err.message}`);
+      throw err;
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
 export function requireAuth(moduleName: string, eventName: string): boolean {
-  const f = moduleName == CoreAuthModuleName && (eventName == 'login' || eventName == 'signup');
+  const f =
+    moduleName == CoreAuthModuleName &&
+    (eventName == 'login' || eventName == 'signup' || eventName == 'refreshToken');
   return !f;
 }
 

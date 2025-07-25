@@ -29,6 +29,7 @@ let fromEnv: any = undefined;
 let CognitoIdentityProviderClient: any = undefined;
 let SignUpCommand: any = undefined;
 let AdminGetUserCommand: any = undefined;
+let InitiateAuthCommand: any = undefined;
 let AuthenticationDetails: any = undefined;
 let CognitoUser: any = undefined;
 let CognitoUserPool: any = undefined;
@@ -45,6 +46,7 @@ if (isNodeEnv) {
   CognitoIdentityProviderClient = cip.CognitoIdentityProviderClient;
   SignUpCommand = cip.SignUpCommand;
   AdminGetUserCommand = cip.AdminGetUserCommand;
+  InitiateAuthCommand = cip.InitiateAuthCommand;
 
   const ci = await import('amazon-cognito-identity-js');
   AuthenticationDetails = ci.AuthenticationDetails;
@@ -812,6 +814,73 @@ export class CognitoAuth implements AgentlangAuth {
         username: email,
         systemUserInfo: localUser,
       };
+    }
+  }
+
+  async refreshToken(refreshTokenString: string, env: Environment): Promise<SessionInfo> {
+    try {
+      // Use InitiateAuth with REFRESH_TOKEN_AUTH flow
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+        credentials: fromEnv(),
+      });
+
+      const command = new InitiateAuthCommand({
+        AuthFlow: 'REFRESH_TOKEN_AUTH',
+        ClientId: this.fetchClientId(),
+        AuthParameters: {
+          REFRESH_TOKEN: refreshTokenString,
+        },
+      });
+
+      const response = await client.send(command);
+
+      if (!response.AuthenticationResult) {
+        throw new UnauthorisedError('Token refresh failed');
+      }
+
+      const newIdToken = response.AuthenticationResult.IdToken!;
+      const newAccessToken = response.AuthenticationResult.AccessToken!;
+      const newRefreshToken = response.AuthenticationResult.RefreshToken || refreshTokenString;
+
+      // Extract user info from the new ID token
+      const idTokenPayload = JSON.parse(atob(newIdToken.split('.')[1]));
+      const userEmail = idTokenPayload.email;
+
+      // Find or create local user
+      let localUser = await findUserByEmail(userEmail, env);
+      if (!localUser) {
+        localUser = await ensureUser(userEmail, '', '', env);
+      }
+      const userId = localUser.lookup('id');
+
+      // Update local session
+      const updatedSession = await ensureUserSession(
+        userId,
+        newIdToken,
+        newAccessToken,
+        newRefreshToken,
+        env
+      );
+
+      const sessInfo: SessionInfo = {
+        sessionId: updatedSession.lookup('id'),
+        userId: userId,
+        authToken: newIdToken,
+        idToken: newIdToken,
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        systemSesionInfo: response.AuthenticationResult,
+      };
+
+      return sessInfo;
+    } catch (err: any) {
+      logger.error(`Refresh token operation failed: ${err.message}`);
+      if (err.name === 'NotAuthorizedException') {
+        throw new UnauthorisedError('Invalid or expired refresh token');
+      }
+      handleCognitoError(err, 'refreshToken');
+      throw err; // This line won't be reached due to handleCognitoError throwing
     }
   }
 }

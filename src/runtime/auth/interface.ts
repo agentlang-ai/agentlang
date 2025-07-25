@@ -39,4 +39,5 @@ export interface AgentlangAuth {
     oldPassword: string,
     env: Environment
   ): Promise<boolean>;
+  refreshToken(refreshToken: string, env: Environment): Promise<SessionInfo>;
 }
