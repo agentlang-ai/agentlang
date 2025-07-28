@@ -102,10 +102,12 @@ RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec;
 
 AliasSpec: ('as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
 
-CrudMap: '{' (name=QueryId '{''}' | name=ID body=CrudMapBody)
-             (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)? 
+CrudMap: '{' (name=QueryId '{''}' 
+             | (name=ID '{''}' ',' '@from' source=Literal (',' upsert+='@upsert')?)
+             | name=ID body=CrudMapBody)
+             (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)?
              (',' into=SelectIntoSpec)? 
-             (',' upsert='@upsert')?
+             (',' upsert+='@upsert')?
              '}';
 
 CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}';
