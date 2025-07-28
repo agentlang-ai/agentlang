@@ -106,16 +106,41 @@ function recordSchemaToString(scm: RecordSchema): string {
 }
 
 function attributeSpecToString(attrSpec: AttributeSpec): string {
-  let s: string = `${attrSpec.type}`;
+  let s: string = getEnumValues(attrSpec) || getOneOfRef(attrSpec) ? '' : `${attrSpec.type}`;
+  if (isArrayAttribute(attrSpec)) {
+    s = `${s}[]`;
+  }
   if (attrSpec.properties) {
     const ps: Array<string> = [];
     attrSpec.properties.forEach((v: any, k: string) => {
-      if (v == true) ps.push(` @${k}`);
-      else ps.push(` @${k}(${v})`);
+      if (k != 'array') {
+        if (v == true) ps.push(` @${k}`);
+        else ps.push(` @${k}(${attributePropertyValueToString(k, v, attrSpec.type)})`);
+      }
     });
     s = s.concat(ps.join(' '));
   }
   return s;
+}
+
+function attributePropertyValueToString(
+  propName: string,
+  propValue: any,
+  attrType: string
+): string {
+  if (propName == EnumPropertyName) {
+    const v = propValue as Set<string>;
+    const ss = new Array<string>();
+    v.forEach((s: string) => {
+      ss.push(`"${s}"`);
+    });
+    return ss.join(',');
+  } else if (propName == 'default') {
+    if (isTextualType(attrType) && propValue != 'now()' && propValue != 'uuid()') {
+      return `"${propValue}"`;
+    }
+  }
+  return `${propValue}`;
 }
 
 export function newRecordSchema(): RecordSchema {
@@ -178,8 +203,8 @@ function asTriggerInfo(te: TriggerEntry): TriggerInfo {
   };
 }
 
-const EnumPropertyName = 'one-of';
-const OneOfPropertyName = 'one-of-ref';
+const EnumPropertyName = 'enum';
+const OneOfPropertyName = 'oneof';
 
 export function enumAttributeSpec(values: Set<string>): AttributeSpec {
   return {
@@ -1551,7 +1576,15 @@ export const propertyNames = new Set([
   '@fk',
   '@ref',
   '@readonly',
+  '@enum',
+  '@oneof',
 ]);
+
+const TextualTypes = new Set(['String', 'Email', 'UUID', 'DateTime', 'Date', 'Time', 'Path']);
+
+function isTextualType(type: string): boolean {
+  return TextualTypes.has(type);
+}
 
 export function isBuiltInType(type: string): boolean {
   return builtInTypes.has(type);
@@ -1678,12 +1711,12 @@ export function getAttributeExpr(attrSpec: AttributeSpec): Expr | undefined {
   return getAnyProperty('expr', attrSpec);
 }
 
-export function getOneOfValues(attrSpec: AttributeSpec): Set<string> | undefined {
-  return getAnyProperty('one-of', attrSpec);
+export function getEnumValues(attrSpec: AttributeSpec): Set<string> | undefined {
+  return getAnyProperty(EnumPropertyName, attrSpec);
 }
 
 export function getOneOfRef(attrSpec: AttributeSpec): string | undefined {
-  return getAnyProperty('one-of-ref', attrSpec);
+  return getAnyProperty(OneOfPropertyName, attrSpec);
 }
 
 export function getAttributeDefaultValue(attrSpec: AttributeSpec): any | undefined {
@@ -2034,10 +2067,10 @@ function checkOneOfValue(attrSpec: AttributeSpec, attrName: string, attrValue: a
   if (getOneOfRef(attrSpec)) {
     return true;
   }
-  const vals: Set<string> | undefined = getOneOfValues(attrSpec);
+  const vals: Set<string> | undefined = getEnumValues(attrSpec);
   if (vals) {
     if (!vals.has(attrValue as string)) {
-      throw new Error(`Value of ${attrName} must be one-of ${vals}`);
+      throw new Error(`Value of ${attrName} must be one of ${vals}`);
     }
     return true;
   }

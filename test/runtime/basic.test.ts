@@ -265,8 +265,8 @@ describe('Basic CRUD tests', () => {
   });
 });
 
-describe('Array and one-of tests', () => {
-  test('Check array and one-of attribute types', async () => {
+describe('Array, enum and oneof tests', () => {
+  test('test01', async () => {
     await doInternModule(
       'ArrayTest',
       `entity E {
@@ -302,12 +302,12 @@ describe('Array and one-of tests', () => {
     await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "678", y "b"}}`).catch(
       () => (err = true)
     );
-    assert(err, 'Failed to enforce one-of check');
+    assert(err, 'Failed to enforce enum check');
     err = false;
     await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "456", y "c"}}`).catch(
       () => (err = true)
     );
-    assert(err, 'Failed to enforce one-of-ref check');
+    assert(err, 'Failed to enforce oneof check');
     await parseAndEvaluateStatement(`{ArrayTest/E {id 2, vals ["c"], x "456", y "b"}}`).then(
       (result: Instance) => {
         assert(isInstanceOfType(result, 'ArrayTest/E'));
