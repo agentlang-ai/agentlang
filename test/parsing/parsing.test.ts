@@ -5,7 +5,7 @@ import { parseHelper } from 'langium/test';
 import { createAgentlangServices } from '../../src/language/agentlang-module.js';
 import { Definition, isModuleDefinition, isStandaloneStatement, ModuleDefinition } from '../../src/language/generated/ast.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
-import { Agent, fetchModule } from '../../src/runtime/module.js';
+import { Agent, Entity, enumAttributeSpec, fetchModule, oneOfAttributeSpec } from '../../src/runtime/module.js';
 import { doInternModule } from '../util.js';
 
 let services: ReturnType<typeof createAgentlangServices>;
@@ -225,3 +225,41 @@ entity E
 `)
     })
   })
+
+describe('enum toString test', () => {
+  test('test01', async () => {
+    await doInternModule('EnumOutTest',
+      `entity E {
+        id Int @id,
+        x Int,
+        a String[],
+        r String @default("ok"),
+        d DateTime @default(now()) @optional
+      }`
+    )
+    let m = fetchModule('EnumOutTest')
+    const e = m.getEntry('E') as Entity
+    let attrSpec = enumAttributeSpec(new Set(["a", "b", "c"]))
+    e.addAttribute('s', attrSpec)
+    attrSpec = oneOfAttributeSpec('Acme/F.name')
+    e.addAttribute('t', attrSpec)
+    let str = m.toString()
+    const idx = str.indexOf('entity')
+    await doInternModule('EnumOutTest2', str.substring(idx))
+    m = fetchModule('EnumOutTest2')
+    str = m.toString()
+    assert(str == `module EnumOutTest2
+
+entity E
+{
+    id Int @id,
+    x Int,
+    a String[],
+    r String @default("ok"),
+    d DateTime @default(now())  @optional,
+    s  @enum("a","b","c"),
+    t  @oneof(Acme/F.name)
+}
+`)
+  })
+})
