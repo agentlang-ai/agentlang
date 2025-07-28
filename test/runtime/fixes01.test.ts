@@ -4,7 +4,7 @@ import { fetchModule, Instance, isInstanceOfType, isModule } from "../../src/run
 import { parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
 
 describe('Issue 92', () => {
-    test('Check fix for issue-92', async () => {
+    test('test01', async () => {
         await doInternModule('I92', `entity E { id Int @id, x Int }`)
         const chk = (ent: string) => {
             assert(isModule('I92'))
@@ -19,7 +19,7 @@ describe('Issue 92', () => {
 })
 
 describe('Issue 97', () => {
-    test('Check fix for issue-97', async () => {
+    test('test01', async () => {
         await doInternModule('I97',
             `entity Resource { id UUID @id @default(uuid()), name String }
              entity Allocation { id UUID @id @default(uuid()), name String @optional }
@@ -72,35 +72,35 @@ describe('Issue 97', () => {
         const a03 = await cra(r02, 'a03')
         let result: any[] = await parseAndEvaluateStatement(`{I97/FetchResourceAllocations {id "${r01.lookup("id")}"}}`)
         assert(result.length == 2)
-        const chk2 = (result: any[]) => assert(result.every((obj: any) => { return obj.e == 'r01' && (obj.t == 'a01' || obj.t == 'a02')}))
+        const chk2 = (result: any[]) => assert(result.every((obj: any) => { return obj.e == 'r01' && (obj.t == 'a01' || obj.t == 'a02') }))
         chk2(result)
         result = await parseAndEvaluateStatement(`{I97/FetchAllResourceAllocations {}}`)
         assert(result.length == 3)
         chk2(result.filter((r: any) => { return r.e == 'r01' }))
-        const r = result.filter((r: any) => { return r.e == 'r02'})
+        const r = result.filter((r: any) => { return r.e == 'r02' })
         assert(r.length == 1)
         assert(r[0].t == 'a03')
         await parseAndEvaluateStatement(`{I97/FetchAllocationsResource {id "${a01.lookup('id')}"}}`)
-        .then((result: any[]) => {
-            assert(result.length == 1)
-            assert(result[0].e == 'r01' && result[0].t == 'a01')
-        })
+            .then((result: any[]) => {
+                assert(result.length == 1)
+                assert(result[0].e == 'r01' && result[0].t == 'a01')
+            })
         await parseAndEvaluateStatement(`{I97/FetchAllocationsResource {id "${a03.lookup('id')}"}}`)
-        .then((result: any[]) => {
-            assert(result.length == 1)
-            assert(result[0].e == 'r02' && result[0].t == 'a03')
-        })
+            .then((result: any[]) => {
+                assert(result.length == 1)
+                assert(result[0].e == 'r02' && result[0].t == 'a03')
+            })
         isa(await parseAndEvaluateStatement(`{I97/CreateAllocation {id "${r02.lookup('id')}", name "a04"}}`))
         await parseAndEvaluateStatement(`{I97/FetchResourceAllocations {id "${r02.lookup("id")}"}}`)
-        .then((result: any[]) => {
-            assert(result.length == 2)
-            assert(result.every((r: any) => { return r.e == 'r02' && (r.t == 'a03' || r.t == 'a04')}))
-        })
+            .then((result: any[]) => {
+                assert(result.length == 2)
+                assert(result.every((r: any) => { return r.e == 'r02' && (r.t == 'a03' || r.t == 'a04') }))
+            })
     })
 })
 
 describe('Issue 97 (contains)', () => {
-    test('Check fix for issue-97 (contains)', async () => {
+    test('test01', async () => {
         await doInternModule('I97C',
             `entity Resource { id UUID @id @default(uuid()), name String }
              entity Allocation { id UUID @id @default(uuid()), name String @optional }
@@ -148,29 +148,29 @@ describe('Issue 97 (contains)', () => {
         const a03 = await cra(r02, 'a03')
         let result: any[] = await parseAndEvaluateStatement(`{I97C/FetchResourceAllocations {id "${r01.lookup("id")}"}}`)
         assert(result.length == 2)
-        const chk2 = (result: any[]) => assert(result.every((obj: any) => { return obj.e == 'r01' && (obj.t == 'a01' || obj.t == 'a02')}))
+        const chk2 = (result: any[]) => assert(result.every((obj: any) => { return obj.e == 'r01' && (obj.t == 'a01' || obj.t == 'a02') }))
         chk2(result)
         result = await parseAndEvaluateStatement(`{I97C/FetchAllResourceAllocations {}}`)
         assert(result.length == 3)
         chk2(result.filter((r: any) => { return r.e == 'r01' }))
-        const r = result.filter((r: any) => { return r.e == 'r02'})
+        const r = result.filter((r: any) => { return r.e == 'r02' })
         assert(r.length == 1)
         assert(r[0].t == 'a03')
         await parseAndEvaluateStatement(`{I97C/FetchAllocationsResource {id "${a01.lookup('id')}"}}`)
-        .then((result: any[]) => {
-            assert(result.length == 1)
-            assert(result[0].e == 'r01' && result[0].t == 'a01')
-        })
+            .then((result: any[]) => {
+                assert(result.length == 1)
+                assert(result[0].e == 'r01' && result[0].t == 'a01')
+            })
         await parseAndEvaluateStatement(`{I97C/FetchAllocationsResource {id "${a03.lookup('id')}"}}`)
-        .then((result: any[]) => {
-            assert(result.length == 1)
-            assert(result[0].e == 'r02' && result[0].t == 'a03')
-        })
+            .then((result: any[]) => {
+                assert(result.length == 1)
+                assert(result[0].e == 'r02' && result[0].t == 'a03')
+            })
     })
 })
 
 describe('Issue 117 (number-datatype)', () => {
-    test('Check fix for issue-117', async () => {
+    test('test01', async () => {
         await doInternModule('I117',
             `entity E {
                id Int @id
@@ -192,5 +192,32 @@ describe('Issue 117 (number-datatype)', () => {
         await cre(2, 43343333)
         await fe(1, 10099393.434)
         await fe(2, 43343333)
+    })
+})
+
+describe('Issue 179 - @from', () => {
+    test('test01', async () => {
+        await doInternModule('I179',
+            `entity E {
+               id Int @id,
+               x Number,
+               y String @default("abc")
+            }
+            workflow CreateE {
+                {E {}, @from CreateE.data}
+            }`)
+        const cre = async function (data: string): Promise<Instance> {
+            const inst = await parseAndEvaluateStatement(`{I179/CreateE {data ${data}}}`)
+            assert(isInstanceOfType(inst, "I179/E"))
+            return inst
+        }
+        let inst = await cre(`{"id": 1, "x": 100, "y": "xyz"}`)
+        assert(inst.lookup("id") == 1)
+        assert(inst.lookup("x") == 100)
+        assert(inst.lookup("y") == "xyz")
+        inst = await cre(`{"id": 2, "x": 200}`)
+        assert(inst.lookup("id") == 2)
+        assert(inst.lookup("x") == 200)
+        assert(inst.lookup("y") == "abc")
     })
 })

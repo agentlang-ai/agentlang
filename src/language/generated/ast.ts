@@ -42,6 +42,7 @@ export type AgentlangKeywordNames =
     | "@before"
     | "@enum"
     | "@expr"
+    | "@from"
     | "@meta"
     | "@oneof"
     | "@rbac"
@@ -341,7 +342,8 @@ export interface CrudMap extends langium.AstNode {
     into?: SelectIntoSpec;
     name: QueryId | string;
     relationships: Array<RelationshipPattern>;
-    upsert?: '@upsert';
+    source?: Literal;
+    upsert: Array<'@upsert'>;
 }
 
 export const CrudMap = 'CrudMap';
@@ -570,7 +572,7 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: AgentPropertyDef | AttributeDefinition | BinExpr | FnCall | FullTextSearch | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AgentPropertyDef | AttributeDefinition | BinExpr | CrudMap | FnCall | FullTextSearch | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
@@ -1365,7 +1367,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'into' },
                         { name: 'name' },
                         { name: 'relationships', defaultValue: [] },
-                        { name: 'upsert' }
+                        { name: 'source' },
+                        { name: 'upsert', defaultValue: [] }
                     ]
                 };
             }

@@ -3068,6 +3068,70 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     }
                   },
                   {
+                    "$type": "Keyword",
+                    "value": "{"
+                  },
+                  {
+                    "$type": "Keyword",
+                    "value": "}"
+                  },
+                  {
+                    "$type": "Keyword",
+                    "value": ","
+                  },
+                  {
+                    "$type": "Keyword",
+                    "value": "@from"
+                  },
+                  {
+                    "$type": "Assignment",
+                    "feature": "source",
+                    "operator": "=",
+                    "terminal": {
+                      "$type": "RuleCall",
+                      "rule": {
+                        "$ref": "#/rules@44"
+                      },
+                      "arguments": []
+                    }
+                  },
+                  {
+                    "$type": "Group",
+                    "elements": [
+                      {
+                        "$type": "Keyword",
+                        "value": ","
+                      },
+                      {
+                        "$type": "Assignment",
+                        "feature": "upsert",
+                        "operator": "+=",
+                        "terminal": {
+                          "$type": "Keyword",
+                          "value": "@upsert"
+                        }
+                      }
+                    ],
+                    "cardinality": "?"
+                  }
+                ]
+              },
+              {
+                "$type": "Group",
+                "elements": [
+                  {
+                    "$type": "Assignment",
+                    "feature": "name",
+                    "operator": "=",
+                    "terminal": {
+                      "$type": "RuleCall",
+                      "rule": {
+                        "$ref": "#/rules@87"
+                      },
+                      "arguments": []
+                    }
+                  },
+                  {
                     "$type": "Assignment",
                     "feature": "body",
                     "operator": "=",
@@ -3159,7 +3223,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
               {
                 "$type": "Assignment",
                 "feature": "upsert",
-                "operator": "=",
+                "operator": "+=",
                 "terminal": {
                   "$type": "Keyword",
                   "value": "@upsert"

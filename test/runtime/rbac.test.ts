@@ -41,7 +41,7 @@ workflow LookupEmployee {
 `
 
 describe('Basic RBAC checks', () => {
-    test('Basic RBAC tests', async () => {
+    test('test01', async () => {
         await callWithRbac(async () => {
             const module: ModuleDefinition = await parseModule(mod1)
             assert(module.name == "Acme", 'failed to parse test module')
@@ -101,7 +101,7 @@ describe('Basic RBAC checks', () => {
 })
 
 describe('RBAC where-clause test', () => {
-    test('RBAC where-clause', async () => {
+    test('test01', async () => {
         await callWithRbac(async () => {
             await doInternModule(`RbacWhere`,
                 `entity User {

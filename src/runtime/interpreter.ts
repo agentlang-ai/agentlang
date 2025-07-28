@@ -731,6 +731,26 @@ async function patternToInstance(
   return makeInstance(moduleName, entryName, attrs, qattrs, qattrVals, isQueryAll);
 }
 
+async function instanceFromSource(crud: CrudMap, env: Environment): Promise<Instance> {
+  if (crud.source) {
+    await evaluateLiteral(crud.source, env);
+    const attrsSrc = env.getLastResult();
+    if (attrsSrc && attrsSrc instanceof Object) {
+      const attrs: InstanceAttributes = new Map(Object.entries(attrsSrc));
+      const nparts = splitFqName(crud.name);
+      const n = nparts.getEntryName();
+      const m = nparts.hasModule() ? nparts.getModuleName() : env.getActiveModuleName();
+      return makeInstance(m, n, attrs);
+    } else {
+      throw new Error(`Failed to initialize instance of ${crud.name}, expected a map after @from.`);
+    }
+  } else {
+    throw new Error(
+      `Cannot create instance of ${crud.name}, CRUD pattern does not specify a source map.`
+    );
+  }
+}
+
 async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
   const attrs = inst.record.oneOfRefAttributes;
   if (!attrs) return;
@@ -761,10 +781,12 @@ async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
 }
 
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
-  if (!env.isInUpsertMode() && crud.upsert) {
+  if (!env.isInUpsertMode() && crud.upsert.length > 0) {
     return await evaluateUpsert(crud, env);
   }
-  const inst: Instance = await patternToInstance(crud.name, crud.body?.attributes, env);
+  const inst: Instance = crud.source
+    ? await instanceFromSource(crud, env)
+    : await patternToInstance(crud.name, crud.body?.attributes, env);
   const entryName = inst.name;
   const moduleName = inst.moduleName;
   const attrs = inst.attributes;
