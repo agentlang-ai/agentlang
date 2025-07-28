@@ -7,7 +7,7 @@ const importedModules = new Map<string, any>();
 // Usage: importModule("./mymodels/acme.js")
 export async function importModule(path: string, name: string) {
   if (importedModules.has(name)) {
-    throw new Error(`Module alias '${name}' already taken by another import`);
+    logger.warn(`Alias '${name}' will overwrite a previously imported module`);
   }
   if (!(path.startsWith('/') || path.startsWith('.'))) {
     path = process.cwd() + '/' + path;
