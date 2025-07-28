@@ -2341,7 +2341,8 @@ function maybeSetDefaultAttributeValues(
 ): InstanceAttributes {
   const defAttrs = defaultAttributes(schema);
   defAttrs.forEach((v: any, k: string) => {
-    if (!attributes.has(k)) {
+    const cv = attributes.get(k);
+    if (cv == undefined || cv == null) {
       if (isString(v)) {
         if (v == 'uuid()') {
           v = crypto.randomUUID();
