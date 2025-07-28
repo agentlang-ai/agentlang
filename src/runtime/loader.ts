@@ -50,7 +50,6 @@ import {
   makeFqName,
   maybeExtends,
   registerInitFunction,
-  runShellCommand,
 } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
@@ -172,7 +171,7 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
       return;
     }
     directoryContents.forEach(file => {
-      if (path.extname(file) == '.al') {
+      if (path.extname(file).toLowerCase() == '.al') {
         alFiles.push(appDir + path.sep + file);
       }
     });
@@ -182,19 +181,19 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
     if (callback) await callback(appSpec);
   }
   if (appSpec.dependencies != undefined) {
-    if (isNodeEnv) {
-      // Only run shell commands in Node.js environment
-      for (const [depName, depVer] of Object.entries(appSpec.dependencies)) {
-        runShellCommand(`npm install ${depName}@${depVer}`, undefined, cont2);
+    for (const [depName, _] of Object.entries(appSpec.dependencies)) {
+      const depDirName = `./node_modules/${depName}`;
+      const files = await fs.readdir(depDirName);
+      if (
+        files.find(file => {
+          return path.extname(file).toLowerCase() == '.al';
+        })
+      ) {
+        await loadApp(depDirName, fsOptions);
       }
-    } else {
-      // In non-Node environments, log a warning and continue
-      console.warn('Dependencies cannot be installed in non-Node.js environments');
-      await cont2();
     }
-  } else {
-    await cont2();
   }
+  await cont2();
   return appSpec.name || lastModuleLoaded;
 }
 
