@@ -125,8 +125,9 @@ export async function extractDocument(
     );
 
     for (const validationError of validationErrors) {
-      const errorMsg = `line ${validationError.range.start.line + 1}: ${validationError.message
-        } [${document.textDocument.getText(validationError.range)}]`;
+      const errorMsg = `line ${validationError.range.start.line + 1}: ${
+        validationError.message
+      } [${document.textDocument.getText(validationError.range)}]`;
       if (isNodeEnv && chalk) {
         console.error(chalk.red(errorMsg));
       } else {
@@ -180,17 +181,19 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
     if (callback) await callback(appSpec);
   }
   if (appSpec.dependencies != undefined) {
-      for (const [depName, _] of Object.entries(appSpec.dependencies)) {
-        const depDirName = `./node_modules/${depName}`
-        const files = await fs.readdir(depDirName)
-        if (files.find(file => {
-          return (path.extname(file).toLowerCase() == '.al')
-        })) {
-          await loadApp(depDirName, fsOptions)
-        }
+    for (const [depName, _] of Object.entries(appSpec.dependencies)) {
+      const depDirName = `./node_modules/${depName}`;
+      const files = await fs.readdir(depDirName);
+      if (
+        files.find(file => {
+          return path.extname(file).toLowerCase() == '.al';
+        })
+      ) {
+        await loadApp(depDirName, fsOptions);
       }
     }
-    await cont2();
+  }
+  await cont2();
   return appSpec.name || lastModuleLoaded;
 }
 
