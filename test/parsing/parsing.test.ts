@@ -5,7 +5,7 @@ import { parseHelper } from 'langium/test';
 import { createAgentlangServices } from '../../src/language/agentlang-module.js';
 import { Definition, isModuleDefinition, isStandaloneStatement, ModuleDefinition } from '../../src/language/generated/ast.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
-import { Agent, Entity, enumAttributeSpec, fetchModule, oneOfAttributeSpec } from '../../src/runtime/module.js';
+import { Agent, Entity, enumAttributeSpec, fetchModule, getRelationship, oneOfAttributeSpec } from '../../src/runtime/module.js';
 import { doInternModule } from '../util.js';
 
 let services: ReturnType<typeof createAgentlangServices>;
@@ -260,6 +260,55 @@ entity E
     s  @enum("a","b","c"),
     t  @oneof(Acme/F.name)
 }
+`)
+  })
+})
+
+describe('relationships toString test', () => {
+  test('test01', async () => {
+    await doInternModule('RelOutTest',
+      `entity A {
+        id Int @id
+      }
+      entity B {
+        id Int @id
+      }
+      entity C {
+        id Int @id
+      }
+      relationship AB between(A, B) @one_many
+      relationship BA between(B, A)
+      relationship BC contains(B, C)
+      `)
+    const m = fetchModule('RelOutTest')
+    const r = getRelationship('BA', m.name)
+    r.setOneToOne()
+    let str = m.toString()
+    const idx = str.indexOf('entity')
+    await doInternModule('RelOutTest2', str.substring(idx))
+    str = fetchModule('RelOutTest2').toString()
+    assert(str == `module RelOutTest2
+
+entity A
+{
+    id Int @id
+}
+
+entity B
+{
+    id Int @id
+}
+
+entity C
+{
+    id Int @id
+}
+
+relationship AB between (A, B) @one_many
+
+relationship BA between (B, A) @one_one
+
+relationship BC contains (B, C)
 `)
   })
 })

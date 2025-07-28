@@ -1110,6 +1110,13 @@ export class Relationship extends Record {
     const n1 = relNodeEntryToString(this.node1);
     const n2 = relNodeEntryToString(this.node2);
     let s = `relationship ${this.name} ${RelType[this.relType].toLowerCase()} (${n1}, ${n2})`;
+    if (this.isBetween()) {
+      if (this.isOneToOne()) {
+        s = `${s} @${OneToOne}`;
+      } else if (this.isOneToMany()) {
+        s = `${s} @${OneToMany}`;
+      }
+    }
     if (this.getUserAttributes().size > 0) {
       const attrs: Array<string> = [];
       this.getUserAttributes().forEach((attrSpec: AttributeSpec, n: string) => {
