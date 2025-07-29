@@ -1,3 +1,4 @@
+import { dirname, sep } from 'path';
 import { logger } from './logger.js';
 import { setSubscription } from './resolvers/registry.js';
 import { now, splitRefs } from './util.js';
@@ -5,12 +6,19 @@ import { now, splitRefs } from './util.js';
 const importedModules = new Map<string, any>();
 
 // Usage: importModule("./mymodels/acme.js")
-export async function importModule(path: string, name: string) {
+export async function importModule(path: string, name: string, moduleFileName?: string) {
   if (importedModules.has(name)) {
     logger.warn(`Alias '${name}' will overwrite a previously imported module`);
   }
-  if (!(path.startsWith('/') || path.startsWith('.'))) {
-    path = process.cwd() + '/' + path;
+  if (moduleFileName) {
+    let s: string = dirname(moduleFileName);
+    if (s.startsWith('./')) {
+      s = s.substring(2);
+    }
+    path = `${s}${sep}${path}`;
+  }
+  if (!(path.startsWith(sep) || path.startsWith('.'))) {
+    path = process.cwd() + sep + path;
   }
   const m = await import(/* @vite-ignore */ path);
   importedModules.set(name, m);

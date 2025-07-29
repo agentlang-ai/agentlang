@@ -258,7 +258,7 @@ async function loadModule(fileName: string, fsOptions?: any, callback?: Function
 
   // Extract the AST node
   const module = await extractAstNode<ModuleDefinition>(fileName, services);
-  const result: Module = await internModule(module);
+  const result: Module = await internModule(module, fileName);
   console.log(chalk.green(`Module ${chalk.bold(result.name)} loaded`));
   logger.info(`Module ${result.name} loaded`);
   if (callback) {
@@ -544,12 +544,15 @@ export async function parseAndIntern(code: string, moduleName?: string) {
   await internModule(r.parseResult.value);
 }
 
-export async function internModule(module: ModuleDefinition): Promise<Module> {
+export async function internModule(
+  module: ModuleDefinition,
+  moduleFileName?: string
+): Promise<Module> {
   const mn = module.name;
   const r = addModule(mn);
   module.imports.forEach(async (imp: Import) => {
     valiadteImportName(imp.name);
-    await importModule(imp.path, imp.name);
+    await importModule(imp.path, imp.name, moduleFileName);
   });
   for (let i = 0; i < module.defs.length; ++i) {
     const def = module.defs[i];
