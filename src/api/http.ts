@@ -50,7 +50,7 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
   const appVersion: string = appSpec.version;
 
   app.get('/', (req: Request, res: Response) => {
-    res.send(appName);
+    res.send({ agentlang: { application: `${appName}@${appVersion}` } });
   });
 
   getAllEventNames().forEach((eventNames: string[], moduleName: string) => {
