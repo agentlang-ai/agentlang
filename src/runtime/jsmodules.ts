@@ -34,7 +34,7 @@ export function moduleImported(moduleName: string): boolean {
 
 const ReservedImports = new Set<string>(['resolvers']);
 
-export function valiadteImportName(n: string) {
+export function validateImportName(n: string) {
   if (ReservedImports.has(n)) {
     throw new Error(`${n} is an import reserved by the runtime`);
   }

@@ -64,7 +64,7 @@ import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.j
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver, setSubscription } from './resolvers/registry.js';
 import { ConfigSchema } from './state.js';
-import { getModuleFn, importModule, valiadteImportName } from './jsmodules.js';
+import { getModuleFn, importModule, validateImportName } from './jsmodules.js';
 
 export async function extractDocument(
   fileName: string,
@@ -551,7 +551,7 @@ export async function internModule(
   const mn = module.name;
   const r = addModule(mn);
   module.imports.forEach(async (imp: Import) => {
-    valiadteImportName(imp.name);
+    validateImportName(imp.name);
     await importModule(imp.path, imp.name, moduleFileName);
   });
   for (let i = 0; i < module.defs.length; ++i) {
