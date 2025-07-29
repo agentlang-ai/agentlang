@@ -31,8 +31,9 @@ entity ${AgentEntityName} {
     type @enum("chat", "planner") @default("chat"),
     runWorkflows Boolean @default(true),
     instruction String @optional,
-    tools String @optional, // comma-separated values
-    documents String @optional, // comma-separated values
+    tools String @optional, // comma-separated list of tool names
+    documents String @optional, // comma-separated list of document names
+    channels String @optional, // comma-separated list of channel names
     llm String
 }
 
@@ -69,6 +70,7 @@ export class AgentInstance {
   type: string = 'chat';
   tools: string | undefined;
   documents: string | undefined;
+  channels: string | undefined;
   runWorkflows: boolean = true;
 
   private constructor() {}
@@ -150,10 +152,19 @@ export class AgentInstance {
   }
 
   private toolsAsString(): string {
-    if (this.tools) {
+    let finalTools: string | undefined = undefined;
+    if (this.tools) finalTools = this.tools;
+    if (this.channels) {
+      if (finalTools) {
+        finalTools = `${finalTools},${this.channels}`;
+      } else {
+        finalTools = this.channels;
+      }
+    }
+    if (finalTools) {
       const tooldefs = new Array<string>();
       const slimModules = new Map<string, string[]>();
-      this.tools.split(',').forEach((n: string) => {
+      finalTools.split(',').forEach((n: string) => {
         let moduleName: string | undefined;
         let entryName: string | undefined;
         if (isFqName(n)) {
