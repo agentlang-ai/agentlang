@@ -2414,7 +2414,7 @@ export function makeInstance(
         throw new Error(`Invalid attribute ${key} specified for ${moduleName}/${entryName}`);
       }
       const spec: AttributeSpec = getAttributeSpec(schema, key);
-      validateType(key, value, spec);
+      if (value != null && value != undefined) validateType(key, value, spec);
     });
   }
   if (!queryAttributes && !queryAll) {
