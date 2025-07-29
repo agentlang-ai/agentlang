@@ -65,7 +65,7 @@ export class SqlDbResolver extends Resolver {
   }
 
   private getDbContext(resourceFqName: string): DbContext {
-    const activeEnv: Environment = this.getUserData() as Environment;
+    const activeEnv: Environment = this.getEnvironment() as Environment;
     if (!activeEnv) {
       throw new Error('Active environment context is required by SqlDbResolver');
     }

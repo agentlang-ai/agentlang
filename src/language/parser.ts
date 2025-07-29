@@ -89,6 +89,11 @@ export async function parseStatement(stmt: string): Promise<Statement> {
   }
 }
 
+export async function parseStatements(stmts: string[]): Promise<Statement[]> {
+  const wf = await parseWorkflow(`workflow W {${stmts.join(';\n')}}`);
+  return wf.statements;
+}
+
 export async function parseWorkflow(workflowDef: string): Promise<WorkflowDefinition> {
   const mod = await parseModule(`module Temp ${workflowDef}`);
   if (isWorkflowDefinition(mod.defs[0])) {

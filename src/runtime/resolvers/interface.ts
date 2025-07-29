@@ -1,4 +1,4 @@
-import { evaluate } from '../interpreter.js';
+import { Environment, evaluate, MaskedEnvironment } from '../interpreter.js';
 import { logger } from '../logger.js';
 import {
   Instance,
@@ -45,7 +45,7 @@ export function getSubscriptionEvent(resolverName: string): string | undefined {
 
 export class Resolver {
   protected authInfo: ResolverAuthInfo = DefaultAuthInfo;
-  protected userData: any;
+  protected env: MaskedEnvironment | Environment | undefined;
   protected name: string = 'default';
 
   static Default = new Resolver();
@@ -59,13 +59,13 @@ export class Resolver {
     return this;
   }
 
-  public setUserData(userData: any): Resolver {
-    this.userData = userData;
+  public setEnvironment(env: MaskedEnvironment | Environment): Resolver {
+    this.env = env;
     return this;
   }
 
-  public getUserData(): any {
-    return this.userData;
+  public getEnvironment(): MaskedEnvironment | Environment | undefined {
+    return this.env;
   }
 
   public getName(): string {
