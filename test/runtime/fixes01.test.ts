@@ -221,3 +221,43 @@ describe('Issue 179 - @from', () => {
         assert(inst.lookup("y") == "abc")
     })
 })
+
+describe('Issue-197', () => {
+    test('test01', async () => {
+        await doInternModule(
+            'I197',
+            `entity E {
+        id Int @id,
+        x Int,
+        @after {create I197/AfterCreateE}
+      }
+      entity F {
+        id Int @id,
+        y Int
+      }
+      workflow AfterCreateE {
+        {F {id 1, y 10}}
+      }
+      workflow HandleError {
+        {F {id 2, y 20}}
+      }
+      `
+        );
+        const cre = (async (id: number, x: number): Promise<any> => {
+            await parseAndEvaluateStatement(`{I197/E {id ${id}, x ${x}}} 
+            catch {error {I197/HandleError {}}}`)
+        })
+        await cre(1, 10)
+        await cre(2, 20)
+        const chk = (async (n: string) => {
+            await parseAndEvaluateStatement(`{I197/${n}? {}}`).then((result: Instance[]) => {
+                assert(result.length == 2)
+                const ids = result.map((inst: Instance) => { return inst.lookup('id') })
+                assert(ids.find((v: number) => { return v == 1 }))
+                assert(ids.find((v: number) => { return v == 2 }))
+            })
+        });
+    await chk('E')
+    await chk('F')
+    });
+});
