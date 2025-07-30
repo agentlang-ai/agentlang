@@ -144,7 +144,7 @@ export class Environment extends Instance {
       this.inUpsertMode = parent.inUpsertMode;
       this.inKernelMode = parent.inKernelMode;
       this.activeCatchHandlers = parent.activeCatchHandlers;
-      this.suspensionId = parent.suspensionId
+      this.suspensionId = parent.suspensionId;
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
@@ -158,9 +158,9 @@ export class Environment extends Instance {
   }
 
   static fromInstance(inst: Instance): Environment {
-    const env = new Environment()
-    env.attributes = inst.attributes
-    return env
+    const env = new Environment();
+    env.attributes = inst.attributes;
+    return env;
   }
 
   override asSerializableObject(): object {
@@ -182,7 +182,7 @@ export class Environment extends Instance {
 
   static override FromSerializableObject(obj: any): Environment {
     const inst = Instance.FromSerializableObject(obj, PlaceholderRecordEntry);
-    const env = Environment.fromInstance(inst)
+    const env = Environment.fromInstance(inst);
     env.activeModule = obj.activeModule;
     if (obj.activeEventInstance) {
       env.activeEventInstance = Instance.FromSerializableObject(obj.activeEventInstance);
@@ -256,7 +256,7 @@ export class Environment extends Instance {
   suspend(): string {
     if (this.suspensionId == undefined) {
       const id = crypto.randomUUID();
-      this.propagateSuspension(id)
+      this.propagateSuspension(id);
       return id;
     } else {
       return this.suspensionId;
@@ -264,9 +264,9 @@ export class Environment extends Instance {
   }
 
   protected propagateSuspension(suspId: string) {
-    this.suspensionId = suspId
+    this.suspensionId = suspId;
     if (this.parent) {
-      this.parent.propagateSuspension(suspId)
+      this.parent.propagateSuspension(suspId);
     }
   }
 
@@ -513,7 +513,7 @@ export async function evaluate(
           env.setInKernelMode(true);
         }
         await evaluateStatements(wf.statements, env, continuation);
-        return env.getLastResult()
+        return env.getLastResult();
       }
     } else {
       throw new Error('Not an event - ' + eventInstance.name);

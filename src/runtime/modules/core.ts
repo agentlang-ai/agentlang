@@ -2,7 +2,12 @@ import { default as ai } from './ai.js';
 import { default as auth } from './auth.js';
 import { DefaultModuleName, DefaultModules } from '../util.js';
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../module.js';
-import { Environment, evaluate, evaluateStatements, parseAndEvaluateStatement } from '../interpreter.js';
+import {
+  Environment,
+  evaluate,
+  evaluateStatements,
+  parseAndEvaluateStatement,
+} from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Statement } from '../../language/generated/ast.js';
 import { parseStatements } from '../../language/parser.js';
@@ -128,14 +133,17 @@ export async function createSuspension(
 ): Promise<string | undefined> {
   const user = env.getActiveUser();
   const newEnv = new Environment('susp', env).setInKernelMode(true);
-  const envObj = env.asSerializableObject()
-  const inst = makeInstance('agentlang', 'createSuspension',
-    newInstanceAttributes().set('id', suspId)
-    .set('continuation', continuation)
-    .set('env', envObj)
-    .set('createdBy', user)
-  )
-  const r: any = await evaluate(inst, undefined, newEnv)
+  const envObj = env.asSerializableObject();
+  const inst = makeInstance(
+    'agentlang',
+    'createSuspension',
+    newInstanceAttributes()
+      .set('id', suspId)
+      .set('continuation', continuation)
+      .set('env', envObj)
+      .set('createdBy', user)
+  );
+  const r: any = await evaluate(inst, undefined, newEnv);
   if (!isInstanceOfType(r, 'agentlang/suspension')) {
     logger.warn(`Failed to create suspension for user ${user}`);
     return undefined;
@@ -157,9 +165,9 @@ async function loadSuspension(suspId: string, env?: Environment): Promise<Suspen
   );
   if (r instanceof Array && r.length > 0) {
     const inst: Instance = r[0];
-    const cont = inst.lookup('continuation')
+    const cont = inst.lookup('continuation');
     const stmts: Statement[] = await parseStatements(cont);
-    const envStr = inst.lookup('env')
+    const envStr = inst.lookup('env');
     const suspEnv: Environment = Environment.FromSerializableObject(JSON.parse(envStr));
     return {
       continuation: stmts,

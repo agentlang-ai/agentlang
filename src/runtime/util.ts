@@ -49,7 +49,7 @@ function asString(s: MaybeString): string {
   else return s;
 }
 
-const QuoteCharacter = '&quot;'
+const QuoteCharacter = '&quot;';
 
 export function restoreSpecialChars(s: string) {
   return s.replaceAll(QuoteCharacter, '"');
