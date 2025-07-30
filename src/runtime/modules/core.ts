@@ -30,7 +30,7 @@ entity auditlog {
 }
 
 entity suspension {
-  id UUID @id @default(uuid()),
+  id UUID @id,
   continuation String[], // rest of the patterns to execute
   env String, // serialized environment-object
   createdOn DateTime @default(now()),

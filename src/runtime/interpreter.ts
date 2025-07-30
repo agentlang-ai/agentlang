@@ -105,14 +105,38 @@ function mkEnvName(name: string | undefined, parent: Environment | undefined): s
 }
 
 export class MaskedEnvironment {
-  inKernelMode: boolean = false;
-  inSuspension: boolean = false;
+  private context: any;
+  private suspensionId: string | undefined;
 
   static FromEnvironment(env: Environment): MaskedEnvironment {
     const menv = new MaskedEnvironment();
-    menv.inKernelMode = env.isInKernelMode();
-    menv.inSuspension = false;
+    menv.context = {
+      activeModule: env.getActiveModuleName(),
+      activeEventInstance: env.getActiveEventInstance(),
+      activeUser: env.getActiveUser(),
+      inUpsertMode: env.isInUpsertMode(),
+      inDeleteMode: env.isInDeleteMode(),
+      inKernelMode: env.isInKernelMode(),
+    };
     return menv;
+  }
+
+  getContext(): any {
+    return this.context;
+  }
+
+  isSuspended(): boolean {
+    return this.suspensionId != undefined;
+  }
+
+  createSuspension(): string {
+    if (this.suspensionId == undefined) {
+      const id = crypto.randomUUID();
+      this.suspensionId = id;
+      return id;
+    } else {
+      return this.suspensionId;
+    }
   }
 }
 
@@ -333,7 +357,7 @@ export class Environment extends Instance {
 
   isSuspended(): boolean {
     if (this.maskedEnv) {
-      return this.maskedEnv.inSuspension;
+      return this.maskedEnv.isSuspended();
     } else {
       return false;
     }
