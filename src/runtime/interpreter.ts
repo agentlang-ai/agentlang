@@ -138,6 +138,14 @@ export class MaskedEnvironment {
       return this.suspensionId;
     }
   }
+
+  getSuspensionId(): string {
+    if (this.suspensionId) {
+      return this.suspensionId;
+    } else {
+      throw new Error('SuspensionId is not set');
+    }
+  }
 }
 
 export class Environment extends Instance {
@@ -363,6 +371,14 @@ export class Environment extends Instance {
     }
   }
 
+  getSuspensionId(): string {
+    if (this.maskedEnv) {
+      return this.maskedEnv.getSuspensionId();
+    } else {
+      return crypto.randomUUID();
+    }
+  }
+
   private newMaskedEnvironment(): MaskedEnvironment {
     this.maskedEnv = MaskedEnvironment.FromEnvironment(this);
     return this.maskedEnv;
@@ -571,6 +587,7 @@ export async function evaluateStatements(
       const cont = stmts.slice(i + 1, stmts.length);
       if (cont.length > 0) {
         const suspId = await createSuspension(
+          env.getSuspensionId(),
           cont.map((stmt: Statement) => {
             return statemtentString(stmt);
           }),

@@ -114,6 +114,7 @@ export async function addUpdateAudit(
 }
 
 export async function createSuspension(
+  suspId: string,
   continuation: string[],
   env: Environment
 ): Promise<string | undefined> {
@@ -121,6 +122,7 @@ export async function createSuspension(
   const newEnv = new Environment('auditlog', env).setInKernelMode(true);
   const r: any = await parseAndEvaluateStatement(
     `{agentlang/suspension {
+        id "${suspId}",
         continuation ${continuation}",
         env "${env.asSerializableObject()}",
         createdBy "${user}"
