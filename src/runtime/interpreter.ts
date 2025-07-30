@@ -103,6 +103,8 @@ function mkEnvName(name: string | undefined, parent: Environment | undefined): s
   }
 }
 
+type CatchHandlers = Map<string, Statement>;
+
 export class Environment extends Instance {
   parent: Environment | undefined;
 
@@ -119,6 +121,7 @@ export class Environment extends Instance {
   private inUpsertMode: boolean = false;
   private inDeleteMode: boolean = false;
   private inKernelMode: boolean = false;
+  private activeCatchHandlers: Array<CatchHandlers>;
 
   constructor(name?: string, parent?: Environment) {
     super(
@@ -138,10 +141,12 @@ export class Environment extends Instance {
       this.activeResolvers = parent.activeResolvers;
       this.inUpsertMode = parent.inUpsertMode;
       this.inKernelMode = parent.inKernelMode;
+      this.activeCatchHandlers = parent.activeCatchHandlers;
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
       this.activeTransactions = new Map<string, string>();
+      this.activeCatchHandlers = new Array<CatchHandlers>();
     }
   }
 
@@ -393,6 +398,26 @@ export class Environment extends Instance {
   isInKernelMode(): boolean {
     return this.inKernelMode;
   }
+
+  pushHandlers(handlers: CatchHandlers): boolean {
+    if (handlers.has('error')) {
+      this.activeCatchHandlers.push(handlers);
+      return true;
+    }
+    return false;
+  }
+
+  hasHandlers(): boolean {
+    return this.activeCatchHandlers.length > 0;
+  }
+
+  popHandlers(): CatchHandlers {
+    const r = this.activeCatchHandlers.pop();
+    if (r == undefined) {
+      throw new Error(`No more handlers to pop`);
+    }
+    return r;
+  }
 }
 
 export const GlobalEnvironment = new Environment();
@@ -420,12 +445,16 @@ export async function evaluate(
       throw new Error('Not an event - ' + eventInstance.name);
     }
   } catch (err) {
-    if (env != undefined && activeEnv == undefined) {
-      await env.rollbackAllTransactions().then(() => {
-        txnRolledBack = true;
-      });
+    if (env && env.hasHandlers()) {
+      throw err;
+    } else {
+      if (env != undefined && activeEnv == undefined) {
+        await env.rollbackAllTransactions().then(() => {
+          txnRolledBack = true;
+        });
+      }
+      throw err;
     }
-    throw err;
   } finally {
     if (!txnRolledBack && env != undefined && activeEnv == undefined) {
       await env.commitAllTransactions();
@@ -482,10 +511,12 @@ export async function evaluateStatements(
 async function evaluateStatement(stmt: Statement, env: Environment): Promise<void> {
   const hints = stmt.hints;
   const hasHints = hints && hints.length > 0;
-  const handlers: Map<string, Statement> | undefined = hasHints
-    ? maybeFindHandlers(hints)
-    : undefined;
+  const handlers: CatchHandlers | undefined = hasHints ? maybeFindHandlers(hints) : undefined;
+  let handlersPushed = false;
   try {
+    if (handlers) {
+      handlersPushed = env.pushHandlers(handlers);
+    }
     await evaluatePattern(stmt.pattern, env);
     if (hasHints) {
       maybeBindStatementResultToAlias(hints, env);
@@ -507,6 +538,10 @@ async function evaluateStatement(stmt: Statement, env: Environment): Promise<voi
       await evaluateStatement(handler, env);
     } else {
       throw reason;
+    }
+  } finally {
+    if (handlersPushed && env.hasHandlers()) {
+      env.popHandlers();
     }
   }
 }
@@ -1384,7 +1419,11 @@ async function runPrePostEvents(
       logger.debug(`${prefix}: ${value}`);
     };
     const catchHandler = (reason: any) => {
-      logger.error(`${prefix}: ${reason}`);
+      if (env.hasHandlers()) {
+        throw reason;
+      } else {
+        logger.error(`${prefix}: ${reason}`);
+      }
     };
     if (trigInfo.async) {
       evaluate(eventInst, callback).catch(catchHandler);
