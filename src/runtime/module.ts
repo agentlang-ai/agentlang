@@ -469,6 +469,11 @@ export class Record extends ModuleEntry {
       });
       scms = `${scms},\n    @rbac [${rbs.join(',\n')}]`;
     }
+    if (this.meta && this.meta.size > 0) {
+      const metaObj = Object.fromEntries(this.meta)
+      const ms = `@meta ${JSON.stringify(metaObj)}`
+      scms = `${scms},\n    ${ms}`
+    }
     return s.concat('\n{', scms, '\n}\n');
   }
 
@@ -2201,11 +2206,11 @@ export class Instance {
     return obj;
   }
 
-  static FromSerializableObject(obj: any): Instance {
+  static FromSerializableObject(obj: any, record?: Record): Instance {
     if (obj.AL_INSTANCE == true) {
       const m = fetchModule(obj.moduleName);
       return new Instance(
-        m.getEntry(obj.name) as Record,
+        record || m.getEntry(obj.name) as Record,
         obj.moduleName,
         obj.name,
         new Map(Object.entries(obj.attributes)),
@@ -2230,9 +2235,22 @@ export class Instance {
         const inst = v as Instance;
         attrs.set(k, forSerialization ? inst.asSerializableObject() : inst.asObject());
       } else if (v instanceof Object) {
-        attrs.set(k, JSON.stringify(v instanceof Map ? Object.fromEntries(v) : v));
+        const obj = v instanceof Map ? Object.fromEntries(v) : v
+        attrs.set(k, obj);
       } else {
         attrs.set(k, v);
+      }
+    });
+    return Object.fromEntries(attrs);
+  }
+
+  attributesWithStringifiedObjects(): object {
+    const attrs = newInstanceAttributes();
+    this.attributes.forEach((v: any, k: string) => {
+      if (v instanceof Object) {
+        attrs.set(k, JSON.stringify(v instanceof Map ? Object.fromEntries(v) : v));
+      } else {
+        attrs.set(k, v)
       }
     });
     return Object.fromEntries(attrs);

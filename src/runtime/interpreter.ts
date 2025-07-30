@@ -104,50 +104,6 @@ function mkEnvName(name: string | undefined, parent: Environment | undefined): s
   }
 }
 
-export class MaskedEnvironment {
-  private context: any;
-  private suspensionId: string | undefined;
-
-  static FromEnvironment(env: Environment): MaskedEnvironment {
-    const menv = new MaskedEnvironment();
-    menv.context = {
-      activeModule: env.getActiveModuleName(),
-      activeEventInstance: env.getActiveEventInstance(),
-      activeUser: env.getActiveUser(),
-      inUpsertMode: env.isInUpsertMode(),
-      inDeleteMode: env.isInDeleteMode(),
-      inKernelMode: env.isInKernelMode(),
-    };
-    return menv;
-  }
-
-  getContext(): any {
-    return this.context;
-  }
-
-  isSuspended(): boolean {
-    return this.suspensionId != undefined;
-  }
-
-  createSuspension(): string {
-    if (this.suspensionId == undefined) {
-      const id = crypto.randomUUID();
-      this.suspensionId = id;
-      return id;
-    } else {
-      return this.suspensionId;
-    }
-  }
-
-  getSuspensionId(): string {
-    if (this.suspensionId) {
-      return this.suspensionId;
-    } else {
-      throw new Error('SuspensionId is not set');
-    }
-  }
-}
-
 type CatchHandlers = Map<string, Statement>;
 
 export class Environment extends Instance {
@@ -166,7 +122,7 @@ export class Environment extends Instance {
   private inUpsertMode: boolean = false;
   private inDeleteMode: boolean = false;
   private inKernelMode: boolean = false;
-  private maskedEnv: MaskedEnvironment | undefined;
+  private suspensionId: string | undefined;
   private activeCatchHandlers: Array<CatchHandlers>;
 
   constructor(name?: string, parent?: Environment) {
@@ -188,6 +144,7 @@ export class Environment extends Instance {
       this.inUpsertMode = parent.inUpsertMode;
       this.inKernelMode = parent.inKernelMode;
       this.activeCatchHandlers = parent.activeCatchHandlers;
+      this.suspensionId = parent.suspensionId
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
@@ -200,11 +157,17 @@ export class Environment extends Instance {
     return new Environment(undefined, parent);
   }
 
+  static fromInstance(inst: Instance): Environment {
+    const env = new Environment()
+    env.attributes = inst.attributes
+    return env
+  }
+
   override asSerializableObject(): object {
     const obj: any = super.asSerializableObject();
     obj.activeModule = this.activeModule;
     if (this.activeEventInstance) {
-      obj.activeEventInstance = this.activeEventInstance.asObject;
+      obj.activeEventInstance = this.activeEventInstance.asSerializableObject();
     }
     obj.activeUser = this.activeUser;
     obj.activeUserSet = this.activeUserSet;
@@ -218,8 +181,8 @@ export class Environment extends Instance {
   }
 
   static override FromSerializableObject(obj: any): Environment {
-    const inst = Instance.FromSerializableObject(obj);
-    const env = inst as Environment;
+    const inst = Instance.FromSerializableObject(obj, PlaceholderRecordEntry);
+    const env = Environment.fromInstance(inst)
     env.activeModule = obj.activeModule;
     if (obj.activeEventInstance) {
       env.activeEventInstance = Instance.FromSerializableObject(obj.activeEventInstance);
@@ -284,6 +247,35 @@ export class Environment extends Instance {
 
   getActiveEventInstance(): Instance | undefined {
     return this.activeEventInstance;
+  }
+
+  isSuspended(): boolean {
+    return this.suspensionId != undefined;
+  }
+
+  suspend(): string {
+    if (this.suspensionId == undefined) {
+      const id = crypto.randomUUID();
+      this.propagateSuspension(id)
+      return id;
+    } else {
+      return this.suspensionId;
+    }
+  }
+
+  protected propagateSuspension(suspId: string) {
+    this.suspensionId = suspId
+    if (this.parent) {
+      this.parent.propagateSuspension(suspId)
+    }
+  }
+
+  getSuspensionId(): string {
+    if (this.suspensionId) {
+      return this.suspensionId;
+    } else {
+      throw new Error('SuspensionId is not set');
+    }
   }
 
   getActiveAuthContext(): ActiveSessionInfo | undefined {
@@ -368,31 +360,10 @@ export class Environment extends Instance {
     return this.activeResolvers;
   }
 
-  isSuspended(): boolean {
-    if (this.maskedEnv) {
-      return this.maskedEnv.isSuspended();
-    } else {
-      return false;
-    }
-  }
-
-  getSuspensionId(): string {
-    if (this.maskedEnv) {
-      return this.maskedEnv.getSuspensionId();
-    } else {
-      return crypto.randomUUID();
-    }
-  }
-
-  private newMaskedEnvironment(): MaskedEnvironment {
-    this.maskedEnv = MaskedEnvironment.FromEnvironment(this);
-    return this.maskedEnv;
-  }
-
   getResolver(resolverName: string): Resolver | undefined {
     const r: Resolver | undefined = this.getActiveResolvers().get(resolverName);
     if (r) {
-      return r.setEnvironment(isDefaultResolver(r) ? this : this.newMaskedEnvironment());
+      return r.setEnvironment(this);
     }
     return undefined;
   }
@@ -400,7 +371,7 @@ export class Environment extends Instance {
   async addResolver(resolver: Resolver): Promise<Environment> {
     this.getActiveResolvers().set(resolver.getName(), resolver);
     await this.ensureTransactionForResolver(resolver);
-    resolver.setEnvironment(isDefaultResolver(resolver) ? this : this.newMaskedEnvironment());
+    resolver.setEnvironment(this);
     return this;
   }
 
@@ -529,7 +500,7 @@ export async function evaluate(
   continuation?: Function,
   activeEnv?: Environment,
   kernelCall?: boolean
-): Promise<void> {
+): Promise<Result> {
   let env: Environment | undefined;
   let txnRolledBack: boolean = false;
   try {
@@ -542,6 +513,7 @@ export async function evaluate(
           env.setInKernelMode(true);
         }
         await evaluateStatements(wf.statements, env, continuation);
+        return env.getLastResult()
       }
     } else {
       throw new Error('Not an event - ' + eventInstance.name);
@@ -812,10 +784,6 @@ function getMapKey(k: MapKey): Result {
 }
 
 const DefaultResolverName: string = '-';
-
-function isDefaultResolver(r: Resolver): boolean {
-  return r.getName() == DefaultResolverName;
-}
 
 async function getResolverForPath(
   entryName: string,
