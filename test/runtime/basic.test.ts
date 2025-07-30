@@ -80,7 +80,7 @@ describe('Basic module operations', () => {
 });
 
 describe('Basic loader test', () => {
-  test('Check loader with graph', async () => {
+  test('test01', async () => {
     await doPreInit();
     await load('example/blog/blog.al').then((appSpec: ApplicationSpec) => {
       assert(appSpec.name, 'Invalid application spec');
@@ -161,7 +161,7 @@ describe('Basic loader test', () => {
 });
 
 describe('Basic CRUD tests', () => {
-  test('Check CRUD patterns', async () => {
+  test('test01', async () => {
     await doInternModule(
       'Blogger',
       `entity User {
@@ -317,7 +317,7 @@ describe('Array, enum and oneof tests', () => {
 });
 
 describe('Default date-time test', () => {
-  test('Check date-time', async () => {
+  test('test01', async () => {
     await doInternModule(
       'DtTest',
       `entity E {
@@ -338,7 +338,7 @@ describe('Default date-time test', () => {
 });
 
 describe('Map attribute tests', () => {
-  test('Check Map attributes', async () => {
+  test('test01', async () => {
     await doInternModule(
       'MapTest',
       `entity E {
@@ -359,7 +359,7 @@ describe('Map attribute tests', () => {
 });
 
 describe('Expression tests', () => {
-  test('Check expression attributes', async () => {
+  test('test01', async () => {
     await doInternModule(
       'ExprTest',
       `entity E {
@@ -381,7 +381,7 @@ describe('Expression tests', () => {
 });
 
 describe('Pre-Post trigger tests', () => {
-  test('Check pre-post event triggers', async () => {
+  test('test01', async () => {
     await doInternModule(
       'PrePostEvents',
       `entity E {
@@ -429,7 +429,7 @@ describe('Pre-Post trigger tests', () => {
 });
 
 describe('Path reference tests', () => {
-  test('Check path references', async () => {
+  test('test01', async () => {
     await doInternModule(
       'PathRefs',
       `entity E {
@@ -461,7 +461,7 @@ describe('Path reference tests', () => {
 });
 
 describe('Nested query-into tests', () => {
-  test('Check nested into-queries', async () => {
+  test('test01', async () => {
     await doInternModule(
       'NestedInto',
       `entity A {
@@ -573,7 +573,7 @@ describe('Nested query-into tests', () => {
 });
 
 describe('Default id attribute test', () => {
-  test('Check default id attribute', async () => {
+  test('test01', async () => {
     await doInternModule(
       'DefId',
       `entity E {
@@ -594,7 +594,7 @@ describe('Default id attribute test', () => {
 });
 
 describe('Multiple module loading tests', () => {
-  test('Check multiple file-based module loading and isolation', async () => {
+  test('test01', async () => {
     await doPreInit();
 
     try {
@@ -635,7 +635,7 @@ describe('Multiple module loading tests', () => {
 });
 
 describe('Catch test', () => {
-  test('Check catch handlers', async () => {
+  test('test01', async () => {
     await doInternModule(
       'Catch',
       `entity E {
@@ -657,7 +657,7 @@ describe('Catch test', () => {
 });
 
 describe('Expression attributes', () => {
-  test('Check expression attributes', async () => {
+  test('test01', async () => {
     await doInternModule(
       'ExprAttr',
       `entity E {
@@ -713,7 +713,7 @@ describe('Expression attributes', () => {
 });
 
 describe('Composite unique attributes', () => {
-  test('Check composite uniques', async () => {
+  test('test01', async () => {
     await doInternModule(
       'Cuq',
       `entity E {
@@ -747,7 +747,7 @@ describe('Composite unique attributes', () => {
 });
 
 describe('Between operator test', () => {
-  test('Check between operator', async () => {
+  test('test01', async () => {
     await doInternModule(
       'BetOpr',
       `entity E {
@@ -783,7 +783,7 @@ describe('Between operator test', () => {
   });
 });
 
-describe("Teset string append", () => {
+describe("Test string append", () => {
   test('test01', async () => {
     await doInternModule(
       'TestExpr',

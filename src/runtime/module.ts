@@ -469,6 +469,11 @@ export class Record extends ModuleEntry {
       });
       scms = `${scms},\n    @rbac [${rbs.join(',\n')}]`;
     }
+    if (this.meta && this.meta.size > 0) {
+      const metaObj = Object.fromEntries(this.meta);
+      const ms = `@meta ${JSON.stringify(metaObj)}`;
+      scms = `${scms},\n    ${ms}`;
+    }
     return s.concat('\n{', scms, '\n}\n');
   }
 
@@ -2189,21 +2194,66 @@ export class Instance {
     return this.lookup(PathAttributeName);
   }
 
+  asSerializableObject(): object {
+    const obj = {
+      AL_INSTANCE: true,
+      name: this.name,
+      moduleName: this.moduleName,
+      attributes: this.attributesAsObject(true),
+      queryAttributes: this.queryAttributesAsObject(),
+      queryAttributeValues: this.queryAttributeValuesAsObject(),
+    };
+    return obj;
+  }
+
+  static FromSerializableObject(obj: any, record?: Record): Instance {
+    if (obj.AL_INSTANCE == true) {
+      const m = fetchModule(obj.moduleName);
+      return new Instance(
+        record || (m.getEntry(obj.name) as Record),
+        obj.moduleName,
+        obj.name,
+        new Map(Object.entries(obj.attributes)),
+        new Map(Object.entries(obj.queryAttributes)),
+        new Map(Object.entries(obj.queryAttributeValues))
+      );
+    } else {
+      throw new Error(`Cannot deserialize ${JSON.stringify(obj)} to an Instance`);
+    }
+  }
+
   asObject(): object {
     const result: Map<string, object> = new Map<string, object>();
-    result.set(this.name, Object.fromEntries(this.attributes));
+    result.set(this.name, this.attributesAsObject());
     return Object.fromEntries(result);
   }
 
-  attributesAsObject(stringifyObjects: boolean = true): object {
-    if (stringifyObjects) {
-      this.attributes.forEach((v: any, k: string) => {
-        if (v instanceof Object) {
-          this.attributes.set(k, JSON.stringify(v instanceof Map ? Object.fromEntries(v) : v));
-        }
-      });
-    }
-    return Object.fromEntries(this.attributes);
+  attributesAsObject(forSerialization: boolean = false): object {
+    const attrs = newInstanceAttributes();
+    this.attributes.forEach((v: any, k: string) => {
+      if (v instanceof Instance) {
+        const inst = v as Instance;
+        attrs.set(k, forSerialization ? inst.asSerializableObject() : inst.asObject());
+      } else if (v instanceof Object) {
+        const obj = v instanceof Map ? Object.fromEntries(v) : v;
+        attrs.set(k, obj);
+      } else {
+        attrs.set(k, v);
+      }
+    });
+    return Object.fromEntries(attrs);
+  }
+
+  attributesWithStringifiedObjects(): object {
+    const attrs = newInstanceAttributes();
+    this.attributes.forEach((v: any, k: string) => {
+      if (v instanceof Object) {
+        attrs.set(k, JSON.stringify(v instanceof Map ? Object.fromEntries(v) : v));
+      } else {
+        attrs.set(k, v);
+      }
+    });
+    return Object.fromEntries(attrs);
   }
 
   queryAttributesAsObject(): object {

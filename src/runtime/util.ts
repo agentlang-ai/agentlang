@@ -49,12 +49,14 @@ function asString(s: MaybeString): string {
   else return s;
 }
 
+const QuoteCharacter = '&quot;';
+
 export function restoreSpecialChars(s: string) {
-  return s.replaceAll('&quote;', '"');
+  return s.replaceAll(QuoteCharacter, '"');
 }
 
 export function escapeSpecialChars(s: string) {
-  return s.replaceAll('"', '&quote;');
+  return s.replaceAll('"', QuoteCharacter);
 }
 
 export class Path {

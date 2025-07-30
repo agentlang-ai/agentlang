@@ -1,11 +1,21 @@
 import { default as ai } from './ai.js';
 import { default as auth } from './auth.js';
 import { DefaultModuleName, DefaultModules } from '../util.js';
-import { Instance, isInstanceOfType } from '../module.js';
-import { Environment, parseAndEvaluateStatement } from '../interpreter.js';
+import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../module.js';
+import {
+  Environment,
+  evaluate,
+  evaluateStatements,
+  parseAndEvaluateStatement,
+} from '../interpreter.js';
 import { logger } from '../logger.js';
+import { Statement } from '../../language/generated/ast.js';
+import { parseStatements } from '../../language/parser.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
+
+import "./modules/core.js" as Core
+
 entity timer {
   name String @id,
   duration Int,
@@ -22,6 +32,26 @@ entity auditlog {
   previous_value Any @optional,
   user String,
   token String @optional
+}
+
+entity suspension {
+  id UUID @id,
+  continuation String[], // rest of the patterns to execute
+  env Any, // serialized environment-object
+  createdOn DateTime @default(now()),
+  createdBy String
+}
+
+workflow createSuspension {
+  {suspension 
+    {id createSuspension.id
+     continuation createSuspension.continuation,
+     env createSuspension.env,
+     createdBy createSuspension.createdBy}}
+}
+
+workflow restartSuspension {
+  await Core.restartSuspension(restartSuspension.id)
 }
 `;
 export const CoreModules: string[] = [];
@@ -94,4 +124,81 @@ export async function addUpdateAudit(
   env: Environment
 ) {
   await addAudit(env, 'u', resource, previous_value);
+}
+
+export async function createSuspension(
+  suspId: string,
+  continuation: string[],
+  env: Environment
+): Promise<string | undefined> {
+  const user = env.getActiveUser();
+  const newEnv = new Environment('susp', env).setInKernelMode(true);
+  const envObj = env.asSerializableObject();
+  const inst = makeInstance(
+    'agentlang',
+    'createSuspension',
+    newInstanceAttributes()
+      .set('id', suspId)
+      .set('continuation', continuation)
+      .set('env', envObj)
+      .set('createdBy', user)
+  );
+  const r: any = await evaluate(inst, undefined, newEnv);
+  if (!isInstanceOfType(r, 'agentlang/suspension')) {
+    logger.warn(`Failed to create suspension for user ${user}`);
+    return undefined;
+  }
+  return (r as Instance).lookup('id');
+}
+
+export type Suspension = {
+  continuation: Statement[];
+  env: Environment;
+};
+
+async function loadSuspension(suspId: string, env?: Environment): Promise<Suspension | undefined> {
+  const newEnv = new Environment('auditlog', env).setInKernelMode(true);
+  const r: any = await parseAndEvaluateStatement(
+    `{agentlang/suspension {id? "${suspId}"}}`,
+    undefined,
+    newEnv
+  );
+  if (r instanceof Array && r.length > 0) {
+    const inst: Instance = r[0];
+    const cont = inst.lookup('continuation');
+    const stmts: Statement[] = await parseStatements(cont);
+    const envStr = inst.lookup('env');
+    const suspEnv: Environment = Environment.FromSerializableObject(JSON.parse(envStr));
+    return {
+      continuation: stmts,
+      env: suspEnv,
+    };
+  }
+  return undefined;
+}
+
+async function deleteSuspension(suspId: string, env?: Environment): Promise<any> {
+  try {
+    await parseAndEvaluateStatement(
+      `purge {agentlang/suspension {id? "${suspId}"}}`,
+      undefined,
+      env
+    );
+    return suspId;
+  } catch (err: any) {
+    logger.warn(`Failed to delete suspension ${suspId} - ${err}`);
+    return undefined;
+  }
+}
+
+export async function restartSuspension(suspId: string, env?: Environment): Promise<any> {
+  const susp = await loadSuspension(suspId, env);
+  if (susp) {
+    await evaluateStatements(susp.continuation, susp.env);
+    await deleteSuspension(suspId, env);
+    return susp.env.getLastResult();
+  } else {
+    logger.warn(`Suspension ${suspId} not found`);
+    return undefined;
+  }
 }

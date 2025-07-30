@@ -74,6 +74,7 @@ import {
   addCreateAudit,
   addDeleteAudit,
   addUpdateAudit,
+  createSuspension,
   maybeCancelTimer,
   setTimerRunning,
 } from './modules/core.js';
@@ -121,6 +122,7 @@ export class Environment extends Instance {
   private inUpsertMode: boolean = false;
   private inDeleteMode: boolean = false;
   private inKernelMode: boolean = false;
+  private suspensionId: string | undefined;
   private activeCatchHandlers: Array<CatchHandlers>;
 
   constructor(name?: string, parent?: Environment) {
@@ -142,6 +144,7 @@ export class Environment extends Instance {
       this.inUpsertMode = parent.inUpsertMode;
       this.inKernelMode = parent.inKernelMode;
       this.activeCatchHandlers = parent.activeCatchHandlers;
+      this.suspensionId = parent.suspensionId;
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
@@ -152,6 +155,47 @@ export class Environment extends Instance {
 
   static from(parent: Environment): Environment {
     return new Environment(undefined, parent);
+  }
+
+  static fromInstance(inst: Instance): Environment {
+    const env = new Environment();
+    env.attributes = inst.attributes;
+    return env;
+  }
+
+  override asSerializableObject(): object {
+    const obj: any = super.asSerializableObject();
+    obj.activeModule = this.activeModule;
+    if (this.activeEventInstance) {
+      obj.activeEventInstance = this.activeEventInstance.asSerializableObject();
+    }
+    obj.activeUser = this.activeUser;
+    obj.activeUserSet = this.activeUserSet;
+    obj.inUpsertMode = this.inUpsertMode;
+    obj.inDeleteMode = this.inDeleteMode;
+    obj.inKernelMode = this.inKernelMode;
+    if (this.parent) {
+      obj.parent = this.parent.asSerializableObject();
+    }
+    return obj;
+  }
+
+  static override FromSerializableObject(obj: any): Environment {
+    const inst = Instance.FromSerializableObject(obj, PlaceholderRecordEntry);
+    const env = Environment.fromInstance(inst);
+    env.activeModule = obj.activeModule;
+    if (obj.activeEventInstance) {
+      env.activeEventInstance = Instance.FromSerializableObject(obj.activeEventInstance);
+    }
+    env.activeUser = obj.activeUser;
+    env.activeUserSet = obj.activeUserSet;
+    env.inUpsertMode = obj.inUpsertMode;
+    env.inDeleteMode = obj.inDeleteMode;
+    env.inKernelMode = obj.inKernelMode;
+    if (obj.parent) {
+      env.parent = Environment.FromSerializableObject(obj.parent);
+    }
+    return env;
   }
 
   override lookup(k: string): Result {
@@ -203,6 +247,35 @@ export class Environment extends Instance {
 
   getActiveEventInstance(): Instance | undefined {
     return this.activeEventInstance;
+  }
+
+  isSuspended(): boolean {
+    return this.suspensionId != undefined;
+  }
+
+  suspend(): string {
+    if (this.suspensionId == undefined) {
+      const id = crypto.randomUUID();
+      this.propagateSuspension(id);
+      return id;
+    } else {
+      return this.suspensionId;
+    }
+  }
+
+  protected propagateSuspension(suspId: string) {
+    this.suspensionId = suspId;
+    if (this.parent) {
+      this.parent.propagateSuspension(suspId);
+    }
+  }
+
+  getSuspensionId(): string {
+    if (this.suspensionId) {
+      return this.suspensionId;
+    } else {
+      throw new Error('SuspensionId is not set');
+    }
   }
 
   getActiveAuthContext(): ActiveSessionInfo | undefined {
@@ -290,7 +363,7 @@ export class Environment extends Instance {
   getResolver(resolverName: string): Resolver | undefined {
     const r: Resolver | undefined = this.getActiveResolvers().get(resolverName);
     if (r) {
-      return r.setUserData(this);
+      return r.setEnvironment(this);
     }
     return undefined;
   }
@@ -298,7 +371,7 @@ export class Environment extends Instance {
   async addResolver(resolver: Resolver): Promise<Environment> {
     this.getActiveResolvers().set(resolver.getName(), resolver);
     await this.ensureTransactionForResolver(resolver);
-    resolver.setUserData(this);
+    resolver.setEnvironment(this);
     return this;
   }
 
@@ -427,7 +500,7 @@ export async function evaluate(
   continuation?: Function,
   activeEnv?: Environment,
   kernelCall?: boolean
-): Promise<void> {
+): Promise<Result> {
   let env: Environment | undefined;
   let txnRolledBack: boolean = false;
   try {
@@ -440,6 +513,7 @@ export async function evaluate(
           env.setInKernelMode(true);
         }
         await evaluateStatements(wf.statements, env, continuation);
+        return env.getLastResult();
       }
     } else {
       throw new Error('Not an event - ' + eventInstance.name);
@@ -495,6 +569,14 @@ export function makeEventEvaluator(moduleName: string): Function {
   };
 }
 
+function statemtentString(stmt: Statement): string {
+  if (stmt.$cstNode) {
+    return stmt.$cstNode.text;
+  } else {
+    throw new Error(`Failed to fetch text for statement - ${stmt}`);
+  }
+}
+
 export async function evaluateStatements(
   stmts: Statement[],
   env: Environment,
@@ -502,6 +584,20 @@ export async function evaluateStatements(
 ) {
   for (let i = 0; i < stmts.length; ++i) {
     await evaluateStatement(stmts[i], env);
+    if (env.isSuspended()) {
+      const cont = stmts.slice(i + 1, stmts.length);
+      if (cont.length > 0) {
+        const suspId = await createSuspension(
+          env.getSuspensionId(),
+          cont.map((stmt: Statement) => {
+            return statemtentString(stmt);
+          }),
+          env
+        );
+        env.setLastResult({ suspension: suspId || 'null' });
+        break;
+      }
+    }
   }
   if (continuation != undefined) {
     continuation(env.getLastResult());
@@ -687,7 +783,7 @@ function getMapKey(k: MapKey): Result {
   else if (k.bool != undefined) k.bool == 'true' ? true : false;
 }
 
-const DefaultResolverName: string = '--default-resolver--';
+const DefaultResolverName: string = '-';
 
 async function getResolverForPath(
   entryName: string,

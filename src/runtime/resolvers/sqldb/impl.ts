@@ -65,7 +65,7 @@ export class SqlDbResolver extends Resolver {
   }
 
   private getDbContext(resourceFqName: string): DbContext {
-    const activeEnv: Environment = this.getUserData() as Environment;
+    const activeEnv: Environment = this.getEnvironment() as Environment;
     if (!activeEnv) {
       throw new Error('Active environment context is required by SqlDbResolver');
     }
@@ -104,7 +104,7 @@ export class SqlDbResolver extends Resolver {
         attrs.set(PathAttributeName, p);
       }
       const n: string = asTableName(inst.moduleName, inst.name);
-      const rowObj: object = inst.attributesAsObject();
+      const rowObj: object = inst.attributesWithStringifiedObjects();
       const ctx = this.getDbContext(inst.getFqName());
       await insertRow(n, rowObj, ctx, orUpdate);
       if (inst.record.getFullTextSearchAttributes()) {
