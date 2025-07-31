@@ -11,6 +11,8 @@ import {
 import { logger } from '../logger.js';
 import { Statement } from '../../language/generated/ast.js';
 import { parseStatements } from '../../language/parser.js';
+import { Resolver } from '../resolvers/interface.js';
+import { PathAttributeName } from '../defs.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
@@ -42,6 +44,14 @@ entity suspension {
   createdBy String
 }
 
+entity activeSuspension {
+  id UUID @id
+}
+
+resolver servicenow ["${DefaultModuleName}/activeSuspension"] {
+    query Core.lookupActiveSuspension
+}
+
 workflow createSuspension {
   {suspension 
     {id createSuspension.id
@@ -51,7 +61,7 @@ workflow createSuspension {
 }
 
 workflow restartSuspension {
-  await Core.restartSuspension(restartSuspension.id)
+  await Core.restartSuspension(restartSuspension.id, restartSuspension.data)
 }
 `;
 export const CoreModules: string[] = [];
@@ -191,14 +201,39 @@ async function deleteSuspension(suspId: string, env?: Environment): Promise<any>
   }
 }
 
-export async function restartSuspension(suspId: string, env?: Environment): Promise<any> {
+export async function restartSuspension(
+  suspId: string,
+  userData: string,
+  env?: Environment
+): Promise<any> {
   const susp = await loadSuspension(suspId, env);
   if (susp) {
+    susp.env.bindSuspensionUserData(userData);
     await evaluateStatements(susp.continuation, susp.env);
     await deleteSuspension(suspId, env);
     return susp.env.getLastResult();
   } else {
     logger.warn(`Suspension ${suspId} not found`);
     return undefined;
+  }
+}
+
+export async function lookupActiveSuspension(
+  resolver: Resolver,
+  inst: Instance,
+  queryAll: boolean
+) {
+  if (!queryAll) {
+    const data = inst.lookupQueryVal(PathAttributeName).split('/')[1];
+    if (data) {
+      const parts = data.split(':');
+      const id = parts[0];
+      const userData = parts[1];
+      return await restartSuspension(id, userData, resolver.getEnvironment());
+    } else {
+      return [];
+    }
+  } else {
+    return [];
   }
 }
