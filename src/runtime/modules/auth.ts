@@ -29,7 +29,7 @@ export const CoreAuthModuleName = makeCoreModuleName('auth');
 
 export default `module ${CoreAuthModuleName}
 
-import "./modules/auth.js" as Auth
+import "./modules/auth.js" @as Auth
 
 entity User {
     id UUID @id @default(uuid()),
@@ -52,12 +52,12 @@ workflow CreateUser {
 }
 
 workflow FindUser {
-  {User {id? FindUser.id}} as [user];
+  {User {id? FindUser.id}} @as [user];
   user
 }
 
 workflow FindUserByEmail {
-  {User {email? FindUserByEmail.email}} as [user];
+  {User {email? FindUserByEmail.email}} @as [user];
   user
 }
 
@@ -83,19 +83,19 @@ workflow CreateRole {
 }
 
 workflow FindRole {
-    {Role {name? FindRole.name}} as [role];
+    {Role {name? FindRole.name}} @as [role];
     role
 }
 
 workflow AssignUserToRole {
-    {User {id? AssignUserToRole.userId}} as [user];
-    {Role {name? AssignUserToRole.roleName}} as [role];
+    {User {id? AssignUserToRole.userId}} @as [user];
+    {Role {name? AssignUserToRole.roleName}} @as [role];
     {UserRole {User user, Role role}, @upsert}
 }
 
 workflow AssignUserToRoleByEmail {
-    {User {email? AssignUserToRoleByEmail.email}} as [user];
-    {Role {name? AssignUserToRoleByEmail.roleName}} as [role];
+    {User {email? AssignUserToRoleByEmail.email}} @as [user];
+    {Role {name? AssignUserToRoleByEmail.roleName}} @as [role];
     {UserRole {User user, Role role}, @upsert}
 }
 
@@ -116,8 +116,8 @@ workflow CreatePermission {
 }
 
 workflow AddPermissionToRole {
-    {Role {name? AddPermissionToRole.roleName}} as role;
-    {Permission {id? AddPermissionToRole.permissionId}} as perm;
+    {Role {name? AddPermissionToRole.roleName}} @as role;
+    {Permission {id? AddPermissionToRole.permissionId}} @as perm;
     {RolePermission {Role role, Permission perm}, @upsert}
 }
 
@@ -154,12 +154,12 @@ workflow UpdateSession {
 }
 
 workflow FindSession {
-  {Session {id? FindSession.id}} as [session];
+  {Session {id? FindSession.id}} @as [session];
   session
 }
 
 workflow FindUserSession {
-  {Session {userId? FindUserSession.userId}} as [session];
+  {Session {userId? FindUserSession.userId}} @as [session];
   session
 }
 
@@ -168,7 +168,7 @@ workflow RemoveSession {
 }
 
 workflow RemoveUserSession {
-  {Session {userId? RemoveUserSession.id}} as [session];
+  {Session {userId? RemoveUserSession.id}} @as [session];
   purge {Session {id? session.id}}
 }
 

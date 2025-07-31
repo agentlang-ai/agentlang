@@ -32,12 +32,12 @@ describe('Pattern generation using the syntax API', () => {
       .addAttribute('email', new ReferencePattern('CreateEmployee', 'email'))
       .addAttribute('salary', new ExpressionPattern('CreateEmployee.salary * 0.5'))
       .setAlias('emp');
-    const stmt1 = `{Acme/Employee {firstName CreateEmployee.firstName, lastName CreateEmployee.lastName, email CreateEmployee.email, salary CreateEmployee.salary * 0.5}} as emp`;
+    const stmt1 = `{Acme/Employee {firstName CreateEmployee.firstName, lastName CreateEmployee.lastName, email CreateEmployee.email, salary CreateEmployee.salary * 0.5}} @as emp`;
     assert(crud1.toString() == stmt1, 'Failed to generate employee-create pattern');
     const crud2: CrudPattern = new CrudPattern('Acme/Employee')
       .addAttribute('salary?>=', LiteralPattern.Number(1500))
       .setAlias('employees');
-    const stmt2 = '{Acme/Employee {salary?>= 1500}} as employees';
+    const stmt2 = '{Acme/Employee {salary?>= 1500}} @as employees';
     assert(crud2.toString() == stmt2, 'Failed to generate employee query pattern');
     const crud3: CrudPattern = new CrudPattern('Blog/User')
       .addAttribute('name', new ReferencePattern('CreateUser', 'name'))
@@ -65,7 +65,7 @@ describe('Pattern generation using the syntax API', () => {
       )
     ).setAlias('managers');
     const stmt4 =
-      'for emp in {Acme/Employee {salary?>= 1500}}{{Acme/Manager {employeeEmail emp.email}}} as managers';
+      'for emp in {Acme/Employee {salary?>= 1500}}{{Acme/Manager {employeeEmail emp.email}}} @as managers';
     assert(fe.toString() == stmt4, 'Failed to generate for-each');
     const emptyfe = new ForEachPattern()
     assert(emptyfe.toString() == 'for X in []{}', 'Failed to generate empty for-each')
@@ -116,16 +116,16 @@ describe('Pattern introspection', () => {
     pats = await introspect('{Blog/User? {}}');
     assert(isQueryPattern(pats[0]), 'Failed to detect empty query-all pattern');
 
-    pats = await introspect('{Blog/User {email? "joe@acme.com"}} as users');
+    pats = await introspect('{Blog/User {email? "joe@acme.com"}} @as users');
     cp = pats[0] as CrudPattern;
     assert(cp.isQuery, 'Failed to detect query pattern');
     assert(cp.alias == 'users', 'Failed to detect query alias');
     assert(
-      cp.toString() == '{Blog/User {email? "joe@acme.com"}} as users',
+      cp.toString() == '{Blog/User {email? "joe@acme.com"}} @as users',
       'Failed to regenerate query pattern'
     );
 
-    pats = await introspect('{Blog/User {email? "joe@acme.com", name "Sam"}} as [user]');
+    pats = await introspect('{Blog/User {email? "joe@acme.com", name "Sam"}} @as [user]');
     cp = pats[0] as CrudPattern;
     assert(cp.isQueryUpdate, 'Failed to detect query-update pattern');
     assert(
@@ -133,7 +133,7 @@ describe('Pattern introspection', () => {
       'Failed to parse aliases'
     );
     assert(
-      cp.toString() == '{Blog/User {email? "joe@acme.com", name "Sam"}} as [user]',
+      cp.toString() == '{Blog/User {email? "joe@acme.com", name "Sam"}} @as [user]',
       'Failed to regenerate query-update pattern'
     );
 
@@ -149,18 +149,18 @@ describe('Pattern introspection', () => {
       'Failed to regenerate create pattern with relationships'
     );
 
-    pats = await introspect('delete {Blog/User {email? "joe@acme.com"}} as users');
+    pats = await introspect('delete {Blog/User {email? "joe@acme.com"}} @as users');
     const dp: DeletePattern = pats[0] as DeletePattern;
     assert(dp.alias == 'users', 'Failed to detect alias for delete');
     cp = dp.pattern as CrudPattern;
     assert(cp.isQuery, 'Failed to detect query pattern in delete');
     assert(
-      dp.toString() == 'delete {Blog/User {email? "joe@acme.com"}} as users',
+      dp.toString() == 'delete {Blog/User {email? "joe@acme.com"}} @as users',
       'Failed to re-generate delete pattern'
     );
 
     pats = await introspect(
-      'for user in {Blog/User {email? "joe@acme.com"}} { {Blog/Person {name user.name}} } as result'
+      'for user in {Blog/User {email? "joe@acme.com"}} { {Blog/Person {name user.name}} } @as result'
     );
     const fep: ForEachPattern = pats[0] as ForEachPattern;
     assert(fep.variable == 'user', 'Failed to detect variable of for-each');
@@ -170,7 +170,7 @@ describe('Pattern introspection', () => {
     assert(fep.alias == 'result', 'Failed to detect for-each alias');
     assert(
       fep.toString() ==
-      'for user in {Blog/User {email? "joe@acme.com"}}{{Blog/Person {name user.name}}} as result',
+      'for user in {Blog/User {email? "joe@acme.com"}}{{Blog/Person {name user.name}}} @as result',
       'Failed to regenerate for-each'
     );
 

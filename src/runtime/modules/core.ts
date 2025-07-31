@@ -14,7 +14,7 @@ import { parseStatements } from '../../language/parser.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
-import "./modules/core.js" as Core
+import "./modules/core.js" @as Core
 
 entity timer {
   name String @id,

@@ -20,7 +20,7 @@ entity Employee {
 }
 
 relationship DepartmentEmployee contains(Department, Employee)
-relationship ManagerReportee between(Employee as manager, Employee as reportee) @one_many
+relationship ManagerReportee between(Employee @as manager, Employee @as reportee) @one_many
 
 workflow CreateEmployee {
     {Department {no? CreateEmployee.deptNo},
@@ -29,8 +29,8 @@ workflow CreateEmployee {
 }
 
 workflow AssignManager {
-    {Employee {id? AssignManager.manager}} as [m];
-    {Employee {id? AssignManager.reportee}} as [r];
+    {Employee {id? AssignManager.manager}} @as [m];
+    {Employee {id? AssignManager.reportee}} @as [r];
     {ManagerReportee {manager m, reportee r}}
 }
 
