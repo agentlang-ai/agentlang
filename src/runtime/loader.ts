@@ -45,6 +45,7 @@ import {
   addAgent,
 } from './module.js';
 import {
+  escapeSpecialChars,
   findRbacSchema,
   isString,
   makeFqName,
@@ -446,8 +447,10 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
       hasUserLlm = true;
     }
     const ov = v;
-    if (apdef.value.str || apdef.value.id || apdef.value.array) {
+    if (apdef.value.id || apdef.value.array) {
       v = `"${v}"`;
+    } else if (apdef.value.str) {
+      v = `"${escapeSpecialChars(v)}"`;
     }
     attrsStrs.push(`${apdef.name} ${v}`);
     attrs.set(apdef.name, ov);
