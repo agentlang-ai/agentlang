@@ -94,7 +94,7 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 
 WorkflowDefinition: 'workflow' name=ID Body;
 
-Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | fullTextSearch=FullTextSearch;
+Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | fullTextSearch=FullTextSearch | return=Return;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 
@@ -117,6 +117,8 @@ SelectIntoSpec: 'into' '{' entries+=SelectIntoEntry (',' entries+=SelectIntoEntr
 SelectIntoEntry: alias=ID attribute=Ref;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
+
+Return: 'return' pat=Pattern;
 
 AgentDefinition: 'agent' name=(ID | STRING) (body=AgentDefBody? | '{''}');
 

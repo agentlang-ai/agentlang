@@ -114,6 +114,7 @@ export class Environment extends Instance {
   private activeUser: string = AdminUserId;
   private activeUserSet: boolean = false;
   private lastResult: Result;
+  private returnFlag: boolean = false;
   private parentPath: string | undefined;
   private normalizedParentPath: string | undefined;
   private betweenRelInfo: BetweenRelInfo | undefined;
@@ -261,6 +262,18 @@ export class Environment extends Instance {
     } else {
       return this.suspensionId;
     }
+  }
+
+  markForReturn(): Environment {
+    if (this.parent) {
+      this.parent.markForReturn();
+    }
+    this.returnFlag = true;
+    return this;
+  }
+
+  isMarkedForReturn(): boolean {
+    return this.returnFlag;
   }
 
   protected propagateSuspension(suspId: string) {
@@ -597,6 +610,8 @@ export async function evaluateStatements(
         env.setLastResult({ suspension: suspId || 'null' });
         break;
       }
+    } else if (env.isMarkedForReturn()) {
+      break;
     }
   }
   if (continuation != undefined) {
@@ -735,6 +750,9 @@ async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
     await evaluatePurge(pat.purge, env);
   } else if (pat.fullTextSearch) {
     await evaluateFullTextSearch(pat.fullTextSearch, env);
+  } else if (pat.return) {
+    await evaluatePattern(pat.return.pat, env);
+    env.markForReturn();
   }
 }
 
