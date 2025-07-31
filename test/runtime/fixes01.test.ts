@@ -245,7 +245,7 @@ describe('Issue-197', () => {
         );
         const cre = (async (id: number, x: number): Promise<any> => {
             await parseAndEvaluateStatement(`{I197/E {id ${id}, x ${x}}} 
-            catch {error {I197/HandleError {}}}`)
+            @catch {error {I197/HandleError {}}}`)
         })
         await cre(1, 10)
         await cre(2, 20)

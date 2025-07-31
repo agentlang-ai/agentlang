@@ -1,7 +1,7 @@
 // Monarch syntax highlighting for the agentlang language.
 export default {
     keywords: [
-        '@actions','@after','@async','@before','@enum','@expr','@from','@meta','@oneof','@rbac','@ref','@upsert','@with_unique','agent','allow','and','as','await','between','catch','contains','create','delete','else','entity','error','event','extends','false','for','if','import','in','into','like','module','not','not_found','onSubscription','or','purge','query','read','record','relationship','resolver','return','roles','subscribe','true','update','upsert','where','workflow'
+        '@actions','@after','@as','@async','@before','@catch','@enum','@expr','@from','@meta','@oneof','@rbac','@ref','@upsert','@with_unique','agent','allow','and','await','between','contains','create','delete','else','entity','error','event','extends','false','for','if','import','in','into','like','module','not','not_found','onSubscription','or','purge','query','read','record','relationship','resolver','return','roles','subscribe','true','update','upsert','where','workflow'
     ],
     operators: [
         '*','+',',','-','.','/',':',';','<','<=','<>','=','>','>=','?','@'

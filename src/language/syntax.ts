@@ -39,9 +39,9 @@ export class BasePattern {
 
   private aliasesAsString(): string | undefined {
     if (this.alias) {
-      return ` as ${this.alias}`;
+      return ` @as ${this.alias}`;
     } else if (this.aliases) {
-      return ` as [${this.aliases.join(',')}]`;
+      return ` @as [${this.aliases.join(',')}]`;
     } else {
       return undefined;
     }

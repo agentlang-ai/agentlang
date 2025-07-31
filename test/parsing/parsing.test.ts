@@ -74,13 +74,13 @@ describe('Workflow update tests', () => {
       workflow Test {}
       `)
     const wf = fetchModule('WfUpdateTest').getWorkflowForEvent('Test')
-    await wf.addStatement('{Acme/User {salary?> 1500}} as users')
+    await wf.addStatement('{Acme/User {salary?> 1500}} @as users')
     await wf.setStatementAt('for u in users { }', 1)
     await wf.setStatementAt('{Acme/Profile {email u.email}}', [1, 0])
     await wf.setStatementAt('{Acme/Account {email u.email}}', [1, 1])
     await wf.addStatement('users')
     assert(wf.toString() == `workflow Test {
-    {Acme/User {salary?> 1500}} as users;
+    {Acme/User {salary?> 1500}} @as users;
    for u in users {
             {Acme/Profile {email u.email}};
     {Acme/Account {email u.email}}
@@ -89,7 +89,7 @@ describe('Workflow update tests', () => {
 }`, 'Failed to set statements by index')
     wf.removeStatementAt([1, 1])
     assert(wf.toString() == `workflow Test {
-    {Acme/User {salary?> 1500}} as users;
+    {Acme/User {salary?> 1500}} @as users;
    for u in users {
             {Acme/Profile {email u.email}}
     };
@@ -99,7 +99,7 @@ describe('Workflow update tests', () => {
     await wf.setStatementAt('{Acme/Account {email u.email, type "A"}}', [1, 1, 0])
     await wf.setStatementAt('{Acme/Account {email u.email, type "B"}}', [1, 1, -0])
     assert(wf.toString() == `workflow Test {
-    {Acme/User {salary?> 1500}} as users;
+    {Acme/User {salary?> 1500}} @as users;
    for u in users {
             {Acme/Profile {email u.email}};
    if (u.age < 20) {
@@ -112,7 +112,7 @@ describe('Workflow update tests', () => {
 }`)
     wf.removeStatementAt([1, 1, -0])
     assert(wf.toString() == `workflow Test {
-    {Acme/User {salary?> 1500}} as users;
+    {Acme/User {salary?> 1500}} @as users;
    for u in users {
             {Acme/Profile {email u.email}};
    if (u.age < 20) {

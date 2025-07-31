@@ -69,8 +69,8 @@ workflow AddCategory {
 }
 
 workflow AddCategoryToPost {
-    {Post {id? AddCategoryToPost.postId}} as [post];
-    {Category {id? AddCategoryToPost.catId}} as [cat];
+    {Post {id? AddCategoryToPost.postId}} @as [post];
+    {Category {id? AddCategoryToPost.catId}} @as [cat];
     {PostCategory {Post post, Category cat}}
 }
 

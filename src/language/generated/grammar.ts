@@ -93,7 +93,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           },
           {
             "$type": "Keyword",
-            "value": "as"
+            "value": "@as"
           },
           {
             "$type": "Assignment",
@@ -898,7 +898,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
               },
               {
                 "$type": "Keyword",
-                "value": "as"
+                "value": "@as"
               },
               {
                 "$type": "Assignment",
@@ -2945,7 +2945,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
         "elements": [
           {
             "$type": "Keyword",
-            "value": "as"
+            "value": "@as"
           },
           {
             "$type": "Alternatives",
@@ -4014,7 +4014,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
         "elements": [
           {
             "$type": "Keyword",
-            "value": "catch"
+            "value": "@catch"
           },
           {
             "$type": "Keyword",

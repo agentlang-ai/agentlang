@@ -92,24 +92,24 @@ Note the value passed to the 'salary' attribute - it's an arithmetic expression.
 A successful query pattern will return an array of instances. The 'for' pattern can be used to iterate over an array. An example follows:
 
 workflow NotifyEmployees {
-    {Erp/Employee {salary?> 1000}} as employees;
+    {Erp/Employee {salary?> 1000}} @as employees;
     for emp in employees {
         {Erp/SendMail {email emp.email, body "You are selected for an increment!"}}
     }
 }
 
-Also note the use of the 'as' keyword - this binds the result of a pattern to an 'alias'. Here the result of the query is bound to the
+Also note the use of the '@as' keyword - this binds the result of a pattern to an 'alias'. Here the result of the query is bound to the
 alias named 'employees'. Any pattern can have an alias, including 'if' and 'for'. An alias can be used to refer to the attributes of the instance, 
 via the dot(.) notation. Aliases can also be used to destructure a query result - here's an example:
 
 workflow FindFirstTwoEmployees {
-    {Erp/Employee {salary?> 1000}} as [emp1, emp2];
+    {Erp/Employee {salary?> 1000}} @as [emp1, emp2];
     [emp1, emp2]
 }
 
 This alias will bind the first two instances to 'a' and 'b' and the rest of the instances to an array named 'xs':
 
-{SomeEntity {id?> 1}} as [a, b, _, xs]
+{SomeEntity {id?> 1}} @as [a, b, _, xs]
 
 Examples of binding aliases to 'if' and 'for':
 
@@ -117,11 +117,11 @@ if (IncrementSalary.percentage > 10) {
     {Erp/Employee {employeeId IncrementSalary.employeeId, salary salary + salary * IncrementSalary.percentage}}
 } else {
     {Erp/Employee {employeeId IncrementSalary.employeeId, salary salary + 1500}}
-} as emp
+} @as emp
 
 for emp in employees {
     {Erp/SendMail {email emp.email, body "You are selected for an increment!"}}
-} as emails
+} @as emails
 
 Make sure all references based on a preceding pattern is based either on an actual alias or the name of the workflow. For example, the following sequence of patterns
 are invalid, because the alias 'employee' is not defined:
@@ -131,7 +131,7 @@ are invalid, because the alias 'employee' is not defined:
 
 A fix for the reference-error is shown below:
 
-{Employee {id? 101}} as employee;
+{Employee {id? 101}} @as employee;
 {SendEmail {to employee.email, body "hello"}}
 
 Entities in a module can be connected together in relationships. There are two types of relationships - 'contains' and 'between'.
@@ -198,7 +198,7 @@ fill-in values from the available context. For example, if your instruction is "
 'please call me as soon as possible'", the best workflow to return is:
 
 workflow sendEmail {
-    {employee {id? 101}} as emp;
+    {employee {id? 101}} @as emp;
     {email {to emp.email body "please call me as soon as possible"}}
 }
 
@@ -206,7 +206,7 @@ because all the information needed is available in the context. If the instructi
 'please call me as soon as possible'", then you can return:
 
 workflow sendEmail {
-    {employee {id? sendEmail.employeeId}} as emp;
+    {employee {id? sendEmail.employeeId}} @as emp;
     {email {to emp.email body "please call me as soon as possible"}}
 }
 
@@ -215,7 +215,7 @@ The point is use the immediate context to fill-in values in generated patterns, 
 Also generate a workflow only if required explicitly by the user or the contextual information is incomplete. Otherwise, just return an array of patterns.
 As an example, if the user request is "send an email to employee 101 with this message - 'please call me as soon as possible'", you must return:
 
-[{employee {id? 101}} as emp;
+[{employee {id? 101}} @as emp;
  {email {to emp.email, body "please call me as soon as possible"}}]
 
 Note that each pattern in the array is separated by a ; and not a comma(,).

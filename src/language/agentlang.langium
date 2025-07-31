@@ -2,7 +2,7 @@ grammar Agentlang
 
 entry ModuleDefinition: 'module' name=ID (imports+=Import)* (defs+=Definition)*;
 
-Import: 'import' path=STRING 'as' name=ID;
+Import: 'import' path=STRING '@as' name=ID;
 
 Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
 | AgentDefinition | ResolverDefinition ;
@@ -33,7 +33,7 @@ ExtendsClause: 'extends' parentName=ID;
 RelationshipDefinition: 'relationship' name=ID type=('contains' | 'between') nodes=RelNodes properties+=PropertyDefinition*
 (schema=RecordSchemaDefinition)?;
 
-NodeDefinition: name=ID | name=ID 'as' alias=ID;
+NodeDefinition: name=ID | name=ID '@as' alias=ID;
 
 RelNodes: '(' node1=NodeDefinition ',' node2=NodeDefinition ')';
 
@@ -100,7 +100,7 @@ Statement: pattern=Pattern hints+=RuntimeHint*;
 
 RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec;
 
-AliasSpec: ('as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
+AliasSpec: ('@as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
 
 CrudMap: '{' (name=QueryId '{''}' 
              | (name=ID '{''}' ',' '@from' source=Literal (',' upsert+='@upsert')?)
@@ -137,7 +137,7 @@ ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 
 
 RelationshipPattern: name=ID pattern=Pattern;
 
-CatchSpec: 'catch' '{' (handlers+=Handler)+ '}';
+CatchSpec: '@catch' '{' (handlers+=Handler)+ '}';
 
 Handler: except=('not_found' | 'error') stmt=Statement;
 

@@ -43,7 +43,7 @@ entity agentChatSession {
 }
 
 workflow findAgentChatSession {
-  {agentChatSession {id? findAgentChatSession.id}} as [sess];
+  {agentChatSession {id? findAgentChatSession.id}} @as [sess];
   sess
 }
 
