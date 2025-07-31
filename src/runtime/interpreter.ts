@@ -223,6 +223,17 @@ export class Environment extends Instance {
     return this;
   }
 
+  static SuspensionUserData = '^';
+
+  bindSuspensionUserData(userData: string): Environment {
+    this.bind(Environment.SuspensionUserData, userData);
+    return this;
+  }
+
+  lookupSuspensionUserData(): string | undefined {
+    return this.lookup(Environment.SuspensionUserData);
+  }
+
   maybeLookupAgentInstance(entryName: string): Instance | undefined {
     const v = this.lookup(entryName);
     if (v && isInstanceOfType(v, AgentFqName)) {
