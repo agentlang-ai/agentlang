@@ -626,10 +626,10 @@ describe('Multiple module loading tests', () => {
     } finally {
       try {
         removeModule('Blog_Core');
-      } catch {}
+      } catch { }
       try {
         removeModule('Family');
-      } catch {}
+      } catch { }
     }
   });
 });
@@ -791,7 +791,36 @@ describe("Test string append", () => {
         T.a + ", " + T.b as result;
         result
       }`)
-      const r = await parseAndEvaluateStatement(`{TestExpr/T {a "hello", b "world"}}`)
-      assert(r == "hello, world")
+    const r = await parseAndEvaluateStatement(`{TestExpr/T {a "hello", b "world"}}`)
+    assert(r == "hello, world")
+  })
+})
+
+
+describe("Return from Workflow", () => {
+  test('test01', async () => {
+    await doInternModule(
+      'Ret',
+      `record X {x Int}
+       record Y {y Int}
+       entity Z {z Int}
+       workflow T {
+        if (T.v = 1) {
+          return {X {x 10}}
+        } else {
+          {Z {z T.z}}
+        }
+        {Y {y 200}}
+      }`)
+    const t = async (v: number, z: number) => {
+      return await parseAndEvaluateStatement(`{Ret/T {v ${v}, z ${z}}}`)
+    }
+    const r1 = await t(1, 0)
+    assert(isInstanceOfType(r1, 'Ret/X'))
+    const r2 = await t(0, 1)
+    assert(isInstanceOfType(r2, 'Ret/Y'))
+    const zs = await parseAndEvaluateStatement(`{Ret/Z? {}}`)
+    assert(zs.length == 1)
+    assert(isInstanceOfType(zs[0], 'Ret/Z'))
   })
 })

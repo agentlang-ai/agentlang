@@ -84,6 +84,7 @@ export type AgentlangKeywordNames =
     | "record"
     | "relationship"
     | "resolver"
+    | "return"
     | "roles"
     | "subscribe"
     | "true"
@@ -705,7 +706,7 @@ export function isOneOfSpec(item: unknown): item is OneOfSpec {
 }
 
 export interface Pattern extends langium.AstNode {
-    readonly $container: Delete | ForEach | Purge | RelationshipPattern | Statement;
+    readonly $container: Delete | ForEach | Purge | RelationshipPattern | Return | Statement;
     readonly $type: 'Pattern';
     crudMap?: CrudMap;
     delete?: Delete;
@@ -714,6 +715,7 @@ export interface Pattern extends langium.AstNode {
     fullTextSearch?: FullTextSearch;
     if?: If;
     purge?: Purge;
+    return?: Return;
 }
 
 export const Pattern = 'Pattern';
@@ -995,6 +997,18 @@ export function isResolverMethodSpec(item: unknown): item is ResolverMethodSpec 
     return reflection.isInstance(item, ResolverMethodSpec);
 }
 
+export interface Return extends langium.AstNode {
+    readonly $container: Pattern;
+    readonly $type: 'Return';
+    pat: Pattern;
+}
+
+export const Return = 'Return';
+
+export function isReturn(item: unknown): item is Return {
+    return reflection.isInstance(item, Return);
+}
+
 export interface RuntimeHint extends langium.AstNode {
     readonly $container: Statement;
     readonly $type: 'RuntimeHint';
@@ -1179,6 +1193,7 @@ export type AgentlangAstType = {
     ResolverFnName: ResolverFnName
     ResolverMethodName: ResolverMethodName
     ResolverMethodSpec: ResolverMethodSpec
+    Return: Return
     RuntimeHint: RuntimeHint
     SchemaDefinition: SchemaDefinition
     SelectIntoEntry: SelectIntoEntry
@@ -1194,7 +1209,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefBody, AgentDefinition, AgentPropertyDef, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, WorkflowDefinition];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefBody, AgentDefinition, AgentPropertyDef, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1627,7 +1642,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'forEach' },
                         { name: 'fullTextSearch' },
                         { name: 'if' },
-                        { name: 'purge' }
+                        { name: 'purge' },
+                        { name: 'return' }
                     ]
                 };
             }
@@ -1817,6 +1833,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'fn' },
                         { name: 'key' }
+                    ]
+                };
+            }
+            case Return: {
+                return {
+                    name: Return,
+                    properties: [
+                        { name: 'pat' }
                     ]
                 };
             }
