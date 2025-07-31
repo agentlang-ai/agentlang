@@ -837,10 +837,14 @@ export async function refreshUserToken(refreshToken: string, env: Environment): 
 }
 
 export function requireAuth(moduleName: string, eventName: string): boolean {
-  const f =
-    moduleName == CoreAuthModuleName &&
-    (eventName == 'login' || eventName == 'signup' || eventName == 'refreshToken');
-  return !f;
+  if (isAuthEnabled()) {
+    const f =
+      moduleName == CoreAuthModuleName &&
+      (eventName == 'login' || eventName == 'signup' || eventName == 'refreshToken');
+    return !f;
+  } else {
+    return false;
+  }
 }
 
 // Export getHttpStatusForError for use in HTTP handlers
