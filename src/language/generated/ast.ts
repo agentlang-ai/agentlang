@@ -42,9 +42,11 @@ export type AgentlangKeywordNames =
     | "@async"
     | "@before"
     | "@catch"
+    | "@distinct"
     | "@enum"
     | "@expr"
     | "@from"
+    | "@into"
     | "@meta"
     | "@oneof"
     | "@rbac"
@@ -71,7 +73,6 @@ export type AgentlangKeywordNames =
     | "if"
     | "import"
     | "in"
-    | "into"
     | "like"
     | "module"
     | "not"
@@ -340,6 +341,7 @@ export interface CrudMap extends langium.AstNode {
     readonly $container: Pattern;
     readonly $type: 'CrudMap';
     body?: CrudMapBody;
+    distinct: Array<'@distinct'>;
     into?: SelectIntoSpec;
     name: QueryId | string;
     relationships: Array<RelationshipPattern>;
@@ -1379,6 +1381,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: CrudMap,
                     properties: [
                         { name: 'body' },
+                        { name: 'distinct', defaultValue: [] },
                         { name: 'into' },
                         { name: 'name' },
                         { name: 'relationships', defaultValue: [] },

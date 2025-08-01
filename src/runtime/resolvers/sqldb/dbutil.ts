@@ -30,8 +30,15 @@ export type TableSchema = {
   columns: TableSpec;
 };
 
-export function asTableName(moduleName: string, entityName: string): string {
-  return `${moduleName}_${entityName}`.toLowerCase();
+export function asTableReference(moduleName: string, ref: string): string {
+  if (ref.indexOf('.') > 0) {
+    const parts = ref.split('.')
+    const r = `${moduleName}_${parts[0]}`.toLowerCase()
+    const colref = parts.slice(1).join('.')
+    return `"${r}"."${colref}"`;
+  } else {
+    return `${moduleName}_${ref}`.toLowerCase()
+  }
 }
 
 export function modulesAsDbSchema(): TableSchema[] {
@@ -46,7 +53,7 @@ export function modulesAsDbSchema(): TableSchema[] {
     const allEntries: Record[] = entities.concat(betRels) as Record[];
     allEntries.forEach((ent: Record) => {
       const tspec: TableSchema = {
-        name: asTableName(n, ent.name),
+        name: asTableReference(n, ent.name),
         columns: entitySchemaToTable(ent.schema),
       };
       result.push(tspec);
@@ -85,7 +92,7 @@ function ormSchemaFromRecordSchema(moduleName: string, entry: Record, hasOwnPk?:
   const entityName = entry.name
   const scm: RecordSchema = entry.schema
   const result = new EntitySchemaOptions<any>()
-  result.tableName = asTableName(moduleName, entityName)
+  result.tableName = asTableReference(moduleName, entityName)
   result.name = result.tableName
   const cols = new Map<string, any>()
   const indices = new Array<any>()

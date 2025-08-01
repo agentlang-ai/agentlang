@@ -100,8 +100,12 @@ export class Resolver {
    * @param {Instance} inst - an Instance with query attributes
    * @param {boolean} queryAll - if this flag is set, fetch all instances
    */
-  public async queryInstances(inst: Instance, queryAll: boolean): Promise<any> {
-    return this.notImpl(`queryInstances(${inst}, ${queryAll})`);
+  public async queryInstances(
+    inst: Instance,
+    queryAll: boolean,
+    distinct: boolean = false
+  ): Promise<any> {
+    return this.notImpl(`queryInstances(${inst}, ${queryAll}, ${distinct})`);
   }
 
   /**
@@ -130,9 +134,10 @@ export class Resolver {
   public async queryByJoin(
     inst: Instance,
     joinsSpec: JoinInfo[],
-    intoSpec: Map<string, string>
+    intoSpec: Map<string, string>,
+    distinct: boolean = false
   ): Promise<any> {
-    return this.notImpl(`queryByJoin(${inst}, ${joinsSpec}, ${intoSpec})`);
+    return this.notImpl(`queryByJoin(${inst}, ${joinsSpec}, ${intoSpec}, ${distinct})`);
   }
 
   /**

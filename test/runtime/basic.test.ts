@@ -250,7 +250,7 @@ describe('Basic CRUD tests', () => {
     const jq = async (email: string) => {
       return await parseAndEvaluateStatement(`{Blogger/User {email? "${email}"}, 
       Blogger/UserPost {Blogger/Post? {}}, 
-      into {e Blogger/User.email, t Blogger/Post.title}}`);
+      @into {e Blogger/User.email, t Blogger/Post.title}}`);
     };
     let jr: any[] = await jq(email);
     assert(jr.length == 1);
@@ -552,7 +552,7 @@ describe('Nested query-into tests', () => {
       await parseAndEvaluateStatement(`{NestedInto/A {id? ${aid}},
       NestedInto/AB {NestedInto/B? {},
                      NestedInto/BC {NestedInto/C? {}}},
-      into {ax NestedInto/A.x, by NestedInto/B.y, cz NestedInto/C.z}}`).then(check);
+      @into {ax NestedInto/A.x, by NestedInto/B.y, cz NestedInto/C.z}}`).then(check);
     };
     await f(1, (result: any[]) => {
       assert(result.length == 1);

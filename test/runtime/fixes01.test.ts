@@ -2,6 +2,7 @@ import { assert, describe, test } from "vitest"
 import { doInternModule } from "../util.js"
 import { fetchModule, Instance, isInstanceOfType, isModule } from "../../src/runtime/module.js"
 import { parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
+import { isUsingSqlite } from "../../src/runtime/resolvers/sqldb/database.js"
 
 describe('Issue 92', () => {
     test('test01', async () => {
@@ -28,19 +29,19 @@ describe('Issue 97', () => {
             workflow FetchResourceAllocations {
                 {I97/Resource { id? FetchResourceAllocations.id },
                  I97/ResAlloc {I97/Allocation? {}},
-                into {e I97/Resource.name, t I97/Allocation.name}}
+                @into {e I97/Resource.name, t I97/Allocation.name}}
             }
 
             workflow FetchAllResourceAllocations {
                 {I97/Resource? {},
                  I97/ResAlloc {I97/Allocation? {}},
-                 into {e I97/Resource.name, t I97/Allocation.name}}
+                 @into {e I97/Resource.name, t I97/Allocation.name}}
             }
 
             workflow FetchAllocationsResource{
                {I97/Allocation {id? FetchAllocationsResource.id},
                 I97/ResAlloc {I97/Resource? {}},
-                into {e I97/Resource.name, t I97/Allocation.name}}
+                @into {e I97/Resource.name, t I97/Allocation.name}}
             }
 
             workflow CreateAllocation {
@@ -109,19 +110,19 @@ describe('Issue 97 (contains)', () => {
             workflow FetchResourceAllocations {
                 {I97C/Resource { id? FetchResourceAllocations.id },
                  I97C/ResAlloc {I97C/Allocation? {}},
-                into {e I97C/Resource.name, t I97C/Allocation.name}}
+                @into {e I97C/Resource.name, t I97C/Allocation.name}}
             }
 
             workflow FetchAllResourceAllocations {
                 {I97C/Resource? {},
                  I97C/ResAlloc {I97C/Allocation? {}},
-                 into {e I97C/Resource.name, t I97C/Allocation.name}}
+                 @into {e I97C/Resource.name, t I97C/Allocation.name}}
             }
 
             workflow FetchAllocationsResource{
                {I97C/Allocation {id? FetchAllocationsResource.id},
                 I97C/ResAlloc {I97C/Resource? {}},
-                into {e I97C/Resource.name, t I97C/Allocation.name}}
+                @into {e I97C/Resource.name, t I97C/Allocation.name}}
             }
              `
         )
@@ -222,11 +223,12 @@ describe('Issue 179 - @from', () => {
     })
 })
 
-describe('Issue-197', () => {
-    test('test01', async () => {
-        await doInternModule(
-            'I197',
-            `entity E {
+if (isUsingSqlite()) { // Postgres will rollback transaction on SQL error
+    describe('Issue-197', () => {
+        test('test01', async () => {
+            await doInternModule(
+                'I197',
+                `entity E {
         id Int @id,
         x Int,
         @after {create I197/AfterCreateE}
@@ -242,22 +244,111 @@ describe('Issue-197', () => {
         {F {id 2, y 20}}
       }
       `
-        );
-        const cre = (async (id: number, x: number): Promise<any> => {
-            await parseAndEvaluateStatement(`{I197/E {id ${id}, x ${x}}} 
+            );
+            const cre = (async (id: number, x: number): Promise<any> => {
+                await parseAndEvaluateStatement(`{I197/E {id ${id}, x ${x}}}
             @catch {error {I197/HandleError {}}}`)
-        })
-        await cre(1, 10)
-        await cre(2, 20)
-        const chk = (async (n: string) => {
-            await parseAndEvaluateStatement(`{I197/${n}? {}}`).then((result: Instance[]) => {
-                assert(result.length == 2)
-                const ids = result.map((inst: Instance) => { return inst.lookup('id') })
-                assert(ids.find((v: number) => { return v == 1 }))
-                assert(ids.find((v: number) => { return v == 2 }))
             })
+            await cre(1, 10)
+            await cre(2, 20)
+            const chk = (async (n: string) => {
+                await parseAndEvaluateStatement(`{I197/${n}? {}}`).then((result: Instance[]) => {
+                    assert(result.length == 2)
+                    const ids = result.map((inst: Instance) => { return inst.lookup('id') })
+                    assert(ids.find((v: number) => { return v == 1 }))
+                    assert(ids.find((v: number) => { return v == 2 }))
+                })
+            });
+            await chk('E')
+            await chk('F')
         });
-    await chk('E')
-    await chk('F')
     });
-});
+}
+
+describe('Issue-209', () => {
+    test('test01', async () => {
+        await doInternModule('I209',
+            `entity Resource {
+    Id UUID @id @default(uuid()),
+    Email Email @unique
+}
+
+entity Allocation {
+    Id UUID @id @default(uuid()),
+    Period Date
+}
+
+relationship ResourceAllocation contains(Resource, Allocation)
+
+workflow ResourcesForAllocations {
+    {Allocation {Period?between [ResourcesForAllocations.StartDate, ResourcesForAllocations.EndDate]},
+     ResourceAllocation {Resource? {}},
+     @into {remail Resource.Email, rid Resource.Id}}
+}
+workflow DistinctResourcesForAllocations {
+    {Allocation {Period?between [DistinctResourcesForAllocations.StartDate, DistinctResourcesForAllocations.EndDate]},
+     ResourceAllocation {Resource? {}},
+     @into {remail Resource.Email, rid Resource.Id},
+     @distinct}
+}
+`
+        )
+
+        const crr = async (email: string): Promise<Instance> => {
+            const r = await parseAndEvaluateStatement(`{I209/Resource {Email "${email}"}}`)
+            assert(isInstanceOfType(r, 'I209/Resource'))
+            return r
+        }
+
+        const cra = async (resId: string, period: string): Promise<Instance | undefined> => {
+            const res = await parseAndEvaluateStatement(`{I209/Resource {
+                Id? "${resId}"},
+                I209/ResourceAllocation {I209/Allocation {Period "${period}"}}
+                }`)
+            const r: Instance = res[0]
+            const rels = r.getRelatedInstances('I209/ResourceAllocation')
+            if (rels) {
+                const a = rels[0]
+                assert(isInstanceOfType(a, 'I209/Allocation'))
+                return a
+            } else {
+                assert(rels != undefined)
+                return undefined
+            }
+        }
+
+        const rfas = async (start: string, end: string, distinct: boolean = false): Promise<Instance[]> => {
+            const event = distinct ? 'DistinctResourcesForAllocations' : 'ResourcesForAllocations'
+            const res: Instance[] = await parseAndEvaluateStatement(`{I209/${event} {StartDate "${start}", EndDate "${end}"}}`)
+            return res
+        }
+
+        const r1 = await crr("a@acme.com")
+        const id1 = r1.lookup('Id')
+        await cra(id1, "2025-01-01")
+        await cra(id1, "2025-02-01")
+        await cra(id1, "2025-03-12")
+        let rs: any[] = await rfas("2025-01-01", "2025-02-10")
+        assert(rs.length == 2)
+        assert(rs[0].remail == "a@acme.com")
+        assert(rs[1].remail == rs[0].remail)
+        rs = await rfas("2025-01-01", "2025-02-10", true)
+        const r2 = await crr("b@acme.com")
+        const id2 = r2.lookup('Id')
+        await cra(id2, "2025-01-10")
+        await cra(id2, "2024-01-10")
+        rs = await rfas("2025-01-01", "2025-02-10")
+        assert(rs.length == 3)
+        const f = (email: string): any[] => {
+            return rs.filter((v: any) => {
+                return v.remail == email
+            })
+        }
+        assert(f('a@acme.com').length == 2)
+        assert(f('b@acme.com').length == 1)
+        rs = await rfas("2025-01-01", "2025-02-10", true)
+        assert(rs.length == 2)
+        assert(f('a@acme.com').length == 1)
+        assert(f('b@acme.com').length == 1)
+    })
+})
