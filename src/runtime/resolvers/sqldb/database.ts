@@ -602,8 +602,8 @@ function mkBetweenClause(tableName: string | undefined, k: string, queryVals: an
     const v1 = isstr ? `'${ov[0]}'` : ov[0];
     const v2 = isstr ? `'${ov[1]}'` : ov[1];
     const s = tableName
-      ? `${tableName}.${k} BETWEEN ${v1} AND ${v2}`
-      : `${k} BETWEEN ${v1} AND ${v2}`;
+      ? `"${tableName}"."${k}" BETWEEN ${v1} AND ${v2}`
+      : `"${k}" BETWEEN ${v1} AND ${v2}`;
     delete queryVals[k];
     return s;
   } else {
@@ -619,8 +619,8 @@ function objectToWhereClause(queryObj: object, queryVals: any, tableName?: strin
       op == 'between'
         ? mkBetweenClause(tableName, value[0], queryVals)
         : tableName
-          ? `${tableName}.${value[0]} ${op} :${value[0]}`
-          : `${value[0]} ${op} :${value[0]}`;
+          ? `"${tableName}"."${value[0]}" ${op} :${value[0]}`
+          : `"${value[0]}" ${op} :${value[0]}`;
     clauses.push(clause);
   });
   return clauses.join(' AND ');
@@ -637,7 +637,7 @@ function objectToRawWhereClause(queryObj: object, queryVals: any, tableName?: st
     } else {
       const ov: any = queryVals[k];
       const v = isString(ov) ? `'${ov}'` : ov;
-      clause = tableName ? `${tableName}.${k} ${op} ${v}` : `${k} ${op} ${v}`;
+      clause = tableName ? `"${tableName}"."${k}" ${op} ${v}` : `"${k}" ${op} ${v}`;
     }
     clauses.push(clause);
   });

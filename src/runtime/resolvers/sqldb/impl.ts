@@ -15,7 +15,7 @@ import {
 } from '../../module.js';
 import { escapeFqName, makeFqName, splitFqName } from '../../util.js';
 import { JoinInfo, Resolver } from '../interface.js';
-import { asTableName } from './dbutil.js';
+import { asTableReference } from './dbutil.js';
 import {
   getMany,
   insertRow,
@@ -103,7 +103,7 @@ export class SqlDbResolver extends Resolver {
         else p = `${n.replace('/', '$')}/${idAttrVal}`;
         attrs.set(PathAttributeName, p);
       }
-      const n: string = asTableName(inst.moduleName, inst.name);
+      const n: string = asTableReference(inst.moduleName, inst.name);
       const rowObj: object = inst.attributesWithStringifiedObjects();
       const ctx = this.getDbContext(inst.getFqName());
       await insertRow(n, rowObj, ctx, orUpdate);
@@ -140,7 +140,7 @@ export class SqlDbResolver extends Resolver {
     );
     const updateObj: object = Object.fromEntries(newAttrs);
     await updateRow(
-      asTableName(inst.moduleName, inst.name),
+      asTableReference(inst.moduleName, inst.name),
       queryObj,
       queryVals,
       updateObj,
@@ -157,7 +157,7 @@ export class SqlDbResolver extends Resolver {
   ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
 
-    const tableName = asTableName(inst.moduleName, inst.name);
+    const tableName = asTableReference(inst.moduleName, inst.name);
     const fqName = inst.getFqName();
     const ctx = this.getDbContext(fqName);
     const qattrs: any = queryAll ? undefined : inst.queryAttributesAsObject();
@@ -217,11 +217,11 @@ export class SqlDbResolver extends Resolver {
       return await this.queryInstances(inst, false);
     } else {
       await getAllConnected(
-        asTableName(inst.moduleName, inst.name),
+        asTableReference(inst.moduleName, inst.name),
         inst.queryAttributesAsObject(),
         inst.queryAttributeValuesAsObject(),
         {
-          connectionTable: asTableName(inst.moduleName, relationship.name),
+          connectionTable: asTableReference(inst.moduleName, relationship.name),
           fromColumn: relationship.node1.alias,
           fromValue: `'${connectedInstance.lookup(PathAttributeName)}'`,
           toColumn: relationship.node2.alias,
@@ -251,13 +251,13 @@ export class SqlDbResolver extends Resolver {
     joinsSpec: JoinInfo[],
     intoSpec: Map<string, string>
   ): Promise<any> {
-    const tableName = asTableName(inst.moduleName, inst.name);
+    const tableName = asTableReference(inst.moduleName, inst.name);
     const joinClauses: JoinClause[] = [];
     this.processJoinInfo(tableName, inst, joinsSpec, joinClauses);
     intoSpec.forEach((v: string, k: string) => {
       const p = splitFqName(v);
       const mn = p.hasModule() ? p.getModuleName() : inst.moduleName;
-      intoSpec.set(k, asTableName(mn, p.getEntryName()));
+      intoSpec.set(k, asTableReference(mn, p.getEntryName()));
     });
     const rslt: any = await getManyByJoin(
       tableName,
@@ -278,7 +278,7 @@ export class SqlDbResolver extends Resolver {
   ) {
     joinsSpec.forEach((ji: JoinInfo) => {
       const rel: Relationship = ji.relationship;
-      const joinTableName = asTableName(ji.queryInstance.moduleName, ji.queryInstance.name);
+      const joinTableName = asTableReference(ji.queryInstance.moduleName, ji.queryInstance.name);
       let joinOn: JoinOn | JoinOn[] | undefined;
       if (rel.isContains()) {
         const walkDown = rel.isParent(joinInst);
@@ -295,7 +295,7 @@ export class SqlDbResolver extends Resolver {
             pathRef
           );
         } else {
-          const relTableName = asTableName(rel.moduleName, rel.name);
+          const relTableName = asTableReference(rel.moduleName, rel.name);
           const jPathRef = `"${joinTableName}"."${PathAttributeName}"`;
           const fqn = ji.queryInstance.getFqName();
           const n1 = rel.getAliasForName(fqn);
@@ -333,7 +333,7 @@ export class SqlDbResolver extends Resolver {
     const queryVals: object = Object.fromEntries(
       newInstanceAttributes().set(PathAttributeName, target.attributes.get(PathAttributeName))
     );
-    const tableName = asTableName(target.moduleName, target.name);
+    const tableName = asTableReference(target.moduleName, target.name);
     const ctx = this.getDbContext(target.getFqName());
     if (purge) {
       await hardDeleteRow(tableName, [[PathAttributeName, target.lookup(PathAttributeName)]], ctx);
@@ -374,7 +374,7 @@ export class SqlDbResolver extends Resolver {
     relEntry: Relationship,
     orUpdate: boolean
   ): Promise<void> {
-    const n: string = asTableName(relEntry.moduleName, relEntry.name);
+    const n: string = asTableReference(relEntry.moduleName, relEntry.name);
     const [firstNode, secondNode] = relEntry.isFirstNode(node1) ? [node1, node2] : [node2, node1];
     const a1: string = relEntry.node1.alias;
     const a2: string = relEntry.node2.alias;
@@ -423,7 +423,7 @@ export class SqlDbResolver extends Resolver {
     if (options && options.has('limit')) {
       limit = options.get('limit') as number;
     }
-    return await vectorStoreSearch(asTableName(moduleName, entryName), queryVec, limit, ctx);
+    return await vectorStoreSearch(asTableReference(moduleName, entryName), queryVec, limit, ctx);
   }
 
   public override async startTransaction(): Promise<string> {

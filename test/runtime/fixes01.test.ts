@@ -261,3 +261,62 @@ describe('Issue-197', () => {
     await chk('F')
     });
 });
+
+describe('Issue-209', () => {
+    test('test01', async () => {
+        await doInternModule('I209',
+            `entity Resource {
+    Id UUID @id @default(uuid()),
+    Email Email @unique
+}
+
+entity Allocation {
+    Id UUID @id @default(uuid()),
+    Period Date
+}
+
+relationship ResourceAllocation contains(Resource, Allocation)
+
+workflow ResourcesForAllocations {
+    {Allocation {Period?between [ResourcesForAllocations.StartDate, ResourcesForAllocations.EndDate]},
+     ResourceAllocation {Resource? {}},
+     into {REmail Resource.Email, RId Resource.Id}}
+}`
+        )
+
+        const crr = async (email: string): Promise<Instance> => {
+            const r = await parseAndEvaluateStatement(`{I209/Resource {Email "${email}"}}`)
+            assert(isInstanceOfType(r, 'I209/Resource'))
+            return r
+        }
+
+        const cra = async (resId: string, period: string): Promise<Instance | undefined> => {
+            const res = await parseAndEvaluateStatement(`{I209/Resource {
+                Id? "${resId}"},
+                I209/ResourceAllocation {I209/Allocation {Period "${period}"}}
+                }`)
+            const r: Instance = res[0]
+            const rels = r.getRelatedInstances('I209/ResourceAllocation')
+            if (rels) {
+                const a = rels[0]
+                assert(isInstanceOfType(a, 'I209/Allocation'))
+                return a
+            } else {
+                assert(rels != undefined)
+                return undefined
+            }
+        }
+
+        const rfas = async (start: string, end: string): Promise<Instance[]> => {
+            const res: Instance[] = await parseAndEvaluateStatement(`{I209/ResourcesForAllocations {StartDate "${start}", EndDate "${end}"}}`)
+            return res
+        }
+
+        const r1 = await crr("a@acme.com")
+        const id1 = r1.lookup('Id')
+        await cra(id1, "2025-01-01")
+        await cra(id1, "2025-02-01")
+        await cra(id1, "2025-03-12")
+        await rfas("2025-01-01", "2025-02-10")
+    })
+})
