@@ -231,7 +231,7 @@ describe('Relationship and `into` introspection', () => {
     let pats = await introspect(`{Allocation? {},
     ResourceAllocation {Resource? {},
        TeamResource {Team {Id? GetTeamAllocations.TeamId}}},
-    into {Id Allocation.Id,
+    @into {Id Allocation.Id,
          Project Allocation.Project,
          ProjectName Allocation.ProjectName,
          Resource Allocation.Resource,
@@ -252,7 +252,7 @@ describe('Relationship and `into` introspection', () => {
     assert(p.into.get('Duration') == 'Allocation.Duration')
     p.removeInto('Duration')
     const s = p.toString();
-    assert(s == `{Allocation? {},ResourceAllocation {Resource? {},TeamResource {Team {Id? GetTeamAllocations.TeamId}}},into { Id Allocation.Id,
+    assert(s == `{Allocation? {},ResourceAllocation {Resource? {},TeamResource {Team {Id? GetTeamAllocations.TeamId}}},@into { Id Allocation.Id,
 Project Allocation.Project,
 ProjectName Allocation.ProjectName,
 Resource Allocation.Resource,

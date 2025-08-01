@@ -185,7 +185,11 @@ function makeSqliteDataSource(
   });
 }
 
-export const DbType = 'sqlite';
+const DbType = 'sqlite';
+
+function getDbType(config?: DatabaseConfig): string {
+  return process.env.AL_DB_TYPE || config?.type || DbType;
+}
 
 function getDsFunction(
   config: DatabaseConfig | undefined
@@ -194,7 +198,7 @@ function getDsFunction(
   config: DatabaseConfig | undefined,
   synchronize?: boolean | undefined
 ) => DataSource {
-  switch (process.env.AL_DB_TYPE || config?.type || DbType) {
+  switch (getDbType(config)) {
     case 'sqlite':
       return makeSqliteDataSource;
     case 'postgres':
@@ -202,6 +206,10 @@ function getDsFunction(
     default:
       throw new Error(`Unsupported database type - ${config?.type}`);
   }
+}
+
+export function isUsingSqlite(): boolean {
+  return getDbType() == 'sqlite';
 }
 
 export async function initDatabase(config: DatabaseConfig | undefined) {
@@ -652,6 +660,7 @@ export async function getMany(
   tableName: string,
   queryObj: object | undefined,
   queryVals: object | undefined,
+  distinct: boolean,
   ctx: DbContext
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
@@ -697,6 +706,9 @@ export async function getMany(
   if (ownersJoinCond) {
     qb.innerJoin(ot, otAlias, ownersJoinCond.join(' AND '));
   }
+  if (distinct) {
+    qb.distinct(true);
+  }
   qb.where(queryStr, queryVals);
   return await qb.getMany();
 }
@@ -707,6 +719,7 @@ export async function getManyByJoin(
   queryVals: object | undefined,
   joinClauses: JoinClause[],
   intoSpec: Map<string, string>,
+  distinct: boolean,
   ctx: DbContext
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
@@ -746,7 +759,7 @@ export async function getManyByJoin(
       }
     }
   });
-  const sql = `SELECT ${intoSpecToSql(intoSpec)} FROM ${tableName} ${joinSql.join('\n')} WHERE ${queryStr}`;
+  const sql = `SELECT ${distinct ? 'DISTINCT' : ''} ${intoSpecToSql(intoSpec)} FROM ${tableName} ${joinSql.join('\n')} WHERE ${queryStr}`;
   logger.debug(`Join Query: ${sql}`);
   const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
   return await qb.query(sql);

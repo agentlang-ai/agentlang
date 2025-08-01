@@ -108,11 +108,12 @@ CrudMap: '{' (name=QueryId '{''}'
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)?
              (',' into=SelectIntoSpec)? 
              (',' upsert+='@upsert')?
+             (',' distinct+='@distinct')?
              '}';
 
 CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}';
 
-SelectIntoSpec: 'into' '{' entries+=SelectIntoEntry (',' entries+=SelectIntoEntry)* '}';
+SelectIntoSpec: '@into' '{' entries+=SelectIntoEntry (',' entries+=SelectIntoEntry)* '}';
 
 SelectIntoEntry: alias=ID attribute=Ref;
 

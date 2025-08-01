@@ -153,7 +153,8 @@ export class SqlDbResolver extends Resolver {
 
   public override async queryInstances(
     inst: Instance,
-    queryAll: boolean = false
+    queryAll: boolean = false,
+    distinct: boolean = false
   ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
 
@@ -162,7 +163,7 @@ export class SqlDbResolver extends Resolver {
     const ctx = this.getDbContext(fqName);
     const qattrs: any = queryAll ? undefined : inst.queryAttributesAsObject();
     const qvals: any = queryAll ? undefined : inst.queryAttributeValuesAsObject();
-    const rslt: any = await getMany(tableName, qattrs, qvals, ctx);
+    const rslt: any = await getMany(tableName, qattrs, qvals, distinct, ctx);
     if (rslt instanceof Array) {
       result = new Array<Instance>();
       rslt.forEach((r: object) => {
@@ -249,7 +250,8 @@ export class SqlDbResolver extends Resolver {
   public override async queryByJoin(
     inst: Instance,
     joinsSpec: JoinInfo[],
-    intoSpec: Map<string, string>
+    intoSpec: Map<string, string>,
+    distinct: boolean = false
   ): Promise<any> {
     const tableName = asTableReference(inst.moduleName, inst.name);
     const joinClauses: JoinClause[] = [];
@@ -265,6 +267,7 @@ export class SqlDbResolver extends Resolver {
       inst.queryAttributeValuesAsObject(),
       joinClauses,
       intoSpec,
+      distinct,
       this.getDbContext(inst.getFqName())
     );
     return rslt;

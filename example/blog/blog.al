@@ -88,9 +88,9 @@ workflow FindUserProfileAndPosts {
     {User {id? FindUserProfileAndPosts.userId},
      UserProfile {Profile? {}},
      UserPost {Post? {}},
-     into {userName Blog_Core/User.name,
-           userEmail Blog_Core/Profile.email,
-           postTitle Blog_Core/Post.title}}
+     @into {userName Blog_Core/User.name,
+            userEmail Blog_Core/Profile.email,
+            postTitle Blog_Core/Post.title}}
 }
 
 workflow UpdateUserName {

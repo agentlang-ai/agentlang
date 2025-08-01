@@ -3245,6 +3245,25 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "cardinality": "?"
           },
           {
+            "$type": "Group",
+            "elements": [
+              {
+                "$type": "Keyword",
+                "value": ","
+              },
+              {
+                "$type": "Assignment",
+                "feature": "distinct",
+                "operator": "+=",
+                "terminal": {
+                  "$type": "Keyword",
+                  "value": "@distinct"
+                }
+              }
+            ],
+            "cardinality": "?"
+          },
+          {
             "$type": "Keyword",
             "value": "}"
           }
@@ -3341,7 +3360,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
         "elements": [
           {
             "$type": "Keyword",
-            "value": "into"
+            "value": "@into"
           },
           {
             "$type": "Keyword",

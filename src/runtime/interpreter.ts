@@ -408,15 +408,21 @@ export class Environment extends Instance {
     return this.activeTransactions;
   }
 
+  async resetActiveTransactions(commit: boolean): Promise<Environment> {
+    await this.endAllTransactions(commit);
+    this.activeTransactions = new Map<string, string>();
+    return this;
+  }
+
   async getTransactionForResolver(resolver: Resolver): Promise<string> {
     const n: string = resolver.getName();
-    let txnId: string | undefined = this.getActiveTransactions().get(n);
+    let txnId: string | undefined = this.activeTransactions.get(n);
     if (txnId) {
       return txnId;
     } else {
       txnId = await resolver.startTransaction();
       if (txnId) {
-        this.getActiveTransactions().set(n, txnId);
+        this.activeTransactions.set(n, txnId);
         return txnId;
       } else {
         throw new Error(`Failed to start transaction for ${n}`);
@@ -430,7 +436,7 @@ export class Environment extends Instance {
   }
 
   private async endAllTransactions(commit: boolean): Promise<void> {
-    const txns: Map<string, string> = this.getActiveTransactions();
+    const txns: Map<string, string> = this.activeTransactions;
     for (const n of txns.keys()) {
       const txnId: string | undefined = txns.get(n);
       if (txnId) {
@@ -952,6 +958,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   const attrs = inst.attributes;
   const qattrs = inst.queryAttributes;
   const isQueryAll = crud.name.endsWith(QuerySuffix);
+  const distinct: boolean = crud.distinct.length > 0;
   if (attrs.size > 0) {
     await maybeValidateOneOfRefs(inst, env);
   }
@@ -964,7 +971,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (qattrs == undefined && !isQueryAll) {
       throw new Error(`Pattern for ${entryName} with 'into' clause must be a query`);
     }
-    await evaluateJoinQuery(crud.into, inst, crud.relationships, env);
+    await evaluateJoinQuery(crud.into, inst, crud.relationships, distinct, env);
     return;
   }
   if (isEntityInstance(inst) || isBetweenRelationship(inst.name, inst.moduleName)) {
@@ -1051,7 +1058,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           isReadForUpdate,
           env.isInDeleteMode()
         );
-        const insts: Instance[] = await res.queryInstances(inst, isQueryAll);
+        const insts: Instance[] = await res.queryInstances(inst, isQueryAll, distinct);
         env.setLastResult(insts);
       }
       if (crud.relationships != undefined) {
@@ -1184,6 +1191,7 @@ async function evaluateJoinQuery(
   intoSpec: SelectIntoSpec,
   inst: Instance,
   relationships: RelationshipPattern[],
+  distinct: boolean,
   env: Environment
 ): Promise<void> {
   const normIntoSpec = new Map<string, string>();
@@ -1196,7 +1204,7 @@ async function evaluateJoinQuery(
     joinsSpec = await walkJoinQueryPattern(relationships[i], joinsSpec, env);
   }
   const resolver = await getResolverForPath(inst.name, moduleName, env);
-  const result: Result = await resolver.queryByJoin(inst, joinsSpec, normIntoSpec);
+  const result: Result = await resolver.queryByJoin(inst, joinsSpec, normIntoSpec, distinct);
   env.setLastResult(result);
 }
 

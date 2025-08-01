@@ -473,7 +473,7 @@ export class CrudPattern extends BasePattern {
       this.into.forEach((attr: string, alias: string) => {
         ss.push(`${alias} ${attr}`);
       });
-      return `into { ${ss.join(',\n')} }`;
+      return `@into { ${ss.join(',\n')} }`;
     }
     return undefined;
   }
