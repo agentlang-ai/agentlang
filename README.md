@@ -13,7 +13,7 @@ The AgentLang language specification, its compiler and runtime are open source. 
 
 AgentLang runtime has native integration with databases, vector databases, auth stores, etc. AgentLang programs run on the JVM and can make use of any of the thousands of existing Node and other JavaScript libraries out there.
 
-AgentLang comes with all the modern tooling, dependency management and REPL needed to build production-grade agents and apps.
+AgentLang comes with all the modern tooling and dependency management needed to build production-grade agents and apps.
 
 </div>
 
@@ -23,13 +23,12 @@ Agents are a built-in language construct - developers can choose from one of the
 
 ## Runtime Support
 
-AgentLang supports both Node.js and Deno runtimes for development and execution.
+AgentLang runs on Node.js for development and execution.
 
 ### Prerequisites
 
 - Node.js 20+ (CI runs on 20.x, local development often uses 24.x)
   - Note: Some functions may behave differently between versions (e.g., array methods on iterators)
-- [Deno](https://deno.land/) 1.35.0 or later (optional, for Deno-based workflows)
 
 ## Quick Start
 
@@ -51,23 +50,7 @@ npm test
 
 > **Note**: If pnpm shows build script warnings, run `pnpm approve-builds` and approve esbuild and sqlite3.
 
-## Using Deno
 
-When working with Deno, use these npm scripts:
-
-```shell
-# Build with Deno
-npm run build:deno
-
-# Watch mode with Deno
-npm run watch:deno
-
-# Run tests with Deno
-npm run test:deno
-
-# Run deno REPL examples
-npm run repl -- --app example/erp/app.json
-```
 
 ## CLI Usage
 

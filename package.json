@@ -11,16 +11,16 @@
   "scripts": {
     "install:pnpm": "pnpm install --prefer-offline",
     "build": "tsc -b tsconfig.src.json && tsc -b tsconfig.declarations.json && node esbuild.mjs",
-    "build:deno": "deno run -A scripts/build.ts",
+
     "build:ts": "tsc -b tsconfig.src.json",
     "build:vite": "vite build --emptyOutDir",
     "watch": "concurrently -n tsc,esbuild -c blue,yellow \"tsc -b tsconfig.src.json --watch\" \"node esbuild.mjs --watch\"",
-    "watch:deno": "deno run --watch -A scripts/build.ts",
+
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
-    "lint:deno": "deno lint scripts/",
+
     "format": "prettier --write \"src/**/*.{js,ts,tsx,json,md}\"",
-    "format:deno": "deno fmt scripts/",
+
     "format:check": "prettier --check \"src/**/*.{js,ts,tsx,json,md}\"",
     "langium:generate": "langium generate",
     "langium:generate:production": "langium generate --mode=production",
@@ -32,12 +32,9 @@
     "dev": "vite",
     "dev:debug": "vite --debug --force",
     "serve": "npm run dev",
-    "repl": "deno task repl",
-    "run": "deno task run",
     "test": "vitest run",
     "test:verbose": "VITEST_VERBOSE=true vitest run",
-    "test:debug": "DEBUG=true vitest run",
-    "test:deno": "deno test -A scripts/"
+    "test:debug": "DEBUG=true vitest run"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity": "^3.828.0",
