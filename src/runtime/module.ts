@@ -2206,14 +2206,27 @@ export class Instance {
     return obj;
   }
 
+  static isSerializableObject(obj: any): boolean {
+    return obj instanceof Object && obj.AL_INSTANCE == true;
+  }
+
+  static DeserializeAttributes(attrs: InstanceAttributes): InstanceAttributes {
+    attrs.forEach((v: any, k: string) => {
+      if (Instance.isSerializableObject(v)) {
+        attrs.set(k, Instance.FromSerializableObject(v));
+      }
+    });
+    return attrs;
+  }
+
   static FromSerializableObject(obj: any, record?: Record): Instance {
-    if (obj.AL_INSTANCE == true) {
+    if (Instance.isSerializableObject(obj)) {
       const m = fetchModule(obj.moduleName);
       return new Instance(
         record || (m.getEntry(obj.name) as Record),
         obj.moduleName,
         obj.name,
-        new Map(Object.entries(obj.attributes)),
+        Instance.DeserializeAttributes(new Map(Object.entries(obj.attributes))),
         new Map(Object.entries(obj.queryAttributes)),
         new Map(Object.entries(obj.queryAttributeValues))
       );
