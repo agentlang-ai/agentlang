@@ -1,6 +1,6 @@
 grammar Agentlang
 
-entry ModuleDefinition: 'module' name=ID (imports+=Import)* (defs+=Definition)*;
+entry ModuleDefinition: 'module' name=QualifiedName (imports+=Import)* (defs+=Definition)*;
 
 Import: 'import' path=STRING '@as' name=ID;
 
@@ -22,7 +22,7 @@ RecordSchemaDefinition: '{''}' | '{' (attributes+=AttributeDefinition (',' attri
 RecordExtraDefinition: rbacSpec=RbacSpecDefinition | meta=MetaDefinition | prePost=PrePostTriggerDefinition 
 | uq=CompositeUniqueDefinition | actions=EntityActionsDefinitions;
 
-fragment RecDef: name=ID extends=ExtendsClause? schema=RecordSchemaDefinition;
+fragment RecDef: name=QualifiedName extends=ExtendsClause? schema=RecordSchemaDefinition;
 
 EntityDefinition: 'entity' RecDef;
 EventDefinition: 'event' RecDef;
@@ -30,14 +30,14 @@ RecordDefinition: 'record' RecDef;
 
 ExtendsClause: 'extends' parentName=ID;
 
-RelationshipDefinition: 'relationship' name=ID type=('contains' | 'between') nodes=RelNodes properties+=PropertyDefinition*
+RelationshipDefinition: 'relationship' name=QualifiedName type=('contains' | 'between') nodes=RelNodes properties+=PropertyDefinition*
 (schema=RecordSchemaDefinition)?;
 
-NodeDefinition: name=ID | name=ID '@as' alias=ID;
+NodeDefinition: name=QualifiedName | name=QualifiedName '@as' alias=ID;
 
 RelNodes: '(' node1=NodeDefinition ',' node2=NodeDefinition ')';
 
-AttributeDefinition: name=ID (type=ID | arrayType=ID '['']' | oneOfSpec=OneOfSpec | enumSpec=EnumSpec 
+AttributeDefinition: name=ID (type=QualifiedName | arrayType=QualifiedName '['']' | oneOfSpec=OneOfSpec | enumSpec=EnumSpec 
 | refSpec=RefSpec) ('@expr' '(' expr=Expr ')')? properties+=PropertyDefinition*;
 
 EnumSpec: '@enum' '(' values+=STRING (',' values+=STRING)* ')';
@@ -103,8 +103,8 @@ RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec;
 AliasSpec: ('@as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
 
 CrudMap: '{' (name=QueryId '{''}' 
-             | (name=ID '{''}' ',' '@from' source=Literal (',' upsert+='@upsert')?)
-             | name=ID body=CrudMapBody)
+             | (name=QualifiedName '{''}' ',' '@from' source=Literal (',' upsert+='@upsert')?)
+             | name=QualifiedName body=CrudMapBody)
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)?
              (',' into=SelectIntoSpec)? 
              (',' upsert+='@upsert')?
@@ -183,11 +183,13 @@ Boolean returns string: 'true' | 'false';
 
 Decimal returns number: INT | INT '.' INT;
 
-QueryId returns string: ID | ID '?';
+QueryId returns string: QualifiedName | QualifiedName '?';
 
 TaggedId returns string: '@' ID;
 
 Ref returns string: ID '.' (Ref | ID);
+
+QualifiedName returns string: Ref | ID;
 
 terminal ID returns string: NAME ('/' NAME)?;
 

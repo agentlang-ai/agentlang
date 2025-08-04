@@ -142,6 +142,12 @@ export function isPrimExpr(item: unknown): item is PrimExpr {
     return reflection.isInstance(item, PrimExpr);
 }
 
+export type QualifiedName = Ref | string;
+
+export function isQualifiedName(item: unknown): item is QualifiedName {
+    return isRef(item) || (typeof item === 'string' && (/(([_a-zA-Z][\w_]*)(\/([_a-zA-Z][\w_]*))?)/.test(item)));
+}
+
 export type QueryId = string;
 
 export function isQueryId(item: unknown): item is QueryId {
@@ -271,14 +277,14 @@ export function isAsyncFnCall(item: unknown): item is AsyncFnCall {
 export interface AttributeDefinition extends langium.AstNode {
     readonly $container: RecordSchemaDefinition;
     readonly $type: 'AttributeDefinition';
-    arrayType?: string;
+    arrayType?: QualifiedName;
     enumSpec?: EnumSpec;
     expr?: Expr;
     name: string;
     oneOfSpec?: OneOfSpec;
     properties: Array<PropertyDefinition>;
     refSpec?: RefSpec;
-    type?: string;
+    type?: QualifiedName;
 }
 
 export const AttributeDefinition = 'AttributeDefinition';
@@ -343,7 +349,7 @@ export interface CrudMap extends langium.AstNode {
     body?: CrudMapBody;
     distinct: Array<'@distinct'>;
     into?: SelectIntoSpec;
-    name: QueryId | string;
+    name: QualifiedName | QueryId;
     relationships: Array<RelationshipPattern>;
     source?: Literal;
     upsert: Array<'@upsert'>;
@@ -408,7 +414,7 @@ export interface EntityDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'EntityDefinition';
     extends?: ExtendsClause;
-    name: string;
+    name: QualifiedName;
     schema: RecordSchemaDefinition;
 }
 
@@ -434,7 +440,7 @@ export interface EventDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'EventDefinition';
     extends?: ExtendsClause;
-    name: string;
+    name: QualifiedName;
     schema: RecordSchemaDefinition;
 }
 
@@ -649,7 +655,7 @@ export interface ModuleDefinition extends langium.AstNode {
     readonly $type: 'ModuleDefinition';
     defs: Array<Definition>;
     imports: Array<Import>;
-    name: string;
+    name: QualifiedName;
 }
 
 export const ModuleDefinition = 'ModuleDefinition';
@@ -674,7 +680,7 @@ export interface NodeDefinition extends langium.AstNode {
     readonly $container: RelNodes;
     readonly $type: 'NodeDefinition';
     alias?: string;
-    name: string;
+    name: QualifiedName;
 }
 
 export const NodeDefinition = 'NodeDefinition';
@@ -855,7 +861,7 @@ export interface RecordDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'RecordDefinition';
     extends?: ExtendsClause;
-    name: string;
+    name: QualifiedName;
     schema: RecordSchemaDefinition;
 }
 
@@ -909,7 +915,7 @@ export function isRefSpec(item: unknown): item is RefSpec {
 export interface RelationshipDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'RelationshipDefinition';
-    name: string;
+    name: QualifiedName;
     nodes: RelNodes;
     properties: Array<PropertyDefinition>;
     schema?: RecordSchemaDefinition;

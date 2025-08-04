@@ -239,7 +239,7 @@ export async function resetDefaultDatabase() {
 }
 
 function ownersTable(tableName: string): string {
-  return (tableName + OwnersSuffix).toLowerCase();
+  return (tableName.replace('.', '_') + OwnersSuffix).toLowerCase();
 }
 
 async function insertRowsHelper(
