@@ -45,8 +45,26 @@ agent agent02
 if (process.env.AL_TEST === 'true') {
 
   describe('Basic module operations', () => {
-    test('test02', async () => {
-      const ai: AgentServiceProvider = new (provider("OpenAI"))()
+    test('test02 - OpenAI', async () => {
+      if (!process.env.OPENAI_API_KEY) {
+        console.log('Skipping OpenAI test - no API key')
+        return
+      }
+      const ai: AgentServiceProvider = new (provider("openai"))()
+      await ai.invoke([
+        systemMessage("Is the following number odd? Answer YES or NO."),
+        humanMessage("11")
+      ]).then((result: AIResponse) => {
+        assert(result.content == "YES", `Expected YES, got ${result.content}`)
+      })
+    })
+
+    test('test03 - Anthropic', async () => {
+      if (!process.env.ANTHROPIC_API_KEY) {
+        console.log('Skipping Anthropic test - no API key')
+        return
+      }
+      const ai: AgentServiceProvider = new (provider("anthropic"))()
       await ai.invoke([
         systemMessage("Is the following number odd? Answer YES or NO."),
         humanMessage("11")

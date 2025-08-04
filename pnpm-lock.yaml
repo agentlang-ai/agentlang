@@ -26,6 +26,9 @@ importers:
       '@isomorphic-git/lightning-fs':
         specifier: ^4.6.1
         version: 4.6.2
+      '@langchain/anthropic':
+        specifier: ^0.3.25
+        version: 0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))
       '@langchain/core':
         specifier: ^0.3.59
         version: 0.3.62(openai@5.8.2(zod@3.25.73))
@@ -70,7 +73,7 @@ importers:
         version: 2.0.7
       langchain:
         specifier: ^0.3.28
-        version: 0.3.29(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))(openai@5.8.2(zod@3.25.73))(typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sqlite3@5.1.7))
+        version: 0.3.29(@langchain/anthropic@0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73))))(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))(openai@5.8.2(zod@3.25.73))(typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sqlite3@5.1.7))
       langium:
         specifier: ^3.5.0
         version: 3.5.0
@@ -193,6 +196,10 @@ importers:
   example/timer: {}
 
 packages:
+
+  '@anthropic-ai/sdk@0.56.0':
+    resolution: {integrity: sha512-SLCB8M8+VMg1cpCucnA1XWHGWqVSZtIWzmOdDOEu3eTFZMB+A0sGZ1ESO5MHDnqrNTXz3safMrWx9x4rMZSOqA==}
+    hasBin: true
 
   '@aws-crypto/sha256-browser@5.2.0':
     resolution: {integrity: sha512-AXfN/lGotSQwu6HNcEsIASo7kWXZ5HYWvfOmSNKDsEqC4OashTp8alTmaz+F7TC2L083SFv5RdB+qU3Vs1kZqw==}
@@ -1247,6 +1254,12 @@ packages:
   '@kwsites/promise-deferred@1.1.1':
     resolution: {integrity: sha512-GaHYm+c0O9MjZRu0ongGBRbinu8gVAMd2UZjji6jVmqKtZluZnptXGWhz1E8j8D2HJ3f/yMxKAUC0b+57wncIw==}
 
+  '@langchain/anthropic@0.3.25':
+    resolution: {integrity: sha512-KipKY0njNps7bgINca1jVAShnOh/+MpfN/hB580TUVrnsT21e5bykfNjiGVZ1S1A/qdHSJsRMkie2igGij/acA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@langchain/core': '>=0.3.58 <0.4.0'
+
   '@langchain/core@0.3.62':
     resolution: {integrity: sha512-GqRTcoUPnozGRMUcA6QkP7LHL/OvanGdB51Jgb0w7IIPDI3wFugxMHZ4gphnGDtxsD1tQY5ykyEpYNxFK8kl1w==}
     engines: {node: '>=18'}
@@ -1254,6 +1267,7 @@ packages:
   '@langchain/openai@0.5.17':
     resolution: {integrity: sha512-rxtNU0OChwbUdfomqzVHxUw/5HrEiUg+ELsAzoak2T4T0XivMb8QygAy37XzjvbIqGgsTi0YTtegyoZYKlhouA==}
     engines: {node: '>=18'}
+    deprecated: May contain accidental breaking changes. Use 0.5.16 or 0.5.18
     peerDependencies:
       '@langchain/core': '>=0.3.58 <0.4.0'
 
@@ -4707,6 +4721,8 @@ packages:
 
 snapshots:
 
+  '@anthropic-ai/sdk@0.56.0': {}
+
   '@aws-crypto/sha256-browser@5.2.0':
     dependencies:
       '@aws-crypto/sha256-js': 5.2.0
@@ -6817,6 +6833,12 @@ snapshots:
       - supports-color
 
   '@kwsites/promise-deferred@1.1.1': {}
+
+  '@langchain/anthropic@0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))':
+    dependencies:
+      '@anthropic-ai/sdk': 0.56.0
+      '@langchain/core': 0.3.62(openai@5.8.2(zod@3.25.73))
+      fast-xml-parser: 4.4.1
 
   '@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73))':
     dependencies:
@@ -9075,7 +9097,7 @@ snapshots:
 
   kuler@2.0.0: {}
 
-  langchain@0.3.29(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))(openai@5.8.2(zod@3.25.73))(typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sqlite3@5.1.7)):
+  langchain@0.3.29(@langchain/anthropic@0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73))))(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))(openai@5.8.2(zod@3.25.73))(typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sqlite3@5.1.7)):
     dependencies:
       '@langchain/core': 0.3.62(openai@5.8.2(zod@3.25.73))
       '@langchain/openai': 0.5.17(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))
@@ -9090,6 +9112,7 @@ snapshots:
       yaml: 2.8.0
       zod: 3.25.73
     optionalDependencies:
+      '@langchain/anthropic': 0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))
       typeorm: 0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sqlite3@5.1.7)
     transitivePeerDependencies:
       - '@opentelemetry/api'

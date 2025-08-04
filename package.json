@@ -43,6 +43,7 @@
     "@codingame/monaco-vscode-editor-service-override": "^17.1.0",
     "@codingame/monaco-vscode-keybindings-service-override": "^17.1.0",
     "@isomorphic-git/lightning-fs": "^4.6.1",
+    "@langchain/anthropic": "^0.3.25",
     "@langchain/core": "^0.3.59",
     "@langchain/openai": "^0.5.13",
     "@types/express": "^5.0.1",
