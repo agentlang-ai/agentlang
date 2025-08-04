@@ -84,9 +84,9 @@ describe('Basic loader test', () => {
     await doPreInit();
     await load('example/blog/blog.al').then((appSpec: ApplicationSpec) => {
       assert(appSpec.name, 'Invalid application spec');
-      const m: Module = fetchModule('Blog_Core');
+      const m: Module = fetchModule('Blog.Core');
       try {
-        assert(m.name == 'Blog_Core', 'Failed to load Blog module');
+        assert(m.name == 'Blog.Core', 'Failed to load Blog module');
         let re: Record = m.getEntry('UserPost') as Record;
         assert(re != undefined, 'UserPost entry not found');
         const attrs: Set<string> = new Set(['User', 'Post']);
@@ -96,9 +96,9 @@ describe('Basic loader test', () => {
         assert(re.getUserAttributes().size == 0, 'UserProfile has no user-attributes');
         re = m.getEntry('Post') as Record;
         assert(re.getUserAttributes().size == 2, 'Post has only 2 attributes');
-        let g: RelationshipGraph = buildGraph('Blog_Core');
+        let g: RelationshipGraph = buildGraph('Blog.Core');
         let obj: any = g.asObject();
-        assert(obj['Blog_Core/User'].length == 2, 'Blog_Core/User must have two edges');
+        assert(obj['Blog.Core/User'].length == 2, 'Blog.Core/User must have two edges');
         const roots: RelationshipGraphNode[] = g.getRoots();
         assert(roots.length == 3, 'Invalid roots count');
         const node: RelationshipGraphNode = roots[0];
@@ -113,7 +113,7 @@ describe('Basic loader test', () => {
         });
         let edge: RelationshipGraphEdge | undefined = findEdgeForRelationship(
           'UserProfile',
-          'Blog_Core',
+          'Blog.Core',
           node.edges
         );
         assert(edge != undefined, 'Edge for UserProfile not found');
@@ -121,7 +121,7 @@ describe('Basic loader test', () => {
           assert(edge.node.entity.getEntryName() == 'Profile', 'Profile not found in relationship');
           assert(edge.node.edges.length == 0, 'Profile does not have relationships');
         }
-        edge = findEdgeForRelationship('UserPost', 'Blog_Core', node.edges);
+        edge = findEdgeForRelationship('UserPost', 'Blog.Core', node.edges);
         assert(edge != undefined, 'Edge for UserPost not found');
         if (edge != undefined) {
           assert(edge.node.entity.getEntryName() == 'Post', 'Post not found in relationship');
@@ -137,19 +137,19 @@ describe('Basic loader test', () => {
           addEntity('B', testMod.name);
           addBetweenRelationship('R1', m.name, [
             newRelNodeEntry('RelTest/A'),
-            newRelNodeEntry('Blog_Core/User'),
+            newRelNodeEntry('Blog.Core/User'),
           ]);
           addContainsRelationship('R2', m.name, [
             newRelNodeEntry('RelTest/B'),
-            newRelNodeEntry('Blog_Core/Category'),
+            newRelNodeEntry('Blog.Core/Category'),
           ]);
           g = buildGraph(m.name);
           obj = g.asObject();
-          assert(obj['Blog_Core/User'].length == 2, 'Blog_Core/User must have two edges');
+          assert(obj['Blog.Core/User'].length == 2, 'Blog.Core/User must have two edges');
           assert(obj['RelTest/A'].length == 1, 'RelTest/A must have one edge');
-          assert(obj['RelTest/A'][0].to['Blog_Core/User'], 'A->User relationship missing');
+          assert(obj['RelTest/A'][0].to['Blog.Core/User'], 'A->User relationship missing');
           assert(obj['RelTest/B'].length == 1, 'RelTest/B must have one edge');
-          assert(obj['RelTest/B'][0].to['Blog_Core/Category'], 'B->Profile relationship missing');
+          assert(obj['RelTest/B'][0].to['Blog.Core/Category'], 'B->Profile relationship missing');
         } finally {
           removeModule(testMod.name);
         }
@@ -601,8 +601,8 @@ describe('Multiple module loading tests', () => {
       // Load Blog module first
       await load('example/blog/blog.al').then(async (appSpec: ApplicationSpec) => {
         assert(appSpec.name, 'Invalid Blog application spec');
-        const blogModule: Module = fetchModule('Blog_Core');
-        assert(blogModule.name == 'Blog_Core', 'Failed to load Blog_Core module');
+        const blogModule: Module = fetchModule('Blog.Core');
+        assert(blogModule.name == 'Blog.Core', 'Failed to load Blog.Core module');
         assert(blogModule.hasEntry('User'), 'Blog module missing User entity');
         assert(blogModule.hasEntry('Post'), 'Blog module missing Post entity');
 
@@ -615,7 +615,7 @@ describe('Multiple module loading tests', () => {
             assert(familyModule.hasEntry('Member'), 'Family module missing Member entity');
 
             // Critical test: Blog module should not still be accessible after Family load
-            assert(!isModule('Blog_Core'), 'Blog_Core module not removed before ErpCore load');
+            assert(!isModule('Blog.Core'), 'Blog.Core module not removed before ErpCore load');
             assert(isModule('Family'), 'Family module not registered');
 
             removeModule('Family');
@@ -625,7 +625,7 @@ describe('Multiple module loading tests', () => {
       });
     } finally {
       try {
-        removeModule('Blog_Core');
+        removeModule('Blog.Core');
       } catch { }
       try {
         removeModule('Family');

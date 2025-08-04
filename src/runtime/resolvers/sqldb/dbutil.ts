@@ -31,13 +31,14 @@ export type TableSchema = {
 };
 
 export function asTableReference(moduleName: string, ref: string): string {
+  const modName = moduleName.replace('.', '_')
   if (ref.indexOf('.') > 0) {
     const parts = ref.split('.')
-    const r = `${moduleName}_${parts[0]}`.toLowerCase()
+    const r = `${modName}_${parts[0]}`.toLowerCase()
     const colref = parts.slice(1).join('.')
     return `"${r}"."${colref}"`;
   } else {
-    return `${moduleName}_${ref}`.toLowerCase()
+    return `${modName}_${ref}`.toLowerCase()
   }
 }
 
