@@ -53,17 +53,22 @@ export class AnthropicProvider implements AgentServiceProvider {
 
   private parseConfig(config?: Map<string, any>): AnthropicConfig {
     const defaultConfig: AnthropicConfig = {
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       temperature: 0.7,
-      maxTokens: 4096,
+      maxTokens: 8192,
       maxRetries: 2,
       enablePromptCaching: false,
       cacheControl: 'ephemeral',
     };
 
     if (!config) {
-      return defaultConfig;
+      return {
+        ...defaultConfig,
+        apiKey: process.env.ANTHROPIC_API_KEY,
+      };
     }
+
+    const apiKey = config.get('apiKey') || config.get('api_key') || process.env.ANTHROPIC_API_KEY;
 
     return {
       model: config.get('model') || defaultConfig.model,
@@ -76,12 +81,18 @@ export class AnthropicProvider implements AgentServiceProvider {
         defaultConfig.enablePromptCaching,
       cacheControl:
         config.get('cacheControl') || config.get('cache_control') || defaultConfig.cacheControl,
-      apiKey: config.get('apiKey') || config.get('api_key') || process.env.ANTHROPIC_API_KEY,
+      apiKey,
       clientOptions: config.get('clientOptions') || config.get('client_options'),
     };
   }
 
   async invoke(messages: BaseMessage[]): Promise<AIResponse> {
+    if (!this.config.apiKey) {
+      throw new Error(
+        'Anthropic API key is required. Set ANTHROPIC_API_KEY environment variable or provide apiKey in config.'
+      );
+    }
+
     let processedMessages = messages;
 
     if (this.config.enablePromptCaching && messages.length > 0) {
@@ -92,10 +103,30 @@ export class AnthropicProvider implements AgentServiceProvider {
   }
 
   private applyCacheControl(messages: BaseMessage[]): BaseMessage[] {
-    // For now, return messages as-is since cache control requires specific message formatting
-    // that should be handled at the application level according to Anthropic's documentation
-    // This method is kept for future implementation when proper message construction is available
-    return messages;
+    // Apply cache control to the last system message if present
+    // This follows Anthropic's recommendation to cache long context at the end of system messages
+    if (messages.length === 0) return messages;
+
+    const processedMessages = [...messages];
+
+    // Find the last system message and apply cache control
+    for (let i = processedMessages.length - 1; i >= 0; i--) {
+      const message = processedMessages[i];
+      if (message._getType() === 'system') {
+        // Apply cache control to system message content
+        const content = message.content;
+        if (typeof content === 'string' && content.length > 1000) {
+          // Only cache if content is substantial (>1000 chars as a heuristic)
+          (message as any).additional_kwargs = {
+            ...((message as any).additional_kwargs || {}),
+            cache_control: { type: 'ephemeral' },
+          };
+        }
+        break;
+      }
+    }
+
+    return processedMessages;
   }
 
   getConfig(): AnthropicConfig {

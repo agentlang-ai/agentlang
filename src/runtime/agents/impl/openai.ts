@@ -66,8 +66,13 @@ export class OpenAIProvider implements AgentServiceProvider {
     };
 
     if (!config) {
-      return defaultConfig;
+      return {
+        ...defaultConfig,
+        apiKey: process.env.OPENAI_API_KEY,
+      };
     }
+
+    const apiKey = config.get('apiKey') || config.get('api_key') || process.env.OPENAI_API_KEY;
 
     return {
       model: config.get('model') || defaultConfig.model,
@@ -87,12 +92,17 @@ export class OpenAIProvider implements AgentServiceProvider {
         config.get('streamUsage') || config.get('stream_usage') || defaultConfig.streamUsage,
       logprobs: config.get('logprobs') ?? defaultConfig.logprobs,
       topLogprobs: config.get('topLogprobs') || config.get('top_logprobs'),
-      apiKey: config.get('apiKey') || config.get('api_key') || process.env.OPENAI_API_KEY,
+      apiKey,
       configuration: config.get('configuration'),
     };
   }
 
   async invoke(messages: BaseMessage[]): Promise<AIResponse> {
+    if (!this.config.apiKey) {
+      throw new Error(
+        'OpenAI API key is required. Set OPENAI_API_KEY environment variable or provide apiKey in config.'
+      );
+    }
     return asAIResponse(await this.model.invoke(messages));
   }
 
