@@ -23,6 +23,7 @@ import { Module } from '../runtime/module.js';
 import { ModuleDefinition } from '../language/generated/ast.js';
 import { z } from 'zod';
 import { Config, setAppConfig } from '../runtime/state.js';
+import { prepareIntegrations } from '../runtime/integrations.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -106,6 +107,14 @@ export const runModule = async (fileName: string): Promise<void> => {
   try {
     const cfg = await loadRawConfig(`${configDir}/app.config.json`);
     config = setAppConfig(cfg);
+    if (config.integrations) {
+      await prepareIntegrations(
+        config.integrations.host,
+        config.integrations.username,
+        config.integrations.password,
+        config.integrations.connections
+      );
+    }
   } catch (err) {
     if (err instanceof z.ZodError) {
       console.log(chalk.red('Config validation failed:'));
@@ -115,6 +124,7 @@ export const runModule = async (fileName: string): Promise<void> => {
     } else {
       console.log(`Config loading failed: ${err}`);
     }
+    throw err;
   }
 
   const r: boolean = await runPreInitTasks();
