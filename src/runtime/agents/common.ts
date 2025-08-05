@@ -1,6 +1,6 @@
 export const PlannerInstructions = `Agentlang is a very-high-level declarative language that makes it easy to define business applications as 'models'.
 The model of a business application consists of entity definitions and workflows defined in "modules". 
-A module will be encoded in a syntax inspired by JavaScript and JSON. Example of a simple module definition is,
+A module is be encoded in a syntax inspired by JavaScript and JSON. Example of a simple module follows:
 
 module Erp
 
@@ -12,9 +12,10 @@ entity Employee {
    email Email @indexed
 }
 
-The Empoyee entity is part of the "Erp" module and it has four attributes: employeeId, firstName, lastName, salary and email. The employeeId uniquely identifies an
-Employee and it's automatically filled-in by the system by calling the "uuid()" function. (In the place of the keyword 'entity', the keyword 'record' may also be used.
-The difference between an entity and a record is that, instances of an entity is persisted to the database, instances of records are not).
+The Empoyee entity is part of the "Erp" module and it has four attributes: 'employeeId', 'firstName', 'lastName', 'salary' and 'email'. 
+The 'employeeId' attribute uniquely identifies an instance of the Employee entity and it's automatically filled-in by the system by calling the "uuid()" function. 
+In the place of the keyword 'entity', the keyword 'record' may also be used. The difference between an entity and a record is that, 
+instances of an entity is persisted to the database, instances of records are not.
 
 This is an example of a record:
 
@@ -25,7 +26,8 @@ record EmailMessage {
     body String
 }
 
-Workflows contains JSON "patterns" that perform CRUD operations on entities. For example, here's is a workflow that creates a new instance of the Employee entity:
+Another major construct in Agentlang is the 'workflow'. Workflows contains JSON "patterns" that perform CRUD operations on entities. 
+For example, here's is a workflow that creates a new instance of the Employee entity:
 
 workflow CreateEmployee {
     {Erp/Employee {firstName CreateEmployee.firstName,
@@ -49,7 +51,7 @@ A workflow attached to an event is invoked by creating an instance of the event,
 
 {Erp/CreateEmployee {firstName "Sam", lastName "K", salary 1400, email "samk@acme.com"}}
 
-This means a workflow can be invoked from another workflow, simply by adding the event-creation as a pattern.
+This means a workflow can be invoked from another workflow, simply by having the event-creation pattern.
 
 Other than the create-pattern for entities and events, some of the most useful patterns (related to entities) that can appear in a workflow are:
 1. Query - e.g: '{Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"}}'. The attributes by which the query happens must end with a '?' character.
@@ -58,7 +60,7 @@ Other than the create-pattern for entities and events, some of the most useful p
    with the given employeeId.
 3. Upsert - e.g: '{Erp/Employee {employeeId "56392e13-0d9a-42f7-b556-0d7cd9468a24", firstName "Joe"}, @upsert}'. The 'upsert' pattern will create a new
    instance, if the instance does not already exist.
-4. Delete - e.g: delete '{Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"}}'
+4. Delete - e.g: 'delete {Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"}}'
 
 The default query operator is '=' (equals). So an expression like 'employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"' means,
 'where employeeId equals "56392e13-0d9a-42f7-b556-0d7cd9468a24"'. Other comparison operators has to be specified explicitly, as in
@@ -89,6 +91,19 @@ workflow IncrementSalary {
 
 Note the value passed to the 'salary' attribute - it's an arithmetic expression. All normal arithmetic expressions are supported by workflow patterns.
 
+Another example of the 'if' pattern:
+
+workflow validateLicense {
+    {checkLicenseNumber {number validateLicense.number}} @as response;
+    if (response = "ok") {
+        {license {number? validateLicense.number, status "active"}}
+    } else {
+        {license {number? validateLicense.number, status "canceled"}}
+    }
+}
+
+Also note the use of the '@as' keyword - this binds the result of a pattern to an 'alias'.
+
 A successful query pattern will return an array of instances. The 'for' pattern can be used to iterate over an array. An example follows:
 
 workflow NotifyEmployees {
@@ -98,8 +113,7 @@ workflow NotifyEmployees {
     }
 }
 
-Also note the use of the '@as' keyword - this binds the result of a pattern to an 'alias'. Here the result of the query is bound to the
-alias named 'employees'. Any pattern can have an alias, including 'if' and 'for'. An alias can be used to refer to the attributes of the instance, 
+Here the result of the query is bound to the alias named 'employees'. Any pattern can have an alias, including 'if' and 'for'. An alias can be used to refer to the attributes of the instance, 
 via the dot(.) notation. Aliases can also be used to destructure a query result - here's an example:
 
 workflow FindFirstTwoEmployees {
