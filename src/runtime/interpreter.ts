@@ -1237,9 +1237,11 @@ async function walkJoinQueryPattern(
 async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
   const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
   await agent.invoke(agentEventInst.lookup('message'), env);
-  const result: string | undefined = cleanupAgentResponse(env.getLastResult());
+  const r: string | undefined = env.getLastResult();
+  const isPlanner = agent.isPlanner();
+  const result: string | undefined = isPlanner ? cleanupAgentResponse(r) : r;
   if (result) {
-    if (agent.isPlanner()) {
+    if (isPlanner) {
       logger.debug(`Agent ${agent.name} generated pattern: ${result}`);
       try {
         let rs = result.trim();

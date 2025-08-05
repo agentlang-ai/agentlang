@@ -1,4 +1,5 @@
 import { Instance } from './module.js';
+import { isString } from './util.js';
 
 const Integrations = new Map<string, Instance>();
 
@@ -32,6 +33,9 @@ export async function prepareIntegrations(
       const data = await response.json();
       if (data.length > 0) {
         const inst: any = data[0].config;
+        if (inst.type == 'custom' && isString(inst.parameter)) {
+          inst.parameter = new Map(Object.entries(JSON.parse(inst.parameter)));
+        }
         Integrations.set(configName, inst);
       } else {
         throw new Error(`Integration not found for ${configPath}`);
@@ -78,10 +82,10 @@ function mkApiUrl(integManagerHost: string, configPath: string): string {
   return `${integManagerHost}/${IntegManagerModel}/integration/${integId}/integrationConfig/config/${configId}`;
 }
 
-export function getIntegrationConfig(name: string): any {
+export function getIntegrationConfig(name: string, configName: string): any {
   const config: any = Integrations.get(name);
   if (config) {
-    return config.parameter;
+    return config.parameter.get(configName);
   } else {
     return undefined;
   }
