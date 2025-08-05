@@ -136,7 +136,7 @@ ResolverFnName: name=(ID | Ref | STRING);
 
 ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe' | 'onSubscription');
 
-RelationshipPattern: name=ID pattern=Pattern;
+RelationshipPattern: name=QualifiedName pattern=Pattern;
 
 CatchSpec: '@catch' '{' (handlers+=Handler)+ '}';
 

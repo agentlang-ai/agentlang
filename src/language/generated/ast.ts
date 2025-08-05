@@ -931,7 +931,7 @@ export function isRelationshipDefinition(item: unknown): item is RelationshipDef
 export interface RelationshipPattern extends langium.AstNode {
     readonly $container: CrudMap;
     readonly $type: 'RelationshipPattern';
-    name: string;
+    name: QualifiedName;
     pattern: Pattern;
 }
 

@@ -33,6 +33,14 @@ export const ConfigSchema = z.object({
       }),
     ])
     .optional(),
+  integrations: z
+    .object({
+      host: z.string(),
+      username: z.string().optional(),
+      password: z.string().optional(),
+      connections: z.record(z.string(), z.string()),
+    })
+    .optional(),
   graphql: z
     .object({
       enabled: z.boolean().default(false),
