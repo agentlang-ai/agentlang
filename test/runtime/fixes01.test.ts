@@ -352,3 +352,44 @@ workflow DistinctResourcesForAllocations {
         assert(f('b@acme.com').length == 1)
     })
 })
+
+describe('Issue-226', () => {
+    test('test01', async () => {
+        await doInternModule('I226',
+            `entity E {
+                id Int @id,
+                x Int
+            }
+            record R {
+                y Int
+            }
+            workflow W {
+                {E? {}} @as es;
+                for e in es {
+                    {R {y e.x * 10}}
+                }
+            }
+            `)
+        const cre = async (id: number, x: number) => {
+            const r: any = await parseAndEvaluateStatement(`{I226/E {id ${id}, x ${x}}}`)
+            assert(isInstanceOfType(r, 'I226/E'))
+        }
+        const idxs = [[1, 10], [2, 20], [3, 30]]
+        let expectedSum = 0
+        for (let i = 0; i < idxs.length; ++i) {
+            const [id, x] = idxs[i]
+            await cre(id, x)
+            expectedSum += (x * 10)
+        }
+        const rs: Instance[] = await parseAndEvaluateStatement(`{I226/W {}}`)
+        assert(rs.length == 3)
+        assert(rs.every((inst: Instance) => {
+            return isInstanceOfType(inst, 'I226/R')
+        }))
+        let sum = 0
+        rs.forEach((inst: Instance) => {
+            sum += inst.lookup('y')
+        })
+        assert(sum == expectedSum)
+    })
+})
