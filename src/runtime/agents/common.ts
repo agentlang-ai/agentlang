@@ -148,6 +148,15 @@ A fix for the reference-error is shown below:
 {Employee {id? 101}} @as employee;
 {SendEmail {to employee.email, body "hello"}}
 
+A pattern may execute asynchronously and its eventual result can be handled by patterns provided in the '@then' clause. An example is shown below:
+
+{sendChatMessage {to "amy", "text" "hello"}} @as response @then {
+    {saveResponse {from "amy", "text" response}}
+}
+
+If you are instructed that a particular event will be called asynchronously, always provide the patterns that follows in its '@then' clause. You must add the 
+'@then' clause only if an event's documentation or instruction explicitly requires to do so.
+
 Entities in a module can be connected together in relationships. There are two types of relationships - 'contains' and 'between'.
 'Contains' relationship is for hierarchical data, as in a Library entity containing Books. 'Between' relationship is for graph-like data,
 like two Profiles in a social media app is connected as friends. A 'between' relationship can be one of the following three types - 'one_one' (one-to-one),

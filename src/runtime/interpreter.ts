@@ -13,6 +13,7 @@ import {
   isLiteral,
   isNegExpr,
   isNotExpr,
+  isReturn,
   Literal,
   MapKey,
   MapLiteral,
@@ -607,27 +608,28 @@ function statemtentString(stmt: Statement): string {
   }
 }
 
+async function saveSuspension(cont: Statement[], env: Environment) {
+  if (cont.length > 0) {
+    const suspId = await createSuspension(
+      env.getSuspensionId(),
+      cont.map((stmt: Statement) => {
+        return statemtentString(stmt);
+      }),
+      env
+    );
+    env.setLastResult({ suspension: suspId || 'null' });
+  }
+}
+
 export async function evaluateStatements(
   stmts: Statement[],
   env: Environment,
   continuation?: Function
 ) {
   for (let i = 0; i < stmts.length; ++i) {
-    await evaluateStatement(stmts[i], env);
-    if (env.isSuspended()) {
-      const cont = stmts.slice(i + 1, stmts.length);
-      if (cont.length > 0) {
-        const suspId = await createSuspension(
-          env.getSuspensionId(),
-          cont.map((stmt: Statement) => {
-            return statemtentString(stmt);
-          }),
-          env
-        );
-        env.setLastResult({ suspension: suspId || 'null' });
-        break;
-      }
-    } else if (env.isMarkedForReturn()) {
+    const stmt = stmts[i];
+    await evaluateStatement(stmt, env);
+    if (env.isMarkedForReturn()) {
       break;
     }
   }
@@ -636,10 +638,44 @@ export async function evaluateStatements(
   }
 }
 
+async function evaluateAsyncPattern(
+  pat: Pattern,
+  thenStmts: Statement[],
+  handlers: CatchHandlers | undefined,
+  hints: RuntimeHint[],
+  env: Environment
+): Promise<void> {
+  try {
+    await evaluatePattern(pat, env);
+    maybeBindStatementResultToAlias(hints, env);
+    if (env.isSuspended()) {
+      await saveSuspension(thenStmts, env);
+    } else {
+      await evaluateStatements(thenStmts, env);
+    }
+  } catch (reason: any) {
+    await maybeHandleError(handlers, reason, env);
+  }
+}
+
 async function evaluateStatement(stmt: Statement, env: Environment): Promise<void> {
   const hints = stmt.hints;
   const hasHints = hints && hints.length > 0;
+  const thenStmts: Statement[] | undefined = hasHints ? maybeFindThenStatements(hints) : undefined;
   const handlers: CatchHandlers | undefined = hasHints ? maybeFindHandlers(hints) : undefined;
+  if (thenStmts) {
+    evaluateAsyncPattern(
+      stmt.pattern,
+      thenStmts,
+      handlers,
+      hints,
+      new Environment(env.name + 'async', env)
+    );
+    if (isReturn(stmt.pattern)) {
+      env.markForReturn();
+    }
+    return;
+  }
   let handlersPushed = false;
   try {
     if (handlers) {
@@ -649,28 +685,40 @@ async function evaluateStatement(stmt: Statement, env: Environment): Promise<voi
     if (hasHints) {
       maybeBindStatementResultToAlias(hints, env);
     }
-    const lastResult: Result = env.getLastResult();
-    if (
-      lastResult == null ||
-      lastResult == undefined ||
-      (lastResult instanceof Array && lastResult.length == 0)
-    ) {
-      const onNotFound = handlers ? handlers.get('not_found') : undefined;
-      if (onNotFound) {
-        await evaluateStatement(onNotFound, env);
-      }
-    }
+    await maybeHandleNotFound(handlers, env);
   } catch (reason: any) {
-    const handler = handlers ? handlers.get('error') : undefined;
-    if (handler) {
-      await evaluateStatement(handler, env);
-    } else {
-      throw reason;
-    }
+    await maybeHandleError(handlers, reason, env);
   } finally {
     if (handlersPushed && env.hasHandlers()) {
       env.popHandlers();
     }
+  }
+}
+
+async function maybeHandleNotFound(handlers: CatchHandlers | undefined, env: Environment) {
+  const lastResult: Result = env.getLastResult();
+  if (
+    lastResult == null ||
+    lastResult == undefined ||
+    (lastResult instanceof Array && lastResult.length == 0)
+  ) {
+    const onNotFound = handlers ? handlers.get('not_found') : undefined;
+    if (onNotFound) {
+      await evaluateStatement(onNotFound, env);
+    }
+  }
+}
+
+async function maybeHandleError(
+  handlers: CatchHandlers | undefined,
+  reason: any,
+  env: Environment
+) {
+  const handler = handlers ? handlers.get('error') : undefined;
+  if (handler) {
+    await evaluateStatement(handler, env);
+  } else {
+    throw reason;
   }
 }
 
@@ -715,6 +763,16 @@ function maybeFindHandlers(hints: RuntimeHint[]): Map<string, Statement> | undef
         result.set(h.except, h.stmt);
       });
       return result;
+    }
+  }
+  return undefined;
+}
+
+function maybeFindThenStatements(hints: RuntimeHint[]): Statement[] | undefined {
+  for (let i = 0; i < hints.length; ++i) {
+    const rh = hints[i];
+    if (rh.thenSpec) {
+      return rh.thenSpec.statements;
     }
   }
   return undefined;
