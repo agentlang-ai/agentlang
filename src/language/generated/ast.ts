@@ -51,6 +51,7 @@ export type AgentlangKeywordNames =
     | "@oneof"
     | "@rbac"
     | "@ref"
+    | "@then"
     | "@upsert"
     | "@with_unique"
     | "["
@@ -1022,6 +1023,7 @@ export interface RuntimeHint extends langium.AstNode {
     readonly $type: 'RuntimeHint';
     aliasSpec?: AliasSpec;
     catchSpec?: CatchSpec;
+    thenSpec?: ThenSpec;
 }
 
 export const RuntimeHint = 'RuntimeHint';
@@ -1082,7 +1084,7 @@ export function isStandaloneStatement(item: unknown): item is StandaloneStatemen
 }
 
 export interface Statement extends langium.AstNode {
-    readonly $container: ArrayLiteral | Else | ForEach | Handler | If | StandaloneStatement | WorkflowDefinition;
+    readonly $container: ArrayLiteral | Else | ForEach | Handler | If | StandaloneStatement | ThenSpec | WorkflowDefinition;
     readonly $type: 'Statement';
     hints: Array<RuntimeHint>;
     pattern: Pattern;
@@ -1092,6 +1094,18 @@ export const Statement = 'Statement';
 
 export function isStatement(item: unknown): item is Statement {
     return reflection.isInstance(item, Statement);
+}
+
+export interface ThenSpec extends langium.AstNode {
+    readonly $container: RuntimeHint;
+    readonly $type: 'ThenSpec';
+    statements: Array<Statement>;
+}
+
+export const ThenSpec = 'ThenSpec';
+
+export function isThenSpec(item: unknown): item is ThenSpec {
+    return reflection.isInstance(item, ThenSpec);
 }
 
 export interface TriggerDefinition extends langium.AstNode {
@@ -1209,6 +1223,7 @@ export type AgentlangAstType = {
     SetAttribute: SetAttribute
     StandaloneStatement: StandaloneStatement
     Statement: Statement
+    ThenSpec: ThenSpec
     TriggerDefinition: TriggerDefinition
     TriggerEntry: TriggerEntry
     WorkflowDefinition: WorkflowDefinition
@@ -1217,7 +1232,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefBody, AgentDefinition, AgentPropertyDef, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, TriggerDefinition, TriggerEntry, WorkflowDefinition];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefBody, AgentDefinition, AgentPropertyDef, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1858,7 +1873,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: RuntimeHint,
                     properties: [
                         { name: 'aliasSpec' },
-                        { name: 'catchSpec' }
+                        { name: 'catchSpec' },
+                        { name: 'thenSpec' }
                     ]
                 };
             }
@@ -1903,6 +1919,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'hints', defaultValue: [] },
                         { name: 'pattern' }
+                    ]
+                };
+            }
+            case ThenSpec: {
+                return {
+                    name: ThenSpec,
+                    properties: [
+                        { name: 'statements', defaultValue: [] }
                     ]
                 };
             }

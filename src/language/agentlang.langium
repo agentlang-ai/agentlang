@@ -98,9 +98,11 @@ Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete |
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 
-RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec;
+RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec | thenSpec=ThenSpec;
 
 AliasSpec: ('@as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
+
+ThenSpec: '@then' '{' (statements+=Statement (';' statements+=Statement)*)+ '}';
 
 CrudMap: '{' (name=QueryId '{''}' 
              | (name=QualifiedName '{''}' ',' '@from' source=Literal (',' upsert+='@upsert')?)
