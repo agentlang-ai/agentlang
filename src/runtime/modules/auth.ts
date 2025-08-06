@@ -499,6 +499,13 @@ export async function userHasPermissions(
     }
     UserRoleCache.set(userId, userRoles);
   }
+  if (
+    userRoles.find((role: string) => {
+      return role === 'admin';
+    })
+  ) {
+    return true;
+  }
   const [c, r, u, d] = [
     perms.has(RbacPermissionFlag.CREATE),
     perms.has(RbacPermissionFlag.READ),
