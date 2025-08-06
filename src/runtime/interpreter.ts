@@ -1370,11 +1370,13 @@ async function evaluateForEach(forEach: ForEach, env: Environment): Promise<void
   const src: Result = env.getLastResult();
   if (src instanceof Array && src.length > 0) {
     const loopEnv: Environment = Environment.from(env);
+    const finalResult = new Array<any>();
     for (let i = 0; i < src.length; ++i) {
       loopEnv.bind(loopVar, src[i]);
       await evaluateStatements(forEach.statements, loopEnv);
+      finalResult.push(loopEnv.getLastResult());
     }
-    env.setLastResult(loopEnv.getLastResult());
+    env.setLastResult(finalResult);
   } else {
     env.setLastResult(EmptyResult);
   }
