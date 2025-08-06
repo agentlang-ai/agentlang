@@ -255,6 +255,14 @@ export async function ensureUser(
   return await createUser(crypto.randomUUID(), email, firstName, lastName, env);
 }
 
+export async function ensureUserRoles(userid: string, userRoles: string[], env: Environment) {
+  for (let i = 0; i < userRoles.length; ++i) {
+    const role = userRoles[i];
+    await createRole(role, env);
+    await assignUserToRole(userid, role, env);
+  }
+}
+
 export async function ensureUserSession(
   userId: string,
   token: string,
@@ -391,6 +399,21 @@ export async function assignUserToRole(
   await evalEvent('AssignUserToRole', { userId: userId, roleName: roleName }, env).catch(
     (reason: any) => {
       logger.error(`Failed to assign user ${userId} to role ${roleName} - ${reason}`);
+      r = false;
+    }
+  );
+  return r;
+}
+
+export async function assignUserToRoleByEmail(
+  email: string,
+  roleName: string,
+  env: Environment
+): Promise<boolean> {
+  let r: boolean = true;
+  await evalEvent('AssignUserToRoleByEmail', { email: email, roleName: roleName }, env).catch(
+    (reason: any) => {
+      logger.error(`Failed to assign user ${email} to role ${roleName} - ${reason}`);
       r = false;
     }
   );

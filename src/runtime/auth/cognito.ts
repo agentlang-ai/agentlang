@@ -6,7 +6,13 @@ import {
   SignUpCallback,
   UserInfo,
 } from './interface.js';
-import { ensureUser, ensureUserSession, findUser, findUserByEmail } from '../modules/auth.js';
+import {
+  ensureUser,
+  ensureUserRoles,
+  ensureUserSession,
+  findUser,
+  findUserByEmail,
+} from '../modules/auth.js';
 import { logger } from '../logger.js';
 import { sleepMilliseconds } from '../util.js';
 import { Instance } from '../module.js';
@@ -441,7 +447,13 @@ export class CognitoAuth implements AgentlangAuth {
           localUser = await ensureUser(username, '', '', env);
         }
         const userid = localUser.lookup('id');
-        const idToken = result.getIdToken().getJwtToken();
+        const idtok = result.getIdToken();
+        const idToken = idtok.getJwtToken();
+        const idTokenPayload = idtok.decodePayload();
+        const userGroups = idTokenPayload['cognito:groups'];
+        if (userGroups) {
+          await ensureUserRoles(userid, userGroups, env);
+        }
         const accessToken = result.getAccessToken().getJwtToken();
         const refreshToken = result.getRefreshToken().getToken();
         const localSess: Instance = await ensureUserSession(
