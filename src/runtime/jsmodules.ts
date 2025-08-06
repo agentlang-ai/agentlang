@@ -1,7 +1,26 @@
-import { dirname, sep } from 'path';
 import { logger } from './logger.js';
 import { setSubscription } from './resolvers/registry.js';
 import { now, splitRefs } from './util.js';
+import { isNodeEnv } from '../utils/runtime.js';
+
+let dirname: any = undefined;
+let sep: any = undefined;
+
+if (isNodeEnv) {
+  const p = await import('path');
+  dirname = p.dirname;
+  sep = p.sep;
+} else {
+  sep = '/';
+  dirname = (s: string): string => {
+    const idx = s.lastIndexOf(sep);
+    if (idx > 0) {
+      return s.substring(0, idx);
+    } else {
+      return s;
+    }
+  };
+}
 
 const importedModules = new Map<string, any>();
 
