@@ -393,3 +393,43 @@ describe('Issue-226', () => {
         assert(sum == expectedSum)
     })
 })
+
+describe('Issue-226', () => {
+    test('test01', async () => {
+        await doInternModule('I233',
+            `entity Resource {
+    Id Int @id ,
+    Email Email @unique
+}
+
+entity Allocation {
+    Id Int @id,
+    Name String
+}
+
+relationship ResourceAllocation contains(Resource, Allocation)
+
+workflow GetResourceAllocation1 {
+    {Allocation? {},
+     ResourceAllocation {Resource {Id? GetResourceAllocation.Id}}}
+}
+
+workflow GetResourceAllocation2 {
+    {Allocation? {},
+     ResourceAllocation {Resource {Id? GetResourceAllocation.Id}},
+     @into {Id Allocation.Id,
+         AllocationEntered Allocation.AllocationEntered}}
+}
+`)
+
+const crr = async (id: number, email: string) => {
+    const r = await parseAndEvaluateStatement(`{I233/Resource {Id ${id}, Email "${email}"}}`)
+    assert(isInstanceOfType(r, 'I233/Resource'))
+    return r
+}
+
+const cra = async (resId: number, id: number, name: string) => {
+    
+}
+    })
+})
