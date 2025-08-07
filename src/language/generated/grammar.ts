@@ -4425,6 +4425,10 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 },
                 {
                   "$type": "Keyword",
+                  "value": "!="
+                },
+                {
+                  "$type": "Keyword",
                   "value": "<"
                 },
                 {
@@ -4762,6 +4766,10 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     {
                       "$type": "Keyword",
                       "value": "="
+                    },
+                    {
+                      "$type": "Keyword",
+                      "value": "!="
                     },
                     {
                       "$type": "Keyword",

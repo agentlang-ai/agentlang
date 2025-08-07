@@ -824,3 +824,24 @@ describe("Return from Workflow", () => {
     assert(isInstanceOfType(zs[0], 'Ret/Z'))
   })
 })
+
+describe("Not-equals", () => {
+  test('test01', async () => {
+    await doInternModule('neq',
+      `workflow test {
+        if (test.x != 100) {
+          return 200
+        } else {
+          return test.x
+        }
+      }`)
+  const t = async (x: number) => {
+    return await parseAndEvaluateStatement(`{neq/test {x ${x}}}`)
+  }
+
+  const a = await t(100)
+  assert(a == 100)
+  const b = await t(300)
+  assert(b == 200)
+})
+})

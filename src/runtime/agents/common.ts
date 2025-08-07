@@ -67,7 +67,7 @@ The default query operator is '=' (equals). So an expression like 'employeeId? "
 '{age?< 50}' - which means 'where age less-than 50'. The comparison operators supported by a query pattern are:
 
 =         - equals
-<>        - not-equals
+!=        - not-equals
 <         - less-than
 <=        - less-than or equals
 >         - greater-than
