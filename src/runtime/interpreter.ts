@@ -1486,6 +1486,7 @@ async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
         result = v1 >= v2;
         break;
       case '<>':
+      case '!=':
         result = v1 != v2;
         break;
       case 'like':

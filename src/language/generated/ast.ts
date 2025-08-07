@@ -18,6 +18,7 @@ export const AgentlangTerminals = {
 export type AgentlangTerminalNames = keyof typeof AgentlangTerminals;
 
 export type AgentlangKeywordNames =
+    | "!="
     | "("
     | ")"
     | "*"
@@ -311,7 +312,7 @@ export interface BinExpr extends langium.AstNode {
     readonly $type: 'BinExpr';
     e1: Expr | PrimExpr;
     e2: Expr | PrimExpr;
-    op: '*' | '+' | '-' | '/' | '<' | '<=' | '<>' | '=' | '>' | '>=' | 'and' | 'in' | 'like' | 'or';
+    op: '!=' | '*' | '+' | '-' | '/' | '<' | '<=' | '<>' | '=' | '>' | '>=' | 'and' | 'in' | 'like' | 'or';
 }
 
 export const BinExpr = 'BinExpr';
@@ -1061,7 +1062,7 @@ export interface SetAttribute extends langium.AstNode {
     readonly $container: CrudMapBody;
     readonly $type: 'SetAttribute';
     name: QueryId;
-    op?: '<' | '<=' | '<>' | '=' | '>' | '>=' | 'between' | 'in' | 'like';
+    op?: '!=' | '<' | '<=' | '<>' | '=' | '>' | '>=' | 'between' | 'in' | 'like';
     value: AttributeValueExpression;
 }
 

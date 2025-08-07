@@ -154,7 +154,7 @@ Delete: 'delete' pattern=Pattern;
 
 Purge: 'purge' pattern=Pattern;
 
-SetAttribute: name=QueryId op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like'|'between')? value=AttributeValueExpression;
+SetAttribute: name=QueryId op=('='|'<>' | '!=' |'<'|'<='|'>'|'>='|'in'|'like'|'between')? value=AttributeValueExpression;
 
 AttributeValueExpression: Expr;
 
@@ -170,7 +170,7 @@ Logical infers Expr:
     Comparison ({infer BinExpr.e1=current} op=('or'|'and') e2=Comparison)*;
 
 Comparison infers Expr:
-    PrimExpr ({infer BinExpr.e1=current} op=('='|'<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=PrimExpr)*;
+    PrimExpr ({infer BinExpr.e1=current} op=('=' | '!=' | '<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=PrimExpr)*;
 
 PrimExpr: Literal | Group | NegExpr | NotExpr;
 
