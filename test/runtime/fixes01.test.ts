@@ -393,3 +393,131 @@ describe('Issue-226', () => {
         assert(sum == expectedSum)
     })
 })
+
+describe('Issue-226', () => {
+    test('test01', async () => {
+        await doInternModule('I233',
+            `entity Resource {
+    Id Int @id ,
+    Email Email @unique
+}
+
+entity Allocation {
+    Id Int @id,
+    Name String
+}
+
+relationship ResourceAllocation contains(Resource, Allocation)
+
+workflow GetResourceAllocation1 {
+    {Resource {Id? GetResourceAllocation1.Id},
+     ResourceAllocation {Allocation? {}}}
+}
+
+workflow GetResourceAllocation2 {
+    {Resource {Id? GetResourceAllocation2.Id},
+     ResourceAllocation {Allocation? {}},
+     @into {Id Allocation.Id,
+         AllocationEntered Allocation.Name}}
+}
+
+workflow GetAllocationResource {
+    {Allocation? {},
+     ResourceAllocation {Resource? {}}}
+}
+
+workflow GetOneAllocationResource {
+    {Allocation {Id? GetOneAllocationResource.Id},
+     ResourceAllocation {Resource? {}}}
+}
+`)
+
+        const crr = async (id: number, email: string) => {
+            const r = await parseAndEvaluateStatement(`{I233/Resource {Id ${id}, Email "${email}"}}`)
+            assert(isInstanceOfType(r, 'I233/Resource'))
+            return r
+        }
+
+        const cra = async (resId: number, id: number, name: string) => {
+            const rs = await parseAndEvaluateStatement(`{I233/Resource {Id? ${resId}},
+        I233/ResourceAllocation {I233/Allocation {Id ${id}, Name "${name}"}}}`)
+            assert(rs && rs.length == 1)
+            const r: Instance = rs[0]
+            assert(isInstanceOfType(r, 'I233/Resource'))
+            const rrs: Instance[] | undefined = r.getRelatedInstances('I233/ResourceAllocation')
+            if (rrs) {
+                assert(rrs.length == 1)
+                assert(isInstanceOfType(rrs[0], 'I233/Allocation'))
+            } else {
+                assert(rrs != undefined)
+            }
+        }
+
+        const getra = async (resId: number, intoResultCount?: number) => {
+            const rs = await parseAndEvaluateStatement(`{I233/GetResourceAllocation${intoResultCount ? '2' : '1'} {Id ${resId}}}`)
+            const rrs: any = intoResultCount ? rs.map((x: object) => {
+                return new Map(Object.entries(x))
+            }) : rs[0].getRelatedInstances('ResourceAllocation')
+            let s = 0
+            rrs?.forEach((inst: any) => {
+                s += inst.get('Id')
+            })
+            if (intoResultCount) {
+                assert(rs.length == intoResultCount)
+            } else {
+                assert(rs.length == 1)
+                if (resId == 1) {
+                    assert(rrs?.length == 2)
+                    assert(s == (101 + 102))
+                } else {
+                    assert(rrs?.length == 1)
+                    assert(s == 201)
+                }
+            }
+        }
+
+        const chkresId = (inst: Instance, resId: number) => {
+            const rs = inst.getRelatedInstances('ResourceAllocation')
+            assert(rs?.length == 1)
+            if (rs) {
+                assert(rs[0].lookup('Id') == resId)
+            }
+        }
+
+        const getar = async () => {
+            const rs: Instance[] = await parseAndEvaluateStatement(`{I233/GetAllocationResource {}}`)
+            assert(rs.length == 3)
+            const chka = (id: number, resId: number) => {
+                const r: Instance | undefined = rs.find((inst: Instance) => {
+                    return id == inst.lookup('Id')
+                })
+                if (r) {
+                    chkresId(r, resId)
+                } else {
+                    assert(r != undefined)
+                }
+            }
+            chka(101, 1)
+            chka(102, 1)
+            chka(201, 2)
+        }
+
+        const getar1 = async (id: number, resId: number) => {
+            const rs: Instance[] = await parseAndEvaluateStatement(`{I233/GetOneAllocationResource {Id ${id}}}`)
+            assert(rs.length == 1)
+            chkresId(rs[0], resId)
+        }
+
+        await crr(1, 'a@acme.com')
+        await crr(2, 'b@acme.com')
+        await cra(1, 101, 'aa')
+        await cra(1, 102, 'ab')
+        await cra(2, 201, 'bb')
+        await getra(1)
+        await getra(1, 2)
+        await getar()
+        await getar1(101, 1)
+        await getar1(102, 1)
+        await getar1(201, 2)
+    })
+})

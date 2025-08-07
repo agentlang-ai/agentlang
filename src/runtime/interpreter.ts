@@ -1127,8 +1127,15 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           for (let j = 0; j < lastRes.length; ++j) {
             const newEnv: Environment = Environment.from(env);
             if (isContainsRelationship(rel.name, moduleName)) {
-              const ppath = lastRes[j].attributes.get(PathAttributeName);
-              newEnv.setParentPath(ppath + '/' + escapeFqName(relEntry.getFqName()));
+              const currInst: Instance = lastRes[j];
+              let ppath = '';
+              if (relEntry.isParent(currInst)) {
+                ppath = currInst.lookup(PathAttributeName);
+                newEnv.setParentPath(ppath + '/' + escapeFqName(relEntry.getFqName()));
+              } else {
+                ppath = currInst.lookup(ParentAttributeName);
+                newEnv.setParentPath(ppath);
+              }
               newEnv.setNormalizedParentPath(ppath);
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
