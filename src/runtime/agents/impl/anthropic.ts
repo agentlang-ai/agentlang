@@ -12,8 +12,64 @@ export interface AnthropicConfig {
     defaultHeaders?: Record<string, string>;
     [key: string]: any;
   };
+
+  /**
+   * Enable prompt caching to reuse context across API calls.
+   * This reduces latency and costs by caching static portions of prompts.
+   * Cache has a 5-minute lifetime by default, refreshed on each use.
+   * Minimum cacheable length: 1024 tokens for Claude 3.5+, 2048 for Haiku.
+   * Beta header: prompt-caching-2024-07-31
+   * @see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+   */
   enablePromptCaching?: boolean;
+
+  /**
+   * Cache control type for prompt caching.
+   * Currently only 'ephemeral' is supported with 5-minute TTL.
+   * Can be extended to 1-hour with extended-cache-ttl-2025-04-11 beta.
+   */
   cacheControl?: 'ephemeral';
+
+  /**
+   * Enable extended thinking mode for Claude to show its reasoning process.
+   * When enabled, responses include thinking blocks showing Claude's thought process.
+   * Requires minimum budgetTokens of 1024 and counts towards maxTokens.
+   * Useful for complex reasoning, problem-solving, and transparency.
+   * @see https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking
+   */
+  enableThinking?: boolean;
+
+  /**
+   * Token budget for thinking mode (minimum 1024).
+   * Determines how many tokens Claude can use for internal reasoning.
+   * Larger budgets enable more thorough analysis for complex problems.
+   * Must be less than maxTokens.
+   */
+  budgetTokens?: number;
+
+  /**
+   * Enable extended output to generate up to 128,000 tokens in a single response.
+   * Useful for long-form content, detailed reports, extensive code generation.
+   * Beta header: output-128k-2025-02-19
+   * Note: Use streaming to avoid timeouts with long outputs.
+   */
+  enableExtendedOutput?: boolean;
+
+  /**
+   * Enable interleaved thinking to see Claude's reasoning in real-time during streaming.
+   * When combined with extended thinking, thinking blocks are streamed alongside content.
+   * Provides transparency into Claude's problem-solving process as it happens.
+   * Beta header: interleaved-thinking-2025-05-14
+   */
+  enableInterleavedThinking?: boolean;
+
+  /**
+   * Enable fine-grained tool streaming for more responsive tool use.
+   * Streams partial JSON updates and character-by-character tool parameters.
+   * Improves UI responsiveness when Claude invokes tools.
+   * Beta header: fine-grained-tool-streaming-2025-05-14
+   */
+  enableFineGrainedToolStreaming?: boolean;
 }
 
 export class AnthropicProvider implements AgentServiceProvider {
@@ -38,14 +94,56 @@ export class AnthropicProvider implements AgentServiceProvider {
       chatConfig.clientOptions = this.config.clientOptions;
     }
 
+    // Configure beta headers based on enabled features
+    const betaFeatures: string[] = [];
+
+    // Prompt caching: Reuse static content across API calls
+    // Reduces costs by 90% for cached content, improves latency
     if (this.config.enablePromptCaching) {
+      betaFeatures.push('prompt-caching-2024-07-31');
+    }
+
+    // Extended output: Generate up to 128k tokens (vs standard 8k)
+    // Essential for long-form content generation
+    if (this.config.enableExtendedOutput) {
+      betaFeatures.push('output-128k-2025-02-19');
+    }
+
+    // Interleaved thinking: Stream thinking blocks alongside regular content
+    // Shows Claude's reasoning process in real-time during streaming
+    if (this.config.enableInterleavedThinking) {
+      betaFeatures.push('interleaved-thinking-2025-05-14');
+    }
+
+    // Fine-grained tool streaming: Stream partial tool parameters
+    // Provides character-by-character updates for better UX
+    if (this.config.enableFineGrainedToolStreaming) {
+      betaFeatures.push('fine-grained-tool-streaming-2025-05-14');
+    }
+
+    if (betaFeatures.length > 0) {
       chatConfig.clientOptions = {
         ...chatConfig.clientOptions,
         defaultHeaders: {
           ...chatConfig.clientOptions?.defaultHeaders,
-          'anthropic-beta': 'prompt-caching-2024-07-31',
+          'anthropic-beta': betaFeatures.join(','),
         },
       };
+    }
+
+    // Validate thinking configuration if enabled
+    // Thinking mode requires careful token budget management
+    if (this.config.enableThinking) {
+      // Validate budget tokens (minimum 1024 required by API)
+      const budgetTokens = Math.max(1024, this.config.budgetTokens || 1024);
+
+      // Ensure budget tokens don't exceed max tokens
+      // This prevents API errors and ensures proper token allocation
+      if (budgetTokens >= (this.config.maxTokens || 8192)) {
+        throw new Error(
+          `budgetTokens (${budgetTokens}) must be less than maxTokens (${this.config.maxTokens || 8192})`
+        );
+      }
     }
 
     this.model = new ChatAnthropic(chatConfig);
@@ -59,6 +157,11 @@ export class AnthropicProvider implements AgentServiceProvider {
       maxRetries: 2,
       enablePromptCaching: false,
       cacheControl: 'ephemeral',
+      enableThinking: false,
+      budgetTokens: 1024, // Minimum budget tokens for thinking mode
+      enableExtendedOutput: false,
+      enableInterleavedThinking: false,
+      enableFineGrainedToolStreaming: false,
     };
 
     if (!config) {
@@ -81,6 +184,31 @@ export class AnthropicProvider implements AgentServiceProvider {
         defaultConfig.enablePromptCaching,
       cacheControl:
         config.get('cacheControl') || config.get('cache_control') || defaultConfig.cacheControl,
+      enableThinking:
+        config.get('enableThinking') ||
+        config.get('enable_thinking') ||
+        config.get('thinking') ||
+        defaultConfig.enableThinking,
+      budgetTokens:
+        config.get('budgetTokens') ||
+        config.get('budget_tokens') ||
+        config.get('thinking_budget') ||
+        defaultConfig.budgetTokens,
+      enableExtendedOutput:
+        config.get('enableExtendedOutput') ||
+        config.get('enable_extended_output') ||
+        config.get('extendedOutput') ||
+        defaultConfig.enableExtendedOutput,
+      enableInterleavedThinking:
+        config.get('enableInterleavedThinking') ||
+        config.get('enable_interleaved_thinking') ||
+        config.get('interleavedThinking') ||
+        defaultConfig.enableInterleavedThinking,
+      enableFineGrainedToolStreaming:
+        config.get('enableFineGrainedToolStreaming') ||
+        config.get('enable_fine_grained_tool_streaming') ||
+        config.get('fineGrainedToolStreaming') ||
+        defaultConfig.enableFineGrainedToolStreaming,
       apiKey,
       clientOptions: config.get('clientOptions') || config.get('client_options'),
     };
@@ -99,9 +227,25 @@ export class AnthropicProvider implements AgentServiceProvider {
       processedMessages = this.applyCacheControl(messages);
     }
 
-    return asAIResponse(await this.model.invoke(processedMessages));
+    // Add thinking configuration to the invoke options if enabled
+    // Thinking mode is passed as a parameter during invocation, not in constructor
+    const invokeOptions: any = {};
+    if (this.config.enableThinking) {
+      const budgetTokens = Math.max(1024, this.config.budgetTokens || 1024);
+      invokeOptions.thinking = {
+        type: 'enabled',
+        budget_tokens: budgetTokens,
+      };
+    }
+
+    return asAIResponse(await this.model.invoke(processedMessages, invokeOptions));
   }
 
+  /**
+   * Apply cache control to messages for prompt caching optimization.
+   * Caches system messages with substantial content (>1000 chars) to reduce costs.
+   * Cache hits cost 90% less than regular input tokens.
+   */
   private applyCacheControl(messages: BaseMessage[]): BaseMessage[] {
     // Apply cache control to the last system message if present
     // This follows Anthropic's recommendation to cache long context at the end of system messages
@@ -112,7 +256,7 @@ export class AnthropicProvider implements AgentServiceProvider {
     // Find the last system message and apply cache control
     for (let i = processedMessages.length - 1; i >= 0; i--) {
       const message = processedMessages[i];
-      if (message._getType() === 'system') {
+      if ((message as any)._getType() === 'system') {
         // Apply cache control to system message content
         const content = message.content;
         if (typeof content === 'string' && content.length > 1000) {
@@ -151,14 +295,56 @@ export class AnthropicProvider implements AgentServiceProvider {
       chatConfig.clientOptions = this.config.clientOptions;
     }
 
+    // Configure beta headers based on enabled features
+    const betaFeatures: string[] = [];
+
+    // Prompt caching: Reuse static content across API calls
+    // Reduces costs by 90% for cached content, improves latency
     if (this.config.enablePromptCaching) {
+      betaFeatures.push('prompt-caching-2024-07-31');
+    }
+
+    // Extended output: Generate up to 128k tokens (vs standard 8k)
+    // Essential for long-form content generation
+    if (this.config.enableExtendedOutput) {
+      betaFeatures.push('output-128k-2025-02-19');
+    }
+
+    // Interleaved thinking: Stream thinking blocks alongside regular content
+    // Shows Claude's reasoning process in real-time during streaming
+    if (this.config.enableInterleavedThinking) {
+      betaFeatures.push('interleaved-thinking-2025-05-14');
+    }
+
+    // Fine-grained tool streaming: Stream partial tool parameters
+    // Provides character-by-character updates for better UX
+    if (this.config.enableFineGrainedToolStreaming) {
+      betaFeatures.push('fine-grained-tool-streaming-2025-05-14');
+    }
+
+    if (betaFeatures.length > 0) {
       chatConfig.clientOptions = {
         ...chatConfig.clientOptions,
         defaultHeaders: {
           ...chatConfig.clientOptions?.defaultHeaders,
-          'anthropic-beta': 'prompt-caching-2024-07-31',
+          'anthropic-beta': betaFeatures.join(','),
         },
       };
+    }
+
+    // Validate thinking configuration if enabled
+    // Thinking mode requires careful token budget management
+    if (this.config.enableThinking) {
+      // Validate budget tokens (minimum 1024 required by API)
+      const budgetTokens = Math.max(1024, this.config.budgetTokens || 1024);
+
+      // Ensure budget tokens don't exceed max tokens
+      // This prevents API errors and ensures proper token allocation
+      if (budgetTokens >= (this.config.maxTokens || 8192)) {
+        throw new Error(
+          `budgetTokens (${budgetTokens}) must be less than maxTokens (${this.config.maxTokens || 8192})`
+        );
+      }
     }
 
     this.model = new ChatAnthropic(chatConfig);
