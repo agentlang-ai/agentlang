@@ -228,8 +228,12 @@ export async function findProviderForLLM(
       const llm: Instance = result[0];
       const service = llm.lookup('service');
       const pclass = provider(service);
-      const providerConfig: Map<string, any> =
-        llm.lookup('config') || new Map().set('service', service);
+      const configValue = llm.lookup('config');
+      const providerConfig: Map<string, any> = configValue
+        ? configValue instanceof Map
+          ? configValue
+          : new Map(Object.entries(configValue))
+        : new Map().set('service', service);
       p = new pclass(providerConfig);
       if (p) ProviderDb.set(llmName, p);
     }
