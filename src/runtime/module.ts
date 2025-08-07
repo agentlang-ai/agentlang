@@ -139,6 +139,8 @@ function attributePropertyValueToString(
     if (isTextualType(attrType) && propValue != 'now()' && propValue != 'uuid()') {
       return `"${propValue}"`;
     }
+  } else if (propName == 'comment') {
+    return `"${propValue}"`;
   }
   return `${propValue}`;
 }
@@ -171,7 +173,7 @@ function normalizeMetaValue(metaValue: any): any {
       return normalizeMetaValue(value.pattern.expr);
     });
   } else if (v.bool != undefined) {
-    return v.bool;
+    return v.bool == 'true' ? true : false;
   } else if (v.id) {
     return v.id;
   } else if (v.map) {
@@ -884,6 +886,11 @@ export class Entity extends Record {
   getRbacSpecifications(): RbacSpecification[] | undefined {
     return this.rbac;
   }
+
+  isConfigEntity(): boolean {
+    const v = this.getMeta('configEntity');
+    return v == true;
+  }
 }
 
 export class Event extends Record {
@@ -1286,6 +1293,12 @@ export class Module {
     return entry;
   }
 
+  getConfigEntity(): Entity | undefined {
+    return this.getEntityEntries().find((e: Entity) => {
+      return e.isConfigEntity();
+    });
+  }
+
   addAgent(agentEntry: Agent): Agent {
     return this.addEntry(agentEntry) as Agent;
   }
@@ -1590,6 +1603,7 @@ export const propertyNames = new Set([
   '@readonly',
   '@enum',
   '@oneof',
+  '@comment',
 ]);
 
 const TextualTypes = new Set(['String', 'Email', 'UUID', 'DateTime', 'Date', 'Time', 'Path']);
