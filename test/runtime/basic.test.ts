@@ -835,13 +835,72 @@ describe("Not-equals", () => {
           return test.x
         }
       }`)
-  const t = async (x: number) => {
-    return await parseAndEvaluateStatement(`{neq/test {x ${x}}}`)
-  }
+    const t = async (x: number) => {
+      return await parseAndEvaluateStatement(`{neq/test {x ${x}}}`)
+    }
 
-  const a = await t(100)
-  assert(a == 100)
-  const b = await t(300)
-  assert(b == 200)
+    const a = await t(100)
+    assert(a == 100)
+    const b = await t(300)
+    assert(b == 200)
+  })
 })
+
+describe("Config entity", () => {
+  test('test01', async () => {
+    await doInternModule('cfge',
+      `entity A {
+        id Int @id, x Int
+      }
+      entity B {
+        key Int @comment("Secret key"),
+        host String @comment("Host name"),
+        @meta {"configEntity": true}
+      }
+      entity C {
+        id Int @id, y Int
+      }
+      `)
+    const m = fetchModule('cfge')
+    const e = m.getConfigEntity()
+    if (e) {
+      assert(e.getFqName() == 'cfge/B')
+      e.getUserAttributes().forEach((attr: AttributeSpec, n: string) => {
+        const c = attr.properties?.get('comment')
+        if (n == 'key') {
+          assert(c == 'Secret key')
+        } else if (n == 'host') {
+          assert(c == 'Host name')
+        }
+      })
+    } else {
+      assert(e != undefined)
+    }
+    const s = m.toString()
+    assert(s == `module cfge
+
+entity A
+{
+    id Int @id,
+    x Int
+}
+
+entity B
+{
+    key Int @comment("Secret key"),
+    host String @comment("Host name"),
+    __id__ UUID @default(uuid())  @id,
+    @meta {"configEntity":true}
+}
+
+entity C
+{
+    id Int @id,
+    y Int
+}
+`)
+    const idx = s.indexOf('entity')
+    await doInternModule('cfge2', s.substring(idx))
+    assert(fetchModule('cfge2'))
+  })
 })
