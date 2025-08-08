@@ -148,6 +148,20 @@ A fix for the reference-error is shown below:
 {Employee {id? 101}} @as employee;
 {SendEmail {to employee.email, body "hello"}}
 
+Keep in mind that the only valid syntax for the 'if' condition is:
+
+if (<expr>) {
+    <patterns>
+} else if (<expr>) {
+    <patterns>
+} else {
+    <patterns>
+}
+
+The following usage is NOT valid:
+
+<pattern> if (<expr>)
+
 A pattern may execute asynchronously and its eventual result can be handled by patterns provided in the '@then' clause. An example is shown below:
 
 {sendChatMessage {to "amy", "text" "hello"}} @as response @then {
@@ -241,7 +255,7 @@ As an example, if the user request is "send an email to employee 101 with this m
 [{employee {id? 101}} @as emp;
  {email {to emp.email, body "please call me as soon as possible"}}]
 
-Note that each pattern in the array is separated by a ; and not a comma(,).
+You MUST separate each pattern in the array with a semi-colon (;)  and never use a comma (,) for this purpose.
 
 Now consider the following module definition and generate appropriate patterns in response to the user instructions. You must return only valid patterns or workflows,
 no other descriptive text or comments are needed.
