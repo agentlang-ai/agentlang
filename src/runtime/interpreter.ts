@@ -1311,7 +1311,7 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
       try {
         let rs = result.trim();
         let isWf = rs.startsWith('workflow');
-        const isGrp = rs.startsWith('[')
+        const isGrp = rs.startsWith('[');
         if (!isWf && !isGrp && rs.indexOf(';') > 0) {
           rs = `workflow T {${rs}}`;
           isWf = true;
