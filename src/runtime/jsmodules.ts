@@ -36,7 +36,7 @@ export async function importModule(path: string, name: string, moduleFileName?: 
     }
     path = `${s}${sep}${path}`;
   }
-  if (!(path.startsWith(sep) || path.startsWith('.'))) {
+  if ((path.startsWith(sep) || path.startsWith('.')) && moduleFileName) {
     path = process.cwd() + sep + path;
   }
   const m = await import(/* @vite-ignore */ path);
