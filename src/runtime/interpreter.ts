@@ -1343,7 +1343,7 @@ function cleanupAgentResponse(response: string | undefined): string | undefined 
     const validated = parts.filter((s: string) => {
       let stmt = s.trim();
       if (stmt.endsWith(',')) {
-        stmt = `${stmt.substring(0, stmt.length - 1)};`
+        stmt = `${stmt.substring(0, stmt.length - 1)};`;
       }
       const r =
         stmt.startsWith('{') ||
