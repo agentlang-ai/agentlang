@@ -51,11 +51,11 @@ function asString(s: MaybeString): string {
 
 const QuoteCharacter = '&quot;';
 
-export function restoreSpecialChars(s: string) {
+export function restoreSpecialChars(s: string): string {
   return s.replaceAll(QuoteCharacter, '"');
 }
 
-export function escapeSpecialChars(s: string) {
+export function escapeSpecialChars(s: string): string {
   return s.replaceAll('"', QuoteCharacter);
 }
 

@@ -447,7 +447,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
       hasUserLlm = true;
     }
     const ov = v;
-    if (apdef.value.id || apdef.value.array) {
+    if (apdef.value.id || apdef.value.array || apdef.name == 'sink') {
       v = `"${v}"`;
     } else if (apdef.value.str) {
       v = `"${escapeSpecialChars(v)}"`;
