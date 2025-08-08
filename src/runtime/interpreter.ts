@@ -1311,14 +1311,17 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
       logger.debug(`Agent ${agent.name} generated pattern: ${result}`);
       try {
         let rs = result.trim();
-        let isWf = rs.startsWith('[');
-        if (rs.indexOf(';') > 0) {
-          rs = `[${rs}]`;
+        let isWf = rs.startsWith('workflow');
+        if (!isWf && rs.indexOf(';') > 0) {
+          rs = `workflow T {${rs}}`;
+          isWf = true;
+        }
+        if (!isWf && rs.startsWith('[')) {
+          const stmts = rs.substring(1, rs.length - 1);
+          rs = `workflow T {${stmts}}`;
           isWf = true;
         }
         if (isWf) {
-          const stmts = rs.substring(1, rs.length - 1);
-          rs = `workflow T {${stmts}}`;
           const wf = await parseWorkflow(rs);
           if (agent.runWorkflows) {
             await evaluateStatements(wf.statements, env);
