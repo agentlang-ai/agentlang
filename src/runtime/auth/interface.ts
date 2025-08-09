@@ -22,12 +22,15 @@ export type LogoutCallback = (status: boolean) => void;
 
 export interface AgentlangAuth {
   signUp(
+    firstName: string,
+    lastName: string,
     username: string,
     password: string,
     userData: Map<string, any> | undefined,
     env: Environment,
     cb: SignUpCallback
   ): any;
+  confirmSignup(username: string, confirmationCode: string, env: Environment): Promise<void>;
   login(username: string, password: string, env: Environment, cb: LoginCallback): any;
   logout(sessionInfo: SessionInfo, env: Environment, cb?: LogoutCallback): any;
   verifyToken(token: string, env?: Environment): any;

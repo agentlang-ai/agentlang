@@ -34,6 +34,7 @@ import {
 let fromEnv: any = undefined;
 let CognitoIdentityProviderClient: any = undefined;
 let SignUpCommand: any = undefined;
+let ConfirmSignUp: any = undefined;
 let AdminGetUserCommand: any = undefined;
 let InitiateAuthCommand: any = undefined;
 let AuthenticationDetails: any = undefined;
@@ -51,6 +52,7 @@ if (isNodeEnv) {
   const cip = await import('@aws-sdk/client-cognito-identity-provider');
   CognitoIdentityProviderClient = cip.CognitoIdentityProviderClient;
   SignUpCommand = cip.SignUpCommand;
+  ConfirmSignUp = cip.ConfirmSignUpCommand;
   AdminGetUserCommand = cip.AdminGetUserCommand;
   InitiateAuthCommand = cip.InitiateAuthCommand;
 
@@ -321,6 +323,8 @@ export class CognitoAuth implements AgentlangAuth {
   }
 
   async signUp(
+    firstName: string,
+    lastName: string,
     username: string,
     password: string,
     userData: Map<string, string> | undefined,
@@ -339,6 +343,14 @@ export class CognitoAuth implements AgentlangAuth {
       {
         Name: 'name',
         Value: username,
+      },
+      {
+        Name: 'given_name',
+        Value: firstName,
+      },
+      {
+        Name: 'family_name',
+        Value: lastName,
       },
     ];
     if (userData) {
@@ -381,6 +393,24 @@ export class CognitoAuth implements AgentlangAuth {
         errorMessage: sanitizeErrorMessage(err.message),
       });
       handleCognitoError(err, 'signUp');
+    }
+  }
+
+  async confirmSignup(username: string, confirmationCode: string, env: Environment): Promise<void> {
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+        credentials: fromEnv(),
+      });
+      const command = new ConfirmSignUp({
+        ClientId: this.config.get('ClientId'),
+        Username: username,
+        ConfirmationCode: confirmationCode,
+      });
+      await client.send(command);
+    } catch (error: any) {
+      logger.error(`Failed to confirm signup: ${error.message}`);
+      throw error;
     }
   }
 
