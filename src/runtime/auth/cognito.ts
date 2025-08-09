@@ -35,6 +35,8 @@ let fromEnv: any = undefined;
 let CognitoIdentityProviderClient: any = undefined;
 let SignUpCommand: any = undefined;
 let ConfirmSignUp: any = undefined;
+let ForgotPasswordCommand: any = undefined;
+let ConfirmForgotPasswordCommand: any = undefined;
 let AdminGetUserCommand: any = undefined;
 let InitiateAuthCommand: any = undefined;
 let AuthenticationDetails: any = undefined;
@@ -53,6 +55,8 @@ if (isNodeEnv) {
   CognitoIdentityProviderClient = cip.CognitoIdentityProviderClient;
   SignUpCommand = cip.SignUpCommand;
   ConfirmSignUp = cip.ConfirmSignUpCommand;
+  ForgotPasswordCommand = cip.ForgotPasswordCommand;
+  ConfirmForgotPasswordCommand = cip.ConfirmForgotPasswordCommand;
   AdminGetUserCommand = cip.AdminGetUserCommand;
   InitiateAuthCommand = cip.InitiateAuthCommand;
 
@@ -410,7 +414,50 @@ export class CognitoAuth implements AgentlangAuth {
       await client.send(command);
     } catch (error: any) {
       logger.error(`Failed to confirm signup: ${error.message}`);
-      throw error;
+      handleCognitoError(error, 'confirmSignup');
+    }
+  }
+
+  async forgotPassword(username: string, _env: Environment): Promise<void> {
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+        credentials: fromEnv(),
+      });
+      const command = new ForgotPasswordCommand({
+        ClientId: this.fetchClientId(),
+        Username: username,
+      });
+      await client.send(command);
+    } catch (err: any) {
+      logger.error(`Forgot password failed for ${username}: ${sanitizeErrorMessage(err.message)}`);
+      handleCognitoError(err, 'forgotPassword');
+    }
+  }
+
+  async confirmForgotPassword(
+    username: string,
+    confirmationCode: string,
+    newPassword: string,
+    _env: Environment
+  ): Promise<void> {
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+        credentials: fromEnv(),
+      });
+      const command = new ConfirmForgotPasswordCommand({
+        ClientId: this.fetchClientId(),
+        Username: username,
+        ConfirmationCode: confirmationCode,
+        Password: newPassword,
+      });
+      await client.send(command);
+    } catch (err: any) {
+      logger.error(
+        `Confirm forgot password failed for ${username}: ${sanitizeErrorMessage(err.message)}`
+      );
+      handleCognitoError(err, 'confirmForgotPassword');
     }
   }
 
