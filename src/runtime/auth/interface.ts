@@ -31,6 +31,13 @@ export interface AgentlangAuth {
     cb: SignUpCallback
   ): any;
   confirmSignup(username: string, confirmationCode: string, env: Environment): Promise<void>;
+  forgotPassword(username: string, env: Environment): Promise<void>;
+  confirmForgotPassword(
+    username: string,
+    confirmationCode: string,
+    newPassword: string,
+    env: Environment
+  ): Promise<void>;
   login(username: string, password: string, env: Environment, cb: LoginCallback): any;
   logout(sessionInfo: SessionInfo, env: Environment, cb?: LogoutCallback): any;
   verifyToken(token: string, env?: Environment): any;

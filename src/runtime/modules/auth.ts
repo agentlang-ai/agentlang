@@ -184,6 +184,18 @@ workflow login {
   await Auth.loginUser(login.email, login.password)
 }
 
+workflow forgotPassword {
+  await Auth.forgotPasswordUser(forgotPassword.email)
+}
+
+workflow confirmForgotPassword {
+  await Auth.confirmForgotPasswordUser(
+    confirmForgotPassword.email,
+    confirmForgotPassword.confirmationCode,
+    confirmForgotPassword.newPassword
+  )
+}
+
 workflow logout {
   await Auth.logoutUser()
 }
@@ -610,7 +622,7 @@ export async function confirmSignupUser(
   username: string,
   confirmationCode: string,
   env: Environment
-): Promise<any> {
+): Promise<Result> {
   try {
     console.log('confirmSignupUser', username, confirmationCode, env);
     await fetchAuthImpl().confirmSignup(username, confirmationCode, env);
@@ -621,6 +633,31 @@ export async function confirmSignupUser(
   } catch (err: any) {
     logger.error(`Confirm signup failed for ${username}: ${err.message}`);
     throw err; // Re-throw to preserve error type for HTTP status mapping
+  }
+}
+
+export async function forgotPasswordUser(username: string, env: Environment): Promise<Result> {
+  try {
+    await fetchAuthImpl().forgotPassword(username, env);
+    return { status: 'ok', message: 'Password reset code sent' };
+  } catch (err: any) {
+    logger.error(`Forgot password failed for ${username}: ${err.message}`);
+    throw err;
+  }
+}
+
+export async function confirmForgotPasswordUser(
+  username: string,
+  confirmationCode: string,
+  newPassword: string,
+  env: Environment
+): Promise<Result> {
+  try {
+    await fetchAuthImpl().confirmForgotPassword(username, confirmationCode, newPassword, env);
+    return { status: 'ok', message: 'Password has been reset' };
+  } catch (err: any) {
+    logger.error(`Confirm forgot password failed for ${username}: ${err.message}`);
+    throw err;
   }
 }
 
@@ -656,7 +693,7 @@ export async function loginUser(
   }
 }
 
-async function logoutSession(userId: string, sess: Instance, env: Environment): Promise<string> {
+async function logoutSession(userId: string, sess: Instance, env: Environment): Promise<Result> {
   const sessId = sess.lookup('id');
   const tok = sess.lookup('authToken');
   await fetchAuthImpl().logout(
@@ -671,23 +708,29 @@ async function logoutSession(userId: string, sess: Instance, env: Environment): 
     env
   );
   await removeSession(sessId, env);
-  return 'ok';
+  return {
+    status: 'ok',
+    message: 'Logged out successfully',
+  };
 }
 
-export async function logoutUser(env: Environment): Promise<string | undefined> {
+export async function logoutUser(env: Environment): Promise<Result> {
   const user = env.getActiveUser();
   const sess = await findUserSession(user, env);
   if (sess) {
     return await logoutSession(user, sess, env);
   }
-  return undefined;
+  return {
+    status: 'ok',
+    message: 'Logged out successfully',
+  };
 }
 
 export async function changePassword(
   newPassword: string,
   password: string,
   env: Environment
-): Promise<string | undefined> {
+): Promise<Result> {
   const user = env.getActiveUser();
   const sess = await findUserSession(user, env);
   if (sess) {
@@ -900,6 +943,8 @@ export function requireAuth(moduleName: string, eventName: string): boolean {
       (eventName == 'login' ||
         eventName == 'signup' ||
         eventName == 'confirmSignup' ||
+        eventName == 'forgotPassword' ||
+        eventName == 'confirmForgotPassword' ||
         eventName == 'refreshToken');
     return !f;
   } else {
