@@ -173,7 +173,11 @@ workflow RemoveUserSession {
 }
 
 workflow signup {
-  await Auth.signUpUser(signup.email, signup.password, signup.userData)
+  await Auth.signUpUser(signup.firstName, signup.lastName, signup.email, signup.password, signup.userData)
+}
+
+workflow confirmSignup {
+  await Auth.confirmSignupUser(confirmSignup.email, confirmSignup.confirmationCode)
 }
 
 workflow login {
@@ -573,7 +577,10 @@ function fetchAuthImpl(): AgentlangAuth {
     throw new Error('Auth not initialized');
   }
 }
+
 export async function signUpUser(
+  firstName: string,
+  lastName: string,
   username: string,
   password: string,
   userData: object,
@@ -582,6 +589,8 @@ export async function signUpUser(
   let result: any;
   try {
     await fetchAuthImpl().signUp(
+      firstName,
+      lastName,
       username,
       password,
       userData ? new Map(Object.entries(userData)) : undefined,
@@ -593,6 +602,24 @@ export async function signUpUser(
     return result as UserInfo;
   } catch (err: any) {
     logger.error(`Signup failed for ${username}: ${err.message}`);
+    throw err; // Re-throw to preserve error type for HTTP status mapping
+  }
+}
+
+export async function confirmSignupUser(
+  username: string,
+  confirmationCode: string,
+  env: Environment
+): Promise<any> {
+  try {
+    console.log('confirmSignupUser', username, confirmationCode, env);
+    await fetchAuthImpl().confirmSignup(username, confirmationCode, env);
+    return {
+      status: 'ok',
+      message: 'User confirmed successfully',
+    };
+  } catch (err: any) {
+    logger.error(`Confirm signup failed for ${username}: ${err.message}`);
     throw err; // Re-throw to preserve error type for HTTP status mapping
   }
 }
@@ -870,7 +897,10 @@ export function requireAuth(moduleName: string, eventName: string): boolean {
   if (isAuthEnabled()) {
     const f =
       moduleName == CoreAuthModuleName &&
-      (eventName == 'login' || eventName == 'signup' || eventName == 'refreshToken');
+      (eventName == 'login' ||
+        eventName == 'signup' ||
+        eventName == 'confirmSignup' ||
+        eventName == 'refreshToken');
     return !f;
   } else {
     return false;
