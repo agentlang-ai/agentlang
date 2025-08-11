@@ -400,7 +400,7 @@ export class CognitoAuth implements AgentlangAuth {
     }
   }
 
-  async confirmSignup(username: string, confirmationCode: string, env: Environment): Promise<void> {
+  async confirmSignup(username: string, confirmationCode: string, _: Environment): Promise<void> {
     try {
       const client = new CognitoIdentityProviderClient({
         region: process.env.AWS_REGION || 'us-west-2',
