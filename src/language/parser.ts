@@ -106,27 +106,32 @@ export async function parseWorkflow(workflowDef: string): Promise<WorkflowDefini
 export function maybeGetValidationErrors(document: LangiumDocument): string[] | undefined {
   const validationErrors = (document.diagnostics ?? []).filter(e => e.severity === 1);
 
-  const sls = new Set<number>()
-  const scs = new Set<number>()
+  const sls = new Set<number>();
+  const scs = new Set<number>();
   if (validationErrors.length > 0) {
-    const lineErrs = new Array<string>()
+    const lineErrs = new Array<string>();
     for (const validationError of validationErrors) {
-      if (!sls.has(validationError.range.start.line) && !scs.has(validationError.range.start.character)) {
-        const s = document.textDocument.getText(validationError.range)
-        lineErrs.push(`Error on line ${validationError.range.start.line + 1}, column ${validationError.range.start.character + 1}, unexpected token(s) '${s}'`)
-        sls.add(validationError.range.start.line)
-        scs.add(validationError.range.start.character)
+      if (
+        !sls.has(validationError.range.start.line) &&
+        !scs.has(validationError.range.start.character)
+      ) {
+        const s = document.textDocument.getText(validationError.range);
+        lineErrs.push(
+          `Error on line ${validationError.range.start.line + 1}, column ${validationError.range.start.character + 1}, unexpected token(s) '${s}'`
+        );
+        sls.add(validationError.range.start.line);
+        scs.add(validationError.range.start.character);
       }
     }
 
-    return lineErrs
+    return lineErrs;
   } else {
-    return undefined
+    return undefined;
   }
 }
 
 function maybeRaiseParserErrors(document: LangiumDocument) {
-  const errs = maybeGetValidationErrors(document)
+  const errs = maybeGetValidationErrors(document);
   if (errs) {
     throw new Error(errs.join('\n'));
   }

@@ -111,10 +111,10 @@ export async function extractDocument(
   });
 
   // Handle validation errors
-  const errs = maybeGetValidationErrors(document)
+  const errs = maybeGetValidationErrors(document);
 
   if (errs) {
-    const errorMsg = `${errs.join('\n')}`
+    const errorMsg = `${errs.join('\n')}`;
     throw new Error(errorMsg);
   }
 
