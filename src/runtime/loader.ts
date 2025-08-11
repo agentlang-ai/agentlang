@@ -162,14 +162,18 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   }
   if (appSpec.dependencies != undefined) {
     for (const [depName, _] of Object.entries(appSpec.dependencies)) {
-      const depDirName = `./node_modules/${depName}`;
-      const files = await fs.readdir(depDirName);
-      if (
-        files.find(file => {
-          return path.extname(file).toLowerCase() == '.al';
-        })
-      ) {
-        await loadApp(depDirName, fsOptions);
+      try {
+        const depDirName = `./node_modules/${depName}`;
+        const files = await fs.readdir(depDirName);
+        if (
+          files.find(file => {
+            return path.extname(file).toLowerCase() == '.al';
+          })
+        ) {
+          await loadApp(depDirName, fsOptions);
+        }
+      } catch (error) {
+        logger.error(`Error loading dependency ${depName}: ${error}`);
       }
     }
   }
