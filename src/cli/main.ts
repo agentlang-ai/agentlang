@@ -24,6 +24,7 @@ import { ModuleDefinition } from '../language/generated/ast.js';
 import { z } from 'zod';
 import { Config, setAppConfig } from '../runtime/state.js';
 import { prepareIntegrations } from '../runtime/integrations.js';
+import { isNodeEnv } from '../utils/runtime.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -127,13 +128,21 @@ export const runModule = async (fileName: string): Promise<void> => {
     throw err;
   }
 
-  const r: boolean = await runPreInitTasks();
-  if (!r) {
-    throw new Error('Failed to initialize runtime');
+  try {
+    const r: boolean = await runPreInitTasks();
+    if (!r) {
+      throw new Error('Failed to initialize runtime');
+    }
+    await load(fileName, undefined, async (appSpec?: ApplicationSpec) => {
+      await runPostInitTasks(appSpec, config);
+    });
+  } catch (err: any) {
+    if (isNodeEnv && chalk) {
+      console.error(chalk.red(err));
+    } else {
+      console.error(err);
+    }
   }
-  await load(fileName, undefined, async (appSpec?: ApplicationSpec) => {
-    await runPostInitTasks(appSpec, config);
-  });
 };
 
 export async function internAndRunModule(

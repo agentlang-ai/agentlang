@@ -107,7 +107,11 @@ if (process.env.AL_TEST === 'true') {
       const cr = async (p: P) => {
         return await k(`Create a new Person aged ${p.age} with id ${p.id} and name '${p.name}'. Return only the pattern, no need to return a complete workflow.`)
       }
-      const chk = (inst: Instance, p: P) => {
+      const chk = (inst: Instance | Instance[], p: P) => {
+        if (inst instanceof Array) {
+          assert(inst.length == 1)
+          inst = inst[0]
+        }
         assert(isInstanceOfType(inst, 'SPA/Person'))
         assert(inst.lookup('id') == p.id && inst.lookup('age') == p.age && inst.lookup('name') == p.name)
       }

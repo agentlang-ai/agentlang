@@ -57,7 +57,7 @@ import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules, registerCoreModules } from './modules/core.js';
-import { parse, parseModule, parseWorkflow } from '../language/parser.js';
+import { maybeGetValidationErrors, parse, parseModule, parseWorkflow } from '../language/parser.js';
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
@@ -87,11 +87,6 @@ export async function extractDocument(
 
     if (!fileExists) {
       const errorMsg = `File ${fileName} does not exist.`;
-      if (chalk) {
-        console.error(chalk.red(errorMsg));
-      } else {
-        console.error(errorMsg);
-      }
       throw new Error(errorMsg);
     }
   } else if (!isNodeEnv && typeof fileName === 'string') {
@@ -100,7 +95,7 @@ export async function extractDocument(
     const fileExists = await exists(fullFilePath);
 
     if (!fileExists) {
-      console.error(`File ${fileName} does not exist.`);
+      throw new Error(`File ${fileName} does not exist.`);
     }
   } else {
     throw new Error('Invalid input: expected file path (Node.js) or File object/content (browser)');
@@ -116,27 +111,11 @@ export async function extractDocument(
   });
 
   // Handle validation errors
-  const validationErrors = (document.diagnostics ?? []).filter(e => e.severity === 1);
+  const errs = maybeGetValidationErrors(document);
 
-  if (validationErrors.length > 0) {
-    console.error(
-      isNodeEnv && chalk
-        ? chalk.red('There are validation errors:')
-        : 'There are validation errors:'
-    );
-
-    for (const validationError of validationErrors) {
-      const errorMsg = `line ${validationError.range.start.line + 1}: ${
-        validationError.message
-      } [${document.textDocument.getText(validationError.range)}]`;
-      if (isNodeEnv && chalk) {
-        console.error(chalk.red(errorMsg));
-      } else {
-        console.error(errorMsg);
-      }
-    }
-
-    throw new Error('Validation errors found');
+  if (errs) {
+    const errorMsg = `${errs.join('\n')}`;
+    throw new Error(errorMsg);
   }
 
   return document;
