@@ -19,13 +19,14 @@ import { startServer } from '../api/http.js';
 import { initDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { logger } from '../runtime/logger.js';
 import { runInitFunctions } from '../runtime/util.js';
-import { Module, registerOpenApiModule } from '../runtime/module.js';
+import { Module } from '../runtime/module.js';
 import { ModuleDefinition } from '../language/generated/ast.js';
 import { z } from 'zod';
 import { Config, setAppConfig } from '../runtime/state.js';
 import { prepareIntegrations } from '../runtime/integrations.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import { OpenAPIClientAxios } from 'openapi-client-axios';
+import { registerOpenApiModule } from '../runtime/openapi.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 

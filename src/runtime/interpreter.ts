@@ -33,7 +33,6 @@ import {
   getWorkflow,
   Instance,
   InstanceAttributes,
-  invokeOpenApiEvent,
   isAgentEventInstance,
   isBetweenRelationship,
   isContainsRelationship,
@@ -41,7 +40,6 @@ import {
   isEntityInstance,
   isEventInstance,
   isInstanceOfType,
-  isOpenApiEventInstance,
   isTimer,
   makeInstance,
   newInstanceAttributes,
@@ -82,6 +80,7 @@ import {
   setTimerRunning,
 } from './modules/core.js';
 import { invokeModuleFn } from './jsmodules.js';
+import { invokeOpenApiEvent, isOpenApiEventInstance } from './openapi.js';
 
 export type Result = any;
 
