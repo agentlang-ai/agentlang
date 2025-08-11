@@ -11,16 +11,12 @@
   "scripts": {
     "install:pnpm": "pnpm install --prefer-offline",
     "build": "tsc -b tsconfig.src.json && tsc -b tsconfig.declarations.json && node esbuild.mjs",
-
     "build:ts": "tsc -b tsconfig.src.json",
     "build:vite": "vite build --emptyOutDir",
     "watch": "concurrently -n tsc,esbuild -c blue,yellow \"tsc -b tsconfig.src.json --watch\" \"node esbuild.mjs --watch\"",
-
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
-
     "format": "prettier --write \"src/**/*.{js,ts,tsx,json,md}\"",
-
     "format:check": "prettier --check \"src/**/*.{js,ts,tsx,json,md}\"",
     "langium:generate": "langium generate",
     "langium:generate:production": "langium generate --mode=production",
@@ -63,6 +59,7 @@
     "monaco-editor": "~0.52.0",
     "monaco-editor-wrapper": "^6.7.0",
     "node-fetch": "^2.7.0",
+    "openapi-client-axios": "^7.6.0",
     "pg": "^8.16.1",
     "pgvector": "^0.2.1",
     "sqlite3": "^5.1.7",

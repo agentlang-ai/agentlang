@@ -472,3 +472,25 @@ export function areSetsEqual<T>(set1: Set<T>, set2: Set<T>): boolean {
   }
   return true;
 }
+
+const ReservedNames = new Set([
+  'if',
+  'else',
+  'for',
+  'or',
+  'and',
+  'entity',
+  'record',
+  'event',
+  'workflow',
+  'create',
+  'delete',
+  'update',
+  'upsert',
+  'agent',
+  'resolver',
+]);
+
+export function isReservedName(s: string): boolean {
+  return ReservedNames.has(s);
+}
