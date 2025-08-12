@@ -76,3 +76,9 @@ export class CodeMismatchError extends Error {
     super(message || 'The verification code is incorrect. Please try again.', options);
   }
 }
+
+export let FetchModuleFn: any = undefined;
+
+export function setModuleFnFetcher(f: Function) {
+  FetchModuleFn = f;
+}

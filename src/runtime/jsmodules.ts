@@ -2,6 +2,7 @@ import { logger } from './logger.js';
 import { setSubscription } from './resolvers/registry.js';
 import { now, splitRefs } from './util.js';
 import { isNodeEnv } from '../utils/runtime.js';
+import { setModuleFnFetcher } from './defs.js';
 
 let dirname: any = undefined;
 let sep: any = undefined;
@@ -33,6 +34,8 @@ export async function importModule(path: string, name: string, moduleFileName?: 
     let s: string = dirname(moduleFileName);
     if (s.startsWith('./')) {
       s = s.substring(2);
+    } else if (s == '.') {
+      s = process.cwd();
     }
     path = `${s}${sep}${path}`;
   }
@@ -151,3 +154,5 @@ export function getModuleFn(fqFnName: string): Function | undefined {
     return m[refs[1]];
   } else return undefined;
 }
+
+setModuleFnFetcher(getModuleFn);

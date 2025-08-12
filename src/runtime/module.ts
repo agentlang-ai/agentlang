@@ -43,7 +43,7 @@ import {
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
-import { DefaultIdAttributeName, PathAttributeName } from './defs.js';
+import { DefaultIdAttributeName, FetchModuleFn, PathAttributeName } from './defs.js';
 import { logger } from './logger.js';
 
 export class ModuleEntry {
@@ -1594,6 +1594,7 @@ export const propertyNames = new Set([
   '@indexed',
   '@default',
   '@optional',
+  '@check',
   '@unique',
   '@autoincrement',
   '@array',
@@ -2103,13 +2104,22 @@ function checkOneOfValue(attrSpec: AttributeSpec, attrName: string, attrValue: a
   return false;
 }
 
+function getCheckPredicate(attrSpec: AttributeSpec): any {
+  const p = getAnyProperty('check', attrSpec);
+  if (isString(p)) {
+    return FetchModuleFn(p);
+  }
+  return undefined;
+}
+
 function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec) {
   if (attrSpec.type == 'Path') {
     if (!isPath(attrValue, getRefSpec(attrSpec))) {
       throw new Error(`Failed to validate Path ${attrValue} passed to ${attrName}`);
     }
   }
-  const predic = builtInChecks.get(attrSpec.type);
+  let predic = getCheckPredicate(attrSpec);
+  predic = predic ? predic : builtInChecks.get(attrSpec.type);
   if (predic != undefined) {
     if (isArrayAttribute(attrSpec)) {
       if (!(attrValue instanceof Array)) {
