@@ -1,12 +1,12 @@
 module ErpCore
 
-import "../../example/test.js" @as testMod
+import "test.js" @as testMod
 
 entity Employee {
     email Email @id,
     firstName String @indexed,
     lastName String @optional,
-    salary Int @default(4500.0) @indexed
+    salary Int @default(4500.0) @indexed @check(testMod.validateSalary)
 }
 
 event SendMail {

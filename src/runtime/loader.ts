@@ -569,11 +569,15 @@ export async function loadRawConfig(
   fsOptions?: any
 ): Promise<any> {
   const fs = await getFileSystem(fsOptions);
-  let rawConfig = preprocessRawConfig(JSON.parse(await fs.readFile(configFileName)));
-  if (validate) {
-    rawConfig = ConfigSchema.parse(rawConfig);
+  if (await fs.exists(configFileName)) {
+    let rawConfig = preprocessRawConfig(JSON.parse(await fs.readFile(configFileName)));
+    if (validate) {
+      rawConfig = ConfigSchema.parse(rawConfig);
+    }
+    return rawConfig;
+  } else {
+    return { service: { port: 8080 } };
   }
-  return rawConfig;
 }
 
 export function generateRawConfig(configObj: any): string {
