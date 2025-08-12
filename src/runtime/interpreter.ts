@@ -54,6 +54,7 @@ import {
   DefaultModuleName,
   escapeFqName,
   escapeQueryName,
+  escapeSpecialChars,
   fqNameFromPath,
   isFqName,
   isPath,
@@ -1361,9 +1362,35 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
         }
       }
     }
+    if (agent.output) {
+      await pushToAgent(agent.output, env.getLastResult(), env);
+    }
   } else {
     logger.warn(`Agent ${agent.name} failed to generate a response`);
   }
+}
+
+function agentInputAsString(result: any): string {
+  if (!isString(result)) {
+    if (result instanceof Instance) {
+      return JSON.stringify((result as Instance).asObject());
+    } else if (result instanceof Array) {
+      return `[${(result as Array<any>)
+        .map((r: any) => {
+          return agentInputAsString(r);
+        })
+        .join(',')}]`;
+    } else {
+      return JSON.stringify(result);
+    }
+  }
+  return result;
+}
+
+async function pushToAgent(agentName: string, result: any, env: Environment) {
+  const r = escapeSpecialChars(agentInputAsString(result));
+  const pat = `{${agentName} {message "\n${r}"}}`;
+  env.setLastResult(await parseAndEvaluateStatement(pat, undefined, env));
 }
 
 function cleanupAgentResponse(response: string | undefined): string | undefined {
