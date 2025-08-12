@@ -25,6 +25,8 @@ import { z } from 'zod';
 import { Config, setAppConfig } from '../runtime/state.js';
 import { prepareIntegrations } from '../runtime/integrations.js';
 import { isNodeEnv } from '../utils/runtime.js';
+import { OpenAPIClientAxios } from 'openapi-client-axios';
+import { registerOpenApiModule } from '../runtime/openapi.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -116,6 +118,9 @@ export const runModule = async (fileName: string): Promise<void> => {
         config.integrations.connections
       );
     }
+    if (config.openapi) {
+      await loadOpenApiSpec(config.openapi);
+    }
   } catch (err) {
     if (err instanceof z.ZodError) {
       console.log(chalk.red('Config validation failed:'));
@@ -156,4 +161,18 @@ export async function internAndRunModule(
   const rm: Module = await internModule(module);
   await runPostInitTasks(appSpec);
   return rm;
+}
+
+async function loadOpenApiSpec(openApiConfig: any[]) {
+  for (let i = 0; i < openApiConfig.length; ++i) {
+    const cfg: any = openApiConfig[i];
+    const api = new OpenAPIClientAxios({ definition: cfg.specUrl });
+    await api.init();
+    const client = await api.getClient();
+    client.defaults.baseURL = cfg.baseUrl
+      ? cfg.baseUrl
+      : cfg.specUrl.substring(0, cfg.specUrl.lastIndexOf('/'));
+    const n = await registerOpenApiModule(cfg.name, { api: api, client: client });
+    logger.info(`OpenAPI module '${n}' registered`);
+  }
 }

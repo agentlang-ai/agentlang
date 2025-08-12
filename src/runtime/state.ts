@@ -93,6 +93,15 @@ export const ConfigSchema = z.object({
       }),
     ])
     .optional(),
+  openapi: z
+    .array(
+      z.object({
+        specUrl: z.string(),
+        baseUrl: z.string().optional(),
+        name: z.string(),
+      })
+    )
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

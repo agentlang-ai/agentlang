@@ -80,6 +80,7 @@ import {
   setTimerRunning,
 } from './modules/core.js';
 import { invokeModuleFn } from './jsmodules.js';
+import { invokeOpenApiEvent, isOpenApiEventInstance } from './openapi.js';
 
 export type Result = any;
 
@@ -545,6 +546,15 @@ export async function evaluate(
         }
         await evaluateStatements(wf.statements, env, continuation);
         return env.getLastResult();
+      } else if (isOpenApiEventInstance(eventInstance)) {
+        env = new Environment(eventInstance.name + '.env', activeEnv);
+        await handleOpenApiEvent(eventInstance, env);
+        const r = env.getLastResult();
+        if (continuation) continuation(r);
+        return r;
+      } else {
+        if (continuation) continuation(null);
+        return null;
       }
     } else {
       throw new Error('Not an event - ' + eventInstance.name);
@@ -1180,6 +1190,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     }
   } else if (isEventInstance(inst)) {
     if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
+    else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
     else await evaluate(inst, (result: Result) => env.setLastResult(result), env);
   } else {
     env.setLastResult(inst);
@@ -1385,6 +1396,15 @@ function cleanupAgentResponse(response: string | undefined): string | undefined 
   } else {
     return response;
   }
+}
+
+async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
+  const r = await invokeOpenApiEvent(
+    eventInst.moduleName,
+    eventInst.name,
+    eventInst.attributesAsObject()
+  );
+  env.setLastResult(r);
 }
 
 async function evaluateUpsert(crud: CrudMap, env: Environment): Promise<void> {
