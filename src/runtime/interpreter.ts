@@ -1697,7 +1697,7 @@ async function runPrePostEvents(
       if (env.hasHandlers()) {
         throw reason;
       } else {
-        logger.error(`${prefix}: ${reason}`);
+        throw new Error(`${prefix}: ${reason}`);
       }
     };
     if (trigInfo.async) {
