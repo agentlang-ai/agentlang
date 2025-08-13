@@ -82,7 +82,7 @@ describe('Basic module operations', () => {
 describe('Basic loader test', () => {
   test('test01', async () => {
     await doPreInit();
-    await load('example/blog/blog.al').then((appSpec: ApplicationSpec) => {
+    await load('example/blog/src/blog.al').then((appSpec: ApplicationSpec) => {
       assert(appSpec.name, 'Invalid application spec');
       const m: Module = fetchModule('Blog.Core');
       try {
@@ -599,7 +599,7 @@ describe('Multiple module loading tests', () => {
 
     try {
       // Load Blog module first
-      await load('example/blog/blog.al').then(async (appSpec: ApplicationSpec) => {
+      await load('example/blog/src/blog.al').then(async (appSpec: ApplicationSpec) => {
         assert(appSpec.name, 'Invalid Blog application spec');
         const blogModule: Module = fetchModule('Blog.Core');
         assert(blogModule.name == 'Blog.Core', 'Failed to load Blog.Core module');

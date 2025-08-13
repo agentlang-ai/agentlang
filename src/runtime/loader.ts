@@ -67,6 +67,7 @@ import { registerResolver, setResolver } from './resolvers/registry.js';
 import { ConfigSchema } from './state.js';
 import { getModuleFn, importModule } from './jsmodules.js';
 import { SetSubscription } from './defs.js';
+import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
 
 export async function extractDocument(
   fileName: string,
@@ -136,6 +137,24 @@ export const DefaultAppSpec: ApplicationSpec = {
   version: '0.0.1',
 };
 
+async function getAllModules(dir: string, fs: ExtendedFileSystem): Promise<string[]> {
+  let alFiles = new Array<string>();
+  const directoryContents = await fs.readdir(dir);
+  for (let i = 0; i < directoryContents.length; ++i) {
+    const file = directoryContents[i];
+    if (path.extname(file).toLowerCase() == '.al') {
+      alFiles.push(dir + path.sep + file);
+    } else {
+      const fullPath = dir + path.sep + file;
+      const stat = await fs.stat(fullPath);
+      if (stat.isDirectory()) {
+        alFiles = alFiles.concat(await getAllModules(fullPath, fs));
+      }
+    }
+  }
+  return alFiles;
+}
+
 async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Promise<string> {
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
@@ -143,19 +162,9 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   const appJsonFile = `${appDir}${path.sep}package.json`;
   const s: string = await fs.readFile(appJsonFile);
   const appSpec: ApplicationSpec = JSON.parse(s);
-  const alFiles: Array<string> = new Array<string>();
-  const directoryContents = await fs.readdir(appDir);
   let lastModuleLoaded: string = '';
   async function cont2() {
-    if (!directoryContents) {
-      console.error(chalk.red(`Directory ${appDir} does not exist or is empty.`));
-      return;
-    }
-    directoryContents.forEach(file => {
-      if (path.extname(file).toLowerCase() == '.al') {
-        alFiles.push(appDir + path.sep + file);
-      }
-    });
+    const alFiles = await getAllModules(appDir + path.sep + 'src', fs);
     for (let i = 0; i < alFiles.length; ++i) {
       lastModuleLoaded = (await loadModule(alFiles[i], fsOptions)).name;
     }
@@ -165,7 +174,7 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
     for (const [depName, _] of Object.entries(appSpec.dependencies)) {
       try {
         const depDirName = `./node_modules/${depName}`;
-        const files = await fs.readdir(depDirName);
+        const files = await fs.readdir(depDirName + path.sep + 'src');
         if (
           files.find(file => {
             return path.extname(file).toLowerCase() == '.al';
