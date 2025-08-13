@@ -63,9 +63,11 @@ import { Environment, evaluateStatements, GlobalEnvironment } from './interprete
 import { createPermission, createRole } from './modules/auth.js';
 import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
-import { registerResolver, setResolver, setSubscription } from './resolvers/registry.js';
+import { registerResolver, setResolver } from './resolvers/registry.js';
 import { ConfigSchema } from './state.js';
-import { getModuleFn, importModule, validateImportName } from './jsmodules.js';
+import { getModuleFn, importModule } from './jsmodules.js';
+import { SetSubscription } from './defs.js';
+import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
 
 export async function extractDocument(
   fileName: string,
@@ -135,6 +137,31 @@ export const DefaultAppSpec: ApplicationSpec = {
   version: '0.0.1',
 };
 
+async function getAllModules(
+  dir: string,
+  fs: ExtendedFileSystem,
+  drill: boolean = true
+): Promise<string[]> {
+  let alFiles = new Array<string>();
+  if (!(await fs.exists(dir))) {
+    return alFiles;
+  }
+  const directoryContents = await fs.readdir(dir);
+  for (let i = 0; i < directoryContents.length; ++i) {
+    const file = directoryContents[i];
+    if (path.extname(file).toLowerCase() == '.al') {
+      alFiles.push(dir + path.sep + file);
+    } else if (drill) {
+      const fullPath = dir + path.sep + file;
+      const stat = await fs.stat(fullPath);
+      if (stat.isDirectory()) {
+        alFiles = alFiles.concat(await getAllModules(fullPath, fs));
+      }
+    }
+  }
+  return alFiles;
+}
+
 async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Promise<string> {
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
@@ -142,19 +169,11 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   const appJsonFile = `${appDir}${path.sep}package.json`;
   const s: string = await fs.readFile(appJsonFile);
   const appSpec: ApplicationSpec = JSON.parse(s);
-  const alFiles: Array<string> = new Array<string>();
-  const directoryContents = await fs.readdir(appDir);
   let lastModuleLoaded: string = '';
   async function cont2() {
-    if (!directoryContents) {
-      console.error(chalk.red(`Directory ${appDir} does not exist or is empty.`));
-      return;
-    }
-    directoryContents.forEach(file => {
-      if (path.extname(file).toLowerCase() == '.al') {
-        alFiles.push(appDir + path.sep + file);
-      }
-    });
+    const fls01 = await getAllModules(appDir, fs, false);
+    const fls02 = await getAllModules(appDir + path.sep + 'src', fs);
+    const alFiles = fls01.concat(fls02);
     for (let i = 0; i < alFiles.length; ++i) {
       lastModuleLoaded = (await loadModule(alFiles[i], fsOptions)).name;
     }
@@ -164,7 +183,10 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
     for (const [depName, _] of Object.entries(appSpec.dependencies)) {
       try {
         const depDirName = `./node_modules/${depName}`;
-        const files = await fs.readdir(depDirName);
+        const fls01 = await fs.readdir(depDirName);
+        const srcDir = depDirName + path.sep + 'src';
+        const hasSrc = await fs.exists(srcDir);
+        const files = hasSrc ? fls01.concat(await fs.readdir(srcDir)) : fls01;
         if (
           files.find(file => {
             return path.extname(file).toLowerCase() == '.al';
@@ -356,7 +378,7 @@ export function addRelationshipFromDef(
 }
 
 export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string): Workflow {
-  return addWorkflow(def.name, moduleName, def.statements);
+  return addWorkflow(def.name, moduleName, def.statements, def.hints);
 }
 
 const StandaloneStatements = new Map<string, Statement[]>();
@@ -489,7 +511,7 @@ function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
       resolver.subs = {
         subscribe: subsFn,
       };
-      if (subsEvent) setSubscription(subsEvent, resolverName);
+      if (subsEvent) SetSubscription(subsEvent, resolverName);
       resolver.subscribe();
     }
   });
@@ -537,7 +559,6 @@ export async function internModule(
   const mn = module.name;
   const r = addModule(mn);
   module.imports.forEach(async (imp: Import) => {
-    validateImportName(imp.name);
     await importModule(imp.path, imp.name, moduleFileName);
   });
   for (let i = 0; i < module.defs.length; ++i) {

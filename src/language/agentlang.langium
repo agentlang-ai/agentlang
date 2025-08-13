@@ -92,7 +92,11 @@ Literal: (id=ID | num=Decimal | str=STRING | ref=Ref | bool=Boolean | fnCall=FnC
 
 fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*)+ '}' | '{' statements+=Statement ';'+ '}' | statements+=Statement;
 
-WorkflowDefinition: 'workflow' name=ID Body;
+WorkflowDefinition: 'workflow' name=ID Body hints+=WorkflowHint*;
+
+WorkflowHint: subs=WorkflowSubsHint;
+
+WorkflowSubsHint: '@subs' '(' resolverName=ID ')';
 
 Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | fullTextSearch=FullTextSearch | return=Return;
 
@@ -123,13 +127,13 @@ FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
 Return: 'return' pat=Pattern;
 
-AgentDefinition: 'agent' name=(ID | STRING) (body=AgentDefBody? | '{''}');
+AgentDefinition: 'agent' name=GenericName (body=AgentDefBody? | '{''}');
 
 AgentDefBody: '{' (attributes+=AgentPropertyDef (',' attributes+=AgentPropertyDef)*)+ '}';
 
 AgentPropertyDef: name=ID value=Literal;
 
-ResolverDefinition: 'resolver' name=(ID | STRING) '[' (paths+=STRING (',' paths+=STRING)*)+ ']'
+ResolverDefinition: 'resolver' name=GenericName '[' (paths+=GenericName (',' paths+=GenericName)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
 
 ResolverMethodSpec: key=ResolverMethodName fn=ResolverFnName;
@@ -192,6 +196,8 @@ TaggedId returns string: '@' ID;
 Ref returns string: ID '.' (Ref | ID);
 
 QualifiedName returns string: Ref | ID;
+
+GenericName returns string: ID | STRING;
 
 terminal ID returns string: NAME ('/' NAME)?;
 

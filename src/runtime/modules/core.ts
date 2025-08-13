@@ -48,7 +48,7 @@ entity activeSuspension {
   id UUID @id
 }
 
-resolver servicenow ["${DefaultModuleName}/activeSuspension"] {
+resolver suspensionResolver ["${DefaultModuleName}/activeSuspension"] {
     query Core.lookupActiveSuspension
 }
 

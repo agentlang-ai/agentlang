@@ -145,8 +145,11 @@ are invalid, because the alias 'employee' is not defined:
 
 A fix for the reference-error is shown below:
 
-{Employee {id? 101}} @as employee;
+{Employee {id? 101}} @as [employee];
 {SendEmail {to employee.email, body "hello"}}
+
+Note that the alias for the query is '[employee]' so that the resultset is destructured to select exactly one instance of Employee 
+selected into the reference. You must follow this pattern if your goal is to select exactly a single instance.
 
 Keep in mind that the only valid syntax for the 'if' condition is:
 
