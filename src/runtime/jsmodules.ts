@@ -1,5 +1,4 @@
 import { logger } from './logger.js';
-import { setSubscription } from './resolvers/registry.js';
 import { now, splitRefs } from './util.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import { setModuleFnFetcher } from './defs.js';
@@ -54,28 +53,12 @@ export function moduleImported(moduleName: string): boolean {
   return importedModules.has(moduleName);
 }
 
-const ReservedImports = new Set<string>(['resolvers']);
-
-export function validateImportName(n: string) {
-  if (ReservedImports.has(n)) {
-    throw new Error(`${n} is an import reserved by the runtime`);
-  }
-}
-
 function maybeEvalFunction(fnName: string): Function | undefined {
   try {
     return eval(fnName);
   } catch (reason: any) {
     logger.debug(reason);
     return undefined;
-  }
-}
-
-function invokeReservedFn(moduleName: string, fnName: string, args: Array<any> | null) {
-  if (moduleName == 'resolvers' && fnName == 'setSubscription' && args != null) {
-    return setSubscription(args[0], args[1]);
-  } else {
-    throw new Error(`Failed to call ${moduleName}.${fnName} with the given arguments`);
   }
 }
 
@@ -115,9 +98,6 @@ export async function invokeModuleFn(
       }
     }
     const mname = refs[0];
-    if (ReservedImports.has(mname)) {
-      return invokeReservedFn(mname, refs[1], args);
-    }
     const m = importedModules.get(mname);
     if (m != undefined) {
       const f = m[refs[1]];

@@ -82,3 +82,9 @@ export let FetchModuleFn: any = undefined;
 export function setModuleFnFetcher(f: Function) {
   FetchModuleFn = f;
 }
+
+export let SetSubscription: any = undefined;
+
+export function setSubscriptionFn(f: Function) {
+  SetSubscription = f;
+}

@@ -193,15 +193,20 @@ export class Resolver {
 
   public async onSubscription(result: any): Promise<any> {
     if (result != undefined) {
-      const eventName = getSubscriptionEvent(this.name);
-      if (eventName) {
-        const path = splitFqName(eventName);
-        const inst = makeInstance(
-          path.getModuleName(),
-          path.getEntryName(),
-          newInstanceAttributes().set('data', result)
-        );
-        return await evaluate(inst);
+      try {
+        const eventName = getSubscriptionEvent(this.name);
+        if (eventName) {
+          const path = splitFqName(eventName);
+          const inst = makeInstance(
+            path.getModuleName(),
+            path.getEntryName(),
+            newInstanceAttributes().set('data', result)
+          );
+          return await evaluate(inst);
+        }
+      } catch (err: any) {
+        logger.error(`Resolver ${this.name} raised error in onSubscription handler: ${err}`);
+        return undefined;
       }
     }
   }

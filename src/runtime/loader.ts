@@ -63,9 +63,10 @@ import { Environment, evaluateStatements, GlobalEnvironment } from './interprete
 import { createPermission, createRole } from './modules/auth.js';
 import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
-import { registerResolver, setResolver, setSubscription } from './resolvers/registry.js';
+import { registerResolver, setResolver } from './resolvers/registry.js';
 import { ConfigSchema } from './state.js';
-import { getModuleFn, importModule, validateImportName } from './jsmodules.js';
+import { getModuleFn, importModule } from './jsmodules.js';
+import { SetSubscription } from './defs.js';
 
 export async function extractDocument(
   fileName: string,
@@ -356,7 +357,7 @@ export function addRelationshipFromDef(
 }
 
 export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string): Workflow {
-  return addWorkflow(def.name, moduleName, def.statements);
+  return addWorkflow(def.name, moduleName, def.statements, def.hints);
 }
 
 const StandaloneStatements = new Map<string, Statement[]>();
@@ -489,7 +490,7 @@ function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
       resolver.subs = {
         subscribe: subsFn,
       };
-      if (subsEvent) setSubscription(subsEvent, resolverName);
+      if (subsEvent) SetSubscription(subsEvent, resolverName);
       resolver.subscribe();
     }
   });
@@ -537,7 +538,6 @@ export async function internModule(
   const mn = module.name;
   const r = addModule(mn);
   module.imports.forEach(async (imp: Import) => {
-    validateImportName(imp.name);
     await importModule(imp.path, imp.name, moduleFileName);
   });
   for (let i = 0; i < module.defs.length; ++i) {

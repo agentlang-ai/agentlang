@@ -1,3 +1,4 @@
+import { setSubscriptionFn } from '../defs.js';
 import { Resolver, setSubscriptionEvent } from './interface.js';
 
 type MakeResolver = () => Resolver;
@@ -17,8 +18,6 @@ export function setResolver(fqEntryName: string, resolverName: string) {
   }
 }
 
-export const setSubscription = setSubscriptionEvent;
-
 export function getResolverNameForPath(fqEntryName: string): string | undefined {
   return resolverPathMappings.get(fqEntryName);
 }
@@ -31,3 +30,5 @@ export function getResolver(fqEntryName: string): Resolver {
   }
   throw new Error(`No resolver registered for ${fqEntryName}`);
 }
+
+setSubscriptionFn(setSubscriptionEvent);

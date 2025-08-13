@@ -52,6 +52,7 @@ export type AgentlangKeywordNames =
     | "@oneof"
     | "@rbac"
     | "@ref"
+    | "@subs"
     | "@then"
     | "@upsert"
     | "@with_unique"
@@ -136,6 +137,12 @@ export function isExpr(item: unknown): item is Expr {
     return reflection.isInstance(item, Expr);
 }
 
+export type GenericName = string;
+
+export function isGenericName(item: unknown): item is GenericName {
+    return (typeof item === 'string' && (/(([_a-zA-Z][\w_]*)(\/([_a-zA-Z][\w_]*))?)/.test(item) || /("(((\\([\s\S]))|((?!(((\\|")|\r)|\n))[\s\S]*?))|(\r?\n))*")/.test(item)));
+}
+
 export type PrimExpr = Group | Literal | NegExpr | NotExpr;
 
 export const PrimExpr = 'PrimExpr';
@@ -217,7 +224,7 @@ export interface AgentDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'AgentDefinition';
     body?: AgentDefBody;
-    name: string;
+    name: GenericName;
 }
 
 export const AgentDefinition = 'AgentDefinition';
@@ -960,8 +967,8 @@ export interface ResolverDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'ResolverDefinition';
     methods: Array<ResolverMethodSpec>;
-    name: string;
-    paths: Array<string>;
+    name: GenericName;
+    paths: Array<GenericName>;
 }
 
 export const ResolverDefinition = 'ResolverDefinition';
@@ -1138,6 +1145,7 @@ export function isTriggerEntry(item: unknown): item is TriggerEntry {
 export interface WorkflowDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'WorkflowDefinition';
+    hints: Array<WorkflowHint>;
     name: string;
     statements: Array<Statement>;
 }
@@ -1146,6 +1154,30 @@ export const WorkflowDefinition = 'WorkflowDefinition';
 
 export function isWorkflowDefinition(item: unknown): item is WorkflowDefinition {
     return reflection.isInstance(item, WorkflowDefinition);
+}
+
+export interface WorkflowHint extends langium.AstNode {
+    readonly $container: WorkflowDefinition;
+    readonly $type: 'WorkflowHint';
+    subs: WorkflowSubsHint;
+}
+
+export const WorkflowHint = 'WorkflowHint';
+
+export function isWorkflowHint(item: unknown): item is WorkflowHint {
+    return reflection.isInstance(item, WorkflowHint);
+}
+
+export interface WorkflowSubsHint extends langium.AstNode {
+    readonly $container: WorkflowHint;
+    readonly $type: 'WorkflowSubsHint';
+    resolverName: string;
+}
+
+export const WorkflowSubsHint = 'WorkflowSubsHint';
+
+export function isWorkflowSubsHint(item: unknown): item is WorkflowSubsHint {
+    return reflection.isInstance(item, WorkflowSubsHint);
 }
 
 export type AgentlangAstType = {
@@ -1228,12 +1260,14 @@ export type AgentlangAstType = {
     TriggerDefinition: TriggerDefinition
     TriggerEntry: TriggerEntry
     WorkflowDefinition: WorkflowDefinition
+    WorkflowHint: WorkflowHint
+    WorkflowSubsHint: WorkflowSubsHint
 }
 
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefBody, AgentDefinition, AgentPropertyDef, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefBody, AgentDefinition, AgentPropertyDef, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHint, WorkflowSubsHint];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1953,8 +1987,25 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: WorkflowDefinition,
                     properties: [
+                        { name: 'hints', defaultValue: [] },
                         { name: 'name' },
                         { name: 'statements', defaultValue: [] }
+                    ]
+                };
+            }
+            case WorkflowHint: {
+                return {
+                    name: WorkflowHint,
+                    properties: [
+                        { name: 'subs' }
+                    ]
+                };
+            }
+            case WorkflowSubsHint: {
+                return {
+                    name: WorkflowSubsHint,
+                    properties: [
+                        { name: 'resolverName' }
                     ]
                 };
             }

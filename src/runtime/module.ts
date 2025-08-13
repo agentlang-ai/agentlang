@@ -19,6 +19,7 @@ import {
   RbacSpecEntry,
   RbacSpecEntries,
   RbacOpr,
+  WorkflowHint,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -43,7 +44,12 @@ import {
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
-import { DefaultIdAttributeName, FetchModuleFn, PathAttributeName } from './defs.js';
+import {
+  DefaultIdAttributeName,
+  FetchModuleFn,
+  PathAttributeName,
+  SetSubscription,
+} from './defs.js';
 import { logger } from './logger.js';
 
 export class ModuleEntry {
@@ -1857,7 +1863,8 @@ function normalizeWorkflowName(n: string): string {
 export function addWorkflow(
   name: string,
   moduleName = activeModule,
-  statements?: Statement[]
+  statements?: Statement[],
+  hints?: WorkflowHint[]
 ): Workflow {
   const module: Module = fetchModule(moduleName);
   if (module.hasEntry(name)) {
@@ -1870,6 +1877,13 @@ export function addWorkflow(
     event.addMeta(SystemDefinedEvent, 'true');
   }
   if (!statements) statements = new Array<Statement>();
+  if (hints && hints.length > 0) {
+    hints.forEach((hint: WorkflowHint) => {
+      if (hint.subs) {
+        SetSubscription(makeFqName(moduleName, name), hint.subs.resolverName);
+      }
+    });
+  }
   return module.addEntry(new Workflow(asWorkflowName(name), statements, moduleName)) as Workflow;
 }
 
