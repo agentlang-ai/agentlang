@@ -137,14 +137,21 @@ export const DefaultAppSpec: ApplicationSpec = {
   version: '0.0.1',
 };
 
-async function getAllModules(dir: string, fs: ExtendedFileSystem): Promise<string[]> {
+async function getAllModules(
+  dir: string,
+  fs: ExtendedFileSystem,
+  drill: boolean = true
+): Promise<string[]> {
   let alFiles = new Array<string>();
+  if (!(await fs.exists(dir))) {
+    return alFiles;
+  }
   const directoryContents = await fs.readdir(dir);
   for (let i = 0; i < directoryContents.length; ++i) {
     const file = directoryContents[i];
     if (path.extname(file).toLowerCase() == '.al') {
       alFiles.push(dir + path.sep + file);
-    } else {
+    } else if (drill) {
       const fullPath = dir + path.sep + file;
       const stat = await fs.stat(fullPath);
       if (stat.isDirectory()) {
@@ -164,7 +171,9 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   const appSpec: ApplicationSpec = JSON.parse(s);
   let lastModuleLoaded: string = '';
   async function cont2() {
-    const alFiles = await getAllModules(appDir + path.sep + 'src', fs);
+    const fls01 = await getAllModules(appDir, fs, false);
+    const fls02 = await getAllModules(appDir + path.sep + 'src', fs);
+    const alFiles = fls01.concat(fls02);
     for (let i = 0; i < alFiles.length; ++i) {
       lastModuleLoaded = (await loadModule(alFiles[i], fsOptions)).name;
     }
@@ -174,7 +183,10 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
     for (const [depName, _] of Object.entries(appSpec.dependencies)) {
       try {
         const depDirName = `./node_modules/${depName}`;
-        const files = await fs.readdir(depDirName + path.sep + 'src');
+        const fls01 = await fs.readdir(depDirName);
+        const srcDir = depDirName + path.sep + 'src';
+        const hasSrc = await fs.exists(srcDir);
+        const files = hasSrc ? fls01.concat(await fs.readdir(srcDir)) : fls01;
         if (
           files.find(file => {
             return path.extname(file).toLowerCase() == '.al';
