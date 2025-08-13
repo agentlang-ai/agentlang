@@ -2233,14 +2233,25 @@ export class Instance {
   }
 
   asSerializableObject(): object {
-    const obj = {
+    const obj: any = {
       AL_INSTANCE: true,
       name: this.name,
       moduleName: this.moduleName,
       attributes: this.attributesAsObject(true),
-      queryAttributes: this.queryAttributesAsObject(),
-      queryAttributeValues: this.queryAttributeValuesAsObject(),
     };
+    if (this.queryAttributes) {
+      obj.queryAttributes = this.queryAttributesAsObject();
+      obj.queryAttributeValues = this.queryAttributeValuesAsObject();
+    }
+    if (this.relatedInstances) {
+      const relsObj: any = {};
+      this.relatedInstances.forEach((insts: Instance[], relName: string) => {
+        relsObj[relName] = insts.map((inst: Instance) => {
+          return inst.asSerializableObject();
+        });
+      });
+      obj.relatedInstances = relsObj;
+    }
     return obj;
   }
 
@@ -2279,18 +2290,25 @@ export class Instance {
     return Object.fromEntries(result);
   }
 
+  static asSerializableValue(v: any, forSerialization: boolean): any {
+    if (v instanceof Instance) {
+      const inst = v as Instance;
+      return forSerialization ? inst.asSerializableObject() : inst.asObject();
+    } else if (v instanceof Object) {
+      return v instanceof Map ? Object.fromEntries(v) : v;
+    } else if (v instanceof Array) {
+      return v.map((x: any) => {
+        return Instance.asSerializableValue(x, forSerialization);
+      });
+    } else {
+      return v;
+    }
+  }
+
   attributesAsObject(forSerialization: boolean = false): object {
     const attrs = newInstanceAttributes();
     this.attributes.forEach((v: any, k: string) => {
-      if (v instanceof Instance) {
-        const inst = v as Instance;
-        attrs.set(k, forSerialization ? inst.asSerializableObject() : inst.asObject());
-      } else if (v instanceof Object) {
-        const obj = v instanceof Map ? Object.fromEntries(v) : v;
-        attrs.set(k, obj);
-      } else {
-        attrs.set(k, v);
-      }
+      attrs.set(k, Instance.asSerializableValue(v, forSerialization));
     });
     return Object.fromEntries(attrs);
   }
