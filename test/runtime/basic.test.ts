@@ -15,6 +15,8 @@ import {
   removeModule,
   Module,
   isModule,
+  getAllBetweenRelationshipsForEntity,
+  Relationship,
 } from '../../src/runtime/module.js';
 import {
   buildGraph,
@@ -902,5 +904,39 @@ entity C
     const idx = s.indexOf('entity')
     await doInternModule('cfge2', s.substring(idx))
     assert(fetchModule('cfge2'))
+  })
+})
+
+describe("Fetch rels for entity", () => {
+  test('test01', async () => {
+    await doInternModule('FRels',
+      `entity A {
+        id Int @id, x Int
+      }
+      entity B {
+        id Int @id, y Int
+      }
+      entity C {
+        id Int @id, z Int
+      }
+      relationship AB between(A, B)
+      relationship AC between(A, C)
+      relationship BC contains(B, C)
+    `)
+    let rels = getAllBetweenRelationshipsForEntity('FRels', 'A')
+    const chk = (rels: Relationship[], names: string[]) => {
+      assert(rels.length == names.length)
+      const s1 = new Set(rels.map((r: Relationship) => {
+        return r.getFqName()
+      }))
+      names.forEach((n: string) => {
+        assert(s1.has(n))
+      })
+    }
+    chk(rels, ["FRels/AB", "FRels/AC"])
+    rels = getAllBetweenRelationshipsForEntity('FRels', 'C')
+    chk(rels, ['FRels/AC'])
+    rels = getAllBetweenRelationshipsForEntity('FRels', 'B')
+    chk(rels, ['FRels/AB'])
   })
 })

@@ -1989,6 +1989,21 @@ function filterBetweenRelationshipsForEntity(
   });
 }
 
+export function getAllBetweenRelationshipsForEntity(
+  moduleName: string,
+  entityName: string,
+  allBetweenRels?: Relationship[]
+): Relationship[] {
+  return filterBetweenRelationshipsForEntity(
+    moduleName,
+    entityName,
+    (re: Relationship, p: Path) => {
+      return re.node1.path.equals(p) || re.node2.path.equals(p);
+    },
+    allBetweenRels
+  );
+}
+
 export function getAllOneToOneRelationshipsForEntity(
   moduleName: string,
   entityName: string,
@@ -2276,8 +2291,8 @@ export class Instance {
         obj.moduleName,
         obj.name,
         Instance.DeserializeAttributes(new Map(Object.entries(obj.attributes))),
-        new Map(Object.entries(obj.queryAttributes)),
-        new Map(Object.entries(obj.queryAttributeValues))
+        obj.queryAttributes ? new Map(Object.entries(obj.queryAttributes)) : undefined,
+        obj.queryAttributeValues ? new Map(Object.entries(obj.queryAttributeValues)) : undefined
       );
     } else {
       throw new Error(`Cannot deserialize ${JSON.stringify(obj)} to an Instance`);
