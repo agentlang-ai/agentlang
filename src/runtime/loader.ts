@@ -384,13 +384,15 @@ export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string):
 const StandaloneStatements = new Map<string, Statement[]>();
 
 function addStandaloneStatement(stmt: Statement, moduleName: string) {
-  let stmts: Array<Statement> | undefined = StandaloneStatements.get(moduleName);
-  if (stmts == undefined) {
-    stmts = new Array<Statement>();
-  }
-  stmts.push(stmt);
-  if (!StandaloneStatements.has(moduleName)) {
-    StandaloneStatements.set(moduleName, stmts);
+  if (isNodeEnv) {
+    let stmts: Array<Statement> | undefined = StandaloneStatements.get(moduleName);
+    if (stmts == undefined) {
+      stmts = new Array<Statement>();
+    }
+    stmts.push(stmt);
+    if (!StandaloneStatements.has(moduleName)) {
+      StandaloneStatements.set(moduleName, stmts);
+    }
   }
 }
 
