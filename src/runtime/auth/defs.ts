@@ -47,3 +47,14 @@ export const NoSession: ActiveSessionInfo = {
 export function isNoSession(sess: ActiveSessionInfo): boolean {
   return sess == NoSession;
 }
+
+const LocalEnv = new Map<string, string>();
+
+export function setLocalEnv(k: string, v: string): string {
+  LocalEnv.set(k, v);
+  return v;
+}
+
+export function getLocalEnv(k: string): string | undefined {
+  return LocalEnv.get(k);
+}
