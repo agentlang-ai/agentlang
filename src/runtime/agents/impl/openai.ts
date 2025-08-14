@@ -1,6 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { AgentServiceProvider, AIResponse, asAIResponse } from '../provider.js';
 import { BaseMessage } from '@langchain/core/messages';
+import { getLocalEnv } from '../../auth/defs.js';
 
 export interface OpenAIConfig {
   model?: string;
@@ -68,11 +69,15 @@ export class OpenAIProvider implements AgentServiceProvider {
     if (!config) {
       return {
         ...defaultConfig,
-        apiKey: process.env.OPENAI_API_KEY,
+        apiKey: process.env.OPENAI_API_KEY || getLocalEnv('OPENAI_API_KEY'),
       };
     }
 
-    const apiKey = config.get('apiKey') || config.get('api_key') || process.env.OPENAI_API_KEY;
+    const apiKey =
+      config.get('apiKey') ||
+      config.get('api_key') ||
+      process.env.OPENAI_API_KEY ||
+      getLocalEnv('OPENAI_API_KEY');
 
     return {
       model: config.get('model') || defaultConfig.model,

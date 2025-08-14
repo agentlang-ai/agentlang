@@ -1,6 +1,7 @@
 import { ChatAnthropic } from '@langchain/anthropic';
 import { AgentServiceProvider, AIResponse, asAIResponse } from '../provider.js';
 import { BaseMessage } from '@langchain/core/messages';
+import { getLocalEnv } from '../../auth/defs.js';
 
 export interface AnthropicConfig {
   model?: string;
@@ -167,11 +168,15 @@ export class AnthropicProvider implements AgentServiceProvider {
     if (!config) {
       return {
         ...defaultConfig,
-        apiKey: process.env.ANTHROPIC_API_KEY,
+        apiKey: process.env.ANTHROPIC_API_KEY || getLocalEnv('ANTHROPIC_API_KEY'),
       };
     }
 
-    const apiKey = config.get('apiKey') || config.get('api_key') || process.env.ANTHROPIC_API_KEY;
+    const apiKey =
+      config.get('apiKey') ||
+      config.get('api_key') ||
+      process.env.ANTHROPIC_API_KEY ||
+      getLocalEnv('ANTHROPIC_API_KEY');
 
     return {
       model: config.get('model') || defaultConfig.model,
