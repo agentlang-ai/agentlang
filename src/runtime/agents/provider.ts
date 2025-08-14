@@ -3,7 +3,7 @@ import { ChatPromptValueInterface } from '@langchain/core/prompt_values';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 
 export interface AgentServiceProvider {
-  invoke(messages: BaseMessage[]): any;
+  invoke(messages: BaseMessage[], externalToolSpecs: any[] | undefined): any;
 }
 
 export function systemMessage(msg: string): SystemMessage {
@@ -19,7 +19,11 @@ export function assistantMessage(msg: string): AIMessage {
 }
 
 function getContent(aiMsg: AIMessage): string {
-  return aiMsg.content.toString();
+  const c: any = aiMsg.content;
+  if (c instanceof Object) {
+    return JSON.stringify(c);
+  }
+  return c;
 }
 
 export type AIResponse = {

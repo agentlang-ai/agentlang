@@ -102,11 +102,16 @@ export class OpenAIProvider implements AgentServiceProvider {
     };
   }
 
-  async invoke(messages: BaseMessage[]): Promise<AIResponse> {
+  async invoke(messages: BaseMessage[], externalToolSpecs: any[] | undefined): Promise<AIResponse> {
     if (!this.config.apiKey) {
       throw new Error(
         'OpenAI API key is required. Set OPENAI_API_KEY environment variable or provide apiKey in config.'
       );
+    }
+    if (externalToolSpecs) {
+      const m = this.model.bindTools(externalToolSpecs);
+      const r = await m.invoke(messages);
+      return asAIResponse(r);
     }
     return asAIResponse(await this.model.invoke(messages));
   }

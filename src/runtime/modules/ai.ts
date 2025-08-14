@@ -1,5 +1,10 @@
 import { isFqName, makeCoreModuleName, makeFqName, splitFqName } from '../util.js';
-import { Environment, makeEventEvaluator, parseAndEvaluateStatement } from '../interpreter.js';
+import {
+  Environment,
+  GlobalEnvironment,
+  makeEventEvaluator,
+  parseAndEvaluateStatement,
+} from '../interpreter.js';
 import { fetchModule, Instance, instanceToObject, isModule } from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
@@ -74,15 +79,45 @@ export class AgentInstance {
   channels: string | undefined;
   runWorkflows: boolean = true;
   output: string | undefined;
+  private toolsArray: string[] | undefined = undefined;
+  private hasModuleTools = false;
 
   private constructor() {}
 
   static FromInstance(agentInstance: Instance): AgentInstance {
-    return instanceToObject<AgentInstance>(agentInstance, new AgentInstance());
+    const agent: AgentInstance = instanceToObject<AgentInstance>(
+      agentInstance,
+      new AgentInstance()
+    );
+    let finalTools: string | undefined = undefined;
+    if (agent.tools) finalTools = agent.tools;
+    if (agent.channels) {
+      if (finalTools) {
+        finalTools = `${finalTools},${agent.channels}`;
+      } else {
+        finalTools = agent.channels;
+      }
+    }
+    if (finalTools) {
+      agent.toolsArray = finalTools.split(',');
+    }
+    if (agent.toolsArray) {
+      for (let i = 0; i < agent.toolsArray.length; ++i) {
+        const n = agent.toolsArray[i];
+        if (isFqName(n)) {
+          const parts = splitFqName(n);
+          agent.hasModuleTools = isModule(parts.getModuleName());
+        } else {
+          agent.hasModuleTools = isModule(n);
+        }
+        if (agent.hasModuleTools) break;
+      }
+    }
+    return agent;
   }
 
   isPlanner(): boolean {
-    return (this.tools && this.tools.length > 0) || this.type == 'planner';
+    return this.hasModuleTools || this.type == 'planner';
   }
 
   async invoke(message: string, env: Environment) {
@@ -107,7 +142,8 @@ export class AgentInstance {
           msgs[0] = newSysMsg;
         }
         msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
-        const response: AIResponse = await p.invoke(msgs);
+        const externalToolSpecs = this.getExternalToolSpecs();
+        const response: AIResponse = await p.invoke(msgs, externalToolSpecs);
         msgs.push(assistantMessage(response.content));
         if (isplnr) {
           msgs[0] = sysMsg;
@@ -121,6 +157,22 @@ export class AgentInstance {
     } else {
       throw new Error(`failed to initialize messages for agent ${agentName}`);
     }
+  }
+
+  private getExternalToolSpecs(): any[] | undefined {
+    let result: any[] | undefined = undefined;
+    if (this.toolsArray) {
+      this.toolsArray.forEach((n: string) => {
+        const v = GlobalEnvironment.lookup(n);
+        if (v) {
+          if (result == undefined) {
+            result = new Array<any>();
+          }
+          result.push(v);
+        }
+      });
+    }
+    return result;
   }
 
   private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
@@ -153,20 +205,17 @@ export class AgentInstance {
     return message;
   }
 
+  private static ToolsCache = new Map<string, string>();
+
   private toolsAsString(): string {
-    let finalTools: string | undefined = undefined;
-    if (this.tools) finalTools = this.tools;
-    if (this.channels) {
-      if (finalTools) {
-        finalTools = `${finalTools},${this.channels}`;
-      } else {
-        finalTools = this.channels;
-      }
+    const cachedTools = AgentInstance.ToolsCache.get(this.name);
+    if (cachedTools) {
+      return cachedTools;
     }
-    if (finalTools) {
+    if (this.toolsArray) {
       const tooldefs = new Array<string>();
       const slimModules = new Map<string, string[]>();
-      finalTools.split(',').forEach((n: string) => {
+      this.toolsArray.forEach((n: string) => {
         let moduleName: string | undefined;
         let entryName: string | undefined;
         if (isFqName(n)) {
@@ -193,7 +242,9 @@ export class AgentInstance {
       slimModules.forEach((defs: string[], modName: string) => {
         tooldefs.push(`module ${modName}\n${defs.join('\n')}`);
       });
-      return tooldefs.join('\n');
+      const agentTools = tooldefs.join('\n');
+      AgentInstance.ToolsCache.set(this.name, agentTools);
+      return agentTools;
     } else {
       return '';
     }
