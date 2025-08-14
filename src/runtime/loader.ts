@@ -474,9 +474,11 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   if (llmName) {
     wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}"}, @upsert}; ${wf}`;
   }
-  (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
-    addStandaloneStatement(stmt, moduleName);
-  });
+  if (isNodeEnv) {
+    (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
+      addStandaloneStatement(stmt, moduleName);
+    });
+  }
   addAgent(def.name, attrs, moduleName);
 }
 
