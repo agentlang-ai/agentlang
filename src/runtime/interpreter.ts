@@ -1373,7 +1373,8 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
 function agentInputAsString(result: any): string {
   if (!isString(result)) {
     if (result instanceof Instance) {
-      return JSON.stringify((result as Instance).asObject());
+      const inst = result as Instance;
+      return JSON.stringify(inst.asSerializableObject());
     } else if (result instanceof Array) {
       return `[${(result as Array<any>)
         .map((r: any) => {
