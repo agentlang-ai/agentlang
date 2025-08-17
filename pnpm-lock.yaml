@@ -76,7 +76,7 @@ importers:
         version: 2.0.7
       langchain:
         specifier: ^0.3.28
-        version: 0.3.29(@langchain/anthropic@0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73))))(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))(axios@1.11.0)(openai@5.8.2(zod@3.25.73))(typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sqlite3@5.1.7))
+        version: 0.3.29(@langchain/anthropic@0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73))))(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))(axios@1.11.0)(openai@5.8.2(zod@3.25.73))(typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7))
       langium:
         specifier: ^3.5.0
         version: 3.5.0
@@ -98,12 +98,15 @@ importers:
       pgvector:
         specifier: ^0.2.1
         version: 0.2.1
+      sql.js:
+        specifier: ^1.13.0
+        version: 1.13.0
       sqlite3:
         specifier: ^5.1.7
         version: 5.1.7
       typeorm:
-        specifier: ^0.3.23
-        version: 0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sqlite3@5.1.7)
+        specifier: ^0.3.25
+        version: 0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7)
       vscode-languageclient:
         specifier: ^9.0.1
         version: 9.0.1
@@ -132,6 +135,9 @@ importers:
       '@types/node':
         specifier: ^18.19.110
         version: 18.19.115
+      '@types/sql.js':
+        specifier: ^1.4.9
+        version: 1.4.9
       '@types/vscode':
         specifier: ^1.100.0
         version: 1.101.0
@@ -1693,6 +1699,9 @@ packages:
   '@types/ejs@3.1.5':
     resolution: {integrity: sha512-nv+GSx77ZtXiJzwKdsASqi+YQ5Z7vwHsTP0JY2SiQgjGckkBRKZnk8nIM+7oUZ1VCtuTz0+By4qVR7fqzp/Dfg==}
 
+  '@types/emscripten@1.40.1':
+    resolution: {integrity: sha512-sr53lnYkQNhjHNN0oJDdUm5564biioI5DuOpycufDVK7D3y+GR3oUswe2rlwY1nPNyusHbrJ9WoTyIHl4/Bpwg==}
+
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
@@ -1743,6 +1752,9 @@ packages:
 
   '@types/serve-static@1.15.8':
     resolution: {integrity: sha512-roei0UY3LhpOJvjbIP6ZZFngyLKl5dskOtDhxY5THRSpO+ZI+nzJ+m5yUMzGrp89YRa7lvknKkMYjqQFGwA7Sg==}
+
+  '@types/sql.js@1.4.9':
+    resolution: {integrity: sha512-ep8b36RKHlgWPqjNG9ToUrPiwkhwh0AEzy883mO5Xnd+cL6VBH1EvSjBAAuxLUFF2Vn/moE3Me6v9E1Lo+48GQ==}
 
   '@types/triple-beam@1.3.5':
     resolution: {integrity: sha512-6WaYesThRMCl19iryMYP7/x2OVgCtbIVflDGFpWnb9irXI3UjYE4AzmYuiUKY1AJstGijoY+MgUszMgRxIYTYw==}
@@ -4179,6 +4191,9 @@ packages:
   sql-highlight@6.1.0:
     resolution: {integrity: sha512-ed7OK4e9ywpE7pgRMkMQmZDPKSVdm0oX5IEtZiKnFucSF0zu6c80GZBe38UqHuVhTWJ9xsKgSMjCG2bml86KvA==}
     engines: {node: '>=14'}
+
+  sql.js@1.13.0:
+    resolution: {integrity: sha512-RJbVP1HRDlUUXahJ7VMTcu9Rm1Nzw+EBpoPr94vnbD4LwR715F3CcxE2G2k45PewcaZ57pjetYa+LoSJLAASgA==}
 
   sqlite3@5.1.7:
     resolution: {integrity: sha512-GGIyOiFaG+TUra3JIfkI/zGP8yZYLPQ0pl1bH+ODjiX57sPhrLU5sQJn1y9bDKZUFYkX1crlrPfSYt0BKKdkog==}
@@ -7444,6 +7459,8 @@ snapshots:
 
   '@types/ejs@3.1.5': {}
 
+  '@types/emscripten@1.40.1': {}
+
   '@types/estree@1.0.8': {}
 
   '@types/expect@1.20.4': {}
@@ -7497,6 +7514,11 @@ snapshots:
       '@types/http-errors': 2.0.5
       '@types/node': 18.19.115
       '@types/send': 0.17.5
+
+  '@types/sql.js@1.4.9':
+    dependencies:
+      '@types/emscripten': 1.40.1
+      '@types/node': 18.19.115
 
   '@types/triple-beam@1.3.5': {}
 
@@ -9192,7 +9214,7 @@ snapshots:
 
   kuler@2.0.0: {}
 
-  langchain@0.3.29(@langchain/anthropic@0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73))))(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))(axios@1.11.0)(openai@5.8.2(zod@3.25.73))(typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sqlite3@5.1.7)):
+  langchain@0.3.29(@langchain/anthropic@0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73))))(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))(axios@1.11.0)(openai@5.8.2(zod@3.25.73))(typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7)):
     dependencies:
       '@langchain/core': 0.3.62(openai@5.8.2(zod@3.25.73))
       '@langchain/openai': 0.5.18(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))
@@ -9209,7 +9231,7 @@ snapshots:
     optionalDependencies:
       '@langchain/anthropic': 0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))
       axios: 1.11.0
-      typeorm: 0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sqlite3@5.1.7)
+      typeorm: 0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7)
     transitivePeerDependencies:
       - '@opentelemetry/api'
       - '@opentelemetry/exporter-trace-otlp-proto'
@@ -10289,6 +10311,8 @@ snapshots:
 
   sql-highlight@6.1.0: {}
 
+  sql.js@1.13.0: {}
+
   sqlite3@5.1.7:
     dependencies:
       bindings: 1.5.0
@@ -10509,7 +10533,7 @@ snapshots:
       es-errors: 1.3.0
       is-typed-array: 1.1.15
 
-  typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sqlite3@5.1.7):
+  typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7):
     dependencies:
       '@sqltools/formatter': 1.2.5
       ansis: 3.17.0
@@ -10528,6 +10552,7 @@ snapshots:
       yargs: 17.7.2
     optionalDependencies:
       pg: 8.16.3
+      sql.js: 1.13.0
       sqlite3: 5.1.7
     transitivePeerDependencies:
       - babel-plugin-macros
