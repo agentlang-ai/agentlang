@@ -194,6 +194,8 @@ importers:
 
   example/family: {}
 
+  example/mcpdemo: {}
+
   example/pets: {}
 
   example/support_agent: {}
