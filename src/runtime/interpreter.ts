@@ -547,6 +547,10 @@ export async function evaluate(
         }
         await evaluateStatements(wf.statements, env, continuation);
         return env.getLastResult();
+      } else if (isAgentEventInstance(eventInstance)) {
+        env = new Environment(eventInstance.name + '.env', activeEnv);
+        await handleAgentInvocation(eventInstance, env);
+        if (continuation) continuation(env.getLastResult());
       } else if (isOpenApiEventInstance(eventInstance)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
         await handleOpenApiEvent(eventInstance, env);
