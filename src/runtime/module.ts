@@ -2659,7 +2659,7 @@ const EventAgentName = 'event-agent-name';
 export function defineAgentEvent(moduleName: string, agentName: string) {
   const module = fetchModule(moduleName);
   const event: Record = new Event(agentName, moduleName);
-  event.addAttribute('message', { type: 'String' });
+  event.addAttribute('message', { type: 'Any' });
   event.addAttribute('chatId', { type: 'String' });
   event.addMeta(IsAgentEventMeta, 'y');
   event.addMeta(EventAgentName, agentName);
