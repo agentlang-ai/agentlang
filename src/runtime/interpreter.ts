@@ -82,6 +82,7 @@ import {
 } from './modules/core.js';
 import { invokeModuleFn } from './jsmodules.js';
 import { invokeOpenApiEvent, isOpenApiEventInstance } from './openapi.js';
+import { fetchDoc } from './docs.js';
 
 export type Result = any;
 
@@ -1196,9 +1197,25 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   } else if (isEventInstance(inst)) {
     if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
     else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
+    else if (isDocEventInstance(inst)) await handleDocEvent(inst, env)
     else await evaluate(inst, (result: Result) => env.setLastResult(result), env);
   } else {
     env.setLastResult(inst);
+  }
+}
+
+const CoreAIModuleName = 'agentlang_ai'
+const DocEventName = `${CoreAIModuleName}/doc`
+
+function isDocEventInstance(inst: Instance): boolean {
+  return isInstanceOfType(inst, DocEventName)
+}
+
+async function handleDocEvent(inst: Instance, env: Environment): Promise<void> {
+  const s = await fetchDoc(inst.lookup('url'))
+  if (s) {
+    const title = inst.lookup('title')
+    await parseAndEvaluateStatement(`{${CoreAIModuleName}/Document} {title "${title}", content "${s}"}}`, undefined, env)
   }
 }
 

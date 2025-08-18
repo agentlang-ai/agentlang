@@ -62,6 +62,11 @@ entity Document {
   content String,
   @meta {"fullTextSearch": "*"}
 }
+
+event doc {
+  title String,
+  url String
+}
 `;
 
 export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
