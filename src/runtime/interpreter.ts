@@ -1319,7 +1319,9 @@ const MAX_PLANNER_RETRIES = 3;
 
 async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
   const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
-  await agent.invoke(agentEventInst.lookup('message'), env);
+  const origMsg: any = agentEventInst.lookup('message');
+  const msg: string = isString(origMsg) ? origMsg : agentInputAsString(origMsg);
+  await agent.invoke(msg, env);
   const r: string | undefined = env.getLastResult();
   const isPlanner = agent.isPlanner();
   let result: string | undefined = isPlanner ? cleanupAgentResponse(r) : r;
