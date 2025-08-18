@@ -1719,7 +1719,7 @@ async function runPreCreateEvents(inst: Instance, env: Environment) {
   await runPrePostEvents(CrudType.CREATE, true, inst, env);
 }
 
-async function runPostCreateEvents(inst: Instance, env: Environment) {
+export async function runPostCreateEvents(inst: Instance, env: Environment) {
   if (inst.requireAudit()) {
     await addCreateAudit(inst.getPath(), env);
   }
@@ -1730,7 +1730,7 @@ async function runPreUpdateEvents(inst: Instance, env: Environment) {
   await runPrePostEvents(CrudType.UPDATE, true, inst, env);
 }
 
-async function runPostUpdateEvents(inst: Instance, env: Environment) {
+export async function runPostUpdateEvents(inst: Instance, env: Environment) {
   if (inst.requireAudit()) {
     await addUpdateAudit(inst.getPath(), undefined, env);
   }
@@ -1741,7 +1741,7 @@ async function runPreDeleteEvents(inst: Instance, env: Environment) {
   await runPrePostEvents(CrudType.DELETE, true, inst, env);
 }
 
-async function runPostDeleteEvents(inst: Instance, env: Environment) {
+export async function runPostDeleteEvents(inst: Instance, env: Environment) {
   if (inst.requireAudit()) {
     await addDeleteAudit(inst.getPath(), undefined, env);
   }
