@@ -29,7 +29,7 @@ import { arrayEquals } from '../../src/runtime/util.js';
 import { assert, describe, test } from 'vitest';
 import { doInternModule, doPreInit, expectError } from '../util.js';
 import { testLogger } from '../test-logger.js';
-import { DefaultIdAttributeName, PathAttributeName } from '../../src/runtime/defs.js';
+import { PathAttributeName } from '../../src/runtime/defs.js';
 
 function createTestModule(): Module | undefined {
   addModule('Acme');
@@ -574,27 +574,6 @@ describe('Nested query-into tests', () => {
   });
 });
 
-describe('Default id attribute test', () => {
-  test('test01', async () => {
-    await doInternModule(
-      'DefId',
-      `entity E {
-        x Int
-      }`
-    );
-    const m = fetchModule('DefId');
-    const e = m.getEntry('E');
-    assert((e as Record).getIdAttributeName() == DefaultIdAttributeName);
-    await parseAndEvaluateStatement(`{DefId/E {x 10}}`).then((result: Instance) => {
-      assert(isInstanceOfType(result, 'DefId/E'));
-      const id: string = result.lookup(DefaultIdAttributeName);
-      assert(id.length > 0);
-      const path: string = result.lookup(PathAttributeName);
-      assert(path.indexOf(id) > 0);
-    });
-  });
-});
-
 describe('Multiple module loading tests', () => {
   test('test01', async () => {
     await doPreInit();
@@ -891,7 +870,6 @@ entity B
 {
     key Int @comment("Secret key"),
     host String @comment("Host name"),
-    __id__ UUID @default(uuid())  @id,
     @meta {"configEntity":true}
 }
 
