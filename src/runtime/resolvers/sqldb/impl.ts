@@ -94,8 +94,8 @@ export class SqlDbResolver extends Resolver {
       const idAttrName: string | undefined = maybeFindIdAttributeName(inst);
       ensureOneToOneAttributes(inst);
       const attrs: InstanceAttributes = inst.attributes;
-      if (idAttrName != undefined) {
-        const idAttrVal: any = attrs.get(idAttrName);
+      const idAttrVal: any = idAttrName ? attrs.get(idAttrName) : crypto.randomUUID();
+      if (idAttrVal != undefined) {
         const pp: string | undefined = attrs.get(PathAttributeName);
         const n: string = `${inst.moduleName}/${inst.name}`;
         let p: string = '';

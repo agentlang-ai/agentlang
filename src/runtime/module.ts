@@ -44,12 +44,7 @@ import {
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
-import {
-  DefaultIdAttributeName,
-  FetchModuleFn,
-  PathAttributeName,
-  SetSubscription,
-} from './defs.js';
+import { FetchModuleFn, PathAttributeName, SetSubscription } from './defs.js';
 import { logger } from './logger.js';
 
 export class ModuleEntry {
@@ -874,14 +869,6 @@ export class Entity extends Record {
     parentEntryName?: string
   ) {
     super(name, moduleName, scm, parentEntryName);
-    const idattr = this.getIdAttributeName();
-    if (idattr == undefined) {
-      const attrSpec: AttributeSpec = {
-        type: 'UUID',
-        properties: new Map().set('default', 'uuid()').set('id', true),
-      };
-      this.schema.set(DefaultIdAttributeName, attrSpec);
-    }
   }
 
   setRbacSpecifications(rbac: RbacSpecification[]): Entity {
