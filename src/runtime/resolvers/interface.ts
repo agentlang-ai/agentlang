@@ -1,4 +1,10 @@
-import { Environment, evaluate } from '../interpreter.js';
+import {
+  Environment,
+  evaluate,
+  runPostCreateEvents,
+  runPostDeleteEvents,
+  runPostUpdateEvents,
+} from '../interpreter.js';
 import { logger } from '../logger.js';
 import {
   Instance,
@@ -7,7 +13,7 @@ import {
   newInstanceAttributes,
   Relationship,
 } from '../module.js';
-import { splitFqName } from '../util.js';
+import { CrudType, splitFqName } from '../util.js';
 
 export class ResolverAuthInfo {
   userId: string;
@@ -189,6 +195,35 @@ export class Resolver {
 
   public async subscribe(): Promise<any> {
     return undefined;
+  }
+
+  private async onOutOfBandCrud(
+    inst: Instance,
+    operation: CrudType,
+    env: Environment
+  ): Promise<any> {
+    switch (operation) {
+      case CrudType.CREATE:
+        return await runPostCreateEvents(inst, env);
+      case CrudType.UPDATE:
+        return await runPostUpdateEvents(inst, env);
+      case CrudType.DELETE:
+        return await runPostDeleteEvents(inst, env);
+      default:
+        return inst;
+    }
+  }
+
+  public async onCreate(inst: Instance, env: Environment): Promise<any> {
+    return this.onOutOfBandCrud(inst, CrudType.CREATE, env);
+  }
+
+  public async onUpdate(inst: Instance, env: Environment): Promise<any> {
+    return this.onOutOfBandCrud(inst, CrudType.UPDATE, env);
+  }
+
+  public async onDelete(inst: Instance, env: Environment): Promise<any> {
+    return this.onOutOfBandCrud(inst, CrudType.DELETE, env);
   }
 
   public async onSubscription(result: any): Promise<any> {
