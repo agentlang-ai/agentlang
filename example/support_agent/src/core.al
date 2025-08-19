@@ -1,19 +1,21 @@
 module SupportAgent
 
+{agentlang_ai/doc {
+    title "price list",
+    url "./example/support_agent/docs/prices.txt"}}
+
+{agentlang_ai/doc {
+    title "g7x user manual",
+    url "./example/support_agent/docs/g7x_manual.txt"}}
+
+{agentlang_ai/doc {
+    title "eosr user manual",
+    url "./example/support_agent/docs/eosr_manual.txt"}}
+
 agent supportAgent {
     instruction "Analyse the user query and give an appropriate response.",
-    documents ["price_list", "user_manual"]
+    documents ["price list", "g7x user manual", "eosr user manual"]
 }
-
-{agentlang_ai/Document {
-    title "price_list",
-    content "G7X: $550, G9: $1250"},
-@upsert}
-
-{agentlang_ai/Document {
-    title "user_manual",
-    content "G7X: to set whitebalance, use the back-button, G9: to set whitebalance, use the menu selection"},
-@upsert}
 
 workflow help {
     {supportAgent {message help.q}}

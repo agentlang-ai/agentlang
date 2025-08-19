@@ -1,4 +1,4 @@
-import { readFile } from '../utils/fs-utils.js';
+import { getFileSystem } from '../utils/fs-utils.js';
 import { logger } from './logger.js';
 
 const DocFetchers = new Map<string, Function>();
@@ -19,10 +19,7 @@ function getDocFetcher(scheme: string): Function | undefined {
 
 export async function fetchDoc(url: string): Promise<string | undefined> {
   const idx = url.indexOf(':/');
-  if (idx <= 0) {
-    throw new Error(`invalid url: ${url}`);
-  }
-  const scheme = url.substring(0, idx);
+  const scheme = idx <= 0 ? 'file' : url.substring(0, idx);
   const f = getDocFetcher(scheme);
   if (f) return await f(url);
   else return undefined;
@@ -47,6 +44,14 @@ async function httpFetcher(url: string): Promise<string | undefined> {
   return undefined;
 }
 
+async function fetchFile(path: string): Promise<string> {
+  const fs = await getFileSystem();
+  if (path.startsWith('.')) {
+    path = `${process.cwd()}${path.substring(1)}`;
+  }
+  return fs.readFile(path);
+}
+
 registerDocFetcher('http', httpFetcher);
 registerDocFetcher('https', httpFetcher);
-registerDocFetcher('file', readFile);
+registerDocFetcher('file', fetchFile);

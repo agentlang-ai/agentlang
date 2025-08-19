@@ -59,6 +59,7 @@ import {
   isFqName,
   isPath,
   isString,
+  makeCoreModuleName,
   makeFqName,
   Path,
   QuerySuffix,
@@ -69,13 +70,7 @@ import {
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
-import {
-  AgentInstance,
-  AgentEntityName,
-  AgentFqName,
-  findAgentByName,
-  CoreAIModuleName,
-} from './modules/ai.js';
+import { AgentInstance, AgentEntityName, AgentFqName, findAgentByName } from './modules/ai.js';
 import { logger } from './logger.js';
 import { ParentAttributeName, PathAttributeName, PathAttributeNameQuery } from './defs.js';
 import {
@@ -1210,6 +1205,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   }
 }
 
+const CoreAIModuleName = makeCoreModuleName('ai');
 const DocEventName = `${CoreAIModuleName}/doc`;
 
 function isDocEventInstance(inst: Instance): boolean {
@@ -1221,7 +1217,7 @@ async function handleDocEvent(inst: Instance, env: Environment): Promise<void> {
   if (s) {
     const title = inst.lookup('title');
     await parseAndEvaluateStatement(
-      `{${CoreAIModuleName}/Document} {title "${title}", content "${s}"}}`,
+      `{${CoreAIModuleName}/Document {title "${title}", content "${s}"}}`,
       undefined,
       env
     );
