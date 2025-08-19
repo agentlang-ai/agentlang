@@ -207,7 +207,7 @@ export const DefaultModuleName = 'agentlang';
 export const DefaultModules = new Set();
 
 export function makeCoreModuleName(n: string): string {
-  return DefaultModuleName + '_' + n;
+  return DefaultModuleName + '.' + n;
 }
 
 const InitFunctions: Function[] = [];

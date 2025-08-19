@@ -1,14 +1,14 @@
 module SupportAgent
 
-{agentlang_ai/doc {
+{agentlang.ai/doc {
     title "price list",
     url "./example/support_agent/docs/prices.txt"}}
 
-{agentlang_ai/doc {
+{agentlang.ai/doc {
     title "g7x user manual",
     url "./example/support_agent/docs/g7x_manual.txt"}}
 
-{agentlang_ai/doc {
+{agentlang.ai/doc {
     title "eosr user manual",
     url "./example/support_agent/docs/eosr_manual.txt"}}
 

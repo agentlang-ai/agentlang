@@ -27,7 +27,7 @@ To test with RBAC:
 3. Run the app and login:
 
 ```shell
-POST http://localhost:8080/agentlang_auth/login
+POST http://localhost:8080/agentlang.auth/login
 
 {"email": "<user-email>", "password": "<user-password>"}
 ```

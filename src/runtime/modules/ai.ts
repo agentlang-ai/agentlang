@@ -183,13 +183,13 @@ export class AgentInstance {
   private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
     if (this.documents && this.documents.length > 0) {
       const s = `${message}. Relevant documents are: ${this.documents}`;
-      const result: any[] = await parseHelper(`{agentlang_ai/Document? "${s}"}`, env);
+      const result: any[] = await parseHelper(`{${CoreAIModuleName}/Document? "${s}"}`, env);
       if (result && result.length > 0) {
         const docs: Instance[] = [];
         for (let i = 0; i < result.length; ++i) {
           const v: any = result[i];
           const r: Instance[] = await parseHelper(
-            `{agentlang_ai/Document {${PathAttributeNameQuery} "${v.id}"}}`,
+            `{${CoreAIModuleName}/Document {${PathAttributeNameQuery} "${v.id}"}}`,
             env
           );
           if (r && r.length > 0) {
