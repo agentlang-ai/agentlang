@@ -76,7 +76,8 @@ entity config {
   auth Any @optional,
   rbac Any @optional,
   graphql Any @optional,
-  auditTrail Any @optional
+  auditTrail Any @optional,
+  integrations Any @optional
 }
 `;
 export const CoreModules: string[] = [];

@@ -27,10 +27,14 @@
     "enabled": "#js process.env.AUDIT_TRAIL_ENABLED === 'true'"
 } @as auditTrail
 
-{agentlang.app/config
- {store store,
-  service service,
-  auth auth,
-  rbac rbac,
-  graphql graphql,
-  auditTrail auditTrail}}
+{
+    agentlang.app/config
+    {
+	store store,
+	service service,
+	auth auth,
+	rbac rbac,
+	graphql graphql,
+	auditTrail auditTrail
+    }
+}
