@@ -768,7 +768,7 @@ export async function getManyByJoin(
 function intoSpecToSql(intoSpec: Map<string, string>): string {
   const cols = new Array<string>();
   intoSpec.forEach((v: string, k: string) => {
-    cols.push(`${v} AS ${k}`);
+    cols.push(`${v} AS "${k}"`);
   });
   return cols.join(', ');
 }
