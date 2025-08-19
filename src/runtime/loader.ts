@@ -43,6 +43,7 @@ import {
   removeModule,
   newInstanceAttributes,
   addAgent,
+  Instance,
 } from './module.js';
 import {
   escapeSpecialChars,
@@ -173,7 +174,11 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   async function cont2() {
     const fls01 = await getAllModules(appDir, fs, false);
     const fls02 = await getAllModules(appDir + path.sep + 'src', fs);
-    const alFiles = fls01.concat(fls02);
+    const alFiles0 = fls01.concat(fls02);
+    const configFile = `${appDir}/config.al`;
+    const alFiles = alFiles0.filter((s: string) => {
+      return s != configFile;
+    });
     for (let i = 0; i < alFiles.length; ++i) {
       lastModuleLoaded = (await loadModule(alFiles[i], fsOptions)).name;
     }
@@ -599,6 +604,14 @@ export async function loadRawConfig(
   } else {
     return { service: { port: 8080 } };
   }
+}
+
+export function configFromInstance(inst: Instance, validate: boolean = true): any {
+  const rawConfig = preprocessRawConfig(inst.asObject()).config;
+  if (validate) {
+    return ConfigSchema.parse(rawConfig);
+  }
+  return rawConfig;
 }
 
 export function generateRawConfig(configObj: any): string {

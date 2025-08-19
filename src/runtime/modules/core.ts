@@ -1,6 +1,6 @@
 import { default as ai } from './ai.js';
 import { default as auth } from './auth.js';
-import { DefaultModuleName, DefaultModules } from '../util.js';
+import { DefaultModuleName, DefaultModules, makeCoreModuleName } from '../util.js';
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../module.js';
 import {
   Environment,
@@ -13,6 +13,7 @@ import { Statement } from '../../language/generated/ast.js';
 import { parseStatements } from '../../language/parser.js';
 import { Resolver } from '../resolvers/interface.js';
 import { PathAttributeName } from '../defs.js';
+import { registerResolver, setResolver } from '../resolvers/registry.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
@@ -64,12 +65,26 @@ workflow restartSuspension {
   await Core.restartSuspension(restartSuspension.id, restartSuspension.data)
 }
 `;
+
+export const AppModuleName = makeCoreModuleName('app');
+
+const AppModuleDefinition = `module ${AppModuleName}
+
+entity config {
+  store Any @optional,
+  service Any @optional,
+  auth Any @optional,
+  rbac Any @optional,
+  graphql Any @optional,
+  auditTrail Any @optional
+}
+`;
 export const CoreModules: string[] = [];
 
 export function registerCoreModules() {
   DefaultModules.add(DefaultModuleName);
   CoreModules.push(CoreModuleDefinition);
-  [auth, ai].forEach((mdef: string) => {
+  [AppModuleDefinition, auth, ai].forEach((mdef: string) => {
     CoreModules.push(mdef);
     DefaultModules.add(mdef);
   });
@@ -237,3 +252,21 @@ export async function lookupActiveSuspension(
     return [];
   }
 }
+
+class ConfigResolver extends Resolver {
+  constructor() {
+    super('configResolver');
+  }
+  public override async createInstance(inst: Instance): Promise<any> {
+    return inst;
+  }
+}
+
+const configResolver = new ConfigResolver();
+
+function getConfigResolver(): ConfigResolver {
+  return configResolver;
+}
+
+registerResolver(`${AppModuleName}/configResolver`, getConfigResolver);
+setResolver(`${AppModuleName}/config`, `${AppModuleName}/configResolver`);

@@ -4,6 +4,7 @@ import { AgentlangLanguageMetaData } from '../language/generated/module.js';
 import { createAgentlangServices } from '../language/agentlang-module.js';
 import {
   ApplicationSpec,
+  configFromInstance,
   internModule,
   load,
   loadCoreModules,
@@ -19,7 +20,7 @@ import { startServer } from '../api/http.js';
 import { initDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { logger } from '../runtime/logger.js';
 import { runInitFunctions } from '../runtime/util.js';
-import { Module } from '../runtime/module.js';
+import { Instance, isInstanceOfType, Module } from '../runtime/module.js';
 import { ModuleDefinition } from '../language/generated/ast.js';
 import { z } from 'zod';
 import { Config, setAppConfig } from '../runtime/state.js';
@@ -27,6 +28,10 @@ import { prepareIntegrations } from '../runtime/integrations.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import { OpenAPIClientAxios } from 'openapi-client-axios';
 import { registerOpenApiModule } from '../runtime/openapi.js';
+import { getFileSystem } from '../utils/fs-utils.js';
+import { parseWorkflow } from '../language/parser.js';
+import { Environment, evaluateStatements } from '../runtime/interpreter.js';
+import { AppModuleName } from '../runtime/modules/core.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -108,7 +113,27 @@ export const runModule = async (fileName: string): Promise<void> => {
   let config: Config | undefined;
 
   try {
-    const cfg = await loadRawConfig(`${configDir}/app.config.json`);
+    const r: boolean = await runPreInitTasks();
+    if (!r) {
+      throw new Error('Failed to initialize runtime');
+    }
+    let cfgInst: Instance | undefined = undefined;
+    const fs = await getFileSystem();
+    const alCfgFile = `${configDir}/config.al`;
+    if (await fs.exists(alCfgFile)) {
+      const cfgPats = await fs.readFile(alCfgFile);
+      const cfgWf = `workflow createConfig{\n${cfgPats}}`;
+      const wf = await parseWorkflow(cfgWf);
+      const env = new Environment('config.env');
+      await evaluateStatements(wf.statements, env);
+      cfgInst = env.getLastResult();
+      if (!isInstanceOfType(cfgInst, `${AppModuleName}/config`)) {
+        throw new Error(`Configuration must be of type ${AppModuleName}/config`);
+      }
+    }
+    const cfg = cfgInst
+      ? configFromInstance(cfgInst)
+      : await loadRawConfig(`${configDir}/app.config.json`);
     config = setAppConfig(cfg);
     if (config.integrations) {
       await prepareIntegrations(
@@ -134,10 +159,6 @@ export const runModule = async (fileName: string): Promise<void> => {
   }
 
   try {
-    const r: boolean = await runPreInitTasks();
-    if (!r) {
-      throw new Error('Failed to initialize runtime');
-    }
     await load(fileName, undefined, async (appSpec?: ApplicationSpec) => {
       await runPostInitTasks(appSpec, config);
     });
