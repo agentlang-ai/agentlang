@@ -4,34 +4,25 @@ import { AgentlangLanguageMetaData } from '../language/generated/module.js';
 import { createAgentlangServices } from '../language/agentlang-module.js';
 import {
   ApplicationSpec,
-  configFromInstance,
   internModule,
   load,
-  loadCoreModules,
-  loadRawConfig,
-  runStandaloneStatements,
+  loadAppConfig,
+  runPostInitTasks,
+  runPreInitTasks,
 } from '../runtime/loader.js';
 import { NodeFileSystem } from 'langium/node';
 import { extractDocument } from '../runtime/loader.js';
 import * as url from 'node:url';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { startServer } from '../api/http.js';
-import { initDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { logger } from '../runtime/logger.js';
-import { runInitFunctions } from '../runtime/util.js';
-import { Instance, isInstanceOfType, Module } from '../runtime/module.js';
+import { Module } from '../runtime/module.js';
 import { ModuleDefinition } from '../language/generated/ast.js';
-import { z } from 'zod';
-import { Config, setAppConfig } from '../runtime/state.js';
+import { Config } from '../runtime/state.js';
 import { prepareIntegrations } from '../runtime/integrations.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import { OpenAPIClientAxios } from 'openapi-client-axios';
 import { registerOpenApiModule } from '../runtime/openapi.js';
-import { getFileSystem } from '../utils/fs-utils.js';
-import { parseWorkflow } from '../language/parser.js';
-import { Environment, evaluateStatements } from '../runtime/interpreter.js';
-import { AppModuleName } from '../runtime/modules/core.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -88,76 +79,21 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
   }
 };
 
-export async function runPreInitTasks(): Promise<boolean> {
-  let result: boolean = true;
-  await loadCoreModules().catch((reason: any) => {
-    const msg = `Failed to load core modules - ${reason.toString()}`;
-    logger.error(msg);
-    console.log(chalk.red(msg));
-    result = false;
-  });
-  return result;
-}
-
-export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
-  await initDatabase(config?.store);
-  await runInitFunctions();
-  await runStandaloneStatements();
-  if (appSpec) startServer(appSpec, config?.service?.port || 8080);
-}
-
 export const runModule = async (fileName: string): Promise<void> => {
   const configDir =
     path.dirname(fileName) === '.' ? process.cwd() : path.resolve(process.cwd(), fileName);
-
-  let config: Config | undefined;
-
-  try {
-    const r: boolean = await runPreInitTasks();
-    if (!r) {
-      throw new Error('Failed to initialize runtime');
-    }
-    let cfgInst: Instance | undefined = undefined;
-    const fs = await getFileSystem();
-    const alCfgFile = `${configDir}/config.al`;
-    if (await fs.exists(alCfgFile)) {
-      const cfgPats = await fs.readFile(alCfgFile);
-      const cfgWf = `workflow createConfig{\n${cfgPats}}`;
-      const wf = await parseWorkflow(cfgWf);
-      const env = new Environment('config.env');
-      await evaluateStatements(wf.statements, env);
-      cfgInst = env.getLastResult();
-      if (!isInstanceOfType(cfgInst, `${AppModuleName}/config`)) {
-        throw new Error(`Configuration must be of type ${AppModuleName}/config`);
-      }
-    }
-    const cfg = cfgInst
-      ? configFromInstance(cfgInst)
-      : await loadRawConfig(`${configDir}/app.config.json`);
-    config = setAppConfig(cfg);
-    if (config.integrations) {
-      await prepareIntegrations(
-        config.integrations.host,
-        config.integrations.username,
-        config.integrations.password,
-        config.integrations.connections
-      );
-    }
-    if (config.openapi) {
-      await loadOpenApiSpec(config.openapi);
-    }
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      console.log(chalk.red('Config validation failed:'));
-      err.errors.forEach((error, index) => {
-        console.log(chalk.red(`  ${index + 1}. ${error.path.join('.')}: ${error.message}`));
-      });
-    } else {
-      console.log(`Config loading failed: ${err}`);
-    }
-    throw err;
+  const config: Config = await loadAppConfig(configDir);
+  if (config.integrations) {
+    await prepareIntegrations(
+      config.integrations.host,
+      config.integrations.username,
+      config.integrations.password,
+      config.integrations.connections
+    );
   }
-
+  if (config.openapi) {
+    await loadOpenApiSpec(config.openapi);
+  }
   try {
     await load(fileName, undefined, async (appSpec?: ApplicationSpec) => {
       await runPostInitTasks(appSpec, config);
