@@ -40,6 +40,7 @@ entity ${AgentEntityName} {
     documents String @optional, // comma-separated list of document names
     channels String @optional, // comma-separated list of channel names
     output String @optional, // fq-name of another agent to which the result will be pushed
+    role String @optional,
     llm String
 }
 
@@ -84,6 +85,7 @@ export class AgentInstance {
   channels: string | undefined;
   runWorkflows: boolean = true;
   output: string | undefined;
+  role: string | undefined;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
 
@@ -135,7 +137,8 @@ export class AgentInstance {
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      msgs = [systemMessage(this.instruction)];
+      const msg = this.role ? `role: ${this.role}\n ${this.instruction}` : this.instruction;
+      msgs = [systemMessage(msg)];
     }
     if (msgs) {
       try {
