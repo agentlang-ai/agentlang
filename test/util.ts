@@ -1,7 +1,5 @@
 import { assert } from 'vitest';
-import { runPostInitTasks, runPreInitTasks } from '../src/cli/main.js';
-import { parseAndIntern } from '../src/runtime/loader.js';
-
+import { parseAndIntern, runPostInitTasks, runPreInitTasks } from '../src/runtime/loader.js';
 import { isModule } from '../src/runtime/module.js';
 import { resetDefaultDatabase } from '../src/runtime/resolvers/sqldb/database.js';
 import { testLogger } from './test-logger.js';
