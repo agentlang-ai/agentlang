@@ -804,8 +804,13 @@ export class Agent extends Record {
     return this;
   }
 
-  getTools(): string {
-    return this.attributes.get('tools');
+  getTools(): string[] | undefined {
+    const tools = this.attributes.get('tools');
+    if (tools) {
+      return tools.split(',');
+    } else {
+      return undefined;
+    }
   }
 
   removeTools(): Agent {
