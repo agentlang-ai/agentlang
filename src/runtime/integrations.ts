@@ -51,7 +51,7 @@ async function loginToIntegManager(
 ): Promise<any> {
   const defaultHdr = { 'Content-Type': 'application/json' };
   if (username && password && username.length > 0) {
-    const apiUrl = `${host}/agentlang_auth/login`;
+    const apiUrl = `${host}/agentlang.auth/login`;
     const data = { email: username, password: password };
     const response = await fetch(apiUrl, {
       method: 'POST',
