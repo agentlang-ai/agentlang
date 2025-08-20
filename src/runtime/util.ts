@@ -11,6 +11,7 @@ import {
   Statement,
 } from '../language/generated/ast.js';
 import { readFile } from '../utils/fs-utils.js';
+import bcrypt from 'bcryptjs';
 import path from 'node:path';
 
 export const QuerySuffix = '?';
@@ -494,6 +495,14 @@ const ReservedNames = new Set([
 
 export function isReservedName(s: string): boolean {
   return ReservedNames.has(s);
+}
+
+export function encryptPassword(s: string): string {
+  return bcrypt.hashSync(s, 10);
+}
+
+export function comparePassword(s: string, hash: string): boolean {
+  return bcrypt.compareSync(s, hash);
 }
 
 export function fileExtension(fileName: string): string {
