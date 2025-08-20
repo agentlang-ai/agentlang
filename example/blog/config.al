@@ -1,25 +1,37 @@
 {
-  "store": {
     "type": "postgres",
     "host": "#js process.env.POSTGRES_HOST || 'localhost'",
     "username": "#js process.env.POSTGRES_USER || 'postgres'",
     "password": "#js process.env.POSTGRES_PASSWORD || 'postgres'",
     "dbname": "#js process.env.POSTGRES_DB || 'testdb'",
     "port": "#js parseInt(process.env.POSTGRES_PORT || '5432')"
-  },
-  "service": {
+} @as store
+
+{
     "port": "#js parseInt(process.env.SERVICE_PORT || '8080')"
-  },
-  "auth": {
-    "enabled": "#js process.env.AUTH_ENABLED === 'true'"
-  },
-  "rbac": {
+} @as service
+
+{
+      "enabled": "#js process.env.AUTH_ENABLED === 'true'"
+} @as auth
+
+{
     "enabled": "#js process.env.RBAC_ENABLED === 'true'"
-  },
-  "graphql": {
+} @as rbac
+
+{
     "enabled": "#js process.env.GRAPHQL_ENABLED === 'true'"
-  },
-  "auditTrail": {
+} @as graphql
+
+{
     "enabled": "#js process.env.AUDIT_TRAIL_ENABLED === 'true'"
-  }
+} @as auditTrail
+
+{
+	"store": store,
+	"service": service,
+	"auth": auth,
+	"rbac": rbac,
+	"graphql": graphql,
+	"auditTrail": auditTrail
 }

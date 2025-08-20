@@ -51,6 +51,7 @@ import {
   makeFqName,
   maybeExtends,
   registerInitFunction,
+  runInitFunctions,
 } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
@@ -64,10 +65,13 @@ import { createPermission, createRole } from './modules/auth.js';
 import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
-import { ConfigSchema } from './state.js';
+import { Config, ConfigSchema, setAppConfig } from './state.js';
 import { getModuleFn, importModule } from './jsmodules.js';
 import { SetSubscription } from './defs.js';
 import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
+import { initDatabase } from './resolvers/sqldb/database.js';
+import { startServer } from '../api/http.js';
+import z from 'zod';
 
 export async function extractDocument(
   fileName: string,
@@ -173,7 +177,11 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   async function cont2() {
     const fls01 = await getAllModules(appDir, fs, false);
     const fls02 = await getAllModules(appDir + path.sep + 'src', fs);
-    const alFiles = fls01.concat(fls02);
+    const alFiles0 = fls01.concat(fls02);
+    const configFile = `${appDir}/config.al`;
+    const alFiles = alFiles0.filter((s: string) => {
+      return s != configFile;
+    });
     for (let i = 0; i < alFiles.length; ++i) {
       lastModuleLoaded = (await loadModule(alFiles[i], fsOptions)).name;
     }
@@ -240,6 +248,63 @@ export async function flushAllAndLoad(
     removeModule(n);
   });
   return await load(fileName, fsOptions, callback);
+}
+
+export async function runPreInitTasks(): Promise<boolean> {
+  let result: boolean = true;
+  await loadCoreModules().catch((reason: any) => {
+    const msg = `Failed to load core modules - ${reason.toString()}`;
+    logger.error(msg);
+    console.log(chalk.red(msg));
+    result = false;
+  });
+  return result;
+}
+
+export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
+  await initDatabase(config?.store);
+  await runInitFunctions();
+  await runStandaloneStatements();
+  if (appSpec) startServer(appSpec, config?.service?.port || 8080);
+}
+
+export async function loadAppConfig(
+  configDir: string,
+  runPreInit: boolean = true
+): Promise<Config> {
+  if (runPreInit) {
+    const r: boolean = await runPreInitTasks();
+    if (!r) {
+      throw new Error('Failed to initialize runtime');
+    }
+  }
+  let cfgObj: any = undefined;
+  const fs = await getFileSystem();
+  const alCfgFile = `${configDir}/config.al`;
+  if (await fs.exists(alCfgFile)) {
+    const cfgPats = await fs.readFile(alCfgFile);
+    const cfgWf = `workflow createConfig{\n${cfgPats}}`;
+    const wf = await parseWorkflow(cfgWf);
+    const env = new Environment('config.env');
+    await evaluateStatements(wf.statements, env);
+    cfgObj = env.getLastResult();
+  }
+  try {
+    const cfg = cfgObj
+      ? configFromObject(cfgObj)
+      : await loadRawConfig(`${configDir}/app.config.json`);
+    return setAppConfig(cfg);
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      console.log(chalk.red('Config validation failed:'));
+      err.errors.forEach((error: any, index: number) => {
+        console.log(chalk.red(`  ${index + 1}. ${error.path.join('.')}: ${error.message}`));
+      });
+    } else {
+      console.log(`Config loading failed: ${err}`);
+    }
+    throw err;
+  }
 }
 
 export async function loadCoreModules() {
@@ -599,6 +664,14 @@ export async function loadRawConfig(
   } else {
     return { service: { port: 8080 } };
   }
+}
+
+export function configFromObject(cfgObj: any, validate: boolean = true): any {
+  const rawConfig = preprocessRawConfig(cfgObj);
+  if (validate) {
+    return ConfigSchema.parse(rawConfig);
+  }
+  return rawConfig;
 }
 
 export function generateRawConfig(configObj: any): string {

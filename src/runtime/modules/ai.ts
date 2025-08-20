@@ -137,8 +137,7 @@ export class AgentInstance {
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      const msg = this.role ? `role: ${this.role}\n ${this.instruction}` : this.instruction;
-      msgs = [systemMessage(msg)];
+      msgs = [systemMessage(this.instruction)];
     }
     if (msgs) {
       try {

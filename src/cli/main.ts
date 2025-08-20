@@ -6,23 +6,19 @@ import {
   ApplicationSpec,
   internModule,
   load,
-  loadCoreModules,
-  loadRawConfig,
-  runStandaloneStatements,
+  loadAppConfig,
+  runPostInitTasks,
+  runPreInitTasks,
 } from '../runtime/loader.js';
 import { NodeFileSystem } from 'langium/node';
 import { extractDocument } from '../runtime/loader.js';
 import * as url from 'node:url';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { startServer } from '../api/http.js';
-import { initDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { logger } from '../runtime/logger.js';
-import { runInitFunctions } from '../runtime/util.js';
 import { Module } from '../runtime/module.js';
 import { ModuleDefinition } from '../language/generated/ast.js';
-import { z } from 'zod';
-import { Config, setAppConfig } from '../runtime/state.js';
+import { Config } from '../runtime/state.js';
 import { prepareIntegrations } from '../runtime/integrations.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import { OpenAPIClientAxios } from 'openapi-client-axios';
@@ -83,61 +79,22 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
   }
 };
 
-export async function runPreInitTasks(): Promise<boolean> {
-  let result: boolean = true;
-  await loadCoreModules().catch((reason: any) => {
-    const msg = `Failed to load core modules - ${reason.toString()}`;
-    logger.error(msg);
-    console.log(chalk.red(msg));
-    result = false;
-  });
-  return result;
-}
-
-export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
-  await initDatabase(config?.store);
-  await runInitFunctions();
-  await runStandaloneStatements();
-  if (appSpec) startServer(appSpec, config?.service?.port || 8080);
-}
-
 export const runModule = async (fileName: string): Promise<void> => {
   const configDir =
     path.dirname(fileName) === '.' ? process.cwd() : path.resolve(process.cwd(), fileName);
-
-  let config: Config | undefined;
-
-  try {
-    const cfg = await loadRawConfig(`${configDir}/app.config.json`);
-    config = setAppConfig(cfg);
-    if (config.integrations) {
-      await prepareIntegrations(
-        config.integrations.host,
-        config.integrations.username,
-        config.integrations.password,
-        config.integrations.connections
-      );
-    }
-    if (config.openapi) {
-      await loadOpenApiSpec(config.openapi);
-    }
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      console.log(chalk.red('Config validation failed:'));
-      err.errors.forEach((error, index) => {
-        console.log(chalk.red(`  ${index + 1}. ${error.path.join('.')}: ${error.message}`));
-      });
-    } else {
-      console.log(`Config loading failed: ${err}`);
-    }
-    throw err;
+  const config: Config = await loadAppConfig(configDir);
+  if (config.integrations) {
+    await prepareIntegrations(
+      config.integrations.host,
+      config.integrations.username,
+      config.integrations.password,
+      config.integrations.connections
+    );
   }
-
+  if (config.openapi) {
+    await loadOpenApiSpec(config.openapi);
+  }
   try {
-    const r: boolean = await runPreInitTasks();
-    if (!r) {
-      throw new Error('Failed to initialize runtime');
-    }
     await load(fileName, undefined, async (appSpec?: ApplicationSpec) => {
       await runPostInitTasks(appSpec, config);
     });

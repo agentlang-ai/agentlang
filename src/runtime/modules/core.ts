@@ -64,6 +64,7 @@ workflow restartSuspension {
   await Core.restartSuspension(restartSuspension.id, restartSuspension.data)
 }
 `;
+
 export const CoreModules: string[] = [];
 
 export function registerCoreModules() {
