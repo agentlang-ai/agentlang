@@ -7,8 +7,8 @@ import {
   internModule,
   load,
   loadAppConfig,
-  runPostInitTasks,
-  runPreInitTasks,
+  loadCoreModules,
+  runStandaloneStatements,
 } from '../runtime/loader.js';
 import { NodeFileSystem } from 'langium/node';
 import { extractDocument } from '../runtime/loader.js';
@@ -23,6 +23,9 @@ import { prepareIntegrations } from '../runtime/integrations.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import { OpenAPIClientAxios } from 'openapi-client-axios';
 import { registerOpenApiModule } from '../runtime/openapi.js';
+import { initDatabase } from '../runtime/resolvers/sqldb/database.js';
+import { runInitFunctions } from '../runtime/util.js';
+import { startServer } from '../api/http.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -79,7 +82,29 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
   }
 };
 
+export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
+  await initDatabase(config?.store);
+  await runInitFunctions();
+  await runStandaloneStatements();
+  if (appSpec) startServer(appSpec, config?.service?.port || 8080);
+}
+
+export async function runPreInitTasks(): Promise<boolean> {
+  let result: boolean = true;
+  await loadCoreModules().catch((reason: any) => {
+    const msg = `Failed to load core modules - ${reason.toString()}`;
+    logger.error(msg);
+    console.log(chalk.red(msg));
+    result = false;
+  });
+  return result;
+}
+
 export const runModule = async (fileName: string): Promise<void> => {
+  const r: boolean = await runPreInitTasks();
+  if (!r) {
+    throw new Error('Failed to initialize runtime');
+  }
   const configDir =
     path.dirname(fileName) === '.' ? process.cwd() : path.resolve(process.cwd(), fileName);
   const config: Config = await loadAppConfig(configDir);

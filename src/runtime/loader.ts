@@ -51,7 +51,6 @@ import {
   makeFqName,
   maybeExtends,
   registerInitFunction,
-  runInitFunctions,
 } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
@@ -69,8 +68,6 @@ import { Config, ConfigSchema, setAppConfig } from './state.js';
 import { getModuleFn, importModule } from './jsmodules.js';
 import { SetSubscription } from './defs.js';
 import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
-import { initDatabase } from './resolvers/sqldb/database.js';
-import { startServer } from '../api/http.js';
 import z from 'zod';
 
 export async function extractDocument(
@@ -250,34 +247,7 @@ export async function flushAllAndLoad(
   return await load(fileName, fsOptions, callback);
 }
 
-export async function runPreInitTasks(): Promise<boolean> {
-  let result: boolean = true;
-  await loadCoreModules().catch((reason: any) => {
-    const msg = `Failed to load core modules - ${reason.toString()}`;
-    logger.error(msg);
-    console.log(chalk.red(msg));
-    result = false;
-  });
-  return result;
-}
-
-export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
-  await initDatabase(config?.store);
-  await runInitFunctions();
-  await runStandaloneStatements();
-  if (appSpec) startServer(appSpec, config?.service?.port || 8080);
-}
-
-export async function loadAppConfig(
-  configDir: string,
-  runPreInit: boolean = true
-): Promise<Config> {
-  if (runPreInit) {
-    const r: boolean = await runPreInitTasks();
-    if (!r) {
-      throw new Error('Failed to initialize runtime');
-    }
-  }
+export async function loadAppConfig(configDir: string): Promise<Config> {
   let cfgObj: any = undefined;
   const fs = await getFileSystem();
   const alCfgFile = `${configDir}/config.al`;

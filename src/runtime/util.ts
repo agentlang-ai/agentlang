@@ -11,6 +11,7 @@ import {
   Statement,
 } from '../language/generated/ast.js';
 import { readFile } from '../utils/fs-utils.js';
+import path from 'node:path';
 
 export const QuerySuffix = '?';
 
@@ -493,4 +494,16 @@ const ReservedNames = new Set([
 
 export function isReservedName(s: string): boolean {
   return ReservedNames.has(s);
+}
+
+export function fileExtension(fileName: string): string {
+  if (isNodeEnv) {
+    return path.extname(fileName);
+  } else {
+    const idx = fileName.lastIndexOf('.');
+    if (idx >= 0) {
+      return fileName.substring(idx);
+    }
+  }
+  return '';
 }
