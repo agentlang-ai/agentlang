@@ -43,8 +43,6 @@ import {
   removeModule,
   newInstanceAttributes,
   addAgent,
-  Instance,
-  isInstanceOfType,
 } from './module.js';
 import {
   escapeSpecialChars,
@@ -59,7 +57,7 @@ import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-
 import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
-import { AppModuleName, CoreModules, registerCoreModules } from './modules/core.js';
+import { CoreModules, registerCoreModules } from './modules/core.js';
 import { maybeGetValidationErrors, parse, parseModule, parseWorkflow } from '../language/parser.js';
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
@@ -280,7 +278,7 @@ export async function loadAppConfig(
       throw new Error('Failed to initialize runtime');
     }
   }
-  let cfgInst: Instance | undefined = undefined;
+  let cfgObj: any = undefined;
   const fs = await getFileSystem();
   const alCfgFile = `${configDir}/config.al`;
   if (await fs.exists(alCfgFile)) {
@@ -289,14 +287,11 @@ export async function loadAppConfig(
     const wf = await parseWorkflow(cfgWf);
     const env = new Environment('config.env');
     await evaluateStatements(wf.statements, env);
-    cfgInst = env.getLastResult();
-    if (!isInstanceOfType(cfgInst, `${AppModuleName}/config`)) {
-      throw new Error(`Configuration must be of type ${AppModuleName}/config`);
-    }
+    cfgObj = env.getLastResult();
   }
   try {
-    const cfg = cfgInst
-      ? configFromInstance(cfgInst)
+    const cfg = cfgObj
+      ? configFromObject(cfgObj)
       : await loadRawConfig(`${configDir}/app.config.json`);
     return setAppConfig(cfg);
   } catch (err: any) {
@@ -671,8 +666,8 @@ export async function loadRawConfig(
   }
 }
 
-export function configFromInstance(inst: Instance, validate: boolean = true): any {
-  const rawConfig = preprocessRawConfig(inst.asObject()).config;
+export function configFromObject(cfgObj: any, validate: boolean = true): any {
+  const rawConfig = preprocessRawConfig(cfgObj);
   if (validate) {
     return ConfigSchema.parse(rawConfig);
   }

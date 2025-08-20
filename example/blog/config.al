@@ -28,13 +28,10 @@
 } @as auditTrail
 
 {
-    agentlang.app/config
-    {
-	store store,
-	service service,
-	auth auth,
-	rbac rbac,
-	graphql graphql,
-	auditTrail auditTrail
-    }
+	"store": store,
+	"service": service,
+	"auth": auth,
+	"rbac": rbac,
+	"graphql": graphql,
+	"auditTrail": auditTrail
 }
