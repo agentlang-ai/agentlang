@@ -12,6 +12,7 @@ import {
 } from '../language/generated/ast.js';
 import { readFile } from '../utils/fs-utils.js';
 import bcrypt from 'bcryptjs';
+import path from 'node:path';
 
 export const QuerySuffix = '?';
 
@@ -502,4 +503,16 @@ export function encryptPassword(s: string): string {
 
 export function comparePassword(s: string, hash: string): boolean {
   return bcrypt.compareSync(s, hash);
+}
+
+export function fileExtension(fileName: string): string {
+  if (isNodeEnv) {
+    return path.extname(fileName);
+  } else {
+    const idx = fileName.lastIndexOf('.');
+    if (idx >= 0) {
+      return fileName.substring(idx);
+    }
+  }
+  return '';
 }
