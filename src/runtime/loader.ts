@@ -46,6 +46,7 @@ import {
 } from './module.js';
 import {
   escapeSpecialChars,
+  fileExtension,
   findRbacSchema,
   isString,
   makeFqName,
@@ -153,7 +154,7 @@ async function getAllModules(
   const directoryContents = await fs.readdir(dir);
   for (let i = 0; i < directoryContents.length; ++i) {
     const file = directoryContents[i];
-    if (path.extname(file).toLowerCase() == '.al') {
+    if (fileExtension(file).toLowerCase() == '.al') {
       alFiles.push(dir + path.sep + file);
     } else if (drill) {
       const fullPath = dir + path.sep + file;
@@ -197,7 +198,7 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
         const files = hasSrc ? fls01.concat(await fs.readdir(srcDir)) : fls01;
         if (
           files.find(file => {
-            return path.extname(file).toLowerCase() == '.al';
+            return fileExtension(file).toLowerCase() == '.al';
           })
         ) {
           await loadApp(depDirName, fsOptions);
