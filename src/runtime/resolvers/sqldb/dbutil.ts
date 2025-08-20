@@ -255,7 +255,7 @@ export function asSqlType(type: string): ColumnType {
     || t == 'map' || t == 'any' || t == 'path')
     return 'varchar';
   else if (t == 'int') return 'integer';
-  else if (t == 'number') return 'decimal'
+  else if (t == 'number') return 'double precision'
   else if (!isBuiltInType(type)) return 'varchar';
   else return t as ColumnType;
 }
