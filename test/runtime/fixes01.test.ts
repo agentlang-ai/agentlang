@@ -23,29 +23,29 @@ describe('Issue 97', () => {
     test('test01', async () => {
         await doInternModule('I97',
             `entity Resource { id UUID @id @default(uuid()), name String }
-             entity Allocation { id UUID @id @default(uuid()), name String @optional }
+             entity Allocation { id UUID @id @default(uuid()), name String @optional, entered Number @default(0)}
              relationship ResAlloc between(Resource, Allocation) @one_many
 
             workflow FetchResourceAllocations {
                 {I97/Resource { id? FetchResourceAllocations.id },
                  I97/ResAlloc {I97/Allocation? {}},
-                @into {e I97/Resource.name, t I97/Allocation.name}}
+                @into {e I97/Resource.name, t I97/Allocation.name, r I97/Allocation.entered}}
             }
 
             workflow FetchAllResourceAllocations {
                 {I97/Resource? {},
                  I97/ResAlloc {I97/Allocation? {}},
-                 @into {e I97/Resource.name, t I97/Allocation.name}}
+                 @into {e I97/Resource.name, t I97/Allocation.name, r I97/Allocation.entered}}
             }
 
             workflow FetchAllocationsResource{
                {I97/Allocation {id? FetchAllocationsResource.id},
                 I97/ResAlloc {I97/Resource? {}},
-                @into {e I97/Resource.name, t I97/Allocation.name}}
+                @into {e I97/Resource.name, t I97/Allocation.name, r I97/Allocation.entered}}
             }
 
             workflow CreateAllocation {
-               {I97/Allocation {name CreateAllocation.name},
+               {I97/Allocation {name CreateAllocation.name, entered 0.234},
                 I97/ResAlloc {I97/Resource {id? CreateAllocation.id}}}
             }
              `
@@ -95,7 +95,7 @@ describe('Issue 97', () => {
         await parseAndEvaluateStatement(`{I97/FetchResourceAllocations {id "${r02.lookup("id")}"}}`)
             .then((result: any[]) => {
                 assert(result.length == 2)
-                assert(result.every((r: any) => { return r.e == 'r02' && (r.t == 'a03' || r.t == 'a04') }))
+                assert(result.every((r: any) => { return r.e == 'r02' && ((r.t == 'a03' || r.t == 'a04') && (r.r === 0 || r.r === 0.234))}))
             })
     })
 })
