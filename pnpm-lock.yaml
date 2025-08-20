@@ -44,6 +44,9 @@ importers:
       aws-jwt-verify:
         specifier: ^5.1.0
         version: 5.1.0
+      bcryptjs:
+        specifier: ^3.0.2
+        version: 3.0.2
       buffer:
         specifier: ^6.0.3
         version: 6.0.3
@@ -2052,6 +2055,10 @@ packages:
 
   bath-es5@3.0.3:
     resolution: {integrity: sha512-PdCioDToH3t84lP40kUFCKWCOCH389Dl1kbC8FGoqOwamxsmqxxnJSXdkTOsPoNHXjem4+sJ+bbNoQm5zeCqxg==}
+
+  bcryptjs@3.0.2:
+    resolution: {integrity: sha512-k38b3XOZKv60C4E2hVsXTolJWfkGRMbILBIe2IBITXciy5bOsTKot5kDrf3ZfufQtQOUN5mXceUEpU1rTl9Uog==}
+    hasBin: true
 
   before-after-hook@2.2.3:
     resolution: {integrity: sha512-NzUnlZexiaH/46WDhANlyR2bXRopNg4F/zuSA3OpZnllCUgRaOF2znDioDWrmbNVsuZk6l9pMquQB38cfBZwkQ==}
@@ -7869,6 +7876,8 @@ snapshots:
       safe-buffer: 5.1.2
 
   bath-es5@3.0.3: {}
+
+  bcryptjs@3.0.2: {}
 
   before-after-hook@2.2.3: {}
 

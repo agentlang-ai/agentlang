@@ -41,6 +41,7 @@ import {
   isPath,
   findUqCompositeAttributes,
   escapeFqName,
+  encryptPassword,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -1572,6 +1573,7 @@ const builtInChecks = new Map([
   ['UUID', isString],
   ['URL', isString],
   ['Path', isPath],
+  ['Password', isString],
   [
     'Map',
     (obj: any) => {
@@ -1654,6 +1656,19 @@ export function defaultAttributes(schema: RecordSchema): Map<string, any> {
       if (d != undefined) {
         result.set(k, d);
       }
+    }
+  });
+  return result;
+}
+
+export function passwordAttributes(schema: RecordSchema): Set<string> | undefined {
+  let result: Set<string> | undefined = undefined;
+  schema.forEach((v: AttributeSpec, k: string) => {
+    if (v.type == 'Password') {
+      if (result == undefined) {
+        result = new Set<string>();
+      }
+      result?.add(k);
     }
   });
   return result;
@@ -2522,6 +2537,22 @@ function maybeSetDefaultAttributeValues(
   return attributes;
 }
 
+function postProcessAttributes(
+  schema: RecordSchema,
+  attributes: InstanceAttributes
+): InstanceAttributes {
+  const pswdAttrs = passwordAttributes(schema);
+  if (pswdAttrs) {
+    pswdAttrs.forEach((n: string) => {
+      const v: string | undefined = attributes.get(n);
+      if (v) {
+        attributes.set(n, encryptPassword(v));
+      }
+    });
+  }
+  return attributes;
+}
+
 export function makeInstance(
   moduleName: string,
   entryName: string,
@@ -2544,7 +2575,7 @@ export function makeInstance(
     });
   }
   if (!queryAttributes && !queryAll) {
-    attributes = maybeSetDefaultAttributeValues(schema, attributes);
+    attributes = postProcessAttributes(schema, maybeSetDefaultAttributeValues(schema, attributes));
   }
   return new Instance(
     record,
