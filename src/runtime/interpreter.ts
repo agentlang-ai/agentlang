@@ -1699,6 +1699,16 @@ async function realizeMap(mapLiteral: MapLiteral, env: Environment): Promise<voi
   env.setLastResult(Object.fromEntries(result.entries()));
 }
 
+export async function callPostEventOnSubscription(
+  crudType: CrudType,
+  inst: Instance,
+  env?: Environment
+): Promise<any> {
+  const newEnv = env ? env : new Environment('onSubs.env');
+  await runPrePostEvents(crudType, false, inst, newEnv);
+  return newEnv.getLastResult();
+}
+
 async function runPrePostEvents(
   crudType: CrudType,
   pre: boolean,

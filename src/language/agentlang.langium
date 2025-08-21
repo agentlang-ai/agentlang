@@ -94,7 +94,7 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 
 WorkflowDefinition: 'workflow' name=ID Body hints+=WorkflowHint*;
 
-WorkflowHint: subs=WorkflowSubsHint;
+WorkflowHint: subs=WorkflowSubsHint | trigs=PrePostTriggerDefinition;
 
 WorkflowSubsHint: '@subs' '(' resolverName=ID ')';
 
