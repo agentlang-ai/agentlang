@@ -2764,16 +2764,33 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
       "$type": "ParserRule",
       "name": "WorkflowHint",
       "definition": {
-        "$type": "Assignment",
-        "feature": "subs",
-        "operator": "=",
-        "terminal": {
-          "$type": "RuleCall",
-          "rule": {
-            "$ref": "#/rules@48"
+        "$type": "Alternatives",
+        "elements": [
+          {
+            "$type": "Assignment",
+            "feature": "subs",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@48"
+              },
+              "arguments": []
+            }
           },
-          "arguments": []
-        }
+          {
+            "$type": "Assignment",
+            "feature": "trigs",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@30"
+              },
+              "arguments": []
+            }
+          }
+        ]
       },
       "definesHiddenTokens": false,
       "entry": false,

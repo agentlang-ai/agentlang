@@ -200,7 +200,7 @@ export type TriggerInfo = {
   async: boolean;
 };
 
-function asTriggerInfo(te: TriggerEntry): TriggerInfo {
+function asTriggerInfo(te: any): TriggerInfo {
   return {
     eventName: te.event,
     async: te.async ? true : false,
@@ -335,6 +335,22 @@ export class Record extends ModuleEntry {
       this.oneOfRefAttributes = [];
     }
     this.oneOfRefAttributes.push(s);
+    return this;
+  }
+
+  public addAfterTrigger(te: any): Record {
+    if (this.afterTriggers == undefined) {
+      this.afterTriggers = new Map();
+    }
+    this.afterTriggers?.set(asCrudType(te.on), asTriggerInfo(te));
+    return this;
+  }
+
+  public addBeforeTrigger(te: any): Record {
+    if (this.beforeTriggers == undefined) {
+      this.beforeTriggers = new Map();
+    }
+    this.beforeTriggers?.set(asCrudType(te.on), asTriggerInfo(te));
     return this;
   }
 
@@ -1885,13 +1901,41 @@ export function addWorkflow(
   }
   if (!statements) statements = new Array<Statement>();
   if (hints && hints.length > 0) {
+    const eventFqName = makeFqName(moduleName, name);
     hints.forEach((hint: WorkflowHint) => {
       if (hint.subs) {
-        SetSubscription(makeFqName(moduleName, name), hint.subs.resolverName);
+        SetSubscription(eventFqName, hint.subs.resolverName);
+      } else if (hint.trigs) {
+        if (hint.trigs.after) {
+          hint.trigs.after.triggers.entries.forEach((te: TriggerEntry) => {
+            const entityDef = getEntityDefForTrigger(te, moduleName);
+            entityDef.addAfterTrigger({
+              on: te.on,
+              event: eventFqName,
+              async: te.async ? true : false,
+            });
+          });
+        } else if (hint.trigs.before) {
+          hint.trigs.before.triggers.entries.forEach((te: TriggerEntry) => {
+            const entityDef = getEntityDefForTrigger(te, moduleName);
+            entityDef.addBeforeTrigger({
+              on: te.on,
+              event: eventFqName,
+              async: te.async ? true : false,
+            });
+          });
+        }
       }
     });
   }
   return module.addEntry(new Workflow(asWorkflowName(name), statements, moduleName)) as Workflow;
+}
+
+function getEntityDefForTrigger(te: TriggerEntry, moduleName: string): Entity {
+  const entityName: string = te.event;
+  const parts = splitFqName(entityName);
+  const mname = parts.hasModule() ? parts.getModuleName() : moduleName;
+  return getEntity(parts.getEntryName(), mname);
 }
 
 export function getWorkflow(eventInstance: Instance): Workflow {

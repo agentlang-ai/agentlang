@@ -742,7 +742,7 @@ export function isPattern(item: unknown): item is Pattern {
 }
 
 export interface PrePostTriggerDefinition extends langium.AstNode {
-    readonly $container: RecordExtraDefinition;
+    readonly $container: RecordExtraDefinition | WorkflowHint;
     readonly $type: 'PrePostTriggerDefinition';
     after?: AfterTriggerDefinition;
     before?: BeforeTriggerDefinition;
@@ -1159,7 +1159,8 @@ export function isWorkflowDefinition(item: unknown): item is WorkflowDefinition 
 export interface WorkflowHint extends langium.AstNode {
     readonly $container: WorkflowDefinition;
     readonly $type: 'WorkflowHint';
-    subs: WorkflowSubsHint;
+    subs?: WorkflowSubsHint;
+    trigs?: PrePostTriggerDefinition;
 }
 
 export const WorkflowHint = 'WorkflowHint';
@@ -1997,7 +1998,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: WorkflowHint,
                     properties: [
-                        { name: 'subs' }
+                        { name: 'subs' },
+                        { name: 'trigs' }
                     ]
                 };
             }

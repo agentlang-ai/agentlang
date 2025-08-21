@@ -1,4 +1,5 @@
 import {
+  callPostEventOnSubscription,
   Environment,
   evaluate,
   runPostCreateEvents,
@@ -226,18 +227,23 @@ export class Resolver {
     return this.onOutOfBandCrud(inst, CrudType.DELETE, env);
   }
 
-  public async onSubscription(result: any): Promise<any> {
+  public async onSubscription(result: any, callPostCrudEvent: boolean = false): Promise<any> {
     if (result != undefined) {
       try {
-        const eventName = getSubscriptionEvent(this.name);
-        if (eventName) {
-          const path = splitFqName(eventName);
-          const inst = makeInstance(
-            path.getModuleName(),
-            path.getEntryName(),
-            newInstanceAttributes().set('data', result)
-          );
-          return await evaluate(inst);
+        if (callPostCrudEvent) {
+          const inst = result as Instance;
+          return await callPostEventOnSubscription(CrudType.CREATE, inst);
+        } else {
+          const eventName = getSubscriptionEvent(this.name);
+          if (eventName) {
+            const path = splitFqName(eventName);
+            const inst = makeInstance(
+              path.getModuleName(),
+              path.getEntryName(),
+              newInstanceAttributes().set('data', result)
+            );
+            return await evaluate(inst);
+          }
         }
       } catch (err: any) {
         logger.error(`Resolver ${this.name} raised error in onSubscription handler: ${err}`);
