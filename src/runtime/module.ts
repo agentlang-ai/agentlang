@@ -2312,6 +2312,12 @@ export class Instance {
     return Object.fromEntries(result);
   }
 
+  static fromObject(name: string, moduleName: string, obj: object): Instance {
+    const inst = Instance.EmptyInstance(name, moduleName);
+    const attrs = new Map(Object.entries(obj));
+    return Instance.newWithAttributes(inst, attrs);
+  }
+
   static asSerializableValue(v: any, forSerialization: boolean): any {
     if (v instanceof Instance) {
       const inst = v as Instance;
@@ -2335,9 +2341,9 @@ export class Instance {
     return Object.fromEntries(attrs);
   }
 
-  attributesWithStringifiedObjects(): object {
+  static stringifyObjects(attributes: InstanceAttributes): object {
     const attrs = newInstanceAttributes();
-    this.attributes.forEach((v: any, k: string) => {
+    attributes.forEach((v: any, k: string) => {
       if (v instanceof Object) {
         attrs.set(k, JSON.stringify(v instanceof Map ? Object.fromEntries(v) : v));
       } else {
@@ -2345,6 +2351,10 @@ export class Instance {
       }
     });
     return Object.fromEntries(attrs);
+  }
+
+  attributesWithStringifiedObjects(): object {
+    return Instance.stringifyObjects(this.attributes);
   }
 
   queryAttributesAsObject(): object {

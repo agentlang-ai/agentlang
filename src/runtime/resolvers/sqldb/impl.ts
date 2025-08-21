@@ -138,7 +138,7 @@ export class SqlDbResolver extends Resolver {
     const queryVals: object = Object.fromEntries(
       new Map<string, any>().set(PathAttributeName, inst.attributes.get(PathAttributeName))
     );
-    const updateObj: object = Object.fromEntries(newAttrs);
+    const updateObj: object = Instance.stringifyObjects(newAttrs);
     await updateRow(
       asTableReference(inst.moduleName, inst.name),
       queryObj,

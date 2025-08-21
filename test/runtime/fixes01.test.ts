@@ -95,7 +95,7 @@ describe('Issue 97', () => {
         await parseAndEvaluateStatement(`{I97/FetchResourceAllocations {id "${r02.lookup("id")}"}}`)
             .then((result: any[]) => {
                 assert(result.length == 2)
-                assert(result.every((r: any) => { return r.e == 'r02' && ((r.t == 'a03' || r.t == 'a04') && (r.r === 0 || r.r === 0.234))}))
+                assert(result.every((r: any) => { return r.e == 'r02' && ((r.t == 'a03' || r.t == 'a04') && (r.r === 0 || r.r === 0.234)) }))
             })
     })
 })
@@ -519,5 +519,65 @@ workflow GetOneAllocationResource {
         await getar1(101, 1)
         await getar1(102, 1)
         await getar1(201, 2)
+    })
+})
+
+describe('Issue-272', () => {
+    test('PUT bug for arrays', async () => {
+        await doInternModule('I272',
+            `record RangeSettings {
+    Id String,
+    From String
+}
+
+entity AllocationRangeSetting {
+    Id UUID @id @default(uuid()),
+    AllocationRanges RangeSettings[] @optional
+}`
+        )
+        const cr = async (settings: any[]): Promise<Instance> => {
+            const jsonSettings = JSON.stringify(settings)
+            const s = `{I272/AllocationRangeSetting {AllocationRanges ${jsonSettings}}}`
+            const r = await parseAndEvaluateStatement(s)
+            assert(isInstanceOfType(r, 'I272/AllocationRangeSetting'))
+            return r
+        }
+        const ur = async (id: string, settings: any[]): Promise<Instance> => {
+            const jsonSettings = JSON.stringify(settings)
+            const s = `{I272/AllocationRangeSetting {Id? "${id}", AllocationRanges ${jsonSettings}}}`
+            const rs: Instance[] = await parseAndEvaluateStatement(s)
+            assert(rs.length == 1)
+            assert(isInstanceOfType(rs[0], 'I272/AllocationRangeSetting'))
+            return rs[0]
+        }
+        const lr = async (id: string): Promise<Instance> => {
+            const s = `{I272/AllocationRangeSetting {Id? "${id}"}}`
+            const rs: Instance[] = await parseAndEvaluateStatement(s)
+            assert(rs.length == 1)
+            assert(isInstanceOfType(rs[0], 'I272/AllocationRangeSetting'))
+            return rs[0]
+        }
+        const r1: Instance = await cr([{ Id: "123", From: "A" }, { Id: "234", From: "B" }])
+        const id = r1.lookup('Id')
+        const r2: Instance = await lr(id)
+        const sa: any[] = r2.lookup('AllocationRanges')
+        assert(sa.length == 2)
+        let ids = new Set(["123", "234"])
+        assert(sa.every((v: any) => {
+            return ids.has(v.Id)
+        }))
+        const r3: Instance = await ur(id, [{ Id: "456", From: "D" }, { Id: "678", From: "E" }])
+        const sb: any[] = r3.lookup('AllocationRanges')
+        assert(sb.length == 2)
+        ids = new Set(["456", "678"])
+        assert(sb.every((v: any) => {
+            return ids.has(v.Id)
+        }))
+        const r4: Instance = await lr(id)
+        const sc: any[] = r4.lookup('AllocationRanges')
+        assert(sc.length == 2)
+        assert(sc.every((v: any) => {
+            return ids.has(v.Id)
+        }))
     })
 })
