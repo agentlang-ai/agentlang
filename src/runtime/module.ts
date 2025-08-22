@@ -1910,13 +1910,13 @@ export function addWorkflow(
       entityDef?.addAfterTrigger({
         on: hdr.prefix,
         event: eventFqName,
-        async: true,
+        async: false,
       });
     } else {
       entityDef?.addBeforeTrigger({
         on: hdr.prefix,
         event: eventFqName,
-        async: true,
+        async: false,
       });
     }
   }
@@ -1934,7 +1934,7 @@ function prePostWorkflowName(
   if (!mname) {
     throw new Error(`Cannot infer module name for ${entityName}`);
   }
-  return makeFqName(mname, `${tag.substring(1)}_${opr}_${mname}_${parts.getEntryName()}`);
+  return `${tag.substring(1)}_${opr}_${mname}_${parts.getEntryName()}`;
 }
 
 function getEntityDef(entityName: string, moduleName: string): Entity | undefined {
