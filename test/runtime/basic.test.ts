@@ -402,6 +402,9 @@ describe('Pre-Post trigger tests', () => {
       workflow AfterCreate {
         {F {id AfterCreate.E.id, w AfterCreate.E.v * 10}}
       }
+      workflow @after update:E {
+        {F {id? this.id, w this.v * 100}}
+      }
       workflow BeforeDelete {
         delete {F {id? BeforeDelete.E.id}}
       }
@@ -426,6 +429,16 @@ describe('Pre-Post trigger tests', () => {
       assert(result.length == 1);
       assert(isInstanceOfType(result[0], 'PrePostEvents/F'));
       assert(result[0].lookup('w') == 200);
+    });
+    await parseAndEvaluateStatement(`{PrePostEvents/E {id? 2, v 30}}`).then((result: Instance[]) => {
+      assert(result.length == 1)
+      assert(isInstanceOfType(result[0], 'PrePostEvents/E'));
+      assert(result[0].lookup('v') == 30);
+    });
+    await parseAndEvaluateStatement(`{PrePostEvents/F {id? 2}}`).then((result: Instance[]) => {
+      assert(result.length == 1);
+      assert(isInstanceOfType(result[0], 'PrePostEvents/F'));
+      assert(result[0].lookup('w') == 3000);
     });
   });
 });

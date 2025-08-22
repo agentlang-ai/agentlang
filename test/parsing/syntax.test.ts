@@ -14,7 +14,7 @@ import {
 } from '../../src/language/syntax.js';
 import { introspect } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
-import { fetchModule, isModule, removeModule } from '../../src/runtime/module.js';
+import { addBeforeDeleteWorkflow, fetchModule, isModule, removeModule } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
 
 describe('Pattern generation using the syntax API', () => {
@@ -331,5 +331,29 @@ workflow onIncident {
     await parseAndIntern(s)
     assert(isModule(mname))
     assert(s == fetchModule(mname).toString())
+    const wf = addBeforeDeleteWorkflow('incident', mname)
+    await wf.addStatement('{abc/incidentAdded {id this.id}}')
+    const ss = fetchModule(mname).toString()
+    assert(ss == `module WfSyntaxGen
+
+entity incident
+{
+    id Int @id,
+    description String,
+    created DateTime @default(now())
+}
+
+
+workflow @after create:WfSyntaxGen/incident {
+    {orchestratorAgent {message this}}
+}
+
+workflow onIncident {
+    {orchestratorAgent {message onIncident.incident}}
+}
+
+workflow @before delete:WfSyntaxGen/incident {
+    {abc/incidentAdded {id this.id}}
+}`)
   })
 })
