@@ -19,7 +19,7 @@ import {
   RbacSpecEntry,
   RbacSpecEntries,
   RbacOpr,
-  WorkflowHint,
+  WorkflowHeader,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -45,7 +45,7 @@ import {
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
-import { FetchModuleFn, PathAttributeName, SetSubscription } from './defs.js';
+import { FetchModuleFn, PathAttributeName } from './defs.js';
 import { logger } from './logger.js';
 
 export class ModuleEntry {
@@ -1157,10 +1157,17 @@ export class Relationship extends Record {
 
 export class Workflow extends ModuleEntry {
   statements: Statement[];
+  generatedName: boolean;
 
-  constructor(name: string, patterns: Statement[], moduleName: string) {
+  constructor(
+    name: string,
+    patterns: Statement[],
+    moduleName: string,
+    generatedName: boolean = false
+  ) {
     super(name, moduleName);
     this.statements = patterns;
+    this.generatedName = generatedName;
   }
 
   async addStatement(stmtCode: string): Promise<Workflow> {
@@ -1278,7 +1285,8 @@ export class Workflow extends ModuleEntry {
   }
 
   override toString() {
-    let s: string = `workflow ${normalizeWorkflowName(this.name)} {\n`;
+    const n = this.generatedName ? untangleWorkflowName(this.name) : this.name;
+    let s: string = `workflow ${normalizeWorkflowName(n)} {\n`;
     const ss = this.statementsToStringsHelper(this.statements);
     s = s.concat(joinStatements(ss));
     return s.concat('\n}');
@@ -1887,8 +1895,11 @@ export function addWorkflow(
   name: string,
   moduleName = activeModule,
   statements?: Statement[],
-  hints?: WorkflowHint[]
+  hdr?: WorkflowHeader
 ): Workflow {
+  if (hdr) {
+    name = prePostWorkflowName(hdr.tag, hdr.prefix, hdr.name, moduleName);
+  }
   const module: Module = fetchModule(moduleName);
   if (module.hasEntry(name)) {
     const entry: ModuleEntry = module.getEntry(name);
@@ -1900,39 +1911,48 @@ export function addWorkflow(
     event.addMeta(SystemDefinedEvent, 'true');
   }
   if (!statements) statements = new Array<Statement>();
-  if (hints && hints.length > 0) {
+  if (hdr) {
     const eventFqName = makeFqName(moduleName, name);
-    hints.forEach((hint: WorkflowHint) => {
-      if (hint.subs) {
-        SetSubscription(eventFqName, hint.subs.resolverName);
-      } else if (hint.trigs) {
-        if (hint.trigs.after) {
-          hint.trigs.after.triggers.entries.forEach((te: TriggerEntry) => {
-            const entityDef = getEntityDefForTrigger(te, moduleName);
-            entityDef.addAfterTrigger({
-              on: te.on,
-              event: eventFqName,
-              async: te.async ? true : false,
-            });
-          });
-        } else if (hint.trigs.before) {
-          hint.trigs.before.triggers.entries.forEach((te: TriggerEntry) => {
-            const entityDef = getEntityDefForTrigger(te, moduleName);
-            entityDef.addBeforeTrigger({
-              on: te.on,
-              event: eventFqName,
-              async: te.async ? true : false,
-            });
-          });
-        }
-      }
-    });
+    const entityDef = getEntityDef(hdr.name, moduleName);
+    if (hdr.tag == '@after') {
+      entityDef?.addAfterTrigger({
+        on: hdr.prefix,
+        event: eventFqName,
+        async: false,
+      });
+    } else {
+      entityDef?.addBeforeTrigger({
+        on: hdr.prefix,
+        event: eventFqName,
+        async: false,
+      });
+    }
   }
-  return module.addEntry(new Workflow(asWorkflowName(name), statements, moduleName)) as Workflow;
+  return module.addEntry(
+    new Workflow(asWorkflowName(name), statements, moduleName, hdr ? true : false)
+  ) as Workflow;
 }
 
-function getEntityDefForTrigger(te: TriggerEntry, moduleName: string): Entity {
-  const entityName: string = te.event;
+function prePostWorkflowName(
+  tag: '@after' | '@before',
+  opr: 'create' | 'update' | 'delete',
+  entityName: string,
+  moduleName?: string
+): string {
+  const parts = splitFqName(entityName);
+  const mname = parts.hasModule() ? parts.getModuleName() : moduleName;
+  if (!mname) {
+    throw new Error(`Cannot infer module name for ${entityName}`);
+  }
+  return `${tag.substring(1)}_${opr}_${mname}_${parts.getEntryName()}`;
+}
+
+function untangleWorkflowName(name: string): string {
+  const parts = name.split('_');
+  return `@${parts[0]} ${parts[1]}:${parts[2]}/${parts[3]}`;
+}
+
+function getEntityDef(entityName: string, moduleName: string): Entity | undefined {
   const parts = splitFqName(entityName);
   const mname = parts.hasModule() ? parts.getModuleName() : moduleName;
   return getEntity(parts.getEntryName(), mname);
@@ -1949,12 +1969,13 @@ export function getWorkflow(eventInstance: Instance): Workflow {
   return EmptyWorkflow;
 }
 
-export function getEntity(name: string, moduleName: string): Entity {
+export function getEntity(name: string, moduleName: string): Entity | undefined {
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(name, moduleName);
   if (fr.module.isEntity(fr.entryName)) {
     return fr.module.getEntry(fr.entryName) as Entity;
   }
-  throw new Error(`Entity ${fr.entryName} not found in module ${fr.moduleName}`);
+  logger.error(`Entity ${fr.entryName} not found in module ${fr.moduleName}`);
+  return undefined;
 }
 
 function isEntryOfType(t: RecordType, fqName: string): boolean {
@@ -2782,7 +2803,7 @@ export function getEntityRbacRules(entityFqName: string): RbacSpecification[] | 
   const m = isModule(mn) && fetchModule(mn);
   if (m && m.isEntity(en)) {
     const entity = getEntity(en, mn);
-    return entity.getRbacSpecifications()?.filter((spec: RbacSpecification) => {
+    return entity?.getRbacSpecifications()?.filter((spec: RbacSpecification) => {
       return spec.expression != undefined;
     });
   }

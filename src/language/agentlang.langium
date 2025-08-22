@@ -92,11 +92,13 @@ Literal: (id=ID | num=Decimal | str=STRING | ref=Ref | bool=Boolean | fnCall=FnC
 
 fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*)+ '}' | '{' statements+=Statement ';'+ '}' | statements+=Statement;
 
-WorkflowDefinition: 'workflow' name=ID Body hints+=WorkflowHint*;
+WorkflowDefinition: 'workflow' (name=ID | header=WorkflowHeader) Body;
 
-WorkflowHint: subs=WorkflowSubsHint | trigs=PrePostTriggerDefinition;
+WorkflowHeader: tag=WorkflowHeaderTag prefix=WorkflowHeaderPrefix ':' name=ID;
 
-WorkflowSubsHint: '@subs' '(' resolverName=ID ')';
+WorkflowHeaderTag returns string: '@after' | '@before';
+
+WorkflowHeaderPrefix returns string: 'create' | 'update' | 'delete';
 
 Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | fullTextSearch=FullTextSearch | return=Return;
 

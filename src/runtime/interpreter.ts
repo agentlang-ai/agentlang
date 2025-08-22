@@ -1740,8 +1740,11 @@ async function runPrePostEvents(
       }
     };
     if (trigInfo.async) {
-      evaluate(eventInst, callback).catch(catchHandler);
+      const newEnv = new Environment('async.prepost.env');
+      newEnv.bind('this', inst);
+      evaluate(eventInst, callback, newEnv).catch(catchHandler);
     } else {
+      env.bind('this', inst);
       await evaluate(eventInst, callback, env).catch(catchHandler);
     }
   }

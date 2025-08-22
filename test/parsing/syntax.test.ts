@@ -13,6 +13,9 @@ import {
   ReferencePattern,
 } from '../../src/language/syntax.js';
 import { introspect } from '../../src/language/parser.js';
+import { doInternModule } from '../util.js';
+import { fetchModule, isModule, removeModule } from '../../src/runtime/module.js';
+import { parseAndIntern } from '../../src/runtime/loader.js';
 
 describe('Pattern generation using the syntax API', () => {
   test('test01', async () => {
@@ -283,5 +286,50 @@ Notes Allocation.Notes }}`)
     assert(p.isCreate)
     assert(!p.isQuery)
     assert(!p.isQueryUpdate)
+  })
+})
+
+describe('Pre/Post workflow syntax', () => {
+  test('test01', async () => {
+    const mname = 'WfSyntaxGen'
+    await doInternModule(mname,
+      `
+      entity incident {
+        id Int @id,
+        description String,
+        created DateTime @default(now())
+      }
+      workflow @after create:incident {
+        {orchestratorAgent {message this}}
+      }
+      workflow onIncident {
+        {orchestratorAgent {message onIncident.incident}}
+      }`
+    )
+
+    const mod = fetchModule(mname)
+    const s = mod.toString()
+    assert(s == `module WfSyntaxGen
+
+entity incident
+{
+    id Int @id,
+    description String,
+    created DateTime @default(now())
+}
+
+
+workflow @after create:WfSyntaxGen/incident {
+    {orchestratorAgent {message this}}
+}
+
+workflow onIncident {
+    {orchestratorAgent {message onIncident.incident}}
+}`)
+    removeModule(mname)
+    assert(!isModule(mname))
+    await parseAndIntern(s)
+    assert(isModule(mname))
+    assert(s == fetchModule(mname).toString())
   })
 })

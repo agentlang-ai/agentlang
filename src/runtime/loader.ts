@@ -413,7 +413,7 @@ export function addRelationshipFromDef(
 }
 
 export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string): Workflow {
-  return addWorkflow(def.name, moduleName, def.statements, def.hints);
+  return addWorkflow(def.name || '', moduleName, def.statements, def.header);
 }
 
 const StandaloneStatements = new Map<string, Statement[]>();
