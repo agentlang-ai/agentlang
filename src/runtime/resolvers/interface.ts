@@ -207,7 +207,7 @@ export class Resolver {
       case CrudType.CREATE:
         return await runPostCreateEvents(inst, env);
       case CrudType.UPDATE:
-        return await runPostUpdateEvents(inst, env);
+        return await runPostUpdateEvents(inst, undefined, env);
       case CrudType.DELETE:
         return await runPostDeleteEvents(inst, env);
       default:

@@ -1062,7 +1062,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       if (env.isInUpsertMode()) {
         await runPreUpdateEvents(inst, env);
         r = await res.upsertInstance(inst);
-        await runPostUpdateEvents(inst, env);
+        await runPostUpdateEvents(inst, undefined, env);
       } else {
         await runPreCreateEvents(inst, env);
         if (isTimer(inst)) triggerTimer(inst);
@@ -1178,7 +1178,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
               await computeExprAttributes(lastRes[i], env);
               await runPreUpdateEvents(lastRes[i], env);
               const finalInst: Instance = await resolver.updateInstance(lastRes[i], attrs);
-              await runPostUpdateEvents(finalInst, env);
+              await runPostUpdateEvents(finalInst, lastRes[i], env);
               res.push(finalInst);
             }
             env.setLastResult(res);
@@ -1190,7 +1190,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           await computeExprAttributes(lastRes, env);
           await runPreUpdateEvents(lastRes, env);
           const finalInst: Instance = await res.updateInstance(lastRes, attrs);
-          await runPostUpdateEvents(finalInst, env);
+          await runPostUpdateEvents(finalInst, lastRes, env);
           env.setLastResult(finalInst);
         }
       }
@@ -1762,9 +1762,13 @@ async function runPreUpdateEvents(inst: Instance, env: Environment) {
   await runPrePostEvents(CrudType.UPDATE, true, inst, env);
 }
 
-export async function runPostUpdateEvents(inst: Instance, env: Environment) {
+export async function runPostUpdateEvents(
+  inst: Instance,
+  oldInst: Instance | undefined,
+  env: Environment
+) {
   if (inst.requireAudit()) {
-    await addUpdateAudit(inst.getPath(), undefined, env);
+    await addUpdateAudit(inst.getPath(), oldInst, env);
   }
   await runPrePostEvents(CrudType.UPDATE, false, inst, env);
 }
@@ -1775,7 +1779,7 @@ async function runPreDeleteEvents(inst: Instance, env: Environment) {
 
 export async function runPostDeleteEvents(inst: Instance, env: Environment) {
   if (inst.requireAudit()) {
-    await addDeleteAudit(inst.getPath(), undefined, env);
+    await addDeleteAudit(inst.getPath(), inst, env);
   }
   await runPrePostEvents(CrudType.DELETE, false, inst, env);
 }

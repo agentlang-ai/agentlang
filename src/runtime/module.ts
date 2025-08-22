@@ -2269,6 +2269,14 @@ export class Instance {
     );
   }
 
+  static clone(inst: Instance): Instance {
+    const attrs = newInstanceAttributes();
+    inst.attributes.forEach((v: any, k: string) => {
+      attrs.set(k, v);
+    });
+    return Instance.newWithAttributes(inst, attrs);
+  }
+
   normalizeAttributes(attrs: InstanceAttributes): InstanceAttributes {
     attrs.forEach((v: any, k: string) => {
       const attrSpec = this.record.schema.get(k);
