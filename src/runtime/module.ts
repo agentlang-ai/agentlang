@@ -1157,10 +1157,17 @@ export class Relationship extends Record {
 
 export class Workflow extends ModuleEntry {
   statements: Statement[];
+  generatedName: boolean;
 
-  constructor(name: string, patterns: Statement[], moduleName: string) {
+  constructor(
+    name: string,
+    patterns: Statement[],
+    moduleName: string,
+    generatedName: boolean = false
+  ) {
     super(name, moduleName);
     this.statements = patterns;
+    this.generatedName = generatedName;
   }
 
   async addStatement(stmtCode: string): Promise<Workflow> {
@@ -1278,7 +1285,8 @@ export class Workflow extends ModuleEntry {
   }
 
   override toString() {
-    let s: string = `workflow ${normalizeWorkflowName(this.name)} {\n`;
+    const n = this.generatedName ? untangleWorkflowName(this.name) : this.name;
+    let s: string = `workflow ${normalizeWorkflowName(n)} {\n`;
     const ss = this.statementsToStringsHelper(this.statements);
     s = s.concat(joinStatements(ss));
     return s.concat('\n}');
@@ -1920,7 +1928,9 @@ export function addWorkflow(
       });
     }
   }
-  return module.addEntry(new Workflow(asWorkflowName(name), statements, moduleName)) as Workflow;
+  return module.addEntry(
+    new Workflow(asWorkflowName(name), statements, moduleName, hdr ? true : false)
+  ) as Workflow;
 }
 
 function prePostWorkflowName(
@@ -1935,6 +1945,11 @@ function prePostWorkflowName(
     throw new Error(`Cannot infer module name for ${entityName}`);
   }
   return `${tag.substring(1)}_${opr}_${mname}_${parts.getEntryName()}`;
+}
+
+function untangleWorkflowName(name: string): string {
+  const parts = name.split('_');
+  return `@${parts[0]} ${parts[1]}:${parts[2]}/${parts[3]}`;
 }
 
 function getEntityDef(entityName: string, moduleName: string): Entity | undefined {
