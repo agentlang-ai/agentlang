@@ -1891,11 +1891,20 @@ function normalizeWorkflowName(n: string): string {
   return n;
 }
 
+export type PrePostTag = '@after' | '@before';
+export type PrePostOpr = 'create' | 'update' | 'delete';
+
+type ThinWfHeader = {
+  tag: PrePostTag;
+  prefix: PrePostOpr;
+  name: string;
+};
+
 export function addWorkflow(
   name: string,
   moduleName = activeModule,
   statements?: Statement[],
-  hdr?: WorkflowHeader
+  hdr?: WorkflowHeader | ThinWfHeader
 ): Workflow {
   if (hdr) {
     name = prePostWorkflowName(hdr.tag, hdr.prefix, hdr.name, moduleName);
@@ -1933,9 +1942,72 @@ export function addWorkflow(
   ) as Workflow;
 }
 
+function addPrePostWorkflow(
+  tag: PrePostTag,
+  opr: PrePostOpr,
+  entityName: string,
+  moduleName = activeModule,
+  statements?: Statement[]
+): Workflow {
+  const hdr: ThinWfHeader = {
+    tag: tag,
+    prefix: opr,
+    name: entityName,
+  };
+  return addWorkflow('', moduleName, statements, hdr);
+}
+
+export function addAfterCreateWorkflow(
+  entityName: string,
+  moduleName = activeModule,
+  statements?: Statement[]
+): Workflow {
+  return addPrePostWorkflow('@after', 'create', entityName, moduleName, statements);
+}
+
+export function addAfterUpdateWorkflow(
+  entityName: string,
+  moduleName = activeModule,
+  statements?: Statement[]
+): Workflow {
+  return addPrePostWorkflow('@after', 'update', entityName, moduleName, statements);
+}
+
+export function addAfterDeleteWorkflow(
+  entityName: string,
+  moduleName = activeModule,
+  statements?: Statement[]
+): Workflow {
+  return addPrePostWorkflow('@after', 'delete', entityName, moduleName, statements);
+}
+
+export function addBeforeCreateWorkflow(
+  entityName: string,
+  moduleName = activeModule,
+  statements?: Statement[]
+): Workflow {
+  return addPrePostWorkflow('@before', 'create', entityName, moduleName, statements);
+}
+
+export function addBeforeUpdateWorkflow(
+  entityName: string,
+  moduleName = activeModule,
+  statements?: Statement[]
+): Workflow {
+  return addPrePostWorkflow('@before', 'update', entityName, moduleName, statements);
+}
+
+export function addBeforeDeleteWorkflow(
+  entityName: string,
+  moduleName = activeModule,
+  statements?: Statement[]
+): Workflow {
+  return addPrePostWorkflow('@before', 'delete', entityName, moduleName, statements);
+}
+
 function prePostWorkflowName(
-  tag: '@after' | '@before',
-  opr: 'create' | 'update' | 'delete',
+  tag: PrePostTag,
+  opr: PrePostOpr,
   entityName: string,
   moduleName?: string
 ): string {
