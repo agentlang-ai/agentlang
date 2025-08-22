@@ -8,7 +8,8 @@ entity Profile {
     email Email,
     photo URL @optional,
     DOB DateTime @optional,
-    @rbac [(roles: [manager], allow: [create])]
+    @rbac [(roles: [manager], allow: [create])],
+    @meta {"audit": true}
 }
 
 entity User {

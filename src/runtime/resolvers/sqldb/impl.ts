@@ -146,7 +146,7 @@ export class SqlDbResolver extends Resolver {
       updateObj,
       this.getDbContext(inst.getFqName())
     );
-    return inst.mergeAttributes(newAttrs);
+    return Instance.clone(inst).mergeAttributes(newAttrs);
   }
 
   static EmptyResultSet: Array<Instance> = new Array<Instance>();

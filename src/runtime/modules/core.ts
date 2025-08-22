@@ -1,6 +1,6 @@
 import { default as ai } from './ai.js';
 import { default as auth } from './auth.js';
-import { DefaultModuleName, DefaultModules } from '../util.js';
+import { DefaultModuleName, DefaultModules, escapeSpecialChars } from '../util.js';
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../module.js';
 import {
   Environment,
@@ -103,7 +103,7 @@ async function addAudit(
     `{agentlang/auditlog {
         action "${action}",
         resource "${resource}",
-        previous_value "${previuos_value ? JSON.stringify(previuos_value.asObject()) : ''}",
+        previous_value "${previuos_value ? escapeSpecialChars(JSON.stringify(previuos_value.asObject())) : ''}",
         user "${user}",
         token "${token ? token : ''}"
 }}`,
