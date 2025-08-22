@@ -25,8 +25,6 @@ if (isNodeEnv) {
     maxFiles: '7d',
   });
 
-  const consoleTransport = new winston.transports.Console();
-
   logger = winston.createLogger({
     format: winston.format.combine(
       winston.format.timestamp(),
@@ -34,7 +32,7 @@ if (isNodeEnv) {
         return `[${timestamp}] ${level}: ${message}`;
       })
     ),
-    transports: [fileTransport, consoleTransport],
+    transports: [fileTransport],
   });
 } else {
   function mkLogger(tag: string): Function {
