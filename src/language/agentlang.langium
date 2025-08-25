@@ -94,7 +94,7 @@ fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*
 
 WorkflowDefinition: 'workflow' (name=ID | header=WorkflowHeader) Body;
 
-WorkflowHeader: tag=WorkflowHeaderTag prefix=WorkflowHeaderPrefix ':' name=ID;
+WorkflowHeader: tag=WorkflowHeaderTag prefix=WorkflowHeaderPrefix ':' name=QualifiedName;
 
 WorkflowHeaderTag returns string: '@after' | '@before';
 
