@@ -1,7 +1,5 @@
 module Blog.Core
 
-// Ref: https://www.prisma.io/docs/orm/prisma-schema/data-model/relations
-
 entity Profile {
     id UUID @id @default(uuid()),
     address String @optional,

@@ -1170,7 +1170,7 @@ export function isWorkflowDefinition(item: unknown): item is WorkflowDefinition 
 export interface WorkflowHeader extends langium.AstNode {
     readonly $container: WorkflowDefinition;
     readonly $type: 'WorkflowHeader';
-    name: string;
+    name: QualifiedName;
     prefix: WorkflowHeaderPrefix;
     tag: WorkflowHeaderTag;
 }
