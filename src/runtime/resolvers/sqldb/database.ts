@@ -210,7 +210,7 @@ function defaultLocateFile(file: string): string {
   try {
     /* eslint-disable-next-line @typescript-eslint/no-require-imports */
     const path = require('path');
-     
+
     const base = require.resolve('sql.js/dist/sql-wasm.js');
     return path.join(path.dirname(base), file);
   } catch {
