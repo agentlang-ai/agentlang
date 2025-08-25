@@ -159,8 +159,18 @@ export class Environment extends Instance {
     }
   }
 
-  static from(parent: Environment): Environment {
-    return new Environment(undefined, parent);
+  static from(
+    parent: Environment,
+    name?: string | undefined,
+    isAsync: boolean = false
+  ): Environment {
+    const env = new Environment(name, parent);
+    if (isAsync) {
+      env.activeResolvers = new Map<string, Resolver>();
+      env.activeTransactions = new Map<string, string>();
+      env.activeCatchHandlers = new Array<CatchHandlers>();
+    }
+    return env;
   }
 
   static fromInstance(inst: Instance): Environment {
@@ -671,7 +681,10 @@ async function evaluateAsyncPattern(
       await evaluateStatements(thenStmts, env);
     }
   } catch (reason: any) {
+    await env.rollbackAllTransactions();
     await maybeHandleError(handlers, reason, env);
+  } finally {
+    await env.commitAllTransactions();
   }
 }
 
@@ -686,7 +699,7 @@ async function evaluateStatement(stmt: Statement, env: Environment): Promise<voi
       thenStmts,
       handlers,
       hints,
-      new Environment(env.name + 'async', env)
+      Environment.from(env, env.name + 'async', true)
     );
     if (isReturn(stmt.pattern)) {
       env.markForReturn();
