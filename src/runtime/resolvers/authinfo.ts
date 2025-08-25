@@ -1,13 +1,13 @@
 export class ResolverAuthInfo {
-	userId: string;
-	readForUpdate = false;
-	readForDelete = false;
+  userId: string;
+  readForUpdate = false;
+  readForDelete = false;
 
-	constructor(userId: string, readForUpdate?: boolean, readForDelete?: boolean) {
-		this.userId = userId;
-		if (readForUpdate != undefined) this.readForUpdate = readForUpdate;
-		if (readForDelete != undefined) this.readForDelete = readForDelete;
-	}
+  constructor(userId: string, readForUpdate?: boolean, readForDelete?: boolean) {
+    this.userId = userId;
+    if (readForUpdate != undefined) this.readForUpdate = readForUpdate;
+    if (readForDelete != undefined) this.readForDelete = readForDelete;
+  }
 }
 
 // This user-id is only for testing. Override per session from the HTTP layer.
