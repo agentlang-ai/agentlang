@@ -1894,7 +1894,7 @@ function normalizeWorkflowName(n: string): string {
 export type PrePostTag = '@after' | '@before';
 export type PrePostOpr = 'create' | 'update' | 'delete';
 
-type ThinWfHeader = {
+export type ThinWfHeader = {
   tag: PrePostTag;
   prefix: PrePostOpr;
   name: string;
@@ -2019,9 +2019,20 @@ export function prePostWorkflowName(
   return `${tag.substring(1)}_${opr}_${mname}_${parts.getEntryName()}`;
 }
 
-function untangleWorkflowName(name: string): string {
+export function untangleWorkflowName(name: string): string {
   const parts = name.split('_');
   return `@${parts[0]} ${parts[1]}:${parts[2]}/${parts[3]}`;
+}
+
+export function parsePrePostWorkflowName(name: string): ThinWfHeader {
+  const s = untangleWorkflowName(name);
+  const p1 = s.split('');
+  const p2 = p1[1].split(':');
+  return {
+    tag: `@${p1[0]}` as PrePostTag,
+    prefix: p2[0] as PrePostOpr,
+    name: p2[1],
+  };
 }
 
 function getEntityDef(entityName: string, moduleName: string): Entity | undefined {
