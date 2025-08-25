@@ -2,7 +2,9 @@
 
 # AgentLang Programming Language
 
-AgentLang is the **easiest way** to build AI Agents, Chatbots and Apps - build **teams of AI agents** that collaborate (with other AI agents and humans) to handle complex, time-consuming, monotonous tasks. AgentLang is a data-oriented, declarative abstraction for building agents and apps, similar to how Terraform is a declarative abstraction for infrastructure-as-code.
+AgentLang is the **easiest way** to build AI agents and AI-driven apps. Build **teams of AI agents** that collaborate with humans to handle complex, time-consuming, monotonous tasks and get work done!
+
+AgentLang is the industry's first no-code friendly programming language - build AgentLang apps and agent visually (in Fractl Studio - coming soon!)
 
 [![AgentLang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml)
 [![Lint and Format Check](https://github.com/agentlang-ai/agentlang/actions/workflows/lint.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/lint.yml)
@@ -11,7 +13,7 @@ AgentLang is the **easiest way** to build AI Agents, Chatbots and Apps - build *
 
 The AgentLang language specification, its compiler and runtime are open source. AgentLang programs can run anywhere - **avoiding the vendor lock-in** of other AI agent/programming platforms.
 
-AgentLang runtime has native integration with databases, vector databases, auth stores, etc. AgentLang programs run on the JVM and can make use of any of the thousands of existing Node and other JavaScript libraries out there.
+AgentLang runtime has native integration with multitude of databases, vector databases, auth stores, etc. AgentLang programs run on nodeJS and can make use of any of the thousands of existing Node and other JavaScript libraries out there.
 
 AgentLang comes with all the modern tooling and dependency management needed to build production-grade agents and apps.
 
