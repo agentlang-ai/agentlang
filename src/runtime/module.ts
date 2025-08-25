@@ -2005,7 +2005,7 @@ export function addBeforeDeleteWorkflow(
   return addPrePostWorkflow('@before', 'delete', entityName, moduleName, statements);
 }
 
-function prePostWorkflowName(
+export function prePostWorkflowName(
   tag: PrePostTag,
   opr: PrePostOpr,
   entityName: string,
