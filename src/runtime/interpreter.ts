@@ -1741,13 +1741,19 @@ async function runPrePostEvents(
     };
     if (trigInfo.async) {
       const newEnv = new Environment('async.prepost.env');
-      newEnv.bind('this', inst);
-      evaluate(eventInst, callback, newEnv).catch(catchHandler);
+      evaluate(eventInst, callback, bindAliasesForPrePost(newEnv, inst)).catch(catchHandler);
     } else {
       env.bind('this', inst);
-      await evaluate(eventInst, callback, env).catch(catchHandler);
+      await evaluate(eventInst, callback, bindAliasesForPrePost(env, inst)).catch(catchHandler);
     }
   }
+}
+
+function bindAliasesForPrePost(env: Environment, inst: Instance): Environment {
+  const fullAlias = inst.getFqName();
+  env.bind('this', inst);
+  env.bind(fullAlias, inst);
+  return env;
 }
 
 async function runPreCreateEvents(inst: Instance, env: Environment) {

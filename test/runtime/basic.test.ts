@@ -403,7 +403,7 @@ describe('Pre-Post trigger tests', () => {
         {F {id AfterCreate.E.id, w AfterCreate.E.v * 10}}
       }
       workflow @after update:E {
-        {F {id? this.id, w this.v * 100}}
+        {F {id? this.id, w PrePostEvents/E.v * 100}}
       }
       workflow BeforeDelete {
         delete {F {id? BeforeDelete.E.id}}
