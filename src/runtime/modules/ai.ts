@@ -269,7 +269,7 @@ export async function findAgentByName(name: string, env: Environment): Promise<A
     const agentInstance: Instance = result[0];
     return AgentInstance.FromInstance(agentInstance);
   } else {
-    throw new Error(`Failed to fine agent ${name}`);
+    throw new Error(`Failed to find agent ${name}`);
   }
 }
 
