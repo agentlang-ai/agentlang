@@ -2,14 +2,20 @@
 
 # AgentLang Programming Language
 
+</div>
+
 AgentLang is the **easiest way** to build AI agents and AI-driven apps. Build **teams of AI agents** that collaborate with humans to handle complex, time-consuming, monotonous tasks and get work done!
 
 AgentLang is the industry's first no-code friendly programming language - build AgentLang apps and agent visually (in Fractl Studio - coming soon!)
+
+<div align="center">
 
 [![AgentLang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml)
 [![Lint and Format Check](https://github.com/agentlang-ai/agentlang/actions/workflows/lint.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/lint.yml)
 
 ### **Open | Enterprise-grade | Production-ready**
+
+</div>
 
 The AgentLang language specification, its compiler and runtime are open source. AgentLang programs can run anywhere - **avoiding the vendor lock-in** of other AI agent/programming platforms.
 
