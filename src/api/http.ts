@@ -6,6 +6,7 @@ import {
   getAllEventNames,
   Instance,
   InstanceAttributes,
+  isBetweenRelationship,
   makeInstance,
   objectAsInstanceAttributes,
   Relationship,
@@ -243,24 +244,31 @@ async function handleEntityGet(
 }
 
 function queryPatternFromPath(path: string): string {
-  let pattern = '';
   const r = walkDownInstancePath(path);
   let moduleName = r[0];
   let entityName = r[1];
   const id = r[2];
   const parts = r[3];
   if (parts.length == 2 && id == undefined) {
-    pattern = `{${moduleName}/${entityName}? {}}`;
+    return `{${moduleName}/${entityName}? {}}`;
   } else {
     moduleName = restoreFqName(moduleName);
+    const relName: string | undefined = restoreFqName(parts[parts.length - 2]);
+    if (relName && isBetweenRelationship(relName, moduleName)) {
+      const n = restoreFqName(parts[0]);
+      const ns = splitFqName(n);
+      const pe = ns.getEntryName();
+      const pm = ns.hasModule() ? ns.getModuleName() : moduleName;
+      const p = parts.slice(0, parts.length - 2).join('/');
+      return `{${pm}/${pe} {${PathAttributeNameQuery} "${p}"}, ${relName} {${moduleName}/${entityName}? {}}}`;
+    }
     entityName = restoreFqName(entityName);
     if (id == undefined) {
-      pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery}like "${path}%"}}`;
+      return `{${moduleName}/${entityName} {${PathAttributeNameQuery}like "${path}%"}}`;
     } else {
-      pattern = `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
+      return `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
     }
   }
-  return pattern;
 }
 
 async function handleEntityPut(
