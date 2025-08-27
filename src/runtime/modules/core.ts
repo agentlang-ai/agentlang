@@ -12,7 +12,7 @@ import { logger } from '../logger.js';
 import { Statement } from '../../language/generated/ast.js';
 import { parseStatements } from '../../language/parser.js';
 import { Resolver } from '../resolvers/interface.js';
-import { PathAttributeName } from '../defs.js';
+import { ForceReadPermFlag, PathAttributeName } from '../defs.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
@@ -99,6 +99,7 @@ async function addAudit(
   const user = env.getActiveUser();
   const token = env.getActiveToken();
   const newEnv = new Environment('auditlog', env).setInKernelMode(true);
+  newEnv.bind(ForceReadPermFlag, true);
   const r: any = await parseAndEvaluateStatement(
     `{agentlang/auditlog {
         action "${action}",
@@ -107,7 +108,7 @@ async function addAudit(
         user "${user}",
         token "${token ? token : ''}"
 }}`,
-    undefined,
+    user,
     newEnv
   );
   if (!isInstanceOfType(r, 'agentlang/auditlog')) {
