@@ -99,7 +99,7 @@ async function addAudit(
   const user = env.getActiveUser();
   const token = env.getActiveToken();
   const newEnv = new Environment('auditlog', env).setInKernelMode(true);
-  newEnv.bind(ForceReadPermFlag, true)
+  newEnv.bind(ForceReadPermFlag, true);
   const r: any = await parseAndEvaluateStatement(
     `{agentlang/auditlog {
         action "${action}",

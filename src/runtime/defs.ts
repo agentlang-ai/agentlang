@@ -88,4 +88,4 @@ export function setSubscriptionFn(f: Function) {
   SetSubscription = f;
 }
 
-export const ForceReadPermFlag = 'f-r-f'
+export const ForceReadPermFlag = 'f-r-f';
