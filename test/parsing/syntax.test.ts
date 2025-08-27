@@ -209,9 +209,9 @@ describe('Pattern introspection', () => {
     assert(arrayPat.toString() == '[100, "hi", [a, a.b]]')
 
     const mapPat = LiteralPattern.Map(new Map()
-      .set('"a"', LiteralPattern.Number(1))
-      .set('b', arrayPat))
-    assert(mapPat.toString() == '{"a": 1, b: [100, "hi", [a, a.b]]}')
+      .set({str: 'a'}, LiteralPattern.Number(1))
+      .set({str: 'b'}, arrayPat))
+    assert(mapPat.toString() == '{"a": 1, "b": [100, "hi", [a, a.b]]}')
 
     const e1 = await ExpressionPattern.Validated('(x < 4)')
     assert(e1.toString() == '(x < 4)')
