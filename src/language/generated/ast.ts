@@ -473,7 +473,7 @@ export function isEventDefinition(item: unknown): item is EventDefinition {
 export interface ExtendsClause extends langium.AstNode {
     readonly $container: EntityDefinition | EventDefinition | RecordDefinition;
     readonly $type: 'ExtendsClause';
-    parentName: string;
+    parentName: QualifiedName;
 }
 
 export const ExtendsClause = 'ExtendsClause';

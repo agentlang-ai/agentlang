@@ -28,7 +28,7 @@ EntityDefinition: 'entity' RecDef;
 EventDefinition: 'event' RecDef;
 RecordDefinition: 'record' RecDef;
 
-ExtendsClause: 'extends' parentName=ID;
+ExtendsClause: 'extends' parentName=QualifiedName;
 
 RelationshipDefinition: 'relationship' name=QualifiedName type=('contains' | 'between') nodes=RelNodes properties+=PropertyDefinition*
 (schema=RecordSchemaDefinition)?;
