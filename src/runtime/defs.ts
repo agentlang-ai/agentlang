@@ -87,3 +87,5 @@ export let SetSubscription: any = undefined;
 export function setSubscriptionFn(f: Function) {
   SetSubscription = f;
 }
+
+export const ForceReadPermFlag = 'f-r-f'

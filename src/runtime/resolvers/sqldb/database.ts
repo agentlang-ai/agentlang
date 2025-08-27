@@ -19,7 +19,7 @@ import {
 } from '../../module.js';
 import pgvector from 'pgvector';
 import { isString } from '../../util.js';
-import { DeletedFlagAttributeName, PathAttributeName, UnauthorisedError } from '../../defs.js';
+import { DeletedFlagAttributeName, ForceReadPermFlag, PathAttributeName, UnauthorisedError } from '../../defs.js';
 
 export let defaultDataSource: DataSource | undefined;
 
@@ -109,6 +109,10 @@ export class DbContext {
 
   isInKernelMode(): boolean {
     return this.inKernelMode;
+  }
+
+  forceReadPermission(): boolean {
+    return this.activeEnv.lookup(ForceReadPermFlag)
   }
 }
 
@@ -400,6 +404,8 @@ export async function insertRows(
     if (!doUpsert) {
       if (!ctx.isInKernelMode()) {
         await createOwnership(tableName, rows, ctx);
+      } else if (ctx.forceReadPermission()) {
+        await createReadPermission(tableName, rows, ctx)
       }
       if (ctx.rbacRules) {
         for (let i = 0; i < ctx.rbacRules.length; ++i) {
@@ -477,6 +483,13 @@ const AllPerms = new Set<RbacPermissionFlag>()
 
 async function createOwnership(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
   await createLimitedOwnership(tableName, rows, ctx.authInfo.userId, AllPerms, ctx);
+}
+
+const ReadPermOnly = new Set<RbacPermissionFlag>()
+  .add(RbacPermissionFlag.READ)
+
+async function createReadPermission(tableName: string, rows: object[], ctx: DbContext): Promise<void> {
+  await createLimitedOwnership(tableName, rows, ctx.authInfo.userId, ReadPermOnly, ctx);
 }
 
 async function createLimitedOwnership(
