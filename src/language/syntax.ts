@@ -84,6 +84,12 @@ export enum LiteralPatternType {
   ARRAY,
 }
 
+export type MapKey = {
+  str?: string;
+  num?: number;
+  bool?: boolean;
+};
+
 export class LiteralPattern extends BasePattern {
   type: LiteralPatternType;
   value: any;
@@ -119,7 +125,7 @@ export class LiteralPattern extends BasePattern {
     return new LiteralPattern(LiteralPatternType.REFERENCE, value);
   }
 
-  static Map(value: Map<string, BasePattern>): LiteralPattern {
+  static Map(value: Map<MapKey, BasePattern>): LiteralPattern {
     return new LiteralPattern(LiteralPatternType.MAP, value);
   }
 
@@ -140,9 +146,18 @@ export class LiteralPattern extends BasePattern {
         break;
       }
       case LiteralPatternType.MAP: {
-        const m = this.value as Map<string, BasePattern>;
+        const m = this.value as Map<MapKey, BasePattern>;
         const arr = new Array<string>();
-        m.forEach((v: BasePattern, k: string) => {
+        m.forEach((v: BasePattern, key: any) => {
+          let k: any = key.str;
+          if (k == undefined) {
+            k = key.num;
+          } else {
+            k = `"${k}"`;
+          }
+          if (k == undefined) {
+            k = key.bool;
+          }
           arr.push(`${k}: ${v.toString()}`);
         });
         s = `{${arr.join(', ')}}`;
@@ -202,11 +217,17 @@ export function isMapLiteral(p: LiteralPattern): boolean {
 export class FunctionCallPattern extends BasePattern {
   fnName: string;
   arguments: BasePattern[];
+  isAsync: boolean = false;
 
   constructor(fnName: string, args: BasePattern[]) {
     super();
     this.fnName = fnName;
     this.arguments = args;
+  }
+
+  asAsync(): FunctionCallPattern {
+    this.isAsync = true;
+    return this;
   }
 
   override toString(): string {
@@ -220,7 +241,12 @@ export class FunctionCallPattern extends BasePattern {
     } else {
       s = `${this.fnName}()`;
     }
-    return s.concat(this.hintsAsString());
+    s = s.concat(this.hintsAsString());
+    if (this.isAsync) {
+      return `await ${s}`;
+    } else {
+      return s;
+    }
   }
 }
 
