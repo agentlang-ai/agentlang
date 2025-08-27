@@ -1440,6 +1440,10 @@ export class Module {
     return this.getEntry(asWorkflowName(eventName)) as Workflow;
   }
 
+  isPrePostEvent(eventName: string): boolean {
+    return this.getWorkflowForEvent(eventName).generatedName;
+  }
+
   isEntryOfType(t: RecordType, name: string): boolean {
     const entry: ModuleEntry | undefined = this.getEntriesOfType(t).find((v: ModuleEntry) => {
       const r: Record = v as Record;

@@ -4,6 +4,7 @@ import {
   CrudMap,
   Delete,
   Expr,
+  FnCall,
   ForEach,
   Group,
   Handler,
@@ -16,6 +17,7 @@ import {
   isPrimExpr,
   isWorkflowDefinition,
   Literal,
+  MapEntry,
   ModuleDefinition,
   NegExpr,
   NotExpr,
@@ -317,6 +319,19 @@ function introspectCreatePattern(crudMap: CrudMap): CrudPattern {
   throw new Error(`Failed to introspect create-pattern: ${crudMap}`);
 }
 
+function asFnCallPattern(fnCall: FnCall): FunctionCallPattern {
+  return new FunctionCallPattern(
+    fnCall.name,
+    fnCall.args.map((v: Literal | Expr) => {
+      if (isExpr(v)) {
+        return introspectExpression(v);
+      } else {
+        return introspectLiteral(v);
+      }
+    })
+  );
+}
+
 function introspectLiteral(lit: Literal): BasePattern {
   if (lit.id) {
     return LiteralPattern.Id(lit.id);
@@ -329,22 +344,21 @@ function introspectLiteral(lit: Literal): BasePattern {
   } else if (lit.bool) {
     return LiteralPattern.Boolean(lit.bool == 'true' ? true : false);
   } else if (lit.fnCall) {
-    return new FunctionCallPattern(
-      lit.fnCall.name,
-      lit.fnCall.args.map((v: Literal | Expr) => {
-        if (isExpr(v)) {
-          return introspectExpression(v);
-        } else {
-          return introspectLiteral(v);
-        }
-      })
-    );
+    return asFnCallPattern(lit.fnCall);
+  } else if (lit.asyncFnCall) {
+    return asFnCallPattern(lit.asyncFnCall.fnCall).asAsync();
   } else if (lit.array) {
     return LiteralPattern.Array(
       lit.array.vals.map((stmt: Statement) => {
         return introspectStatement(stmt);
       })
     );
+  } else if (lit.map) {
+    const m = new Map<any, BasePattern>();
+    lit.map.entries.forEach((me: MapEntry) => {
+      m.set(me.key, introspectExpression(me.value));
+    });
+    return LiteralPattern.Map(m);
   } else {
     throw new Error(`Invalid literal - ${lit}`);
   }

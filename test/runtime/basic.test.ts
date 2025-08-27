@@ -410,6 +410,13 @@ describe('Pre-Post trigger tests', () => {
       }
      `
     );
+    const m = fetchModule('PrePostEvents')
+    const events = m.getEventNames()
+    let c = 0
+    events.forEach((n: string) => {
+      if (m.isPrePostEvent(n)) ++c
+    })
+    assert(c == 1)
     await parseAndEvaluateStatement(`{PrePostEvents/CrE {id 1, v 10}}`).then((result: Instance) => {
       assert(isInstanceOfType(result, 'PrePostEvents/E'));
     });

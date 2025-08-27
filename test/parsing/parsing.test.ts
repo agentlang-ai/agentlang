@@ -7,6 +7,8 @@ import { Definition, isModuleDefinition, isStandaloneStatement, ModuleDefinition
 import { parseAndIntern } from '../../src/runtime/loader.js';
 import { Agent, Entity, enumAttributeSpec, fetchModule, getRelationship, oneOfAttributeSpec } from '../../src/runtime/module.js';
 import { doInternModule } from '../util.js';
+import { introspect } from '../../src/language/parser.js';
+import { BasePattern } from '../../src/language/syntax.js';
 
 let services: ReturnType<typeof createAgentlangServices>;
 let parse: ReturnType<typeof parseHelper<ModuleDefinition>>;
@@ -213,8 +215,8 @@ describe('Rbac toString test', () => {
         @rbac [(roles: [manager], allow: [create]),
            (allow: [read], where: auth.user = this.id)]
       }`)
-      const str = fetchModule('RbacToStr').toString()
-      assert(str == `module RbacToStr
+    const str = fetchModule('RbacToStr').toString()
+    assert(str == `module RbacToStr
 
 entity E
 {
@@ -223,8 +225,8 @@ entity E
 (where: auth.user = this.id, allow: [read])]
 }
 `)
-    })
   })
+})
 
 describe('enum toString test', () => {
   test('test01', async () => {
@@ -310,5 +312,24 @@ relationship BA between (B, A) @one_one
 
 relationship BC contains (B, C)
 `)
+  })
+})
+
+describe('Statements to string issue', () => {
+  test("test01", async () => {
+    await doInternModule('StmtsToStr',
+      `workflow updateIncidentApprovalStatus {
+    updateIncidentApprovalStatus.incidentSysId + ": " + updateIncidentApprovalStatus.approvalStatus + ", " + updateIncidentApprovalStatus.updatedOn @as s;
+    console.log(s);
+    {servicenow/incident {sys_id? updateIncidentApprovalStatus.incidentSysId, data {"comment": updateIncidentApprovalStatus.approvalStatus}}}
+}`)
+    const m = fetchModule('StmtsToStr')
+    const wf = m.getWorkflowForEvent('updateIncidentApprovalStatus')
+    const s = wf.statementsToStrings();
+    for (let i = 0; i < s.length; ++i) {
+      const bp: BasePattern = await introspect(s[i])
+      const ps = bp.toString()
+      assert(ps.trim() == s[i].trim())
+    }
   })
 })
