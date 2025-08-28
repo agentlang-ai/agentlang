@@ -938,3 +938,51 @@ describe("Fetch rels for entity", () => {
     chk(rels, ['FRels/AB'])
   })
 })
+
+describe('Destructuring', () => {
+  test('test01', async () => {
+    await doInternModule(
+      'Des',
+      `entity Employee {
+        id Int @id,
+        name String,
+        salary Int
+      }
+      workflow Test1 {
+        {Des/Employee {salary?> 5000}} @as employees;
+        employees
+      }
+      workflow Test2 {
+        {Des/Employee {salary?> 5000}} @as [e1];
+        e1
+      }
+      workflow Test3 {
+        {Des/Employee {salary?> 5000}} @as [e1, _, e2, __, es];
+        [e1, e2, es]
+      }
+      `)
+    const isemp = (obj: any) => {
+      return isInstanceOfType(obj, 'Des/Employee')
+    }
+    const cre = async (id: number, name: string, salary: number) => {
+      const e = await parseAndEvaluateStatement(`{Des/Employee {id ${id}, name "${name}", salary ${salary}}}`)
+      assert(isemp(e))
+    }
+    await cre(1, 'a', 2000)
+    await cre(2, 'b', 5001)
+    await cre(3, 'c', 5600)
+    await cre(4, 'd', 2600)
+    await cre(5, 'e', 6800)
+    await cre(6, 'f', 9000)
+    const r1: Instance[] = await parseAndEvaluateStatement(`{Des/Test1 {}}`)
+    assert(r1.length == 4)
+    assert(r1.every((inst: Instance) => {
+      return isemp(inst)
+    }))
+    const r2 = await parseAndEvaluateStatement(`{Des/Test2 {}}`)
+    assert(isemp(r2))
+    const r3: any[] = await parseAndEvaluateStatement(`{Des/Test3 {}}`)
+    assert(isemp(r3[0]) && isemp(r3[1]))
+    assert(isemp(r3[2][0]))
+    })
+  })

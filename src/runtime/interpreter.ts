@@ -767,10 +767,10 @@ function maybeBindStatementResultToAlias(hints: RuntimeHint[], env: Environment)
             const resArr: Array<any> = result as Array<any>;
             for (let i = 0; i < aliases.length; ++i) {
               const k: string = aliases[i];
-              if (k == '_') {
+              if (k == '__') {
                 env.bind(aliases[i + 1], resArr.splice(i));
                 break;
-              } else {
+              } else if (k != '_') {
                 env.bind(aliases[i], resArr[i]);
               }
             }
