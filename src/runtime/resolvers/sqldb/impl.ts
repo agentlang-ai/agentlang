@@ -217,15 +217,17 @@ export class SqlDbResolver extends Resolver {
       inst.addQuery(col, '=', connectedInstance.lookup(PathAttributeName));
       return await this.queryInstances(inst, false);
     } else {
+      const from = relationship.getAliasFor(connectedInstance);
+      const to = relationship.getInverseAliasFor(connectedInstance);
       await getAllConnected(
         asTableReference(inst.moduleName, inst.name),
         inst.queryAttributesAsObject(),
         inst.queryAttributeValuesAsObject(),
         {
           connectionTable: asTableReference(inst.moduleName, relationship.name),
-          fromColumn: relationship.node1.alias,
+          fromColumn: from,
           fromValue: `'${connectedInstance.lookup(PathAttributeName)}'`,
-          toColumn: relationship.node2.alias,
+          toColumn: to,
           toRef: PathAttributeName,
         },
         this.getDbContext(inst.getFqName())
