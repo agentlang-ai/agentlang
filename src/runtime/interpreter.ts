@@ -302,6 +302,16 @@ export class Environment extends Instance {
     return this.returnFlag;
   }
 
+  resetReturnFlag(): Environment {
+    if (this.returnFlag) {
+      this.returnFlag = false;
+      if (this.parent) {
+        this.parent.resetReturnFlag();
+      }
+    }
+    return this;
+  }
+
   protected propagateSuspension(suspId: string) {
     this.suspensionId = suspId;
     if (this.parent) {
@@ -1212,7 +1222,10 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
     else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
     else if (isDocEventInstance(inst)) await handleDocEvent(inst, env);
-    else await evaluate(inst, (result: Result) => env.setLastResult(result), env);
+    else {
+      await evaluate(inst, (result: Result) => env.setLastResult(result), env);
+      env.resetReturnFlag();
+    }
   } else {
     env.setLastResult(inst);
   }
