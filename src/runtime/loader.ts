@@ -24,6 +24,9 @@ import {
   ResolverMethodSpec,
   AgentPropertyDef,
   isLiteral,
+  ArrayLiteral,
+  MapEntry,
+  Expr,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -458,21 +461,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   def.body?.attributes.forEach((apdef: AgentPropertyDef) => {
     let v: any = undefined;
     if (apdef.value.array) {
-      v = apdef.value.array.vals
-        .map((stmt: Statement) => {
-          if (stmt.pattern.expr && isLiteral(stmt.pattern.expr)) {
-            const s = stmt.pattern.expr.str || stmt.pattern.expr.id || stmt.pattern.expr.ref;
-            if (s == undefined) {
-              throw new Error(
-                `Only arrays of string-literals or identifiers should be passed to agent ${name}`
-              );
-            }
-            return s;
-          } else {
-            throw new Error(`Invalid value in array passed to agent ${name}`);
-          }
-        })
-        .join(',');
+      v = processAgentArray(apdef.value.array, name);
     } else {
       v = apdef.value.str || apdef.value.id || apdef.value.ref || apdef.value.num;
       if (v == undefined) {
@@ -511,6 +500,39 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     addStandaloneStatement(stmt, moduleName);
   });
   addAgent(def.name, attrs, moduleName);
+}
+
+function processAgentArray(array: ArrayLiteral, attrName: string): string {
+  return array.vals
+    .map((stmt: Statement) => {
+      const expr = stmt.pattern.expr;
+      return processAgentArrayValue(expr, attrName);
+    })
+    .join(',');
+}
+
+function processAgentArrayValue(expr: Expr | undefined, attrName: string): string {
+  if (expr && isLiteral(expr)) {
+    const s = expr.str || expr.id || expr.ref || expr.bool;
+    if (s != undefined) {
+      return s;
+    }
+    if (expr.array) {
+      return processAgentArray(expr.array, attrName);
+    } else if (expr.map) {
+      const m = new Array<string>();
+      expr.map.entries.forEach((me: MapEntry) => {
+        m.push(
+          `${me.key.str || me.key.num || me.key.bool || ''}: ${processAgentArrayValue(me.value, attrName)}`
+        );
+      });
+      return `{${m.join(',')}}`;
+    } else {
+      throw new Error(`Type not supprted in agent-arrays - ${attrName}`);
+    }
+  } else {
+    throw new Error(`Invalid value in array passed to agent ${attrName}`);
+  }
 }
 
 function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
