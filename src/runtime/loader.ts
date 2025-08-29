@@ -64,7 +64,13 @@ import { maybeGetValidationErrors, parse, parseModule, parseWorkflow } from '../
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
-import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
+import {
+  AgentEntityName,
+  CoreAIModuleName,
+  FlowStep,
+  LlmEntityName,
+  registerAgentFlow,
+} from './modules/ai.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
 import { Config, ConfigSchema, setAppConfig } from './state.js';
@@ -291,6 +297,7 @@ export async function loadCoreModules() {
 
 async function loadModule(fileName: string, fsOptions?: any, callback?: Function): Promise<Module> {
   // Initialize filesystem if not already done
+  console.log(`loading ${fileName}`);
   const fs = await getFileSystem(fsOptions);
 
   const fsAdapter = getFsAdapter(fs);
@@ -459,30 +466,67 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   attrsStrs.push(`name "${name}"`);
   const attrs = newInstanceAttributes();
   def.body?.attributes.forEach((apdef: AgentPropertyDef) => {
-    let v: any = undefined;
-    if (apdef.value.array) {
-      v = processAgentArray(apdef.value.array, name);
-    } else {
-      v = apdef.value.str || apdef.value.id || apdef.value.ref || apdef.value.num;
-      if (v == undefined) {
-        v = apdef.value.bool;
+    if (apdef.name == 'flow') {
+      if (apdef.value.array) {
+        const flowSpec = new Array<FlowStep>();
+        apdef.value.array.vals.forEach((stmt: Statement) => {
+          const expr = stmt.pattern.expr;
+          if (expr && isLiteral(expr) && expr.map) {
+            const step: FlowStep = {};
+            expr.map.entries.forEach((me: MapEntry) => {
+              const k = me.key.str;
+              if (k) {
+                const e: Expr = me.value;
+                if (isLiteral(e)) {
+                  if (e.array) {
+                    step[k] = e.array.vals
+                      .map((v: Statement) => {
+                        if (v.pattern.expr && isLiteral(v.pattern.expr)) {
+                          return (
+                            v.pattern.expr.id || v.pattern.expr.ref || v.pattern.expr.str || ''
+                          );
+                        } else {
+                          return '';
+                        }
+                      })
+                      .join(',');
+                  } else {
+                    step[k] = e.str || e.id || e.ref;
+                  }
+                }
+              }
+            });
+            flowSpec.push(step);
+          }
+        });
+        registerAgentFlow(name, flowSpec);
       }
+    } else {
+      let v: any = undefined;
+      if (apdef.value.array) {
+        v = processAgentArray(apdef.value.array, name);
+      } else {
+        v = apdef.value.str || apdef.value.id || apdef.value.ref || apdef.value.num;
+        if (v == undefined) {
+          v = apdef.value.bool;
+        }
+      }
+      if (v == undefined) {
+        throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
+      }
+      if (llmName == undefined && apdef.name == 'llm') {
+        llmName = v;
+        hasUserLlm = true;
+      }
+      const ov = v;
+      if (apdef.value.id || apdef.value.ref || apdef.value.array) {
+        v = `"${v}"`;
+      } else if (apdef.value.str) {
+        v = `"${escapeSpecialChars(v)}"`;
+      }
+      attrsStrs.push(`${apdef.name} ${v}`);
+      attrs.set(apdef.name, ov);
     }
-    if (v == undefined) {
-      throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
-    }
-    if (llmName == undefined && apdef.name == 'llm') {
-      llmName = v;
-      hasUserLlm = true;
-    }
-    const ov = v;
-    if (apdef.value.id || apdef.value.ref || apdef.value.array) {
-      v = `"${v}"`;
-    } else if (apdef.value.str) {
-      v = `"${escapeSpecialChars(v)}"`;
-    }
-    attrsStrs.push(`${apdef.name} ${v}`);
-    attrs.set(apdef.name, ov);
   });
   if (!attrs.has('llm')) {
     llmName = `${name}_llm`;

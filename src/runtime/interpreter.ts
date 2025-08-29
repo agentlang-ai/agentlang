@@ -70,7 +70,17 @@ import {
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
-import { AgentInstance, AgentEntityName, AgentFqName, findAgentByName } from './modules/ai.js';
+import {
+  AgentInstance,
+  AgentEntityName,
+  AgentFqName,
+  findAgentByName,
+  FlowSpec,
+  FlowIterator,
+  getAgentFlow,
+  FlowStep,
+  isStepConditional,
+} from './modules/ai.js';
 import { logger } from './logger.js';
 import { ParentAttributeName, PathAttributeName, PathAttributeNameQuery } from './defs.js';
 import {
@@ -1365,10 +1375,7 @@ async function walkJoinQueryPattern(
 
 const MAX_PLANNER_RETRIES = 3;
 
-async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
-  const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
-  const origMsg: any = agentEventInst.lookup('message');
-  const msg: string = isString(origMsg) ? origMsg : agentInputAsString(origMsg);
+async function agentInvoke(agent: AgentInstance, msg: string, env: Environment): Promise<void> {
   await agent.invoke(msg, env);
   const r: string | undefined = env.getLastResult();
   const isPlanner = agent.isPlanner();
@@ -1420,7 +1427,44 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
       await pushToAgent(agent.output, env.getLastResult(), env);
     }
   } else {
-    logger.warn(`Agent ${agent.name} failed to generate a response`);
+    throw new Error(`Agent ${agent.name} failed to generate a response`);
+  }
+}
+
+async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
+  const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
+  const origMsg: any = agentEventInst.lookup('message');
+  const msg: string = isString(origMsg) ? origMsg : agentInputAsString(origMsg);
+  const flow = getAgentFlow(agent.name);
+  if (flow) {
+    await handleAgentInvocationWithFlow(agent, flow, msg, env);
+  } else {
+    await agentInvoke(agent, msg, env).catch((reason: any) => {
+      logger.warn(reason);
+    });
+  }
+}
+
+async function handleAgentInvocationWithFlow(
+  rootAgent: AgentInstance,
+  flow: FlowSpec,
+  msg: string,
+  env: Environment
+): Promise<void> {
+  const iter = FlowIterator.From(flow);
+  while (iter.hasNext()) {
+    const step: FlowStep = iter.getStep();
+    const agent = AgentInstance.FromFlowStep(step, rootAgent);
+    await agentInvoke(agent, msg, env);
+    const result: string = env.getLastResult();
+    if (isStepConditional(step)) {
+      if (!iter.moveToStep(result)) {
+        throw new Error(`Failed to move to flow-step: ${result}`);
+      }
+    } else {
+      iter.next();
+      msg = `${msg}\n${result}`;
+    }
   }
 }
 

@@ -5,7 +5,14 @@ import {
   makeEventEvaluator,
   parseAndEvaluateStatement,
 } from '../interpreter.js';
-import { fetchModule, Instance, instanceToObject, isModule } from '../module.js';
+import {
+  fetchModule,
+  Instance,
+  instanceToObject,
+  isModule,
+  makeInstance,
+  newInstanceAttributes,
+} from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
   AgentServiceProvider,
@@ -121,6 +128,30 @@ export class AgentInstance {
       }
     }
     return agent;
+  }
+
+  static FromFlowStep(step: FlowStep, rootAgent: AgentInstance): AgentInstance {
+    const attrs = newInstanceAttributes()
+      .set('name', `${rootAgent.name}-${crypto.randomUUID()}`)
+      .set('llm', rootAgent.llm);
+    if (step.tools) {
+      attrs.set('tools', step.tools);
+    }
+    if (step.channels) {
+      attrs.set('channels', step.channels);
+    }
+    let ins = step.instruction;
+    if (!ins) {
+      if (step.condition && step.then && step.else) {
+        ins = `If ${step.condition} then return '${step.then} otherwise return '${step.else}`;
+      }
+    }
+    if (!ins) {
+      throw new Error(`Cannot create instruction from step ${step.step}`);
+    }
+    attrs.set('instruction', ins);
+    const inst = makeInstance(CoreAIModuleName, AgentEntityName, attrs);
+    return AgentInstance.FromInstance(inst);
   }
 
   isPlanner(): boolean {
@@ -361,4 +392,61 @@ export async function saveAgentChatSession(chatId: string, messages: any[], env:
 
 export function agentName(agentInstance: Instance): string {
   return agentInstance.lookup('name');
+}
+
+export type FlowStep = any;
+export type FlowSpec = Array<FlowStep>;
+const AgentFlows = new Map<string, FlowSpec>();
+
+export function registerAgentFlow(agentName: string, flow: FlowSpec): string {
+  AgentFlows.set(agentName, flow);
+  return agentName;
+}
+
+export function getAgentFlow(agentName: string): FlowSpec | undefined {
+  return AgentFlows.get(agentName);
+}
+
+export function isStepConditional(step: FlowStep): boolean {
+  if (step.condition) {
+    return true;
+  }
+  return false;
+}
+
+export class FlowIterator {
+  offset: number = 0;
+  flow: FlowSpec;
+
+  constructor(flow: FlowSpec) {
+    this.flow = flow;
+  }
+
+  static From(flow: FlowSpec): FlowIterator {
+    return new FlowIterator(flow);
+  }
+
+  hasNext(): boolean {
+    return this.offset < this.flow.length;
+  }
+
+  getStep(): FlowStep {
+    return this.flow[this.offset];
+  }
+
+  next(): FlowIterator {
+    ++this.offset;
+    return this;
+  }
+
+  moveToStep(step: string): boolean {
+    this.offset = 0;
+    for (let i = 0; i < this.flow.length; ++i) {
+      if (this.flow[i].step == step) {
+        this.offset = i;
+        return true;
+      }
+    }
+    return false;
+  }
 }
