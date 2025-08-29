@@ -581,3 +581,29 @@ entity AllocationRangeSetting {
         }))
     })
 })
+
+describe('Issue-297', () => {
+    test('Return bug fix', async () => {
+        await doInternModule('I297',
+            `entity E {
+                id Int @id
+            }
+            workflow A {
+                {E {id 1}} @as e;
+                return e;
+                {E {id 2}}
+            }
+            workflow B {
+                {A {}};
+                {E {id 3}}
+            }
+            `)
+            await parseAndEvaluateStatement(`{I297/B {}}`)
+            const rs: Instance[] = await parseAndEvaluateStatement(`{I297/E? {}}`)
+            assert(rs.length == 2)
+            const ids = new Set([1, 3])
+            rs.forEach((inst: Instance) => {
+                assert(ids.has(inst.lookup('id')))
+            })
+        })
+    })
