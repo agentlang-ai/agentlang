@@ -42,7 +42,7 @@ export async function prepareIntegrations(
         } else {
           console.error(`Integration not found for ${configPath}`);
         }
-      } catch (error: any ) {
+      } catch (error: any) {
         console.error(`Error fetching integration for ${configPath}:`, error.message);
       }
     }
