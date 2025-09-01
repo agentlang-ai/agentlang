@@ -35,6 +35,7 @@ let fromEnv: any = undefined;
 let CognitoIdentityProviderClient: any = undefined;
 let SignUpCommand: any = undefined;
 let ConfirmSignUp: any = undefined;
+let ResendConfirmationCodeCommand: any = undefined;
 let ForgotPasswordCommand: any = undefined;
 let ConfirmForgotPasswordCommand: any = undefined;
 let AdminGetUserCommand: any = undefined;
@@ -55,6 +56,7 @@ if (isNodeEnv) {
   CognitoIdentityProviderClient = cip.CognitoIdentityProviderClient;
   SignUpCommand = cip.SignUpCommand;
   ConfirmSignUp = cip.ConfirmSignUpCommand;
+  ResendConfirmationCodeCommand = cip.ResendConfirmationCodeCommand;
   ForgotPasswordCommand = cip.ForgotPasswordCommand;
   ConfirmForgotPasswordCommand = cip.ConfirmForgotPasswordCommand;
   AdminGetUserCommand = cip.AdminGetUserCommand;
@@ -415,6 +417,23 @@ export class CognitoAuth implements AgentlangAuth {
     } catch (error: any) {
       logger.error(`Failed to confirm signup: ${error.message}`);
       handleCognitoError(error, 'confirmSignup');
+    }
+  }
+
+  async resendConfirmationCode(username: string, _: Environment): Promise<void> {
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+        credentials: fromEnv(),
+      });
+      const command = new ResendConfirmationCodeCommand({
+        ClientId: this.config.get('ClientId'),
+        Username: username,
+      });
+      await client.send(command);
+    } catch (error: any) {
+      logger.error(`Failed to resend confirmation code: ${error.message}`);
+      handleCognitoError(error, 'resendConfirmationCode');
     }
   }
 

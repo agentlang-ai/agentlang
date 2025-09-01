@@ -31,6 +31,7 @@ export interface AgentlangAuth {
     cb: SignUpCallback
   ): any;
   confirmSignup(username: string, confirmationCode: string, env: Environment): Promise<void>;
+  resendConfirmationCode(username: string, env: Environment): Promise<void>;
   forgotPassword(username: string, env: Environment): Promise<void>;
   confirmForgotPassword(
     username: string,
