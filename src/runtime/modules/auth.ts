@@ -180,6 +180,10 @@ workflow confirmSignup {
   await Auth.confirmSignupUser(confirmSignup.email, confirmSignup.confirmationCode)
 }
 
+workflow resendConfirmationCode {
+  await Auth.resendConfirmationCodeUser(resendConfirmationCode.email)
+}
+
 workflow login {
   await Auth.loginUser(login.email, login.password)
 }
@@ -624,7 +628,6 @@ export async function confirmSignupUser(
   env: Environment
 ): Promise<Result> {
   try {
-    console.log('confirmSignupUser', username, confirmationCode, env);
     await fetchAuthImpl().confirmSignup(username, confirmationCode, env);
     return {
       status: 'ok',
@@ -632,6 +635,22 @@ export async function confirmSignupUser(
     };
   } catch (err: any) {
     logger.error(`Confirm signup failed for ${username}: ${err.message}`);
+    throw err; // Re-throw to preserve error type for HTTP status mapping
+  }
+}
+
+export async function resendConfirmationCodeUser(
+  username: string,
+  env: Environment
+): Promise<Result> {
+  try {
+    await fetchAuthImpl().resendConfirmationCode(username, env);
+    return {
+      status: 'ok',
+      message: 'Confirmation code resent successfully',
+    };
+  } catch (err: any) {
+    logger.error(`Resend confirmation code failed for ${username}: ${err.message}`);
     throw err; // Re-throw to preserve error type for HTTP status mapping
   }
 }
@@ -943,6 +962,7 @@ export function requireAuth(moduleName: string, eventName: string): boolean {
       (eventName == 'login' ||
         eventName == 'signup' ||
         eventName == 'confirmSignup' ||
+        eventName == 'resendConfirmationCode' ||
         eventName == 'forgotPassword' ||
         eventName == 'confirmForgotPassword' ||
         eventName == 'refreshToken');
