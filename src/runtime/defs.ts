@@ -89,4 +89,4 @@ export function setSubscriptionFn(f: Function) {
 }
 
 export const ForceReadPermFlag = 'f-r-f';
-export const FlowSuspensionTag = `--`
+export const FlowSuspensionTag = `--`;

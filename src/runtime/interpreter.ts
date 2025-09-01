@@ -82,7 +82,12 @@ import {
   isStepConditional,
 } from './modules/ai.js';
 import { logger } from './logger.js';
-import { FlowSuspensionTag, ParentAttributeName, PathAttributeName, PathAttributeNameQuery } from './defs.js';
+import {
+  FlowSuspensionTag,
+  ParentAttributeName,
+  PathAttributeName,
+  PathAttributeNameQuery,
+} from './defs.js';
 import {
   addCreateAudit,
   addDeleteAudit,
@@ -1452,10 +1457,15 @@ async function handleAgentInvocationWithFlow(
   env: Environment
 ): Promise<void> {
   const iter = FlowIterator.From(flow);
-  await iterateOnFlow(iter, rootAgent, msg, env)
+  await iterateOnFlow(iter, rootAgent, msg, env);
 }
 
-async function saveFlowSuspension(agent: AgentInstance, context: string, iter: FlowIterator, env: Environment): Promise<void> {
+async function saveFlowSuspension(
+  agent: AgentInstance,
+  context: string,
+  iter: FlowIterator,
+  env: Environment
+): Promise<void> {
   const suspId = await createSuspension(
     env.getSuspensionId(),
     [FlowSuspensionTag, agent.name, `${iter.getOffset()}`, context],
@@ -1464,35 +1474,45 @@ async function saveFlowSuspension(agent: AgentInstance, context: string, iter: F
   env.setLastResult({ suspension: suspId || 'null' });
 }
 
-export async function restartFlow(flowContext: string[], userData: string, env: Environment): Promise<void> {
-  const [_, agentName, iterOffset, ctx] = flowContext
+export async function restartFlow(
+  flowContext: string[],
+  userData: string,
+  env: Environment
+): Promise<void> {
+  const [_, agentName, iterOffset, ctx] = flowContext;
   const flow = getAgentFlow(agentName);
   if (flow) {
-    const rootAgent = await findAgentByName(agentName, env)
+    const rootAgent = await findAgentByName(agentName, env);
     const iter = FlowIterator.From(flow);
-    iter.setOffset(Number(iterOffset))
-    await iterateOnFlow(iter, rootAgent, ctx, env, userData, false)
+    iter.setOffset(Number(iterOffset));
+    await iterateOnFlow(iter, rootAgent, ctx, env, userData, false);
   }
 }
 
-async function iterateOnFlow(iter: FlowIterator, rootAgent: AgentInstance, msg: string, env: Environment, userData: string = '', fullyLoaded: boolean = true
+async function iterateOnFlow(
+  iter: FlowIterator,
+  rootAgent: AgentInstance,
+  msg: string,
+  env: Environment,
+  userData: string = '',
+  fullyLoaded: boolean = true
 ): Promise<void> {
-  let result = ''
-  rootAgent.disableSession()
+  let result = '';
+  rootAgent.disableSession();
   while (iter.hasNext()) {
     const step: FlowStep = iter.getStep();
     if (fullyLoaded) {
       const agent = AgentInstance.FromFlowStep(step, rootAgent);
-      agent.disableSession()
+      agent.disableSession();
       await agentInvoke(agent, msg, env);
       if (env.isSuspended()) {
-        await saveFlowSuspension(rootAgent, msg, iter, env)
-        return
+        await saveFlowSuspension(rootAgent, msg, iter, env);
+        return;
       }
       result = env.getLastResult();
     } else {
-      result = userData
-      fullyLoaded = true
+      result = userData;
+      fullyLoaded = true;
     }
     if (isStepConditional(step)) {
       if (!iter.moveToStep(result)) {
@@ -1500,7 +1520,7 @@ async function iterateOnFlow(iter: FlowIterator, rootAgent: AgentInstance, msg: 
       }
     } else {
       iter.next();
-      const r = `Result of step ${step.step}: ${agentInputAsString(result)}`
+      const r = `Result of step ${step.step}: ${agentInputAsString(result)}`;
       msg = `${msg}\n${r}`;
     }
   }

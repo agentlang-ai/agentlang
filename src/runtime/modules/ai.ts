@@ -95,9 +95,9 @@ export class AgentInstance {
   role: string | undefined;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
-  private withSession = true
+  private withSession = true;
 
-  private constructor() { }
+  private constructor() {}
 
   static FromInstance(agentInstance: Instance): AgentInstance {
     const agent: AgentInstance = instanceToObject<AgentInstance>(
@@ -156,17 +156,17 @@ export class AgentInstance {
   }
 
   disableSession(): AgentInstance {
-    this.withSession = false
-    return this
+    this.withSession = false;
+    return this;
   }
 
   enableSession(): AgentInstance {
-    this.withSession = true
-    return this
+    this.withSession = true;
+    return this;
   }
 
   hasSession(): boolean {
-    return this.withSession
+    return this.withSession;
   }
 
   isPlanner(): boolean {
@@ -179,7 +179,7 @@ export class AgentInstance {
     const chatId = this.chatId || agentName;
     const isplnr = this.isPlanner();
     if (isplnr && this.withSession) {
-      this.withSession = false
+      this.withSession = false;
     }
     const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
     let msgs: BaseMessage[] | undefined;
@@ -460,12 +460,12 @@ export class FlowIterator {
   }
 
   getOffset(): number {
-    return this.offset
+    return this.offset;
   }
 
   setOffset(offset: number): FlowIterator {
     this.offset = offset;
-    return this
+    return this;
   }
 
   moveToStep(step: string): boolean {

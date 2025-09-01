@@ -166,12 +166,12 @@ export async function createSuspension(
 
 export type Suspension = {
   continuation: Statement[];
-  flowContext?: string[],
+  flowContext?: string[];
   env: Environment;
 };
 
 function isFlowSuspension(cont: string[]): boolean {
-  return cont.length > 0 && cont[0] == FlowSuspensionTag
+  return cont.length > 0 && cont[0] == FlowSuspensionTag;
 }
 
 async function loadSuspension(suspId: string, env?: Environment): Promise<Suspension | undefined> {
@@ -184,14 +184,14 @@ async function loadSuspension(suspId: string, env?: Environment): Promise<Suspen
   if (r instanceof Array && r.length > 0) {
     const inst: Instance = r[0];
     const cont = inst.lookup('continuation');
-    const ifs = isFlowSuspension(cont)
+    const ifs = isFlowSuspension(cont);
     const stmts: Statement[] = ifs ? new Array<Statement>() : await parseStatements(cont);
     const envStr = inst.lookup('env');
     const suspEnv: Environment = Environment.FromSerializableObject(JSON.parse(envStr));
     return {
       continuation: stmts,
       env: suspEnv,
-      flowContext: ifs ? cont : undefined
+      flowContext: ifs ? cont : undefined,
     };
   }
   return undefined;
@@ -219,7 +219,7 @@ export async function restartSuspension(
   const susp = await loadSuspension(suspId, env);
   if (susp) {
     if (susp.flowContext) {
-      await restartFlow(susp.flowContext, userData, susp.env)
+      await restartFlow(susp.flowContext, userData, susp.env);
     } else {
       susp.env.bindSuspensionUserData(userData);
       await evaluateStatements(susp.continuation, susp.env);
