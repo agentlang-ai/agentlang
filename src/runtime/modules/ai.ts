@@ -95,8 +95,9 @@ export class AgentInstance {
   role: string | undefined;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
+  private withSession = true
 
-  private constructor() {}
+  private constructor() { }
 
   static FromInstance(agentInstance: Instance): AgentInstance {
     const agent: AgentInstance = instanceToObject<AgentInstance>(
@@ -154,6 +155,20 @@ export class AgentInstance {
     return AgentInstance.FromInstance(inst);
   }
 
+  disableSession(): AgentInstance {
+    this.withSession = false
+    return this
+  }
+
+  enableSession(): AgentInstance {
+    this.withSession = true
+    return this
+  }
+
+  hasSession(): boolean {
+    return this.withSession
+  }
+
   isPlanner(): boolean {
     return this.hasModuleTools || this.type == 'planner';
   }
@@ -162,9 +177,12 @@ export class AgentInstance {
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
     const chatId = this.chatId || agentName;
-    const sess: Instance | null = await findAgentChatSession(chatId, env);
-    let msgs: BaseMessage[] | undefined;
     const isplnr = this.isPlanner();
+    if (isplnr && this.withSession) {
+      this.withSession = false
+    }
+    const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
+    let msgs: BaseMessage[] | undefined;
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
@@ -186,7 +204,9 @@ export class AgentInstance {
         if (isplnr) {
           msgs[0] = sysMsg;
         }
-        await saveAgentChatSession(chatId, msgs, env);
+        if (this.withSession) {
+          await saveAgentChatSession(chatId, msgs, env);
+        }
         env.setLastResult(response.content);
       } catch (err: any) {
         logger.error(`Error while invoking ${agentName} - ${err}`);
@@ -415,8 +435,8 @@ export function isStepConditional(step: FlowStep): boolean {
 }
 
 export class FlowIterator {
-  offset: number = 0;
-  flow: FlowSpec;
+  private offset: number = 0;
+  private flow: FlowSpec;
 
   constructor(flow: FlowSpec) {
     this.flow = flow;
@@ -437,6 +457,15 @@ export class FlowIterator {
   next(): FlowIterator {
     ++this.offset;
     return this;
+  }
+
+  getOffset(): number {
+    return this.offset
+  }
+
+  setOffset(offset: number): FlowIterator {
+    this.offset = offset;
+    return this
   }
 
   moveToStep(step: string): boolean {

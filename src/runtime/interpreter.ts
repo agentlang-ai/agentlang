@@ -82,7 +82,7 @@ import {
   isStepConditional,
 } from './modules/ai.js';
 import { logger } from './logger.js';
-import { ParentAttributeName, PathAttributeName, PathAttributeNameQuery } from './defs.js';
+import { FlowSuspensionTag, ParentAttributeName, PathAttributeName, PathAttributeNameQuery } from './defs.js';
 import {
   addCreateAudit,
   addDeleteAudit,
@@ -1452,18 +1452,56 @@ async function handleAgentInvocationWithFlow(
   env: Environment
 ): Promise<void> {
   const iter = FlowIterator.From(flow);
+  await iterateOnFlow(iter, rootAgent, msg, env)
+}
+
+async function saveFlowSuspension(agent: AgentInstance, context: string, iter: FlowIterator, env: Environment): Promise<void> {
+  const suspId = await createSuspension(
+    env.getSuspensionId(),
+    [FlowSuspensionTag, agent.name, `${iter.getOffset()}`, context],
+    env
+  );
+  env.setLastResult({ suspension: suspId || 'null' });
+}
+
+export async function restartFlow(flowContext: string[], userData: string, env: Environment): Promise<void> {
+  const [_, agentName, iterOffset, ctx] = flowContext
+  const flow = getAgentFlow(agentName);
+  if (flow) {
+    const rootAgent = await findAgentByName(agentName, env)
+    const iter = FlowIterator.From(flow);
+    iter.setOffset(Number(iterOffset))
+    await iterateOnFlow(iter, rootAgent, ctx, env, userData, false)
+  }
+}
+
+async function iterateOnFlow(iter: FlowIterator, rootAgent: AgentInstance, msg: string, env: Environment, userData: string = '', fullyLoaded: boolean = true
+): Promise<void> {
+  let result = ''
+  rootAgent.disableSession()
   while (iter.hasNext()) {
     const step: FlowStep = iter.getStep();
-    const agent = AgentInstance.FromFlowStep(step, rootAgent);
-    await agentInvoke(agent, msg, env);
-    const result: string = env.getLastResult();
+    if (fullyLoaded) {
+      const agent = AgentInstance.FromFlowStep(step, rootAgent);
+      agent.disableSession()
+      await agentInvoke(agent, msg, env);
+      if (env.isSuspended()) {
+        await saveFlowSuspension(rootAgent, msg, iter, env)
+        return
+      }
+      result = env.getLastResult();
+    } else {
+      result = userData
+      fullyLoaded = true
+    }
     if (isStepConditional(step)) {
       if (!iter.moveToStep(result)) {
         throw new Error(`Failed to move to flow-step: ${result}`);
       }
     } else {
       iter.next();
-      msg = `${msg}\n${result}`;
+      const r = `Result of step ${step.step}: ${agentInputAsString(result)}`
+      msg = `${msg}\n${r}`;
     }
   }
 }
