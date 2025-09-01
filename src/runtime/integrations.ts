@@ -19,26 +19,31 @@ export async function prepareIntegrations(
     const configPath = integConfig.get(configName);
     if (configPath) {
       const apiUrl = mkApiUrl(integManagerHost, configPath);
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: standardHeaders,
-      });
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: standardHeaders,
+        });
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch integration for ${configPath}, HTTP error! status: ${response.status} ${response.text} ${response.statusText}`
-        );
-      }
-
-      const data = await response.json();
-      if (data.length > 0) {
-        const inst: any = data[0].config;
-        if (inst.type == 'custom' && isString(inst.parameter)) {
-          inst.parameter = new Map(Object.entries(JSON.parse(inst.parameter)));
+        if (!response.ok) {
+          console.error(
+            `Failed to fetch integration for ${configPath}, HTTP error! status: ${response.status} ${response.text} ${response.statusText}`
+          );
+          continue;
         }
-        Integrations.set(configName, inst);
-      } else {
-        throw new Error(`Integration not found for ${configPath}`);
+
+        const data = await response.json();
+        if (data.length > 0) {
+          const inst: any = data[0].config;
+          if (inst.type == 'custom' && isString(inst.parameter)) {
+            inst.parameter = new Map(Object.entries(JSON.parse(inst.parameter)));
+          }
+          Integrations.set(configName, inst);
+        } else {
+          console.error(`Integration not found for ${configPath}`);
+        }
+      } catch (error: any) {
+        console.error(`Error fetching integration for ${configPath}:`, error.message);
       }
     }
   }
