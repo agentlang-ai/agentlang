@@ -87,6 +87,44 @@ workflow FindRole {
     role
 }
 
+workflow ListRoles {
+    {Role? {}}
+}
+
+workflow ListUserRoles {
+    if (ListUserRoles.Role and ListUserRoles.User) {
+        {UserRole {User? ListUserRoles.User, Role? ListUserRoles.Role}}
+    }
+    else if (ListUserRoles.User) {
+        {UserRole {User? ListUserRoles.User}}
+    }
+    else if (ListUserRoles.Role) {
+        {UserRole {Role? ListUserRoles.Role}}
+    }
+    else {
+        {UserRole? {}}
+    }
+}
+
+workflow ListPermissions {
+    {Permission? {}}
+}
+
+workflow ListRolePermissions {
+    if (ListRolePermissions.Role and ListRolePermissions.Permission) {
+        {RolePermission {Role? ListRolePermissions.Role, Permission? ListRolePermissions.Permission}}
+    }
+    else if (ListRolePermissions.Role) {
+        {RolePermission {Role? ListRolePermissions.Role}}
+    }
+    else if (ListRolePermissions.Permission) {
+        {RolePermission {Permission? ListRolePermissions.Permission}}
+    }
+    else {
+        {RolePermission? {}}
+    }
+}
+
 workflow AssignUserToRole {
     {User {id? AssignUserToRole.userId}} @as [user];
     {Role {name? AssignUserToRole.roleName}} @as [role];
@@ -170,6 +208,24 @@ workflow RemoveSession {
 workflow RemoveUserSession {
   {Session {userId? RemoveUserSession.id}} @as [session];
   purge {Session {id? session.id}}
+}
+
+workflow DeleteRole {
+  purge {UserRole {Role? DeleteRole.name}}
+  purge {Role {name? DeleteRole.name}}
+}
+
+workflow DeleteUserRole {
+  purge {UserRole {User? DeleteUserRole.User, Role? DeleteUserRole.Role}}
+}
+
+workflow DeletePermission {
+  purge {RolePermission {Permission? DeletePermission.id}}
+  purge {Permission {id? DeletePermission.id}}
+}
+
+workflow DeleteRolePermission {
+  purge {RolePermission {Role? DeleteRolePermission.Role, Permission? DeleteRolePermission.Permission}}
 }
 
 workflow signup {
