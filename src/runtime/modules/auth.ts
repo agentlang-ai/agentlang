@@ -40,6 +40,12 @@ entity User {
     @after {delete AfterDeleteUser}
 }
 
+entity LoginState {
+    id Int @id,
+    lastUser UUID,
+    lastLogin DateTime
+}
+
 workflow AfterDeleteUser {
   {RemoveUserSession {id AfterDeleteUser.User.id}}
 }
@@ -240,6 +246,10 @@ workflow resendConfirmationCode {
   await Auth.resendConfirmationCodeUser(resendConfirmationCode.email)
 }
 
+workflow UpdateLoginState {
+  {LoginState {id 1, lastUser UpdateLoginState.userId, lastLogin UpdateLoginState.loginTime}, @upsert}
+}
+
 workflow login {
   await Auth.loginUser(login.email, login.password)
 }
@@ -313,6 +323,17 @@ export async function findUserByEmail(email: string, env: Environment): Promise<
     'FindUserByEmail',
     {
       email: email,
+    },
+    env
+  );
+}
+
+export async function updateLoginState(userId: string, env: Environment): Promise<Result> {
+  return await evalEvent(
+    'UpdateLoginState',
+    {
+      userId: userId,
+      loginTime: new Date().toISOString(),
     },
     env
   );
@@ -742,8 +763,10 @@ export async function loginUser(
   env: Environment
 ): Promise<string | object> {
   let result: string | object = '';
+  let userId: string = '';
   try {
     await fetchAuthImpl().login(username, password, env, (r: SessionInfo) => {
+      userId = r.userId;
       // Check if Cognito is configured by checking if we have the tokens
       if (r.idToken && r.accessToken && r.refreshToken) {
         // Return full token response for Cognito
@@ -761,6 +784,13 @@ export async function loginUser(
         result = `${r.userId}/${r.sessionId}`;
       }
     });
+    
+    if (userId) {
+      await updateLoginState(userId, env).catch((reason: any) => {
+        logger.error(`Failed to update login state for user ${userId}: ${reason}`);
+      });
+    }
+    
     return result;
   } catch (err: any) {
     logger.error(`Login failed for ${username}: ${err.message}`);
