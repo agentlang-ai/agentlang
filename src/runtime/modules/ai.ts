@@ -150,6 +150,9 @@ export class AgentInstance {
     if (!ins) {
       throw new Error(`Cannot create instruction from step ${step.step}`);
     }
+    if (step.example) {
+      ins = `${ins}\nExample: ${step.example}`;
+    }
     attrs.set('instruction', ins);
     const inst = makeInstance(CoreAIModuleName, AgentEntityName, attrs);
     return AgentInstance.FromInstance(inst);
@@ -417,6 +420,32 @@ export function agentName(agentInstance: Instance): string {
 export type FlowStep = any;
 export type FlowSpec = Array<FlowStep>;
 const AgentFlows = new Map<string, FlowSpec>();
+
+const FlowStepsRegistry = new Map<string, FlowStep>();
+
+export function registerFlowStep(name: string, step: FlowStep): string {
+  FlowStepsRegistry.set(name, step);
+  return name;
+}
+
+export function getFlowStep(name: string): FlowStep | undefined {
+  return FlowStepsRegistry.get(name);
+}
+
+export function newFlow(): FlowSpec {
+  return new Array<FlowStep>();
+}
+
+const FlowRegistry = new Map<string, FlowSpec>();
+
+export function registerFlow(name: string, flow: FlowSpec): string {
+  FlowRegistry.set(name, flow);
+  return name;
+}
+
+export function getFlow(name: string): FlowSpec | undefined {
+  return FlowRegistry.get(name);
+}
 
 export function registerAgentFlow(agentName: string, flow: FlowSpec): string {
   AgentFlows.set(agentName, flow);

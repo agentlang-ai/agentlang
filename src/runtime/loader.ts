@@ -27,6 +27,14 @@ import {
   ArrayLiteral,
   MapEntry,
   Expr,
+  FlowStepDefinition,
+  FlowDefinition,
+  FlowPath,
+  isGenericName,
+  isConditionalFlowStep,
+  ConditionalFlowStep,
+  isFlowStepDefinition,
+  isFlowDefinition,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -50,6 +58,7 @@ import {
 import {
   escapeSpecialChars,
   findRbacSchema,
+  isFqName,
   isString,
   makeFqName,
   maybeExtends,
@@ -68,8 +77,13 @@ import {
   AgentEntityName,
   CoreAIModuleName,
   FlowStep,
+  getFlow,
+  getFlowStep,
   LlmEntityName,
+  newFlow,
   registerAgentFlow,
+  registerFlow,
+  registerFlowStep,
 } from './modules/ai.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
@@ -466,40 +480,18 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   attrsStrs.push(`name "${name}"`);
   const attrs = newInstanceAttributes();
   def.body?.attributes.forEach((apdef: GenericPropertyDef) => {
-    if (apdef.name == 'flow') {
-      if (apdef.value.array) {
-        const flowSpec = new Array<FlowStep>();
-        apdef.value.array.vals.forEach((stmt: Statement) => {
-          const expr = stmt.pattern.expr;
-          if (expr && isLiteral(expr) && expr.map) {
-            const step: FlowStep = {};
-            expr.map.entries.forEach((me: MapEntry) => {
-              const k = me.key.str;
-              if (k) {
-                const e: Expr = me.value;
-                if (isLiteral(e)) {
-                  if (e.array) {
-                    step[k] = e.array.vals
-                      .map((v: Statement) => {
-                        if (v.pattern.expr && isLiteral(v.pattern.expr)) {
-                          return (
-                            v.pattern.expr.id || v.pattern.expr.ref || v.pattern.expr.str || ''
-                          );
-                        } else {
-                          return '';
-                        }
-                      })
-                      .join(',');
-                  } else {
-                    step[k] = e.str || e.id || e.ref;
-                  }
-                }
-              }
-            });
-            flowSpec.push(step);
-          }
-        });
-        registerAgentFlow(name, flowSpec);
+    if (apdef.name == 'withFlow') {
+      const n = apdef.value.id || apdef.value.str;
+      if (n) {
+        const fqn = isFqName(n) ? n : `${moduleName}/${n}`;
+        const flowSpec = getFlow(fqn);
+        if (flowSpec) {
+          registerAgentFlow(name, flowSpec);
+        } else {
+          throw new Error(`Flow ${n} not found for agent ${name}`);
+        }
+      } else {
+        throw new Error(`Invalid flow name in agent ${name}`);
       }
     } else {
       let v: any = undefined;
@@ -579,6 +571,70 @@ function processAgentArrayValue(expr: Expr | undefined, attrName: string): strin
   }
 }
 
+function addFlowStepDefinition(def: FlowStepDefinition, moduleName: string) {
+  const step: FlowStep = {};
+  def.body?.attributes.forEach((prop: GenericPropertyDef) => {
+    if (prop.value.str) {
+      step[prop.name] = prop.value.str;
+    } else if (prop.value.array) {
+      step[prop.name] = prop.value.array.vals
+        .map((v: Statement) => {
+          if (v.pattern.expr && isLiteral(v.pattern.expr)) {
+            return v.pattern.expr.id || v.pattern.expr.ref || v.pattern.expr.str || '';
+          } else {
+            return '';
+          }
+        })
+        .join(',');
+    }
+  });
+  step['step'] = def.name;
+  registerFlowStep(`${moduleName}/${def.name}`, step);
+}
+
+function asFlowPathArray(fp: FlowPath): any[] {
+  const result = new Array<any>();
+  let p: FlowPath | undefined = fp;
+  while (p) {
+    result.push(p.step);
+    p = p.rest;
+  }
+  return result;
+}
+
+function addFlowDefinition(def: FlowDefinition, moduleName: string) {
+  if (def.body) {
+    const flow = newFlow();
+    const paths = def.body.paths;
+    for (let i = 0; i < paths.length; ++i) {
+      const p = asFlowPathArray(paths[i]);
+      for (let j = 0; j < p.length; ++j) {
+        const s = p[j];
+        if (isGenericName(s)) {
+          const fqName = isFqName(s) ? s : `${moduleName}/${s}`;
+          let step = getFlowStep(fqName);
+          if (step == undefined) {
+            if (j < p.length) {
+              const cp = p[++j];
+              if (isConditionalFlowStep(cp)) {
+                step = parseConditionalFlowStep(cp);
+              } else {
+                throw new Error(`FlowStep not found - ${s}`);
+              }
+            }
+          }
+          flow.push(step);
+        }
+      }
+    }
+    registerFlow(`${moduleName}/${def.name}`, flow);
+  }
+}
+
+function parseConditionalFlowStep(cp: ConditionalFlowStep): FlowStep {
+  return { condition: cp.cond, then: cp.then, else: cp.else };
+}
+
 function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
   const resolverName = `${moduleName}/${def.name}`;
   const paths = def.paths;
@@ -637,6 +693,8 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isAgentDefinition(def)) await addAgentDefinition(def, moduleName);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
   else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);
+  else if (isFlowStepDefinition(def)) addFlowStepDefinition(def, moduleName);
+  else if (isFlowDefinition(def)) addFlowDefinition(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {
