@@ -28,7 +28,7 @@ import {
 } from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
 
-export function startServer(appSpec: ApplicationSpec, port: number) {
+export function startServer(appSpec: ApplicationSpec, port: number, host?: string) {
   const app = express();
   app.use(express.json());
 
@@ -85,13 +85,18 @@ export function startServer(appSpec: ApplicationSpec, port: number) {
     });
   });
 
-  app.listen(port, () => {
+  const cb = () => {
     console.log(
       chalk.green(
         `Application ${chalk.bold(appName + ' version ' + appVersion)} started on port ${chalk.bold(port)}`
       )
     );
-  });
+  };
+  if (host) {
+    app.listen(port, host, cb);
+  } else {
+    app.listen(port, cb);
+  }
 }
 
 function ok(res: Response) {

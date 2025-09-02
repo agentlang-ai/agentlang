@@ -5,9 +5,11 @@ export const ConfigSchema = z.object({
   service: z
     .object({
       port: z.number(),
+      host: z.string().optional(),
     })
     .default({
       port: 8080,
+      host: 'localhost',
     }),
   store: z
     .discriminatedUnion('type', [
