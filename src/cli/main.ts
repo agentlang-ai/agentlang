@@ -86,7 +86,7 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   await initDatabase(config?.store);
   await runInitFunctions();
   await runStandaloneStatements();
-  if (appSpec) startServer(appSpec, config?.service?.port || 8080);
+  if (appSpec) startServer(appSpec, config?.service?.port || 8080, config?.service?.host);
 }
 
 export async function runPreInitTasks(): Promise<boolean> {
