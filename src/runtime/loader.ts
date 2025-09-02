@@ -22,7 +22,7 @@ import {
   isResolverDefinition,
   ResolverDefinition,
   ResolverMethodSpec,
-  AgentPropertyDef,
+  GenericPropertyDef,
   isLiteral,
   ArrayLiteral,
   MapEntry,
@@ -465,7 +465,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   const attrsStrs = new Array<string>();
   attrsStrs.push(`name "${name}"`);
   const attrs = newInstanceAttributes();
-  def.body?.attributes.forEach((apdef: AgentPropertyDef) => {
+  def.body?.attributes.forEach((apdef: GenericPropertyDef) => {
     if (apdef.name == 'flow') {
       if (apdef.value.array) {
         const flowSpec = new Array<FlowStep>();
