@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import express, { Request, Response } from 'express';
 import {
+  EmptyInstanceAttributes,
   getAllChildRelationships,
   getAllEntityNames,
   getAllEventNames,
@@ -14,9 +15,10 @@ import {
 import { evaluate, parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
-import { requireAuth, verifySession } from '../runtime/modules/auth.js';
+import { CoreAuthModuleName, requireAuth, verifySession } from '../runtime/modules/auth.js';
 import { ActiveSessionInfo, BypassSession, isNoSession, NoSession } from '../runtime/auth/defs.js';
 import {
+  DefaultModuleName,
   escapeFqName,
   forceAsEscapedName,
   forceAsFqName,
@@ -27,6 +29,7 @@ import {
   walkDownInstancePath,
 } from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
+import { getServiceLastAccess, touchServiceInfo } from '../runtime/modules/core.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number, host?: string) {
   const app = express();
@@ -52,6 +55,14 @@ export function startServer(appSpec: ApplicationSpec, port: number, host?: strin
 
   app.get('/', (req: Request, res: Response) => {
     res.send({ agentlang: { application: `${appName}@${appVersion}` } });
+  });
+
+  app.get('/loggedInUsers', (req: Request, res: Response) => {
+    handleGetLoggedInUsers(req, res);
+  });
+
+  app.get('/lastUsedTime', (req: Request, res: Response) => {
+    handleGetLastAccessTime(req, res);
   });
 
   getAllEventNames().forEach((eventNames: string[], moduleName: string) => {
@@ -99,8 +110,15 @@ export function startServer(appSpec: ApplicationSpec, port: number, host?: strin
   }
 }
 
+function updateLastAccessTime() {
+  touchServiceInfo().catch((reason: any) => {
+    logger.warn(`Failed to update service-info - ${reason}`);
+  });
+}
+
 function ok(res: Response) {
   return (value: Result) => {
+    updateLastAccessTime();
     const result: Result = normalizedResult(value);
     res.contentType('application/json');
     res.send(JSON.stringify(result));
@@ -119,6 +137,7 @@ function statusFromErrorType(err: any): number {
 
 function internalError(res: Response) {
   return (reason: any) => {
+    updateLastAccessTime();
     logger.error(reason);
     res.status(statusFromErrorType(reason)).send(reason.message);
   };
@@ -174,6 +193,45 @@ function pathFromRequest(moduleName: string, entryName: string, req: Request): s
     p = p.substring(0, p.length - 1);
   }
   return `${escapeFqName(makeFqName(moduleName, entryName))}/${p}`;
+}
+
+async function handleGetLoggedInUsers(req: Request, res: Response): Promise<void> {
+  const moduleName = CoreAuthModuleName;
+  const eventName = 'getLoggedInUsers';
+  try {
+    const sessionInfo = await verifyAuth(moduleName, eventName, req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const inst: Instance = makeInstance(
+      moduleName,
+      eventName,
+      EmptyInstanceAttributes
+    ).setAuthContext(BypassSession);
+    evaluate(inst, ok(res)).catch(internalError(res));
+  } catch (err: any) {
+    logger.error(err);
+    res.status(500).send(err.toString());
+  }
+}
+
+async function handleGetLastAccessTime(req: Request, res: Response): Promise<void> {
+  try {
+    const sessionInfo = await verifyAuth(
+      DefaultModuleName,
+      'getServiceLastAccess',
+      req.headers.authorization
+    );
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    res.send(await getServiceLastAccess());
+  } catch (err: any) {
+    logger.error(err);
+    res.status(500).send(err.toString());
+  }
 }
 
 async function handleEventPost(

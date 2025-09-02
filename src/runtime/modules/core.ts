@@ -63,6 +63,21 @@ workflow createSuspension {
 workflow restartSuspension {
   await Core.restartSuspension(restartSuspension.id, restartSuspension.data)
 }
+
+entity ServiceInfo {
+  id Int @id @default(1)
+  lastAccess DateTime @default(now())
+}
+
+workflow touchServiceInfo {
+  purge {ServiceInfo {id? 1}};
+  {ServiceInfo {}}
+}
+
+workflow getServiceLastAccess {
+  {ServiceInfo {id? 1}} @as [info];
+  info.lastAccess
+}
 `;
 
 export const CoreModules: string[] = [];
@@ -238,4 +253,26 @@ export async function lookupActiveSuspension(
   } else {
     return [];
   }
+}
+
+export async function touchServiceInfo(): Promise<any> {
+  const env = new Environment('service-info').setInKernelMode(true);
+  try {
+    return await parseAndEvaluateStatement(
+      `{${DefaultModuleName}/touchServiceInfo {}}`,
+      undefined,
+      env
+    );
+  } finally {
+    env.commitAllTransactions();
+  }
+}
+
+export async function getServiceLastAccess(): Promise<any> {
+  const env = new Environment('get-last-access').setInKernelMode(true);
+  return await parseAndEvaluateStatement(
+    `{${DefaultModuleName}/getServiceLastAccess {}}`,
+    undefined,
+    env
+  );
 }

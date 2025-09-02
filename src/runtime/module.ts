@@ -2335,7 +2335,7 @@ export function newInstanceAttributes(): InstanceAttributes {
   return new Map<string, any>();
 }
 
-const EmptyInstanceAttributes: InstanceAttributes = newInstanceAttributes();
+export const EmptyInstanceAttributes: InstanceAttributes = newInstanceAttributes();
 
 export class Instance {
   record: Record;

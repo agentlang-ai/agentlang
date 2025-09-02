@@ -40,6 +40,11 @@ entity User {
     @after {delete AfterDeleteUser}
 }
 
+entity UserLoginInfo {
+  email Email @id,
+  lastLoginTime DateTime @default(now())
+}
+
 workflow AfterDeleteUser {
   {RemoveUserSession {id AfterDeleteUser.User.id}}
 }
@@ -241,7 +246,10 @@ workflow resendConfirmationCode {
 }
 
 workflow login {
-  await Auth.loginUser(login.email, login.password)
+  await Auth.loginUser(login.email, login.password) @as result;
+  purge {UserLoginInfo {email? login.email}};
+  {UserLoginInfo {email login.email}};
+  result
 }
 
 workflow forgotPassword {
@@ -274,6 +282,10 @@ workflow getUser {
 
 workflow getUserByEmail {
   await Auth.getUserInfoByEmail(getUserByEmail.email)
+}
+
+workflow getLoggedInUsers {
+  {UserLoginInfo? {}}
 }
 `;
 
