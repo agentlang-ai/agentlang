@@ -36,13 +36,9 @@ entity User {
     email Email @unique @indexed,
     firstName String,
     lastName String,
+    lastLoginTime DateTime @default(now()),
     @rbac [(allow: [read, delete, update, create], where: auth.user = this.id)],
     @after {delete AfterDeleteUser}
-}
-
-entity UserLoginInfo {
-  email Email @id,
-  lastLoginTime DateTime @default(now())
 }
 
 workflow AfterDeleteUser {
@@ -54,6 +50,10 @@ workflow CreateUser {
          email CreateUser.email,
          firstName CreateUser.firstName,
          lastName CreateUser.lastName}}
+}
+
+workflow UpdateUserLastLogin {
+  {User {email? UpdateUserLastLogin.email, lastLoginTime UpdateUserLastLogin.loginTime}}
 }
 
 workflow FindUser {
@@ -247,8 +247,6 @@ workflow resendConfirmationCode {
 
 workflow login {
   await Auth.loginUser(login.email, login.password) @as result;
-  purge {UserLoginInfo {email? login.email}};
-  {UserLoginInfo {email login.email}};
   result
 }
 
@@ -282,10 +280,6 @@ workflow getUser {
 
 workflow getUserByEmail {
   await Auth.getUserInfoByEmail(getUserByEmail.email)
-}
-
-workflow getLoggedInUsers {
-  {UserLoginInfo? {}}
 }
 `;
 
@@ -330,6 +324,17 @@ export async function findUserByEmail(email: string, env: Environment): Promise<
   );
 }
 
+export async function updateUserLastLogin(email: string, env: Environment): Promise<Result> {
+  return await evalEvent(
+    'UpdateUserLastLogin',
+    {
+      email: email,
+      loginTime: new Date().toISOString(),
+    },
+    env
+  );
+}
+
 export async function ensureUser(
   email: string,
   firstName: string,
@@ -338,6 +343,10 @@ export async function ensureUser(
 ) {
   const user = await findUserByEmail(email, env);
   if (user) {
+    const email = user.lookup('email');
+    await updateUserLastLogin(email, env).catch((reason: any) => {
+      logger.error(`Failed to update last login time for user ${email}: ${reason}`);
+    });
     return user;
   }
   return await createUser(crypto.randomUUID(), email, firstName, lastName, env);

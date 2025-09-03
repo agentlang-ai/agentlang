@@ -1,7 +1,6 @@
 import chalk from 'chalk';
 import express, { Request, Response } from 'express';
 import {
-  EmptyInstanceAttributes,
   getAllChildRelationships,
   getAllEntityNames,
   getAllEventNames,
@@ -15,7 +14,7 @@ import {
 import { evaluate, parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
-import { CoreAuthModuleName, requireAuth, verifySession } from '../runtime/modules/auth.js';
+import { requireAuth, verifySession } from '../runtime/modules/auth.js';
 import { ActiveSessionInfo, BypassSession, isNoSession, NoSession } from '../runtime/auth/defs.js';
 import {
   DefaultModuleName,
@@ -55,10 +54,6 @@ export function startServer(appSpec: ApplicationSpec, port: number, host?: strin
 
   app.get('/', (req: Request, res: Response) => {
     res.send({ agentlang: { application: `${appName}@${appVersion}` } });
-  });
-
-  app.get('/loggedInUsers', (req: Request, res: Response) => {
-    handleGetLoggedInUsers(req, res);
   });
 
   app.get('/lastUsedTime', (req: Request, res: Response) => {
@@ -193,27 +188,6 @@ function pathFromRequest(moduleName: string, entryName: string, req: Request): s
     p = p.substring(0, p.length - 1);
   }
   return `${escapeFqName(makeFqName(moduleName, entryName))}/${p}`;
-}
-
-async function handleGetLoggedInUsers(req: Request, res: Response): Promise<void> {
-  const moduleName = CoreAuthModuleName;
-  const eventName = 'getLoggedInUsers';
-  try {
-    const sessionInfo = await verifyAuth(moduleName, eventName, req.headers.authorization);
-    if (isNoSession(sessionInfo)) {
-      res.status(401).send('Authorization required');
-      return;
-    }
-    const inst: Instance = makeInstance(
-      moduleName,
-      eventName,
-      EmptyInstanceAttributes
-    ).setAuthContext(BypassSession);
-    evaluate(inst, ok(res)).catch(internalError(res));
-  } catch (err: any) {
-    logger.error(err);
-    res.status(500).send(err.toString());
-  }
 }
 
 async function handleGetLastAccessTime(req: Request, res: Response): Promise<void> {

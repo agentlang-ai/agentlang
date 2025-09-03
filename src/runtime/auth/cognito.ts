@@ -538,10 +538,7 @@ export class CognitoAuth implements AgentlangAuth {
       }
       if (result) {
         // After successful Cognito authentication, create/update local records
-        let localUser = await findUserByEmail(username, env);
-        if (!localUser) {
-          localUser = await ensureUser(username, '', '', env);
-        }
+        const localUser = await ensureUser(username, '', '', env);
         const userid = localUser.lookup('id');
         const idtok = result.getIdToken();
         const idToken = idtok.getJwtToken();
@@ -575,11 +572,7 @@ export class CognitoAuth implements AgentlangAuth {
       }
     } else {
       // Cognito not configured, fall back to local authentication
-      let localUser = await findUserByEmail(username, env);
-      if (!localUser) {
-        logger.warn(`User ${username} not found in local store`);
-        localUser = await ensureUser(username, '', '', env);
-      }
+      const localUser = await ensureUser(username, '', '', env);
       const user = new CognitoUser({
         Username: username,
         Pool: this.fetchUserPool(),
@@ -956,10 +949,8 @@ export class CognitoAuth implements AgentlangAuth {
       const userEmail = idTokenPayload.email;
 
       // Find or create local user
-      let localUser = await findUserByEmail(userEmail, env);
-      if (!localUser) {
-        localUser = await ensureUser(userEmail, '', '', env);
-      }
+      const localUser = await ensureUser(userEmail, '', '', env);
+
       const userId = localUser.lookup('id');
 
       // Update local session
