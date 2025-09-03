@@ -18,9 +18,9 @@ export function provider(service: string) {
         p = Providers.get(availableService);
         if (p) return p;
       }
-      throw new Error(
-        `${service} provider requested but ${service.toUpperCase()}_API_KEY not found. Available providers: ${getAvailableProviders().join(', ') || 'none'}`
-      );
+      const errorMessage = `${service} provider requested but ${service.toUpperCase()}_API_KEY not found. Available providers: ${getAvailableProviders().join(', ') || 'none'}`;
+      console.error(errorMessage);
+      throw new Error(errorMessage);
     }
   } else {
     throw new Error(`No provider found for ${service}`);

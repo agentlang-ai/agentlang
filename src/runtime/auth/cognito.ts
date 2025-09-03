@@ -543,11 +543,11 @@ export class CognitoAuth implements AgentlangAuth {
         const idtok = result.getIdToken();
         const idToken = idtok.getJwtToken();
         const idTokenPayload = idtok.decodePayload();
-        
+
         const firstName = idTokenPayload['given_name'] || idTokenPayload['name'] || '';
         const lastName = idTokenPayload['family_name'] || '';
         const userGroups = idTokenPayload['cognito:groups'];
-        
+
         let localUser = await findUserByEmail(username, env);
         if (!localUser) {
           localUser = await ensureUser(username, firstName, lastName, env);
@@ -891,7 +891,7 @@ export class CognitoAuth implements AgentlangAuth {
       try {
         // Get additional user details from Cognito
         const client = new CognitoIdentityProviderClient({
-          region: process.env.AWS_REGION || 'us-west-2'
+          region: process.env.AWS_REGION || 'us-west-2',
         });
 
         const command = new AdminGetUserCommand({
