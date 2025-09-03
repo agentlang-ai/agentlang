@@ -324,7 +324,12 @@ export async function findUserByEmail(email: string, env: Environment): Promise<
   );
 }
 
-export async function updateUser(userId: string, firstName: string, lastName: string, env: Environment): Promise<Result> {
+export async function updateUser(
+  userId: string,
+  firstName: string,
+  lastName: string,
+  env: Environment
+): Promise<Result> {
   return await evalEvent(
     'UpdateUser',
     {
