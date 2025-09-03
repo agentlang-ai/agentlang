@@ -27,13 +27,7 @@ import {
   ArrayLiteral,
   MapEntry,
   Expr,
-  FlowStepDefinition,
   FlowDefinition,
-  FlowPath,
-  isGenericName,
-  isConditionalFlowStep,
-  ConditionalFlowStep,
-  isFlowStepDefinition,
   isFlowDefinition,
 } from '../language/generated/ast.js';
 import {
@@ -76,14 +70,10 @@ import { createPermission, createRole } from './modules/auth.js';
 import {
   AgentEntityName,
   CoreAIModuleName,
-  FlowStep,
   getFlow,
-  getFlowStep,
   LlmEntityName,
-  newFlow,
   registerAgentFlow,
   registerFlow,
-  registerFlowStep,
 } from './modules/ai.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
@@ -479,14 +469,18 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   const attrsStrs = new Array<string>();
   attrsStrs.push(`name "${name}"`);
   const attrs = newInstanceAttributes();
+  attrsStrs.push(`moduleName "${moduleName}"`);
+  attrs.set('moduleName', moduleName);
   def.body?.attributes.forEach((apdef: GenericPropertyDef) => {
-    if (apdef.name == 'withFlow') {
+    if (apdef.name == 'flow') {
       const n = apdef.value.id || apdef.value.str;
       if (n) {
         const fqn = isFqName(n) ? n : `${moduleName}/${n}`;
         const flowSpec = getFlow(fqn);
         if (flowSpec) {
           registerAgentFlow(name, flowSpec);
+          attrsStrs.push(`type "flow-exec"`);
+          attrs.set('type', 'flow-exec');
         } else {
           throw new Error(`Flow ${n} not found for agent ${name}`);
         }
@@ -571,68 +565,10 @@ function processAgentArrayValue(expr: Expr | undefined, attrName: string): strin
   }
 }
 
-function addFlowStepDefinition(def: FlowStepDefinition, moduleName: string) {
-  const step: FlowStep = {};
-  def.body?.attributes.forEach((prop: GenericPropertyDef) => {
-    if (prop.value.str) {
-      step[prop.name] = prop.value.str;
-    } else if (prop.value.array) {
-      step[prop.name] = prop.value.array.vals
-        .map((v: Statement) => {
-          if (v.pattern.expr && isLiteral(v.pattern.expr)) {
-            return v.pattern.expr.id || v.pattern.expr.ref || v.pattern.expr.str || '';
-          } else {
-            return '';
-          }
-        })
-        .join(',');
-    }
-  });
-  step['step'] = def.name;
-  registerFlowStep(`${moduleName}/${def.name}`, step);
-}
-
-function asFlowPathArray(fp: FlowPath): any[] {
-  const result = new Array<any>();
-  let p: FlowPath | undefined = fp;
-  while (p) {
-    result.push(p.step);
-    p = p.rest;
-  }
-  return result;
-}
-
 function addFlowDefinition(def: FlowDefinition, moduleName: string) {
-  if (def.body) {
-    const flow = newFlow();
-    const paths = def.body.paths;
-    for (let i = 0; i < paths.length; ++i) {
-      const p = asFlowPathArray(paths[i]);
-      for (let j = 0; j < p.length; ++j) {
-        const s = p[j];
-        if (isGenericName(s)) {
-          const fqName = isFqName(s) ? s : `${moduleName}/${s}`;
-          let step = getFlowStep(fqName);
-          if (step == undefined) {
-            if (j < p.length) {
-              const cp = p[++j];
-              if (isConditionalFlowStep(cp)) {
-                step = parseConditionalFlowStep(cp);
-              } else {
-                throw new Error(`FlowStep not found - ${s}`);
-              }
-            }
-          }
-          flow.push(step);
-        }
-      }
-    }
-    registerFlow(`${moduleName}/${def.name}`, flow);
+  if (def.body && def.$cstNode) {
+    registerFlow(`${moduleName}/${def.name}`, def.$cstNode.text);
   }
-}
-
-function parseConditionalFlowStep(cp: ConditionalFlowStep): FlowStep {
-  return { condition: cp.cond, then: cp.then, else: cp.else };
 }
 
 function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
@@ -693,7 +629,6 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isAgentDefinition(def)) await addAgentDefinition(def, moduleName);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
   else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);
-  else if (isFlowStepDefinition(def)) addFlowStepDefinition(def, moduleName);
   else if (isFlowDefinition(def)) addFlowDefinition(def, moduleName);
 }
 

@@ -59,6 +59,7 @@ export type AgentlangKeywordNames =
     | "["
     | "]"
     | "agent"
+    | "agentflow"
     | "allow"
     | "and"
     | "await"
@@ -72,8 +73,6 @@ export type AgentlangKeywordNames =
     | "event"
     | "extends"
     | "false"
-    | "flow"
-    | "flowstep"
     | "for"
     | "if"
     | "import"
@@ -93,7 +92,6 @@ export type AgentlangKeywordNames =
     | "return"
     | "roles"
     | "subscribe"
-    | "then"
     | "true"
     | "update"
     | "upsert"
@@ -124,7 +122,7 @@ export function isDecimal(item: unknown): item is Decimal {
     return typeof item === 'number';
 }
 
-export type Definition = AgentDefinition | FlowDefinition | FlowStepDefinition | RelationshipDefinition | ResolverDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
+export type Definition = AgentDefinition | FlowDefinition | RelationshipDefinition | ResolverDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = 'Definition';
 
@@ -343,11 +341,10 @@ export function isCompositeUniqueDefinition(item: unknown): item is CompositeUni
 }
 
 export interface ConditionalFlowStep extends langium.AstNode {
-    readonly $container: FlowPath;
+    readonly $container: FlowEntry;
     readonly $type: 'ConditionalFlowStep';
-    cond: string;
-    else: GenericName;
-    then: GenericName;
+    expr: string;
+    next: GenericName;
 }
 
 export const ConditionalFlowStep = 'ConditionalFlowStep';
@@ -478,7 +475,7 @@ export function isExtendsClause(item: unknown): item is ExtendsClause {
 export interface FlowDefBody extends langium.AstNode {
     readonly $container: FlowDefinition;
     readonly $type: 'FlowDefBody';
-    paths: Array<FlowPath>;
+    entries: Array<FlowEntry>;
 }
 
 export const FlowDefBody = 'FlowDefBody';
@@ -500,30 +497,18 @@ export function isFlowDefinition(item: unknown): item is FlowDefinition {
     return reflection.isInstance(item, FlowDefinition);
 }
 
-export interface FlowPath extends langium.AstNode {
-    readonly $container: FlowDefBody | FlowPath;
-    readonly $type: 'FlowPath';
-    rest?: FlowPath;
-    step: ConditionalFlowStep | GenericName;
+export interface FlowEntry extends langium.AstNode {
+    readonly $container: FlowDefBody;
+    readonly $type: 'FlowEntry';
+    cond?: ConditionalFlowStep;
+    next?: GenericName;
+    root: GenericName;
 }
 
-export const FlowPath = 'FlowPath';
+export const FlowEntry = 'FlowEntry';
 
-export function isFlowPath(item: unknown): item is FlowPath {
-    return reflection.isInstance(item, FlowPath);
-}
-
-export interface FlowStepDefinition extends langium.AstNode {
-    readonly $container: ModuleDefinition;
-    readonly $type: 'FlowStepDefinition';
-    body?: GenericDefBody;
-    name: GenericName;
-}
-
-export const FlowStepDefinition = 'FlowStepDefinition';
-
-export function isFlowStepDefinition(item: unknown): item is FlowStepDefinition {
-    return reflection.isInstance(item, FlowStepDefinition);
+export function isFlowEntry(item: unknown): item is FlowEntry {
+    return reflection.isInstance(item, FlowEntry);
 }
 
 export interface FnCall extends langium.AstNode {
@@ -568,7 +553,7 @@ export function isFullTextSearch(item: unknown): item is FullTextSearch {
 }
 
 export interface GenericDefBody extends langium.AstNode {
-    readonly $container: AgentDefinition | FlowStepDefinition;
+    readonly $container: AgentDefinition;
     readonly $type: 'GenericDefBody';
     attributes: Array<GenericPropertyDef>;
 }
@@ -1277,8 +1262,7 @@ export type AgentlangAstType = {
     ExtendsClause: ExtendsClause
     FlowDefBody: FlowDefBody
     FlowDefinition: FlowDefinition
-    FlowPath: FlowPath
-    FlowStepDefinition: FlowStepDefinition
+    FlowEntry: FlowEntry
     FnCall: FnCall
     ForEach: ForEach
     FullTextSearch: FullTextSearch
@@ -1341,14 +1325,13 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowPath, FlowStepDefinition, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
         switch (subtype) {
             case AgentDefinition:
             case FlowDefinition:
-            case FlowStepDefinition:
             case RelationshipDefinition:
             case ResolverDefinition:
             case SchemaDefinition:
@@ -1495,9 +1478,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: ConditionalFlowStep,
                     properties: [
-                        { name: 'cond' },
-                        { name: 'else' },
-                        { name: 'then' }
+                        { name: 'expr' },
+                        { name: 'next' }
                     ]
                 };
             }
@@ -1588,7 +1570,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: FlowDefBody,
                     properties: [
-                        { name: 'paths', defaultValue: [] }
+                        { name: 'entries', defaultValue: [] }
                     ]
                 };
             }
@@ -1601,21 +1583,13 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
-            case FlowPath: {
+            case FlowEntry: {
                 return {
-                    name: FlowPath,
+                    name: FlowEntry,
                     properties: [
-                        { name: 'rest' },
-                        { name: 'step' }
-                    ]
-                };
-            }
-            case FlowStepDefinition: {
-                return {
-                    name: FlowStepDefinition,
-                    properties: [
-                        { name: 'body' },
-                        { name: 'name' }
+                        { name: 'cond' },
+                        { name: 'next' },
+                        { name: 'root' }
                     ]
                 };
             }
