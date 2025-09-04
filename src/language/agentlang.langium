@@ -135,7 +135,7 @@ GenericDefBody: '{' (attributes+=GenericPropertyDef (',' attributes+=GenericProp
 
 GenericPropertyDef: name=ID value=Literal;
 
-FlowDefinition: 'agentflow' name=GenericName (body=FlowDefBody? | '{''}');
+FlowDefinition: 'flow' name=GenericName (body=FlowDefBody? | '{''}');
 
 FlowDefBody: '{' (entries+=FlowEntry (entries+=FlowEntry)*)+ '}';
 

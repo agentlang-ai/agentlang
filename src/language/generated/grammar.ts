@@ -3925,7 +3925,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
         "elements": [
           {
             "$type": "Keyword",
-            "value": "agentflow"
+            "value": "flow"
           },
           {
             "$type": "Assignment",

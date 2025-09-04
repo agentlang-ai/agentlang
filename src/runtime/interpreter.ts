@@ -251,6 +251,22 @@ export class Environment extends Instance {
     return this;
   }
 
+  private static FlowContextTag = 'flow-context';
+
+  setFlowContext(s: string): Environment {
+    this.attributes.set(Environment.FlowContextTag, s);
+    return this;
+  }
+
+  resetFlowContext(): Environment {
+    this.attributes.set(Environment.FlowContextTag, undefined);
+    return this;
+  }
+
+  getFlowContext(): string | undefined {
+    return this.attributes.get(Environment.FlowContextTag);
+  }
+
   static SuspensionUserData = '^';
 
   bindSuspensionUserData(userData: string): Environment {
@@ -1379,6 +1395,8 @@ async function walkJoinQueryPattern(
 const MAX_PLANNER_RETRIES = 3;
 
 async function agentInvoke(agent: AgentInstance, msg: string, env: Environment): Promise<void> {
+  const flowContext = env.getFlowContext();
+  msg = flowContext ? `context: ${flowContext}\n${msg}` : msg;
   await agent.invoke(msg, env);
   const r: string | undefined = env.getLastResult();
   const isPlanner = agent.isPlanner();
@@ -1485,6 +1503,8 @@ export async function restartFlow(
   }
 }
 
+const MaxFlowSteps = 25;
+
 async function iterateOnFlow(
   flow: FlowSpec,
   rootAgent: AgentInstance,
@@ -1496,10 +1516,17 @@ async function iterateOnFlow(
   await agentInvoke(rootAgent, s, env);
   let step = env.getLastResult();
   let context = msg;
+  let stepc = 0;
   while (step != 'DONE') {
+    if (stepc > MaxFlowSteps) {
+      throw new Error(`Flow execution exceeded maximum steps limit`);
+    }
+    ++stepc;
     const agent = AgentInstance.FromFlowStep(step, rootAgent);
     agent.disableSession();
-    await agentInvoke(agent, context, env);
+    env.setFlowContext(context);
+    await agentInvoke(agent, '', env);
+    env.resetFlowContext();
     if (env.isSuspended()) {
       await saveFlowSuspension(rootAgent, context, step, env);
       return;

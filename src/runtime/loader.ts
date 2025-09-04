@@ -70,7 +70,6 @@ import { createPermission, createRole } from './modules/auth.js';
 import {
   AgentEntityName,
   CoreAIModuleName,
-  getFlow,
   LlmEntityName,
   registerAgentFlow,
   registerFlow,
@@ -472,20 +471,23 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   attrsStrs.push(`moduleName "${moduleName}"`);
   attrs.set('moduleName', moduleName);
   def.body?.attributes.forEach((apdef: GenericPropertyDef) => {
-    if (apdef.name == 'flow') {
-      const n = apdef.value.id || apdef.value.str;
-      if (n) {
-        const fqn = isFqName(n) ? n : `${moduleName}/${n}`;
-        const flowSpec = getFlow(fqn);
-        if (flowSpec) {
-          registerAgentFlow(name, flowSpec);
-          attrsStrs.push(`type "flow-exec"`);
-          attrs.set('type', 'flow-exec');
-        } else {
-          throw new Error(`Flow ${n} not found for agent ${name}`);
-        }
+    if (apdef.name == 'flows') {
+      let fnames: string | undefined = undefined;
+      if (apdef.value.array) {
+        fnames = processAgentArray(apdef.value.array, name);
       } else {
-        throw new Error(`Invalid flow name in agent ${name}`);
+        fnames = apdef.value.id || apdef.value.str;
+      }
+      if (fnames) {
+        fnames.split(',').forEach((n: string) => {
+          n = n.trim();
+          const fqn = isFqName(n) ? n : `${moduleName}/${n}`;
+          registerAgentFlow(name, fqn);
+        });
+        attrsStrs.push(`type "flow-exec"`);
+        attrs.set('type', 'flow-exec');
+      } else {
+        throw new Error(`Invalid flows list in agent ${name}`);
       }
     } else {
       let v: any = undefined;

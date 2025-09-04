@@ -135,6 +135,8 @@ export class AgentInstance {
 
   static FromFlowStep(step: FlowStep, flowAgent: AgentInstance): AgentInstance {
     const fqs = isFqName(step) ? step : `${flowAgent.moduleName}/${step}`;
+    const instruction = `Analyse the context and generate the pattern required to invoke ${fqs}.
+    Never include references in the pattern. All attribute values must be literals derived from the context.`;
     const inst = makeInstance(
       CoreAIModuleName,
       AgentEntityName,
@@ -142,7 +144,7 @@ export class AgentInstance {
         .set('llm', flowAgent.llm)
         .set('name', `${step}_agent`)
         .set('moduleName', flowAgent.moduleName)
-        .set('instruction', `Based on relevant parts of the request that follows, invoke '${fqs}`)
+        .set('instruction', instruction)
         .set('tools', fqs)
         .set('type', 'planner')
     );
@@ -418,7 +420,7 @@ export function agentName(agentInstance: Instance): string {
 export type FlowSpec = string;
 export type FlowStep = string;
 
-const AgentFlows = new Map<string, FlowSpec>();
+const AgentFlows = new Map<string, string[]>();
 const FlowRegistry = new Map<string, FlowSpec>();
 
 export function registerFlow(name: string, flow: FlowSpec): string {
@@ -430,11 +432,24 @@ export function getFlow(name: string): FlowSpec | undefined {
   return FlowRegistry.get(name);
 }
 
-export function registerAgentFlow(agentName: string, flow: FlowSpec): string {
-  AgentFlows.set(agentName, flow);
+export function registerAgentFlow(agentName: string, flowSpecName: string): string {
+  let currentFlows = AgentFlows.get(agentName);
+  if (currentFlows) {
+    currentFlows.push(flowSpecName);
+  } else {
+    currentFlows = new Array<string>();
+    currentFlows.push(flowSpecName);
+  }
+  AgentFlows.set(agentName, currentFlows);
   return agentName;
 }
 
+// Return the first flow registered with the agent.
 export function getAgentFlow(agentName: string): FlowSpec | undefined {
-  return AgentFlows.get(agentName);
+  const currentFlows = AgentFlows.get(agentName);
+  if (currentFlows) {
+    return getFlow(currentFlows[0]);
+  } else {
+    return undefined;
+  }
 }
