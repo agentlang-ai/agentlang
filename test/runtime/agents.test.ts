@@ -139,6 +139,45 @@ if (process.env.AL_TEST === 'true') {
     })
   })
 
+  describe('Custom LLM provider', () => {
+    test('test01', async () => {
+      const apiKey = process.env["OPENAI_API_KEY"]
+      await doInternModule('CustomLLM',
+        `{agentlang.ai/LLM {
+            name "custom-test-llm",
+            service "openai",
+            config {"model": "gpt-4.1",
+                    "maxTokens": 200,
+                    "temperature": 0.7,
+                    "apiKey": "${apiKey}",
+                    "configuration": {
+                      "baseURL": "https://api.openai.com/v1",
+                      "defaultHeaders": {"Ocp-Apim-Subscription-Key": "xxxxy",
+                                          "user": "admin"}
+                     }
+                    }
+          }
+        }
+
+        entity Employee {
+          id Int,
+          name String
+        }
+
+        agent empAgent {
+          llm "custom-test-llm",
+          instruction "create a new employee",
+          tools [CustomLLM/Employee]
+        }
+        `
+      )
+      const e = await parseAndEvaluateStatement(`{CustomLLM/empAgent {message "Employee id is 101 and name is Jacob"}}`)
+      assert(isInstanceOfType(e, 'CustomLLM/Employee'))
+      assert(e.lookup('id') == 101)
+      assert(e.lookup('name') == 'Jacob')
+    })
+  })
+
   describe('Agent-chaining via output', () => {
     test('test01', async () => {
       await doInternModule('OPA', `entity Person {id Int @id, name String, age Int}`)
@@ -160,9 +199,9 @@ if (process.env.AL_TEST === 'true') {
       const cr = async (p: P) => {
         return await k(`Create a new Person aged ${p.age} with id ${p.id} and name '${p.name}'. Return only the pattern, no need to return a complete workflow.`)
       }
-      let r = await cr({id: 1, name: "Joe", age: 20})
+      let r = await cr({ id: 1, name: "Joe", age: 20 })
       assert(r == 'major')
-      r = await cr({id: 2, name: "Mat", age: 15})
+      r = await cr({ id: 2, name: "Mat", age: 15 })
       assert(r == 'minor')
     })
   })
