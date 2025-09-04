@@ -5,7 +5,14 @@ import {
   makeEventEvaluator,
   parseAndEvaluateStatement,
 } from '../interpreter.js';
-import { fetchModule, Instance, instanceToObject, isModule } from '../module.js';
+import {
+  fetchModule,
+  Instance,
+  instanceToObject,
+  isModule,
+  makeInstance,
+  newInstanceAttributes,
+} from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
   AgentServiceProvider,
@@ -15,7 +22,7 @@ import {
   systemMessage,
 } from '../agents/provider.js';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { PlannerInstructions } from '../agents/common.js';
+import { FlowExecInstructions, PlannerInstructions } from '../agents/common.js';
 import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
 
@@ -33,7 +40,8 @@ entity ${LlmEntityName} {
 
 entity ${AgentEntityName} {
     name String @id,
-    type @enum("chat", "planner") @default("chat"),
+    moduleName String @default("${CoreAIModuleName}"),
+    type @enum("chat", "planner", "flow-exec") @default("chat"),
     runWorkflows Boolean @default(true),
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
@@ -77,6 +85,7 @@ const ProviderDb = new Map<string, AgentServiceProvider>();
 export class AgentInstance {
   llm: string = '';
   name: string = '';
+  moduleName: string = CoreAIModuleName;
   chatId: string | undefined;
   instruction: string = '';
   type: string = 'chat';
@@ -88,6 +97,7 @@ export class AgentInstance {
   role: string | undefined;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
+  private withSession = true;
 
   private constructor() {}
 
@@ -123,29 +133,71 @@ export class AgentInstance {
     return agent;
   }
 
+  static FromFlowStep(step: FlowStep, flowAgent: AgentInstance): AgentInstance {
+    const fqs = isFqName(step) ? step : `${flowAgent.moduleName}/${step}`;
+    const instruction = `Analyse the context and generate the pattern required to invoke ${fqs}.
+    Never include references in the pattern. All attribute values must be literals derived from the context.`;
+    const inst = makeInstance(
+      CoreAIModuleName,
+      AgentEntityName,
+      newInstanceAttributes()
+        .set('llm', flowAgent.llm)
+        .set('name', `${step}_agent`)
+        .set('moduleName', flowAgent.moduleName)
+        .set('instruction', instruction)
+        .set('tools', fqs)
+        .set('type', 'planner')
+    );
+    return AgentInstance.FromInstance(inst);
+  }
+
+  disableSession(): AgentInstance {
+    this.withSession = false;
+    return this;
+  }
+
+  enableSession(): AgentInstance {
+    this.withSession = true;
+    return this;
+  }
+
+  hasSession(): boolean {
+    return this.withSession;
+  }
+
   isPlanner(): boolean {
     return this.hasModuleTools || this.type == 'planner';
+  }
+
+  isFlowExecutor(): boolean {
+    return this.type == 'flow-exec';
   }
 
   async invoke(message: string, env: Environment) {
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
     const chatId = this.chatId || agentName;
-    const sess: Instance | null = await findAgentChatSession(chatId, env);
-    let msgs: BaseMessage[] | undefined;
     const isplnr = this.isPlanner();
+    const isflow = !isplnr && this.isFlowExecutor();
+    if (isplnr && this.withSession) {
+      this.withSession = false;
+    }
+    if (isflow) {
+      this.withSession = false;
+    }
+    const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
+    let msgs: BaseMessage[] | undefined;
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      msgs = [systemMessage(this.instruction)];
+      msgs = [systemMessage(this.instruction || '')];
     }
     if (msgs) {
       try {
         const sysMsg = msgs[0];
-        if (isplnr) {
-          const newSysMsg = systemMessage(
-            `${PlannerInstructions}\n${this.toolsAsString()}\n${this.instruction}`
-          );
+        if (isplnr || isflow) {
+          const s = isplnr ? PlannerInstructions : FlowExecInstructions;
+          const newSysMsg = systemMessage(`${s}\n${this.toolsAsString()}\n${this.instruction}`);
           msgs[0] = newSysMsg;
         }
         msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
@@ -155,7 +207,9 @@ export class AgentInstance {
         if (isplnr) {
           msgs[0] = sysMsg;
         }
-        await saveAgentChatSession(chatId, msgs, env);
+        if (this.withSession) {
+          await saveAgentChatSession(chatId, msgs, env);
+        }
         env.setLastResult(response.content);
       } catch (err: any) {
         logger.error(`Error while invoking ${agentName} - ${err}`);
@@ -361,4 +415,41 @@ export async function saveAgentChatSession(chatId: string, messages: any[], env:
 
 export function agentName(agentInstance: Instance): string {
   return agentInstance.lookup('name');
+}
+
+export type FlowSpec = string;
+export type FlowStep = string;
+
+const AgentFlows = new Map<string, string[]>();
+const FlowRegistry = new Map<string, FlowSpec>();
+
+export function registerFlow(name: string, flow: FlowSpec): string {
+  FlowRegistry.set(name, flow);
+  return name;
+}
+
+export function getFlow(name: string): FlowSpec | undefined {
+  return FlowRegistry.get(name);
+}
+
+export function registerAgentFlow(agentName: string, flowSpecName: string): string {
+  let currentFlows = AgentFlows.get(agentName);
+  if (currentFlows) {
+    currentFlows.push(flowSpecName);
+  } else {
+    currentFlows = new Array<string>();
+    currentFlows.push(flowSpecName);
+  }
+  AgentFlows.set(agentName, currentFlows);
+  return agentName;
+}
+
+// Return the first flow registered with the agent.
+export function getAgentFlow(agentName: string): FlowSpec | undefined {
+  const currentFlows = AgentFlows.get(agentName);
+  if (currentFlows) {
+    return getFlow(currentFlows[0]);
+  } else {
+    return undefined;
+  }
 }

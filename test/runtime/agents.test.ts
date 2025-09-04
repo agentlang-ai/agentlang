@@ -125,8 +125,8 @@ if (process.env.AL_TEST === 'true') {
       const ins = "Generate a workflow for creating new Persons. All attributes must be receieved via the event. "
         .concat("The event should have an extra boolean attribute called X. ")
         .concat("If X is set create the Person with age incremented by one, otherwise use the age as specified in the event. ")
-        .concat("(Only define the workflow, no need to define the event).")
-      const wfs = await k(ins)
+        .concat("(Only define the workflow, no need to define the event. Do not add additional quotes, etc to the workflow definition).")
+      const wfs: string = await k(ins)
       const wf: WorkflowDefinition = await parseWorkflow(wfs)
       addWorkflowFromDef(wf, 'SPA')
       let p = { id: 103, name: "Chole", age: 11 }

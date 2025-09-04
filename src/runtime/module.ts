@@ -850,8 +850,10 @@ export class Agent extends Record {
   override toString(): string {
     const attrs = new Array<string>();
     this.attributes.forEach((value: any, key: string) => {
-      const v = isString(value) ? `"${value}"` : value;
-      attrs.push(`    ${key} ${v}`);
+      if (key != 'moduleName') {
+        const v = isString(value) ? `"${value}"` : value;
+        attrs.push(`    ${key} ${v}`);
+      }
     });
     return `agent ${Agent.NormalizeName(this.name)}
 {
@@ -2848,14 +2850,22 @@ export function assertInstance(obj: any) {
 
 const IsAgentEventMeta = 'is-agent-event';
 const EventAgentName = 'event-agent-name';
+const DocumentationMetaTag = 'documentation';
 
-export function defineAgentEvent(moduleName: string, agentName: string) {
+export function defineAgentEvent(moduleName: string, agentName: string, instruction?: string) {
   const module = fetchModule(moduleName);
   const event: Record = new Event(agentName, moduleName);
   event.addAttribute('message', { type: 'Any' });
   event.addAttribute('chatId', { type: 'String' });
   event.addMeta(IsAgentEventMeta, 'y');
   event.addMeta(EventAgentName, agentName);
+  if (instruction) {
+    event.addMeta(
+      DocumentationMetaTag,
+      `This event will trigger an agent which has the instruction - "${instruction}".
+    So make sure to pass all relevant information in the 'message' attribute of this event.`
+    );
+  }
   module.addEntry(event);
 }
 

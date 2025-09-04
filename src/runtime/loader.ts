@@ -22,8 +22,13 @@ import {
   isResolverDefinition,
   ResolverDefinition,
   ResolverMethodSpec,
-  AgentPropertyDef,
+  GenericPropertyDef,
   isLiteral,
+  ArrayLiteral,
+  MapEntry,
+  Expr,
+  FlowDefinition,
+  isFlowDefinition,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -47,6 +52,7 @@ import {
 import {
   escapeSpecialChars,
   findRbacSchema,
+  isFqName,
   isString,
   makeFqName,
   maybeExtends,
@@ -61,7 +67,13 @@ import { maybeGetValidationErrors, parse, parseModule, parseWorkflow } from '../
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
-import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
+import {
+  AgentEntityName,
+  CoreAIModuleName,
+  LlmEntityName,
+  registerAgentFlow,
+  registerFlow,
+} from './modules/ai.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
 import { Config, ConfigSchema, setAppConfig } from './state.js';
@@ -288,6 +300,7 @@ export async function loadCoreModules() {
 
 async function loadModule(fileName: string, fsOptions?: any, callback?: Function): Promise<Module> {
   // Initialize filesystem if not already done
+  console.log(`loading ${fileName}`);
   const fs = await getFileSystem(fsOptions);
 
   const fsAdapter = getFsAdapter(fs);
@@ -455,45 +468,53 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   const attrsStrs = new Array<string>();
   attrsStrs.push(`name "${name}"`);
   const attrs = newInstanceAttributes();
-  def.body?.attributes.forEach((apdef: AgentPropertyDef) => {
-    let v: any = undefined;
-    if (apdef.value.array) {
-      v = apdef.value.array.vals
-        .map((stmt: Statement) => {
-          if (stmt.pattern.expr && isLiteral(stmt.pattern.expr)) {
-            const s = stmt.pattern.expr.str || stmt.pattern.expr.id || stmt.pattern.expr.ref;
-            if (s == undefined) {
-              throw new Error(
-                `Only arrays of string-literals or identifiers should be passed to agent ${name}`
-              );
-            }
-            return s;
-          } else {
-            throw new Error(`Invalid value in array passed to agent ${name}`);
-          }
-        })
-        .join(',');
-    } else {
-      v = apdef.value.str || apdef.value.id || apdef.value.ref || apdef.value.num;
-      if (v == undefined) {
-        v = apdef.value.bool;
+  attrsStrs.push(`moduleName "${moduleName}"`);
+  attrs.set('moduleName', moduleName);
+  def.body?.attributes.forEach((apdef: GenericPropertyDef) => {
+    if (apdef.name == 'flows') {
+      let fnames: string | undefined = undefined;
+      if (apdef.value.array) {
+        fnames = processAgentArray(apdef.value.array, name);
+      } else {
+        fnames = apdef.value.id || apdef.value.str;
       }
+      if (fnames) {
+        fnames.split(',').forEach((n: string) => {
+          n = n.trim();
+          const fqn = isFqName(n) ? n : `${moduleName}/${n}`;
+          registerAgentFlow(name, fqn);
+        });
+        attrsStrs.push(`type "flow-exec"`);
+        attrs.set('type', 'flow-exec');
+      } else {
+        throw new Error(`Invalid flows list in agent ${name}`);
+      }
+    } else {
+      let v: any = undefined;
+      if (apdef.value.array) {
+        v = processAgentArray(apdef.value.array, name);
+      } else {
+        v = apdef.value.str || apdef.value.id || apdef.value.ref || apdef.value.num;
+        if (v == undefined) {
+          v = apdef.value.bool;
+        }
+      }
+      if (v == undefined) {
+        throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
+      }
+      if (llmName == undefined && apdef.name == 'llm') {
+        llmName = v;
+        hasUserLlm = true;
+      }
+      const ov = v;
+      if (apdef.value.id || apdef.value.ref || apdef.value.array) {
+        v = `"${v}"`;
+      } else if (apdef.value.str) {
+        v = `"${escapeSpecialChars(v)}"`;
+      }
+      attrsStrs.push(`${apdef.name} ${v}`);
+      attrs.set(apdef.name, ov);
     }
-    if (v == undefined) {
-      throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
-    }
-    if (llmName == undefined && apdef.name == 'llm') {
-      llmName = v;
-      hasUserLlm = true;
-    }
-    const ov = v;
-    if (apdef.value.id || apdef.value.ref || apdef.value.array) {
-      v = `"${v}"`;
-    } else if (apdef.value.str) {
-      v = `"${escapeSpecialChars(v)}"`;
-    }
-    attrsStrs.push(`${apdef.name} ${v}`);
-    attrs.set(apdef.name, ov);
   });
   if (!attrs.has('llm')) {
     llmName = `${name}_llm`;
@@ -511,6 +532,45 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     addStandaloneStatement(stmt, moduleName);
   });
   addAgent(def.name, attrs, moduleName);
+}
+
+function processAgentArray(array: ArrayLiteral, attrName: string): string {
+  return array.vals
+    .map((stmt: Statement) => {
+      const expr = stmt.pattern.expr;
+      return processAgentArrayValue(expr, attrName);
+    })
+    .join(',');
+}
+
+function processAgentArrayValue(expr: Expr | undefined, attrName: string): string {
+  if (expr && isLiteral(expr)) {
+    const s = expr.str || expr.id || expr.ref || expr.bool;
+    if (s != undefined) {
+      return s;
+    }
+    if (expr.array) {
+      return processAgentArray(expr.array, attrName);
+    } else if (expr.map) {
+      const m = new Array<string>();
+      expr.map.entries.forEach((me: MapEntry) => {
+        m.push(
+          `${me.key.str || me.key.num || me.key.bool || ''}: ${processAgentArrayValue(me.value, attrName)}`
+        );
+      });
+      return `{${m.join(',')}}`;
+    } else {
+      throw new Error(`Type not supprted in agent-arrays - ${attrName}`);
+    }
+  } else {
+    throw new Error(`Invalid value in array passed to agent ${attrName}`);
+  }
+}
+
+function addFlowDefinition(def: FlowDefinition, moduleName: string) {
+  if (def.body && def.$cstNode) {
+    registerFlow(`${moduleName}/${def.name}`, def.$cstNode.text);
+  }
 }
 
 function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
@@ -571,6 +631,7 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isAgentDefinition(def)) await addAgentDefinition(def, moduleName);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
   else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);
+  else if (isFlowDefinition(def)) addFlowDefinition(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {

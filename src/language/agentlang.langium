@@ -5,7 +5,7 @@ entry ModuleDefinition: 'module' name=QualifiedName (imports+=Import)* (defs+=De
 Import: 'import' path=STRING '@as' name=ID;
 
 Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
-| AgentDefinition | ResolverDefinition ;
+| AgentDefinition | ResolverDefinition | FlowDefinition;
 
 StandaloneStatement: stmt=Statement;
 
@@ -129,11 +129,19 @@ FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
 Return: 'return' pat=Pattern;
 
-AgentDefinition: 'agent' name=GenericName (body=AgentDefBody? | '{''}');
+AgentDefinition: 'agent' name=GenericName (body=GenericDefBody? | '{''}');
 
-AgentDefBody: '{' (attributes+=AgentPropertyDef (',' attributes+=AgentPropertyDef)*)+ '}';
+GenericDefBody: '{' (attributes+=GenericPropertyDef (',' attributes+=GenericPropertyDef)*)+ '}';
 
-AgentPropertyDef: name=ID value=Literal;
+GenericPropertyDef: name=ID value=Literal;
+
+FlowDefinition: 'flow' name=GenericName (body=FlowDefBody? | '{''}');
+
+FlowDefBody: '{' (entries+=FlowEntry (entries+=FlowEntry)*)+ '}';
+
+FlowEntry: root=GenericName '-->' (cond=ConditionalFlowStep | next=GenericName);
+
+ConditionalFlowStep: expr=STRING next=GenericName;
 
 ResolverDefinition: 'resolver' name=GenericName '[' (paths+=GenericName (',' paths+=GenericName)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
