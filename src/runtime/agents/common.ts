@@ -250,7 +250,7 @@ workflow sendEmail {
     {email {to emp.email body "please call me as soon as possible"}}
 }
 
-The point is use the immediate context to fill-in values in generated patterns, as much as possible.
+The point is, use the immediate context to fill-in values in generated patterns, as much as possible.
 
 Also generate a workflow only if required explicitly by the user or the contextual information is incomplete. Otherwise, just return an array of patterns.
 As an example, if the user request is "send an email to employee 101 with this message - 'please call me as soon as possible'", you must return:
@@ -262,4 +262,53 @@ You MUST separate each pattern in the array with a semi-colon (;)  and never use
 
 Now consider the following module definition and generate appropriate patterns in response to the user instructions. You must return only valid patterns or workflows,
 no other descriptive text or comments are needed.
+`;
+
+export const FlowExecInstructions = `The following is the textual representation of a flowchart. 
+
+checkOrder --> "ProductA" acceptOrder
+checkOrder --> "ProductB" acceptOrder
+checkOrder --> "ProductC" rejectOrder
+acceptOrder --> sendPaymentLinkToCustomer
+rejectOrder --> sendRejectionEmailToCustomer
+
+Along with this flowchart, you'll be passed a "context", which contain the steps in the flowchart that was executed so far, along with
+their results. Based on the context, you need to return the name of the step that needs to execute next. If you have reached the end
+of the chart, return 'DONE'. 
+
+At the beginning of the execution, the context will contain only the order information, say something like:
+
+OrderNo: 101, Item: "ProductB", customerEmail: "manager@acme.com"
+
+This means you have to return 'checkOrder' as the next step (i.e you move the root node of the flowchart).
+After the step checkOrder executes, you'll be passed the following context:
+
+orderNo: 101, Item: "ProductB", customerEmail: "manager@acme.com"
+checkOrder --> "ProductB"
+
+Now you can infer from the context that if the result of checkOrder is either "ProductA" or "ProductB", you must move to the step 'acceptOrder'.
+So you return 'acceptOrder'. After this, you'll return the updated context as:
+
+OrderNo: 101, Item: "ProductB", customerEmail: "manager@acme.com"
+checkOrder --> "ProductB"
+acceptOrder --> {orderNo: 101, customerEmail: "manager@acme.com", acceptedOn: "2025-07-01"}
+
+You see that 'acceptOrder' has produced the result '{orderNo: 101, customerEmail: "manager@acme.com", acceptedOn: "2025-07-01"}' - but from the flowchart you know that, whatever the result of 'acceptOrder',
+you have to move to the 'sendPaymentLinkToCustomer' step and so you return 'sendPaymentLinkToCustomer'.
+
+The next context you'll see will be:
+
+OrderNo: 101, Item: "ProductB", customerEmail: "manager@acme.com"
+checkOrder --> "ProductB"
+acceptOrder --> {orderNo: 101, customerEmail: "manager@acme.com", acceptedOn: "2025-07-01"}
+sendPaymentLinkToCustomer --> "manager@acme.com"
+
+The 'sendPaymentLinkToCustomer' has returned the customer email. You look at the flowchart and detect that, whatever the return value of
+'sendPaymentLinkToCustomer' there is nothing else to do. So you return 'DONE'.
+
+Generally a flowchart has the following two types of entries:
+  1. a --> b, meaning after step 'a' do step 'b'.
+  2. a --> "x" b - this means if 'a' returns the string "x", then do step 'b'.
+If you detect that you have reached the end of the chart, return 'DONE'. Otherwise, return only the name of the next step. Never return
+any additional description, direction or comments.
 `;

@@ -22,7 +22,7 @@ import {
   systemMessage,
 } from '../agents/provider.js';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { PlannerInstructions } from '../agents/common.js';
+import { FlowExecInstructions, PlannerInstructions } from '../agents/common.js';
 import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
 
@@ -40,7 +40,8 @@ entity ${LlmEntityName} {
 
 entity ${AgentEntityName} {
     name String @id,
-    type @enum("chat", "planner") @default("chat"),
+    moduleName String @default("${CoreAIModuleName}"),
+    type @enum("chat", "planner", "flow-exec") @default("chat"),
     runWorkflows Boolean @default(true),
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
@@ -84,6 +85,7 @@ const ProviderDb = new Map<string, AgentServiceProvider>();
 export class AgentInstance {
   llm: string = '';
   name: string = '';
+  moduleName: string = CoreAIModuleName;
   chatId: string | undefined;
   instruction: string = '';
   type: string = 'chat';
@@ -131,30 +133,21 @@ export class AgentInstance {
     return agent;
   }
 
-  static FromFlowStep(step: FlowStep, rootAgent: AgentInstance): AgentInstance {
-    const attrs = newInstanceAttributes()
-      .set('name', `${rootAgent.name}-${crypto.randomUUID()}`)
-      .set('llm', rootAgent.llm);
-    if (step.tools) {
-      attrs.set('tools', step.tools);
-    }
-    if (step.channels) {
-      attrs.set('channels', step.channels);
-    }
-    let ins = step.instruction;
-    if (!ins) {
-      if (step.condition && step.then && step.else) {
-        ins = `If ${step.condition} then return '${step.then} otherwise return '${step.else}`;
-      }
-    }
-    if (!ins) {
-      throw new Error(`Cannot create instruction from step ${step.step}`);
-    }
-    if (step.example) {
-      ins = `${ins}\nExample: ${step.example}`;
-    }
-    attrs.set('instruction', ins);
-    const inst = makeInstance(CoreAIModuleName, AgentEntityName, attrs);
+  static FromFlowStep(step: FlowStep, flowAgent: AgentInstance): AgentInstance {
+    const fqs = isFqName(step) ? step : `${flowAgent.moduleName}/${step}`;
+    const instruction = `Analyse the context and generate the pattern required to invoke ${fqs}.
+    Never include references in the pattern. All attribute values must be literals derived from the context.`;
+    const inst = makeInstance(
+      CoreAIModuleName,
+      AgentEntityName,
+      newInstanceAttributes()
+        .set('llm', flowAgent.llm)
+        .set('name', `${step}_agent`)
+        .set('moduleName', flowAgent.moduleName)
+        .set('instruction', instruction)
+        .set('tools', fqs)
+        .set('type', 'planner')
+    );
     return AgentInstance.FromInstance(inst);
   }
 
@@ -176,12 +169,20 @@ export class AgentInstance {
     return this.hasModuleTools || this.type == 'planner';
   }
 
+  isFlowExecutor(): boolean {
+    return this.type == 'flow-exec';
+  }
+
   async invoke(message: string, env: Environment) {
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
     const chatId = this.chatId || agentName;
     const isplnr = this.isPlanner();
+    const isflow = !isplnr && this.isFlowExecutor();
     if (isplnr && this.withSession) {
+      this.withSession = false;
+    }
+    if (isflow) {
       this.withSession = false;
     }
     const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
@@ -189,15 +190,14 @@ export class AgentInstance {
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      msgs = [systemMessage(this.instruction)];
+      msgs = [systemMessage(this.instruction || '')];
     }
     if (msgs) {
       try {
         const sysMsg = msgs[0];
-        if (isplnr) {
-          const newSysMsg = systemMessage(
-            `${PlannerInstructions}\n${this.toolsAsString()}\n${this.instruction}`
-          );
+        if (isplnr || isflow) {
+          const s = isplnr ? PlannerInstructions : FlowExecInstructions;
+          const newSysMsg = systemMessage(`${s}\n${this.toolsAsString()}\n${this.instruction}`);
           msgs[0] = newSysMsg;
         }
         msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
@@ -417,25 +417,10 @@ export function agentName(agentInstance: Instance): string {
   return agentInstance.lookup('name');
 }
 
-export type FlowStep = any;
-export type FlowSpec = Array<FlowStep>;
-const AgentFlows = new Map<string, FlowSpec>();
+export type FlowSpec = string;
+export type FlowStep = string;
 
-const FlowStepsRegistry = new Map<string, FlowStep>();
-
-export function registerFlowStep(name: string, step: FlowStep): string {
-  FlowStepsRegistry.set(name, step);
-  return name;
-}
-
-export function getFlowStep(name: string): FlowStep | undefined {
-  return FlowStepsRegistry.get(name);
-}
-
-export function newFlow(): FlowSpec {
-  return new Array<FlowStep>();
-}
-
+const AgentFlows = new Map<string, string[]>();
 const FlowRegistry = new Map<string, FlowSpec>();
 
 export function registerFlow(name: string, flow: FlowSpec): string {
@@ -447,64 +432,24 @@ export function getFlow(name: string): FlowSpec | undefined {
   return FlowRegistry.get(name);
 }
 
-export function registerAgentFlow(agentName: string, flow: FlowSpec): string {
-  AgentFlows.set(agentName, flow);
+export function registerAgentFlow(agentName: string, flowSpecName: string): string {
+  let currentFlows = AgentFlows.get(agentName);
+  if (currentFlows) {
+    currentFlows.push(flowSpecName);
+  } else {
+    currentFlows = new Array<string>();
+    currentFlows.push(flowSpecName);
+  }
+  AgentFlows.set(agentName, currentFlows);
   return agentName;
 }
 
+// Return the first flow registered with the agent.
 export function getAgentFlow(agentName: string): FlowSpec | undefined {
-  return AgentFlows.get(agentName);
-}
-
-export function isStepConditional(step: FlowStep): boolean {
-  if (step.condition) {
-    return true;
-  }
-  return false;
-}
-
-export class FlowIterator {
-  private offset: number = 0;
-  private flow: FlowSpec;
-
-  constructor(flow: FlowSpec) {
-    this.flow = flow;
-  }
-
-  static From(flow: FlowSpec): FlowIterator {
-    return new FlowIterator(flow);
-  }
-
-  hasNext(): boolean {
-    return this.offset < this.flow.length;
-  }
-
-  getStep(): FlowStep {
-    return this.flow[this.offset];
-  }
-
-  next(): FlowIterator {
-    ++this.offset;
-    return this;
-  }
-
-  getOffset(): number {
-    return this.offset;
-  }
-
-  setOffset(offset: number): FlowIterator {
-    this.offset = offset;
-    return this;
-  }
-
-  moveToStep(step: string): boolean {
-    this.offset = 0;
-    for (let i = 0; i < this.flow.length; ++i) {
-      if (this.flow[i].step == step) {
-        this.offset = i;
-        return true;
-      }
-    }
-    return false;
+  const currentFlows = AgentFlows.get(agentName);
+  if (currentFlows) {
+    return getFlow(currentFlows[0]);
+  } else {
+    return undefined;
   }
 }

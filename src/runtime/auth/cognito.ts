@@ -378,9 +378,11 @@ export class CognitoAuth implements AgentlangAuth {
 
       if (response.$metadata.httpStatusCode == 200) {
         logger.info(`Signup successful for user: ${username}`);
-        const user = await ensureUser(username, '', '', env);
+        const user = await ensureUser(username, firstName, lastName, env);
         const userInfo: UserInfo = {
           username: username,
+          firstName: firstName,
+          lastName: lastName,
           id: user.id,
           systemUserInfo: response.UserSub,
         };
@@ -538,15 +540,19 @@ export class CognitoAuth implements AgentlangAuth {
       }
       if (result) {
         // After successful Cognito authentication, create/update local records
-        let localUser = await findUserByEmail(username, env);
-        if (!localUser) {
-          localUser = await ensureUser(username, '', '', env);
-        }
-        const userid = localUser.lookup('id');
         const idtok = result.getIdToken();
         const idToken = idtok.getJwtToken();
         const idTokenPayload = idtok.decodePayload();
+
+        const firstName = idTokenPayload['given_name'] || idTokenPayload['name'] || '';
+        const lastName = idTokenPayload['family_name'] || '';
         const userGroups = idTokenPayload['cognito:groups'];
+
+        let localUser = await findUserByEmail(username, env);
+        if (!localUser) {
+          localUser = await ensureUser(username, firstName, lastName, env);
+        }
+        const userid = localUser.lookup('id');
         if (userGroups) {
           await ensureUserRoles(userid, userGroups, env);
         }
@@ -802,6 +808,8 @@ export class CognitoAuth implements AgentlangAuth {
     }
 
     const userEmail = localUser.lookup('email');
+    const firstName = localUser.lookup('firstName');
+    const lastName = localUser.lookup('lastName');
 
     // Check if Cognito is configured
     const cognitoConfigured = process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID;
@@ -825,6 +833,8 @@ export class CognitoAuth implements AgentlangAuth {
         return {
           id: userId,
           username: userEmail,
+          firstName: firstName,
+          lastName: lastName,
           systemUserInfo: {
             localUser: localUser,
             cognitoData: {
@@ -847,6 +857,8 @@ export class CognitoAuth implements AgentlangAuth {
         return {
           id: userId,
           username: userEmail,
+          firstName: firstName,
+          lastName: lastName,
           systemUserInfo: localUser,
         };
       }
@@ -855,6 +867,8 @@ export class CognitoAuth implements AgentlangAuth {
       return {
         id: userId,
         username: userEmail || userId,
+        firstName: firstName,
+        lastName: lastName,
         systemUserInfo: localUser,
       };
     }
@@ -867,6 +881,8 @@ export class CognitoAuth implements AgentlangAuth {
     }
 
     const userId = localUser.lookup('id');
+    const firstName = localUser.lookup('firstName');
+    const lastName = localUser.lookup('lastName');
 
     // Check if Cognito is configured
     const cognitoConfigured = process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID;
@@ -876,11 +892,11 @@ export class CognitoAuth implements AgentlangAuth {
         // Get additional user details from Cognito
         const client = new CognitoIdentityProviderClient({
           region: process.env.AWS_REGION || 'us-west-2',
-          credentials: fromEnv(),
         });
 
         const command = new AdminGetUserCommand({
           UserPoolId: this.fetchUserPoolId(),
+          ClientId: this.fetchClientId(),
           Username: email,
         });
 
@@ -890,6 +906,8 @@ export class CognitoAuth implements AgentlangAuth {
         return {
           id: userId,
           username: email,
+          firstName: firstName,
+          lastName: lastName,
           systemUserInfo: {
             localUser: localUser,
             cognitoData: {
@@ -904,7 +922,7 @@ export class CognitoAuth implements AgentlangAuth {
           },
         };
       } catch (err: any) {
-        logger.warn(`Failed to get Cognito user info for email ${email}, using local data only:`, {
+        console.log(`Failed to get Cognito user info for email ${email}, using local data only:`, {
           errorName: err.name,
           errorMessage: sanitizeErrorMessage(err.message),
         });
@@ -912,6 +930,8 @@ export class CognitoAuth implements AgentlangAuth {
         return {
           id: userId,
           username: email,
+          firstName: firstName,
+          lastName: lastName,
           systemUserInfo: localUser,
         };
       }
@@ -920,6 +940,8 @@ export class CognitoAuth implements AgentlangAuth {
       return {
         id: userId,
         username: email,
+        firstName: firstName,
+        lastName: lastName,
         systemUserInfo: localUser,
       };
     }

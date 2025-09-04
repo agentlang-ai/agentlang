@@ -76,10 +76,8 @@ import {
   AgentFqName,
   findAgentByName,
   FlowSpec,
-  FlowIterator,
   getAgentFlow,
   FlowStep,
-  isStepConditional,
 } from './modules/ai.js';
 import { logger } from './logger.js';
 import {
@@ -251,6 +249,22 @@ export class Environment extends Instance {
     const n: string = inst.name;
     this.attributes.set(n, inst);
     return this;
+  }
+
+  private static FlowContextTag = 'flow-context';
+
+  setFlowContext(s: string): Environment {
+    this.attributes.set(Environment.FlowContextTag, s);
+    return this;
+  }
+
+  resetFlowContext(): Environment {
+    this.attributes.set(Environment.FlowContextTag, undefined);
+    return this;
+  }
+
+  getFlowContext(): string | undefined {
+    return this.attributes.get(Environment.FlowContextTag);
   }
 
   static SuspensionUserData = '^';
@@ -1108,7 +1122,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         await runPostCreateEvents(inst, env);
       }
       if (r && entryName == AgentEntityName) {
-        defineAgentEvent(env.getActiveModuleName(), r.lookup('name'));
+        defineAgentEvent(env.getActiveModuleName(), r.lookup('name'), r.lookup('instruction'));
       }
       env.setLastResult(r);
       const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
@@ -1381,6 +1395,8 @@ async function walkJoinQueryPattern(
 const MAX_PLANNER_RETRIES = 3;
 
 async function agentInvoke(agent: AgentInstance, msg: string, env: Environment): Promise<void> {
+  const flowContext = env.getFlowContext();
+  msg = flowContext ? `context: ${flowContext}\n${msg}` : msg;
   await agent.invoke(msg, env);
   const r: string | undefined = env.getLastResult();
   const isPlanner = agent.isPlanner();
@@ -1456,19 +1472,18 @@ async function handleAgentInvocationWithFlow(
   msg: string,
   env: Environment
 ): Promise<void> {
-  const iter = FlowIterator.From(flow);
-  await iterateOnFlow(iter, rootAgent, msg, env);
+  await iterateOnFlow(flow, rootAgent, msg, env);
 }
 
 async function saveFlowSuspension(
   agent: AgentInstance,
   context: string,
-  iter: FlowIterator,
+  step: FlowStep,
   env: Environment
 ): Promise<void> {
   const suspId = await createSuspension(
     env.getSuspensionId(),
-    [FlowSuspensionTag, agent.name, `${iter.getOffset()}`, context],
+    [FlowSuspensionTag, agent.name, step, context],
     env
   );
   env.setLastResult({ suspension: suspId || 'null' });
@@ -1479,50 +1494,47 @@ export async function restartFlow(
   userData: string,
   env: Environment
 ): Promise<void> {
-  const [_, agentName, iterOffset, ctx] = flowContext;
+  const [_, agentName, step, ctx] = flowContext;
   const flow = getAgentFlow(agentName);
   if (flow) {
     const rootAgent = await findAgentByName(agentName, env);
-    const iter = FlowIterator.From(flow);
-    iter.setOffset(Number(iterOffset));
-    await iterateOnFlow(iter, rootAgent, ctx, env, userData, false);
+    const newCtx = `${ctx}\n${step} --> ${userData}\n`;
+    await iterateOnFlow(flow, rootAgent, newCtx, env);
   }
 }
 
+const MaxFlowSteps = 25;
+
 async function iterateOnFlow(
-  iter: FlowIterator,
+  flow: FlowSpec,
   rootAgent: AgentInstance,
   msg: string,
-  env: Environment,
-  userData: string = '',
-  fullyLoaded: boolean = true
+  env: Environment
 ): Promise<void> {
-  let result = '';
   rootAgent.disableSession();
-  while (iter.hasNext()) {
-    const step: FlowStep = iter.getStep();
-    if (fullyLoaded) {
-      const agent = AgentInstance.FromFlowStep(step, rootAgent);
-      agent.disableSession();
-      await agentInvoke(agent, msg, env);
-      if (env.isSuspended()) {
-        await saveFlowSuspension(rootAgent, msg, iter, env);
-        return;
-      }
-      result = env.getLastResult();
-    } else {
-      result = userData;
-      fullyLoaded = true;
+  const s = `Now consider the following flowchart and context:\n${flow}\n\n${msg}`;
+  await agentInvoke(rootAgent, s, env);
+  let step = env.getLastResult();
+  let context = msg;
+  let stepc = 0;
+  while (step != 'DONE') {
+    if (stepc > MaxFlowSteps) {
+      throw new Error(`Flow execution exceeded maximum steps limit`);
     }
-    if (isStepConditional(step)) {
-      if (!iter.moveToStep(result)) {
-        throw new Error(`Failed to move to flow-step: ${result}`);
-      }
-    } else {
-      iter.next();
-      const r = `Result of step ${step.step}: ${agentInputAsString(result)}`;
-      msg = `${msg}\n${r}`;
+    ++stepc;
+    const agent = AgentInstance.FromFlowStep(step, rootAgent);
+    agent.disableSession();
+    env.setFlowContext(context);
+    await agentInvoke(agent, '', env);
+    env.resetFlowContext();
+    if (env.isSuspended()) {
+      await saveFlowSuspension(rootAgent, context, step, env);
+      return;
     }
+    const r = env.getLastResult();
+    context = `${context}\n${step} --> ${agentInputAsString(r)}\n`;
+    await agentInvoke(rootAgent, `${s}\n${context}`, env);
+    step = env.getLastResult();
   }
 }
 

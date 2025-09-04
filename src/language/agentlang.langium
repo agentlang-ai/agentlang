@@ -5,7 +5,7 @@ entry ModuleDefinition: 'module' name=QualifiedName (imports+=Import)* (defs+=De
 Import: 'import' path=STRING '@as' name=ID;
 
 Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
-| AgentDefinition | ResolverDefinition | FlowStepDefinition | FlowDefinition;
+| AgentDefinition | ResolverDefinition | FlowDefinition;
 
 StandaloneStatement: stmt=Statement;
 
@@ -135,15 +135,13 @@ GenericDefBody: '{' (attributes+=GenericPropertyDef (',' attributes+=GenericProp
 
 GenericPropertyDef: name=ID value=Literal;
 
-FlowStepDefinition: 'flowstep' name=GenericName (body=GenericDefBody? | '{''}');
-
 FlowDefinition: 'flow' name=GenericName (body=FlowDefBody? | '{''}');
 
-FlowDefBody: '{' paths+=FlowPath (';' paths+=FlowPath)* '}';
+FlowDefBody: '{' (entries+=FlowEntry (entries+=FlowEntry)*)+ '}';
 
-FlowPath: step=(GenericName | ConditionalFlowStep) ('-->' rest=FlowPath)?;
+FlowEntry: root=GenericName '-->' (cond=ConditionalFlowStep | next=GenericName);
 
-ConditionalFlowStep: '[' 'if' cond=STRING 'then' then=GenericName 'else' else=GenericName ']';
+ConditionalFlowStep: expr=STRING next=GenericName;
 
 ResolverDefinition: 'resolver' name=GenericName '[' (paths+=GenericName (',' paths+=GenericName)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
