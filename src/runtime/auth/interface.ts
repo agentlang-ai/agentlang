@@ -3,6 +3,8 @@ import { Environment } from '../interpreter.js';
 export type UserInfo = {
   id: string; // a UUID
   username: string;
+  firstName: string;
+  lastName: string;
   systemUserInfo?: any;
 };
 

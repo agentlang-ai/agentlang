@@ -51,6 +51,12 @@ workflow CreateUser {
          lastName CreateUser.lastName}}
 }
 
+workflow UpdateUser {
+  {User {id UpdateUser.id,
+         firstName UpdateUser.firstName,
+         lastName UpdateUser.lastName}, @upsert}
+}
+
 workflow FindUser {
   {User {id? FindUser.id}} @as [user];
   user
@@ -318,6 +324,23 @@ export async function findUserByEmail(email: string, env: Environment): Promise<
   );
 }
 
+export async function updateUser(
+  userId: string,
+  firstName: string,
+  lastName: string,
+  env: Environment
+): Promise<Result> {
+  return await evalEvent(
+    'UpdateUser',
+    {
+      id: userId,
+      firstName: firstName,
+      lastName: lastName,
+    },
+    env
+  );
+}
+
 export async function ensureUser(
   email: string,
   firstName: string,
@@ -326,6 +349,11 @@ export async function ensureUser(
 ) {
   const user = await findUserByEmail(email, env);
   if (user) {
+    // Update existing user with latest name information from ID token
+    const userId = user.lookup('id');
+    await updateUser(userId, firstName, lastName, env).catch((reason: any) => {
+      logger.error(`Failed to update user ${userId} with latest name information: ${reason}`);
+    });
     return user;
   }
   return await createUser(crypto.randomUUID(), email, firstName, lastName, env);
