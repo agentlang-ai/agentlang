@@ -154,14 +154,14 @@ export class AnthropicProvider implements AgentServiceProvider {
     const defaultConfig: AnthropicConfig = {
       model: 'claude-sonnet-4-20250514',
       temperature: 0.7,
-      maxTokens: 21333,
-      maxRetries: 3,
-      enablePromptCaching: true,
+      maxTokens: 8192,
+      maxRetries: 2,
+      enablePromptCaching: false,
       cacheControl: 'ephemeral',
-      enableThinking: true,
-      budgetTokens: 8192, // Minimum budget tokens for thinking mode
-      enableExtendedOutput: true,
-      enableInterleavedThinking: true,
+      enableThinking: false,
+      budgetTokens: 1024, // Minimum budget tokens for thinking mode
+      enableExtendedOutput: false,
+      enableInterleavedThinking: false,
       enableFineGrainedToolStreaming: false,
     };
 
