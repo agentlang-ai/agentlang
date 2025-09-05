@@ -6,7 +6,7 @@ import {
   OwnersSuffix,
   VectorSuffix,
 } from './dbutil.js';
-import { DefaultAuthInfo, ResolverAuthInfo } from '../interface.js';
+import { DefaultAuthInfo, ResolverAuthInfo } from '../authinfo.js';
 import { canUserCreate, canUserDelete, canUserRead, canUserUpdate } from '../../modules/auth.js';
 import { Environment, GlobalEnvironment } from '../../interpreter.js';
 import {
@@ -17,7 +17,6 @@ import {
   RbacSpecification,
   Relationship,
 } from '../../module.js';
-import pgvector from 'pgvector';
 import { isString } from '../../util.js';
 import {
   DeletedFlagAttributeName,
@@ -194,10 +193,60 @@ function makeSqliteDataSource(
   });
 }
 
+function isBrowser(): boolean {
+  // window for DOM pages, self+importScripts for web workers
+  return (
+    (typeof window !== 'undefined' && typeof (window as any).document !== 'undefined') ||
+    (typeof self !== 'undefined' && typeof (self as any).importScripts === 'function')
+  );
+}
+
+function defaultLocateFile(file: string): string {
+  // Out-of-the-box: use the official CDN in browsers.
+  if (isBrowser()) {
+    return `https://sql.js.org/dist/${file}`;
+  }
+  // Node: resolve from node_modules/sql.js/dist
+  try {
+    /* eslint-disable-next-line @typescript-eslint/no-require-imports */
+    const path = require('path');
+
+    const base = require.resolve('sql.js/dist/sql-wasm.js');
+    return path.join(path.dirname(base), file);
+  } catch {
+    return file;
+  }
+}
+
+function makeSqljsDataSource(
+  entities: EntitySchema[],
+  _config: DatabaseConfig | undefined,
+  synchronize: boolean = true
+): DataSource {
+  return new DataSource({
+    type: 'sqljs',
+    autoSave: false,
+    sqlJsConfig: {
+      locateFile: defaultLocateFile,
+    },
+    synchronize: synchronize,
+    entities: entities,
+  });
+}
+
 const DbType = 'sqlite';
 
 function getDbType(config?: DatabaseConfig): string {
-  return process.env.AL_DB_TYPE || config?.type || DbType;
+  if (config?.type) return config.type;
+  let envType: string | undefined;
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      envType = process.env.AL_DB_TYPE;
+    }
+  } catch {}
+  if (envType) return envType;
+  if (isBrowser()) return 'sqljs';
+  return DbType;
 }
 
 function getDsFunction(
@@ -212,6 +261,8 @@ function getDsFunction(
       return makeSqliteDataSource;
     case 'postgres':
       return makePostgresDataSource;
+    case 'sqljs':
+      return makeSqljsDataSource;
     default:
       throw new Error(`Unsupported database type - ${config?.type}`);
   }
@@ -219,6 +270,15 @@ function getDsFunction(
 
 export function isUsingSqlite(): boolean {
   return getDbType() == 'sqlite';
+}
+
+export function isUsingSqljs(): boolean {
+  return getDbType() == 'sqljs';
+}
+
+export function isVectorStoreSupported(): boolean {
+  // Only Postgres supports pgvector
+  return getDbType() === 'postgres';
 }
 
 export async function initDatabase(config: DatabaseConfig | undefined) {
@@ -268,9 +328,11 @@ export async function addRowForFullTextSearch(
   vect: number[],
   ctx: DbContext
 ) {
+  if (!isVectorStoreSupported()) return;
   try {
     const vecTableName = tableName + VectorSuffix;
     const qb = getDatasourceForTransaction(ctx.txnId).createQueryBuilder();
+    const { default: pgvector } = await import('pgvector');
     await qb
       .insert()
       .into(vecTableName)
@@ -282,6 +344,10 @@ export async function addRowForFullTextSearch(
 }
 
 export async function initVectorStore(tableNames: string[], ctx: DbContext) {
+  if (!isVectorStoreSupported()) {
+    logger.info(`Vector store not supported for ${getDbType()}, skipping init...`);
+    return;
+  }
   let notInited = true;
   tableNames.forEach(async (vecTableName: string) => {
     const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
@@ -312,9 +378,14 @@ export async function vectorStoreSearch(
   limit: number,
   ctx: DbContext
 ): Promise<any> {
+  if (!isVectorStoreSupported()) {
+    // Not supported on sqljs/sqlite
+    return [];
+  }
   try {
     const vecTableName = tableName + VectorSuffix;
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
+    const { default: pgvector } = await import('pgvector');
     return await qb.query(
       `select id from ${vecTableName} order by embedding <-> $1 LIMIT ${limit}`,
       [pgvector.toSql(searchVec)]
@@ -329,6 +400,7 @@ export async function vectorStoreSearchEntryExists(
   id: string,
   ctx: DbContext
 ): Promise<boolean> {
+  if (!isVectorStoreSupported()) return false;
   try {
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const vecTableName = tableName + VectorSuffix;
@@ -341,6 +413,7 @@ export async function vectorStoreSearchEntryExists(
 }
 
 export async function deleteFullTextSearchEntry(tableName: string, id: string, ctx: DbContext) {
+  if (!isVectorStoreSupported()) return;
   try {
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const vecTableName = tableName + VectorSuffix;

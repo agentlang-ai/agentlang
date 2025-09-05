@@ -47,7 +47,8 @@ import {
   Relationship,
   Workflow,
 } from './module.js';
-import { JoinInfo, Resolver, ResolverAuthInfo } from './resolvers/interface.js';
+import { JoinInfo, Resolver } from './resolvers/interface.js';
+import { ResolverAuthInfo } from './resolvers/authinfo.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
 import {
   CrudType,

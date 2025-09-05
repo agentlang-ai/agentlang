@@ -531,7 +531,8 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   }, @upsert}`;
   let wf = createAgent;
   if (llmName) {
-    wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}"}, @upsert}; ${wf}`;
+    const service = process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'openai';
+    wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}", service "${service}"}, @upsert}; ${wf}`;
   }
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
     addStandaloneStatement(stmt, moduleName, false);

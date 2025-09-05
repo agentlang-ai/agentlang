@@ -1,7 +1,6 @@
 import {
   callPostEventOnSubscription,
   Environment,
-  evaluate,
   runPostCreateEvents,
   runPostDeleteEvents,
   runPostUpdateEvents,
@@ -15,24 +14,7 @@ import {
   Relationship,
 } from '../module.js';
 import { CrudType, splitFqName } from '../util.js';
-
-export class ResolverAuthInfo {
-  userId: string;
-  readForUpdate: boolean = false;
-  readForDelete: boolean = false;
-
-  constructor(userId: string, readForUpdate?: boolean, readForDelete?: boolean) {
-    this.userId = userId;
-    if (readForUpdate != undefined) this.readForUpdate = readForUpdate;
-    if (readForDelete != undefined) this.readForDelete = readForDelete;
-  }
-}
-
-export const DefaultAuthInfo = new ResolverAuthInfo(
-  // This user-id is only for testing, per-session user-id needs to be set from
-  // the HTTP layer.
-  '9459a305-5ee6-415d-986d-caaf6d6e2828'
-);
+import { DefaultAuthInfo, ResolverAuthInfo } from './authinfo.js';
 
 export type JoinInfo = {
   relationship: Relationship;
@@ -242,6 +224,7 @@ export class Resolver {
               path.getEntryName(),
               newInstanceAttributes().set('data', result)
             );
+            const { evaluate } = await import('../interpreter.js');
             return await evaluate(inst);
           }
         }
