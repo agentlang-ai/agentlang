@@ -162,6 +162,7 @@ export class Environment extends Instance {
       this.activeResolvers = new Map<string, Resolver>();
       this.activeTransactions = new Map<string, string>();
       this.activeCatchHandlers = new Array<CatchHandlers>();
+      this.attributes.set('process', process);
     }
   }
 
