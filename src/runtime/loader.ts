@@ -505,11 +505,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   }, @upsert}`;
   let wf = createAgent;
   if (llmName) {
-    // Determine the appropriate service based on available API keys
-    let service = 'openai'; // default
-    if (process.env.ANTHROPIC_API_KEY) {
-      service = 'anthropic';
-    }
+    const service = process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'openai';
     wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}", service "${service}"}, @upsert}; ${wf}`;
   }
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
