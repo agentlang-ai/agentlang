@@ -357,3 +357,122 @@ workflow @before delete:WfSyntaxGen/incident {
 }`)
   })
 })
+
+describe('Flow syntax', () => {
+  test('test01', async () => {
+    const mname = 'FlowSyntax'
+    await doInternModule(mname,
+      `
+      entity manager {
+        id String @id,
+        category @enum("DNS", "WLAN")
+      }
+      entity managerSlackChannel {
+        managerId String @id,
+        channel String
+      }
+      
+      agent incidentTriager {
+        llm "ticketflow_llm",
+        instruction "Based on the description of the incident (in context), return one of - DNS, WLAN or Other.
+Only return one of the strings [DNS, WLAN, Other] and nothing else."
+      }
+
+    agent managerRequestHandler {
+        channels [slack],
+        instruction "Create an approval request from the incident and send it over the slack-channel. Details of the incident
+and the slack channel id will be available in the context passed to you. For example, if the context contains an incident related to
+WLAN provisioning and the slack channel id CC774882, then send the approvale request as: 
+{slack/sendMessageOnChannel {channel &quote;CC774882&quote;, message &quote;Request to provision WLAN&quote;}}.
+Try to include as much information about the provisioning request in the message as possible."
+    }
+
+    agent incidentProvisioner {
+        tools [ticketflow.core/handleDnsProvisioning,
+	             ticketflow.core/handleWlanProvisioning],
+        instruction "If the incident triage category is DNS, do DNS provisioning. Otherwise do WLAN provisioning.
+The incident data and triage category will be available in the context. The relevant DNS or WLAN name will be available
+in the incident's description."
+    }
+  
+    flow orchestrator {
+        incidentTriager --> "DNS" findManagerForCategory
+        incidentTriager --> "WLAN" findManagerForCategory
+        incidentTriager --> "Other" incidentStatusUpdater
+        findManagerForCategory --> managerRequestHandler
+        managerRequestHandler --> "approve" incidentProvisioner
+        managerRequestHandler --> "reject" incidentStatusUpdater
+        incidentProvisioner --> incidentStatusUpdater
+    }
+
+    agent orchestratorAgent {
+        llm "ticketflow_llm",
+        role "You are an incident manager.",
+        flows [orchestrator]
+    }
+
+    {manager {id "01", category "DNS"}}
+    {manager {id "02", category "WLAN"}}
+    {managerSlackChannel {managerId "01", channel "C09C00XJ3GC"}}
+    {managerSlackChannel {managerId "02", channel "C09BRHX9B7D"}}`
+    )
+
+    const mod = fetchModule(mname)
+    const s = mod.toString()
+    assert(s == `module FlowSyntax
+
+entity manager
+{
+    id String @id,
+    category  @enum("DNS","WLAN")
+}
+
+entity managerSlackChannel
+{
+    managerId String @id,
+    channel String
+}
+
+agent incidentTriager
+{
+    llm "ticketflow_llm",
+    instruction "Based on the description of the incident (in context), return one of - DNS, WLAN or Other.
+Only return one of the strings [DNS, WLAN, Other] and nothing else."
+}
+agent managerRequestHandler
+{
+    channels "slack",
+    instruction "Create an approval request from the incident and send it over the slack-channel. Details of the incident
+and the slack channel id will be available in the context passed to you. For example, if the context contains an incident related to
+WLAN provisioning and the slack channel id CC774882, then send the approvale request as: 
+{slack/sendMessageOnChannel {channel &quote;CC774882&quote;, message &quote;Request to provision WLAN&quote;}}.
+Try to include as much information about the provisioning request in the message as possible."
+}
+agent incidentProvisioner
+{
+    tools "ticketflow.core/handleDnsProvisioning,ticketflow.core/handleWlanProvisioning",
+    instruction "If the incident triage category is DNS, do DNS provisioning. Otherwise do WLAN provisioning.
+The incident data and triage category will be available in the context. The relevant DNS or WLAN name will be available
+in the incident's description."
+}
+flow orchestrator {
+      incidentTriager --> "DNS" findManagerForCategory
+incidentTriager --> "WLAN" findManagerForCategory
+incidentTriager --> "Other" incidentStatusUpdater
+findManagerForCategory --> managerRequestHandler
+managerRequestHandler --> "approve" incidentProvisioner
+managerRequestHandler --> "reject" incidentStatusUpdater
+incidentProvisioner --> incidentStatusUpdater
+    }
+agent orchestratorAgent
+{
+    llm "ticketflow_llm",
+    role "You are an incident manager.",
+    type "flow-exec"
+}
+{manager {id "01", category "DNS"}}
+{manager {id "02", category "WLAN"}}
+{managerSlackChannel {managerId "01", channel "C09C00XJ3GC"}}
+{managerSlackChannel {managerId "02", channel "C09BRHX9B7D"}}`)
+  })
+})
