@@ -507,10 +507,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   if (llmName) {
     // Determine the appropriate service based on available API keys
     let service = 'openai'; // default
-    if (process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
-      service = 'anthropic';
-    } else if (process.env.ANTHROPIC_API_KEY && process.env.OPENAI_API_KEY) {
-      // When both are available, prefer Anthropic to match getAvailableProvider() priority
+    if (process.env.ANTHROPIC_API_KEY) {
       service = 'anthropic';
     }
     wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}", service "${service}"}, @upsert}; ${wf}`;
