@@ -222,7 +222,7 @@ export class AnthropicProvider implements AgentServiceProvider {
   async invoke(messages: BaseMessage[]): Promise<AIResponse> {
     if (!this.config.apiKey) {
       throw new Error(
-        'Anthropic API key is required. Set ANTHROPIC_API_KEY environment variable or provide apiKey in config.'
+        'Anthropic API key is required. Set ANTHROPIC_API_KEY environment variable or use setLocalEnv("ANTHROPIC_API_KEY", key) or provide apiKey in config.'
       );
     }
 
