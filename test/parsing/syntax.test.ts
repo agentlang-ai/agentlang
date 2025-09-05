@@ -468,7 +468,7 @@ agent orchestratorAgent
 {
     llm "ticketflow_llm",
     role "You are an incident manager.",
-    type "flow-exec"
+    flows [orchestrator]
 }
 {manager {id "01", category "DNS"}}
 {manager {id "02", category "WLAN"}}

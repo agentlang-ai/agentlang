@@ -68,13 +68,7 @@ import { maybeGetValidationErrors, parse, parseModule, parseWorkflow } from '../
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
-import {
-  AgentEntityName,
-  CoreAIModuleName,
-  LlmEntityName,
-  registerAgentFlow,
-  registerFlow,
-} from './modules/ai.js';
+import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
 import { Config, ConfigSchema, setAppConfig } from './state.js';
@@ -82,6 +76,7 @@ import { getModuleFn, importModule } from './jsmodules.js';
 import { SetSubscription } from './defs.js';
 import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
 import z from 'zod';
+import { registerAgentFlow, registerFlow } from './agents/common.js';
 
 export async function extractDocument(
   fileName: string,
@@ -491,6 +486,8 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
         });
         attrsStrs.push(`type "flow-exec"`);
         attrs.set('type', 'flow-exec');
+        attrsStrs.push(`flows "${fnames}"`);
+        attrs.set('flows', fnames);
       } else {
         throw new Error(`Invalid flows list in agent ${name}`);
       }

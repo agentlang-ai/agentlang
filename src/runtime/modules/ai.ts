@@ -22,7 +22,7 @@ import {
   systemMessage,
 } from '../agents/provider.js';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { FlowExecInstructions, PlannerInstructions } from '../agents/common.js';
+import { FlowExecInstructions, FlowStep, PlannerInstructions } from '../agents/common.js';
 import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
 
@@ -49,6 +49,7 @@ entity ${AgentEntityName} {
     channels String @optional, // comma-separated list of channel names
     output String @optional, // fq-name of another agent to which the result will be pushed
     role String @optional,
+    flows String @optional,
     llm String
 }
 
@@ -95,6 +96,7 @@ export class AgentInstance {
   runWorkflows: boolean = true;
   output: string | undefined;
   role: string | undefined;
+  flows: string | undefined;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;
@@ -415,41 +417,4 @@ export async function saveAgentChatSession(chatId: string, messages: any[], env:
 
 export function agentName(agentInstance: Instance): string {
   return agentInstance.lookup('name');
-}
-
-export type FlowSpec = string;
-export type FlowStep = string;
-
-const AgentFlows = new Map<string, string[]>();
-const FlowRegistry = new Map<string, FlowSpec>();
-
-export function registerFlow(name: string, flow: FlowSpec): string {
-  FlowRegistry.set(name, flow);
-  return name;
-}
-
-export function getFlow(name: string): FlowSpec | undefined {
-  return FlowRegistry.get(name);
-}
-
-export function registerAgentFlow(agentName: string, flowSpecName: string): string {
-  let currentFlows = AgentFlows.get(agentName);
-  if (currentFlows) {
-    currentFlows.push(flowSpecName);
-  } else {
-    currentFlows = new Array<string>();
-    currentFlows.push(flowSpecName);
-  }
-  AgentFlows.set(agentName, currentFlows);
-  return agentName;
-}
-
-// Return the first flow registered with the agent.
-export function getAgentFlow(agentName: string): FlowSpec | undefined {
-  const currentFlows = AgentFlows.get(agentName);
-  if (currentFlows) {
-    return getFlow(currentFlows[0]);
-  } else {
-    return undefined;
-  }
 }
