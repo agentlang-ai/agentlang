@@ -105,7 +105,7 @@ export class OpenAIProvider implements AgentServiceProvider {
   async invoke(messages: BaseMessage[], externalToolSpecs: any[] | undefined): Promise<AIResponse> {
     if (!this.config.apiKey) {
       throw new Error(
-        'OpenAI API key is required. Set OPENAI_API_KEY environment variable or provide apiKey in config.'
+        'OpenAI API key is required. Set OPENAI_API_KEY environment variable or use setLocalEnv("OPENAI_API_KEY", key) or provide apiKey in config.'
       );
     }
     if (externalToolSpecs) {

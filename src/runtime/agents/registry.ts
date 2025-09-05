@@ -1,5 +1,6 @@
 import { OpenAIProvider } from './impl/openai.js';
 import { AnthropicProvider } from './impl/anthropic.js';
+import { getLocalEnv } from '../auth/defs.js';
 
 const Providers = new Map().set('openai', OpenAIProvider).set('anthropic', AnthropicProvider);
 
@@ -18,6 +19,7 @@ export function provider(service: string) {
         p = Providers.get(availableService);
         if (p) return p;
       }
+
       const errorMessage = `${service} provider requested but ${service.toUpperCase()}_API_KEY not found. Available providers: ${getAvailableProviders().join(', ') || 'none'}`;
       console.error(errorMessage);
       throw new Error(errorMessage);
@@ -30,19 +32,19 @@ export function provider(service: string) {
 function isProviderAvailable(service: string): boolean {
   switch (service) {
     case 'openai':
-      return !!process.env.OPENAI_API_KEY;
+      return !!(process.env.OPENAI_API_KEY || getLocalEnv('OPENAI_API_KEY'));
     case 'anthropic':
-      return !!process.env.ANTHROPIC_API_KEY;
+      return !!(process.env.ANTHROPIC_API_KEY || getLocalEnv('ANTHROPIC_API_KEY'));
     default:
       return false;
   }
 }
 
 function getAvailableProvider(): string | null {
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (process.env.ANTHROPIC_API_KEY || getLocalEnv('ANTHROPIC_API_KEY')) {
     return 'anthropic';
   }
-  if (process.env.OPENAI_API_KEY) {
+  if (process.env.OPENAI_API_KEY || getLocalEnv('OPENAI_API_KEY')) {
     return 'openai';
   }
   return null;
@@ -50,7 +52,11 @@ function getAvailableProvider(): string | null {
 
 function getAvailableProviders(): string[] {
   const available: string[] = [];
-  if (process.env.ANTHROPIC_API_KEY) available.push('anthropic');
-  if (process.env.OPENAI_API_KEY) available.push('openai');
+  if (process.env.ANTHROPIC_API_KEY || getLocalEnv('ANTHROPIC_API_KEY')) {
+    available.push('anthropic');
+  }
+  if (process.env.OPENAI_API_KEY || getLocalEnv('OPENAI_API_KEY')) {
+    available.push('openai');
+  }
   return available;
 }
