@@ -816,18 +816,26 @@ export class Agent extends Record {
     return this.removeAgentAttribute('type');
   }
 
-  setTools(tools: string[]): Agent {
-    this.attributes.set('tools', tools.join(','));
+  private setStrings(attrName: string, v: string[]): Agent {
+    this.attributes.set(attrName, v.join(','));
     return this;
   }
 
-  getTools(): string[] | undefined {
-    const tools = this.attributes.get('tools');
-    if (tools) {
-      return tools.split(',');
+  private getStrings(attrName: string): string[] | undefined {
+    const v = this.attributes.get(attrName);
+    if (v) {
+      return v.split(',');
     } else {
       return undefined;
     }
+  }
+
+  setTools(tools: string[]): Agent {
+    return this.setStrings('tools', tools);
+  }
+
+  getTools(): string[] | undefined {
+    return this.getStrings('tools');
   }
 
   removeTools(): Agent {
@@ -835,23 +843,36 @@ export class Agent extends Record {
   }
 
   setDocuments(docs: string[]): Agent {
-    this.attributes.set('documents', docs.join(','));
-    return this;
+    return this.setStrings('documents', docs);
   }
 
-  getDocuments(): string {
-    return this.attributes.get('documents');
+  getDocuments(): string[] | undefined {
+    return this.getStrings('documents');
   }
 
   removeDocuments(): Agent {
     return this.removeAgentAttribute('documents');
   }
 
+  setFlows(flows: string[]): Agent {
+    return this.setStrings('flows', flows);
+  }
+
+  getFlows(): string[] | undefined {
+    return this.getStrings('flows');
+  }
+
   override toString(): string {
     const attrs = new Array<string>();
     this.attributes.forEach((value: any, key: string) => {
-      if (key != 'moduleName') {
-        const v = isString(value) ? `"${value}"` : value;
+      const skip = key == 'moduleName' || (key == 'type' && value == 'flow-exec');
+      if (!skip) {
+        let v = value;
+        if (key == 'flows') {
+          v = `[${v}]`;
+        } else if (isString(v)) {
+          v = `"${v}"`;
+        }
         attrs.push(`    ${key} ${v}`);
       }
     });

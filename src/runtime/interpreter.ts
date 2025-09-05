@@ -70,15 +70,7 @@ import {
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
-import {
-  AgentInstance,
-  AgentEntityName,
-  AgentFqName,
-  findAgentByName,
-  FlowSpec,
-  getAgentFlow,
-  FlowStep,
-} from './modules/ai.js';
+import { AgentInstance, AgentEntityName, AgentFqName, findAgentByName } from './modules/ai.js';
 import { logger } from './logger.js';
 import {
   FlowSuspensionTag,
@@ -97,6 +89,7 @@ import {
 import { invokeModuleFn } from './jsmodules.js';
 import { invokeOpenApiEvent, isOpenApiEventInstance } from './openapi.js';
 import { fetchDoc } from './docs.js';
+import { FlowSpec, FlowStep, getAgentFlow } from './agents/common.js';
 
 export type Result = any;
 
