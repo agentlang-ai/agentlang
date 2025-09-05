@@ -1295,6 +1295,59 @@ export class Workflow extends ModuleEntry {
   }
 }
 
+export class Flow extends ModuleEntry {
+  flowSteps: string[];
+
+  constructor(name: string, moduleName: string, flow?: string) {
+    super(name, moduleName);
+    this.flowSteps = new Array<string>();
+    flow?.split('\n').forEach((step: string) => {
+      const s = step.trim();
+      if (s.length > 0) {
+        this.flowSteps.push(s);
+      }
+    });
+  }
+
+  getFlow(): string {
+    return this.flowSteps.join('\n');
+  }
+
+  removeStep(index: number): Flow {
+    this.flowSteps.splice(index, 1);
+    return this;
+  }
+
+  insertStep(index: number, s: string): Flow {
+    this.flowSteps.splice(index, 0, s);
+    return this;
+  }
+
+  stepsCount(): number {
+    return this.flowSteps.length;
+  }
+
+  override toString(): string {
+    return `flow ${this.name} {
+      ${this.getFlow()}
+    }`;
+  }
+}
+
+class StandaloneStatement extends ModuleEntry {
+  stmt: Statement;
+
+  constructor(stmt: Statement, moduleName: string) {
+    super(crypto.randomUUID(), moduleName);
+    this.stmt = stmt;
+  }
+
+  override toString(): string {
+    if (this.stmt.$cstNode) return this.stmt.$cstNode?.text;
+    else return '';
+  }
+}
+
 const EmptyWorkflow: Workflow = new Workflow('', [], DefaultModuleName);
 
 export function isEmptyWorkflow(wf: Workflow): boolean {
@@ -1338,6 +1391,32 @@ export class Module {
 
   removeAgent(agentName: string): boolean {
     return this.removeEntry(Agent.EscapeName(agentName));
+  }
+
+  addFlow(name: string, flowString?: string): Flow {
+    const flow: Flow = new Flow(name, this.name, flowString);
+    this.addEntry(flow);
+    return flow;
+  }
+
+  getFlow(name: string): Flow | undefined {
+    if (this.hasEntry(name)) {
+      return this.getEntry(name) as Flow;
+    }
+    return undefined;
+  }
+
+  addStandaloneStatement(stmt: Statement): StandaloneStatement {
+    const s = new StandaloneStatement(stmt, this.name);
+    this.addEntry(s);
+    return s;
+  }
+
+  getStandaloneStatement(name: string): StandaloneStatement | undefined {
+    if (this.hasEntry(name)) {
+      return this.getEntry(name) as StandaloneStatement;
+    }
+    return undefined;
   }
 
   private getEntryIndex(entryName: string): number {

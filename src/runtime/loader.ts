@@ -48,6 +48,7 @@ import {
   removeModule,
   newInstanceAttributes,
   addAgent,
+  fetchModule,
 } from './module.js';
 import {
   escapeSpecialChars,
@@ -431,7 +432,7 @@ export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string):
 
 const StandaloneStatements = new Map<string, Statement[]>();
 
-function addStandaloneStatement(stmt: Statement, moduleName: string) {
+function addStandaloneStatement(stmt: Statement, moduleName: string, userDefined = true) {
   let stmts: Array<Statement> | undefined = StandaloneStatements.get(moduleName);
   if (stmts == undefined) {
     stmts = new Array<Statement>();
@@ -439,6 +440,10 @@ function addStandaloneStatement(stmt: Statement, moduleName: string) {
   stmts.push(stmt);
   if (!StandaloneStatements.has(moduleName)) {
     StandaloneStatements.set(moduleName, stmts);
+  }
+  if (userDefined) {
+    const m = fetchModule(moduleName);
+    m.addStandaloneStatement(stmt);
   }
 }
 
@@ -529,7 +534,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}"}, @upsert}; ${wf}`;
   }
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
-    addStandaloneStatement(stmt, moduleName);
+    addStandaloneStatement(stmt, moduleName, false);
   });
   addAgent(def.name, attrs, moduleName);
 }
@@ -569,7 +574,17 @@ function processAgentArrayValue(expr: Expr | undefined, attrName: string): strin
 
 function addFlowDefinition(def: FlowDefinition, moduleName: string) {
   if (def.body && def.$cstNode) {
-    registerFlow(`${moduleName}/${def.name}`, def.$cstNode.text);
+    const m = fetchModule(moduleName);
+    const sdef = def.$cstNode.text;
+    const idx = sdef.indexOf('{');
+    let f = '';
+    if (idx > 0) {
+      f = sdef.substring(idx + 1, sdef.lastIndexOf('}')).trim();
+    } else {
+      f = sdef;
+    }
+    m.addFlow(def.name, f);
+    registerFlow(`${moduleName}/${def.name}`, f);
   }
 }
 

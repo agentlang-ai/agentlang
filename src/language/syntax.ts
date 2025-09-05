@@ -715,3 +715,24 @@ function patternsToString(body: BasePattern[], sep = ';\n'): string {
     })
     .join(sep);
 }
+
+export class FlowStepPattern extends BasePattern {
+  first: string;
+  next: string;
+  condition?: string;
+
+  constructor(first: string, next: string, condition?: string) {
+    super();
+    this.first = first;
+    this.next = next;
+    this.condition = condition;
+  }
+
+  override toString(): string {
+    if (this.condition) {
+      return `${this.first} --> ${this.condition} ${this.next}`;
+    } else {
+      return `${this.first} --> ${this.next}`;
+    }
+  }
+}
