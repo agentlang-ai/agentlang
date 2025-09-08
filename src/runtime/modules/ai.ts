@@ -343,19 +343,11 @@ export async function findProviderForLLM(
 
     // If service is not set or is null, use the default
     if (!service || service === '' || service === null || service === undefined) {
-      console.error(
-        `[ERROR] LLM '${llmName}' not found or has no service set. The LLM must be created first with proper service configuration.`
-      );
-      console.error(
-        `[ERROR] Make sure to create the LLM with: {agentlang.ai/LLM {name "${llmName}", service "anthropic" or "openai", config {...}}}`
-      );
       service = 'openai';
     }
 
     // Ensure service is lowercase string for consistency
     service = String(service).toLowerCase();
-
-    console.log(`[INFO] Loading provider for LLM '${llmName}' with service '${service}'`);
 
     // ALWAYS create a new provider - no caching for now to avoid stale providers
     const pclass = provider(service);
@@ -366,7 +358,6 @@ export async function findProviderForLLM(
         : new Map(Object.entries(configValue))
       : new Map();
 
-    console.log(`[INFO] Creating ${pclass.name} for LLM '${llmName}'`);
     const p = new pclass(providerConfig);
 
     if (p) {

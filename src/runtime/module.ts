@@ -2833,11 +2833,6 @@ export function makeInstance(
   queryAttributeValues?: InstanceAttributes,
   queryAll: boolean = false
 ): Instance {
-  // Debug LLM creation
-  if (entryName === 'LLM') {
-    console.log(`[DEBUG] makeInstance for LLM with attributes:`, Array.from(attributes.entries()));
-  }
-
   const module: Module = fetchModule(moduleName);
   const record: Record = module.getRecord(entryName);
 
@@ -2852,13 +2847,7 @@ export function makeInstance(
     });
   }
   if (!queryAttributes && !queryAll) {
-    if (entryName === 'LLM') {
-      console.log(`[DEBUG] LLM attributes before defaults:`, Array.from(attributes.entries()));
-    }
     attributes = postProcessAttributes(schema, maybeSetDefaultAttributeValues(schema, attributes));
-    if (entryName === 'LLM') {
-      console.log(`[DEBUG] LLM attributes after defaults:`, Array.from(attributes.entries()));
-    }
   }
   return new Instance(
     record,

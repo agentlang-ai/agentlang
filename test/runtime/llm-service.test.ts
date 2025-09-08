@@ -125,11 +125,6 @@ describe('LLM Service Selection', () => {
     const llm = llmResult[0];
     const service = llm.lookup('service');
 
-    console.log('LLM after agent creation:', {
-      name: llm.lookup('name'),
-      service: llm.lookup('service'),
-    });
-
     // The LLM should have anthropic service
     expect(service).toBe('anthropic');
   });
