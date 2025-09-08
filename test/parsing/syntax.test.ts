@@ -14,7 +14,7 @@ import {
 } from '../../src/language/syntax.js';
 import { introspect } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
-import { addBeforeDeleteWorkflow, fetchModule, isModule, removeModule } from '../../src/runtime/module.js';
+import { addBeforeDeleteWorkflow, fetchModule, flowGraphNext, isModule, removeModule } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
 
 describe('Pattern generation using the syntax API', () => {
@@ -209,8 +209,8 @@ describe('Pattern introspection', () => {
     assert(arrayPat.toString() == '[100, "hi", [a, a.b]]')
 
     const mapPat = LiteralPattern.Map(new Map()
-      .set({str: 'a'}, LiteralPattern.Number(1))
-      .set({str: 'b'}, arrayPat))
+      .set({ str: 'a' }, LiteralPattern.Number(1))
+      .set({ str: 'b' }, arrayPat))
     assert(mapPat.toString() == '{"a": 1, "b": [100, "hi", [a, a.b]]}')
 
     const e1 = await ExpressionPattern.Validated('(x < 4)')
@@ -418,6 +418,19 @@ in the incident's description."
     )
 
     const mod = fetchModule(mname)
+    const flow = mod.getFlow('orchestrator')
+    const fg = flow?.toGraph()
+    assert(fg)
+    const n0 = flowGraphNext(fg)
+    assert(n0?.label == 'incidentTriager')
+    const n1 = flowGraphNext(fg, n0, 'WLAN')
+    assert(n1?.label == 'findManagerForCategory')
+    const n2 = flowGraphNext(fg, n0, 'Other')
+    assert(n2?.label == 'incidentStatusUpdater')
+    const n3 = flowGraphNext(fg, n2)
+    assert(n3 == undefined)
+    const n4 = flowGraphNext(fg, n1)
+    assert(n4?.label == 'managerRequestHandler')
     const s = mod.toString()
     assert(s == `module FlowSyntax
 

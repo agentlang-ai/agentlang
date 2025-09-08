@@ -516,3 +516,14 @@ export function fileExtension(fileName: string): string {
   }
   return '';
 }
+
+export function trimQuotes(s: string): string {
+  let ss = s.trim();
+  if (ss[0] == '"') {
+    ss = ss.substring(1);
+  }
+  if (ss[ss.length - 1] == '"') {
+    return ss.substring(0, ss.length - 1);
+  }
+  return ss;
+}

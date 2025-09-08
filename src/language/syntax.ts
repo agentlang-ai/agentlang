@@ -1,5 +1,5 @@
 import { parseHelper } from 'langium/test';
-import { escapeQueryName } from '../runtime/util.js';
+import { escapeQueryName, trimQuotes } from '../runtime/util.js';
 import { ModuleDefinition } from './generated/ast.js';
 import { createAgentlangServices } from './agentlang-module.js';
 import { EmptyFileSystem } from 'langium';
@@ -725,12 +725,26 @@ export class FlowStepPattern extends BasePattern {
     super();
     this.first = first;
     this.next = next;
-    this.condition = condition;
+    this.condition = condition ? trimQuotes(condition) : undefined;
+  }
+
+  static Parse(s: string): FlowStepPattern {
+    const parts = s.trim().split(' ');
+    const first = parts[0];
+    if (parts[1] == '-->') {
+      if (parts.length == 3) {
+        return new FlowStepPattern(first, parts[2]);
+      } else {
+        return new FlowStepPattern(first, parts[3], parts[2]);
+      }
+    } else {
+      throw new Error(`Invalid flow-step format in ${s}`);
+    }
   }
 
   override toString(): string {
     if (this.condition) {
-      return `${this.first} --> ${this.condition} ${this.next}`;
+      return `${this.first} --> "${this.condition}" ${this.next}`;
     } else {
       return `${this.first} --> ${this.next}`;
     }
