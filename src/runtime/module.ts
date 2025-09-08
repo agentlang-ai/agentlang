@@ -47,6 +47,7 @@ import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
 import { FetchModuleFn, PathAttributeName } from './defs.js';
 import { logger } from './logger.js';
+import { FlowStepPattern } from '../language/syntax.js';
 
 export class ModuleEntry {
   name: string;
@@ -1316,6 +1317,13 @@ export class Workflow extends ModuleEntry {
   }
 }
 
+export type FlowGraphNode = {
+  label: string;
+  type: 'action' | 'condition';
+  on?: string[] | undefined;
+  next: string[];
+};
+
 export class Flow extends ModuleEntry {
   flowSteps: string[];
 
@@ -1348,11 +1356,77 @@ export class Flow extends ModuleEntry {
     return this.flowSteps.length;
   }
 
+  toGraph(): FlowGraphNode[] {
+    const result = new Array<FlowGraphNode>();
+    this.flowSteps.forEach((s: string) => {
+      const fp = FlowStepPattern.Parse(s);
+      if (fp.condition) {
+        const orig = result.find((v: FlowGraphNode) => {
+          return v.label == fp.first;
+        });
+        if (orig) {
+          const nxs = orig.next;
+          nxs?.push(fp.next);
+          const conds = orig.on;
+          conds?.push(fp.condition);
+        } else {
+          result.push({
+            label: fp.first,
+            type: 'condition',
+            on: [fp.condition],
+            next: [fp.next],
+          });
+        }
+      } else {
+        result.push({
+          label: fp.first,
+          type: 'action',
+          next: [fp.next],
+        });
+      }
+    });
+    return result;
+  }
+
   override toString(): string {
     return `flow ${this.name} {
       ${this.getFlow()}
     }`;
   }
+}
+
+export function flowGraphNext(
+  graph: FlowGraphNode[],
+  currentNode?: FlowGraphNode,
+  onCondition?: string
+): FlowGraphNode | undefined {
+  if (!currentNode) {
+    return graph[0];
+  }
+  const node = graph.find((n: FlowGraphNode) => {
+    return n.label == currentNode.label;
+  });
+  if (node) {
+    if (onCondition) {
+      const c = node.on?.findIndex((v: string) => {
+        return v == onCondition;
+      });
+      if (c != undefined) {
+        const next = node.next[c];
+        const r = graph.find((n: FlowGraphNode) => {
+          return n.label == next;
+        });
+        return r || { label: next, type: 'action', next: [] };
+      } else {
+        return undefined;
+      }
+    } else {
+      return graph.find((n: FlowGraphNode) => {
+        return n.label == node.next[0];
+      });
+    }
+  }
+  return undefined;
 }
 
 class StandaloneStatement extends ModuleEntry {
