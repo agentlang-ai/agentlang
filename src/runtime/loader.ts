@@ -465,7 +465,6 @@ export async function runStandaloneStatements() {
 async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   let llmName: string | undefined = undefined;
   const name = def.name;
-  let hasUserLlm = false;
   const attrsStrs = new Array<string>();
   attrsStrs.push(`name "${name}"`);
   const attrs = newInstanceAttributes();
@@ -505,9 +504,8 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
       if (v == undefined) {
         throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
       }
-      if (llmName == undefined && apdef.name == 'llm') {
+      if (apdef.name == 'llm') {
         llmName = v;
-        hasUserLlm = true;
       }
       const ov = v;
       if (apdef.value.id || apdef.value.ref || apdef.value.array) {
@@ -519,16 +517,22 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
       attrs.set(apdef.name, ov);
     }
   });
+  let createDefaultLLM = false;
   if (!attrs.has('llm')) {
+    // Agent doesn't have an LLM specified, create a default one
     llmName = `${name}_llm`;
     attrsStrs.push(`llm "${llmName}"`);
-    if (hasUserLlm) attrs.set('llm', llmName);
+    attrs.set('llm', llmName);
+    createDefaultLLM = true;
   }
+
   const createAgent = `{${CoreAIModuleName}/${AgentEntityName} {
     ${attrsStrs.join(',')}
   }, @upsert}`;
   let wf = createAgent;
-  if (llmName) {
+  // Only create an LLM with default service if we're creating a default LLM
+  // If the user specified an LLM name, don't create/upsert it (it should already exist)
+  if (createDefaultLLM && llmName) {
     const service = getDefaultLLMService();
     wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}", service "${service}"}, @upsert}; ${wf}`;
   }

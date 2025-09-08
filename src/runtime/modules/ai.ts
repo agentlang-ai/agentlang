@@ -343,7 +343,12 @@ export async function findProviderForLLM(
 
     // If service is not set or is null, use the default
     if (!service || service === '' || service === null || service === undefined) {
-      console.warn(`[WARNING] LLM ${llmName} has no service set, defaulting to 'openai'`);
+      console.error(
+        `[ERROR] LLM '${llmName}' not found or has no service set. The LLM must be created first with proper service configuration.`
+      );
+      console.error(
+        `[ERROR] Make sure to create the LLM with: {agentlang.ai/LLM {name "${llmName}", service "anthropic" or "openai", config {...}}}`
+      );
       service = 'openai';
     }
 
@@ -367,6 +372,10 @@ export async function findProviderForLLM(
     if (p) {
       return p;
     }
+  } else {
+    throw new Error(
+      `LLM '${llmName}' not found. Please create it first with {agentlang.ai/LLM {name "${llmName}", service "...", config {...}}}`
+    );
   }
 
   throw new Error(`Failed to load provider for ${llmName}`);

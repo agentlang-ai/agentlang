@@ -1078,6 +1078,17 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   const entryName = inst.name;
   const moduleName = inst.moduleName;
   const attrs = inst.attributes;
+
+  // Debug LLM operations
+  if (entryName === 'LLM') {
+    console.log(`[DEBUG] evaluateCrudMap for LLM '${attrs.get('name')}':`, {
+      operation: env.isInDeleteMode() ? 'DELETE' : env.isInUpsertMode() ? 'UPSERT' : 'CREATE',
+      name: attrs.get('name'),
+      service: attrs.get('service'),
+      hasConfig: attrs.has('config'),
+      allAttrs: Array.from(attrs.entries()),
+    });
+  }
   const qattrs = inst.queryAttributes;
   const isQueryAll = crud.name.endsWith(QuerySuffix);
   const distinct: boolean = crud.distinct.length > 0;
