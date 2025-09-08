@@ -234,6 +234,18 @@ workflow DeleteRolePermission {
   purge {RolePermission {Role? DeleteRolePermission.Role, Permission? DeleteRolePermission.Permission}}
 }
 
+workflow UpdateRoleAssignment {
+  {User {id? UpdateRoleAssignment.userId}} @as [user]
+  {Role {name? UpdateRoleAssignment.roleName}} @as [role]
+  {UserRole {User? user.__path__, Role role.__path__}}
+}
+
+workflow UpdatePermissionAssignment {
+  {Role {name? UpdatePermissionAssignment.roleName}} @as [role]
+  {Permission {id? UpdatePermissionAssignment.permissionId}} @as [permission]
+  {RolePermission {Permission? permission.__path__, Role role.__path__}}
+}
+
 workflow signup {
   await Auth.signUpUser(signup.firstName, signup.lastName, signup.email, signup.password, signup.userData)
 }

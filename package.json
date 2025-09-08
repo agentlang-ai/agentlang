@@ -1,7 +1,7 @@
 {
 	"name": "agentlang",
 	"description": "Please enter a brief description here",
-	"version": "0.0.52",
+	"version": "0.0.56",
 	"files": ["bin", "out", "src"],
 	"type": "module",
 	"scripts": {
