@@ -1512,22 +1512,28 @@ async function iterateOnFlow(
   let step = env.getLastResult();
   let context = msg;
   let stepc = 0;
+  const iterId = crypto.randomUUID();
+  console.debug(`Starting iteration ${iterId} on flow: ${flow}`);
   while (step != 'DONE') {
     if (stepc > MaxFlowSteps) {
       throw new Error(`Flow execution exceeded maximum steps limit`);
     }
     ++stepc;
     const agent = AgentInstance.FromFlowStep(step, rootAgent);
+    console.debug(`${iterId} evaluating step ${step} with agent ${agent.name}, context ${context}`);
     agent.disableSession();
     env.setFlowContext(context);
     await agentInvoke(agent, '', env);
     env.resetFlowContext();
+    console.debug(`${iterId} suspending iteration on step ${step}`);
     if (env.isSuspended()) {
       await saveFlowSuspension(rootAgent, context, step, env);
       return;
     }
     const r = env.getLastResult();
-    context = `${context}\n${step} --> ${agentInputAsString(r)}\n`;
+    const rs = agentInputAsString(r);
+    console.debug(`${iterId} result of step ${step} - ${rs}`);
+    context = `${context}\n${step} --> ${rs}\n`;
     await agentInvoke(rootAgent, `${s}\n${context}`, env);
     step = env.getLastResult();
   }
