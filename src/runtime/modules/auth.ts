@@ -160,8 +160,8 @@ workflow CreatePermission {
 }
 
 workflow AddPermissionToRole {
-    {Role {name? AddPermissionToRole.roleName}} @as role;
-    {Permission {id? AddPermissionToRole.permissionId}} @as perm;
+    {Role {name? AddPermissionToRole.roleName}} @as [role];
+    {Permission {id? AddPermissionToRole.permissionId}} @as [perm];
     {RolePermission {Role role, Permission perm}, @upsert}
 }
 
