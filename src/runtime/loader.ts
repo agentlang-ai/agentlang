@@ -69,6 +69,7 @@ import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
 import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
+import { getDefaultLLMService } from './agents/registry.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
 import { Config, ConfigSchema, setAppConfig } from './state.js';
@@ -528,7 +529,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   }, @upsert}`;
   let wf = createAgent;
   if (llmName) {
-    const service = process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'openai';
+    const service = getDefaultLLMService();
     wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}", service "${service}"}, @upsert}; ${wf}`;
   }
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {

@@ -1107,13 +1107,43 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       let r: Instance | undefined;
       await computeExprAttributes(inst, env);
       if (env.isInUpsertMode()) {
+        // Debug LLM creation/update
+        if (inst.name === 'LLM') {
+          console.log(`[DEBUG] Upserting LLM instance '${inst.attributes.get('name')}':`, {
+            name: inst.attributes.get('name'),
+            service: inst.attributes.get('service'),
+            config: inst.attributes.get('config'),
+            allAttrs: Array.from(inst.attributes.entries()),
+          });
+        }
         await runPreUpdateEvents(inst, env);
         r = await res.upsertInstance(inst);
+        if (inst.name === 'LLM' && r) {
+          console.log(`[DEBUG] After upsert, LLM result:`, {
+            name: r.attributes.get('name'),
+            service: r.attributes.get('service'),
+          });
+        }
         await runPostUpdateEvents(inst, undefined, env);
       } else {
+        // Debug LLM creation
+        if (inst.name === 'LLM') {
+          console.log(`[DEBUG] Creating LLM instance '${inst.attributes.get('name')}':`, {
+            name: inst.attributes.get('name'),
+            service: inst.attributes.get('service'),
+            config: inst.attributes.get('config'),
+            allAttrs: Array.from(inst.attributes.entries()),
+          });
+        }
         await runPreCreateEvents(inst, env);
         if (isTimer(inst)) triggerTimer(inst);
         r = await res.createInstance(inst);
+        if (inst.name === 'LLM' && r) {
+          console.log(`[DEBUG] After create, LLM result:`, {
+            name: r.attributes.get('name'),
+            service: r.attributes.get('service'),
+          });
+        }
         await runPostCreateEvents(inst, env);
       }
       if (r && entryName == AgentEntityName) {
