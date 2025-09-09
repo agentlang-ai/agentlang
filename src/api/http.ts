@@ -322,7 +322,8 @@ async function handleEntityDelete(
       res.status(401).send('Authorization required');
       return;
     }
-    const pattern = `delete ${queryPatternFromPath(path)}`;
+    const cmd = req.query.purge == 'true' ? 'purge' : 'delete';
+    const pattern = `${cmd} ${queryPatternFromPath(path)}`;
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
