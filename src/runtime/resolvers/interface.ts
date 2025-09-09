@@ -320,9 +320,16 @@ export class GenericResolver extends Resolver {
   }
 
   override async subscribe() {
-    if (this.subs?.subscribe) {
-      await this.subs.subscribe(this);
+    while (true) {
+      try {
+        if (this.subs?.subscribe) {
+          await this.subs.subscribe(this);
+        }
+        await super.subscribe();
+        return;
+      } catch (reason: any) {
+        logger.warn(`subscribe error in resolver ${this.name}: ${reason}`);
+      }
     }
-    await super.subscribe();
   }
 }
