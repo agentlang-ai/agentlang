@@ -1352,6 +1352,11 @@ export class Flow extends ModuleEntry {
     return this;
   }
 
+  appendStep(s: string): Flow {
+    this.flowSteps.push(s);
+    return this;
+  }
+
   stepsCount(): number {
     return this.flowSteps.length;
   }
@@ -1452,17 +1457,14 @@ export function isEmptyWorkflow(wf: Workflow): boolean {
 export class Module {
   name: string;
   entries: ModuleEntry[];
-  entriesByTypeCache: Map<RecordType, ModuleEntry[]> | null;
 
   constructor(name: string) {
     this.name = name;
     this.entries = new Array<ModuleEntry>();
-    this.entriesByTypeCache = null;
   }
 
   addEntry(entry: ModuleEntry): ModuleEntry {
     this.entries.push(entry);
-    if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
     return entry;
   }
 
@@ -1499,6 +1501,19 @@ export class Module {
       return this.getEntry(name) as Flow;
     }
     return undefined;
+  }
+
+  getAllFlows(): Flow[] {
+    return this.entries.filter((v: ModuleEntry) => {
+      return v instanceof Flow;
+    });
+  }
+
+  removeFlow(name: string): boolean {
+    if (this.getFlow(name)) {
+      return this.removeEntry(name);
+    }
+    return false;
   }
 
   addStandaloneStatement(stmt: Statement): StandaloneStatement {
@@ -1542,27 +1557,16 @@ export class Module {
     const idx: number = this.getEntryIndex(entryName);
     if (idx >= 0) {
       this.entries.splice(idx, 1);
-      if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
       return true;
     }
     return false;
   }
 
   private getEntriesOfType(t: RecordType): ModuleEntry[] {
-    if (this.entriesByTypeCache != null && this.entriesByTypeCache.has(t)) {
-      const result: ModuleEntry[] | undefined = this.entriesByTypeCache.get(t);
-      if (result == undefined) return new Array<ModuleEntry>();
-      return result;
-    } else {
-      const result: ModuleEntry[] = this.entries.filter((v: ModuleEntry) => {
-        const r: Record = v as Record;
-        return r.type == t;
-      });
-      if (this.entriesByTypeCache != null)
-        this.entriesByTypeCache = new Map<RecordType, ModuleEntry[]>();
-      this.entriesByTypeCache?.set(t, result);
-      return result;
-    }
+    return this.entries.filter((v: ModuleEntry) => {
+      const r: Record = v as Record;
+      return r.type == t;
+    });
   }
 
   getEntityEntries(): Entity[] {
