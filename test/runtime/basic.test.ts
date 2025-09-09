@@ -30,6 +30,7 @@ import { assert, describe, test } from 'vitest';
 import { doInternModule, doPreInit, expectError } from '../util.js';
 import { testLogger } from '../test-logger.js';
 import { PathAttributeName } from '../../src/runtime/defs.js';
+import { FlowStepPattern } from '../../src/language/syntax.js';
 
 function createTestModule(): Module | undefined {
   addModule('Acme');
@@ -986,3 +987,49 @@ describe('Destructuring', () => {
     assert(isemp(r3[2][0]))
     })
   })
+
+  describe('Flow API', () => {
+  test('test01', async () => {
+    await doInternModule(
+      'flowApi',
+      `entity E {
+        id Int @id
+      }
+
+      flow orchestrator {
+        incidentTriager --> "DNS" findManagerForCategory
+        incidentTriager --> "WLAN" findManagerForCategory
+        incidentTriager --> "Other" incidentStatusUpdater
+        findManagerForCategory --> managerRequestHandler
+        managerRequestHandler --> "approve" incidentProvisioner
+        managerRequestHandler --> "reject" incidentStatusUpdater
+        incidentProvisioner --> incidentStatusUpdater
+    }
+
+    flow analyser {
+      analyseEmail --> "OK" sendConfirmation
+      analyseEmail --> "SPAM" deleteEmail
+    }`)
+    const mod = fetchModule('flowApi')
+    let flows = mod.getAllFlows()
+    assert(flows.length == 2)
+    mod.removeFlow('orchestrator')
+    flows = mod.getAllFlows()
+    assert(flows.length == 1)
+    const s0 = new FlowStepPattern('analyseEmail', 'archiveEmail', "ARC")
+    flows[0].appendStep(s0.toString())
+    const s = mod.toString()
+    assert(s == `module flowApi
+
+entity E
+{
+    id Int @id
+}
+
+flow analyser {
+      analyseEmail --> "OK" sendConfirmation
+analyseEmail --> "SPAM" deleteEmail
+analyseEmail --> "ARC" archiveEmail
+    }`)
+  })
+})
