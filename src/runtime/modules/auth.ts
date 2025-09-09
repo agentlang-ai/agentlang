@@ -237,13 +237,29 @@ workflow DeleteRolePermission {
 workflow UpdateRoleAssignment {
   {User {id? UpdateRoleAssignment.userId}} @as [user]
   {Role {name? UpdateRoleAssignment.roleName}} @as [role]
-  {UserRole {User? user.__path__, Role role.__path__}}
+  if (user and role) {
+    {UserRole {__path__? UpdateRoleAssignment.userRole, User user.__path__, Role role.__path__}}
+  }
+  else if (user) {
+    {UserRole {__path__? UpdateRoleAssignment.userRole, User user.__path__}}
+  }
+  else if (role) {
+    {UserRole {__path__? UpdateRoleAssignment.userRole, Role role.__path__}}
+  }
 }
 
 workflow UpdatePermissionAssignment {
   {Role {name? UpdatePermissionAssignment.roleName}} @as [role]
   {Permission {id? UpdatePermissionAssignment.permissionId}} @as [permission]
-  {RolePermission {Permission? permission.__path__, Role role.__path__}}
+  if (role and permission) {
+    {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Permission? permission.__path__, Role role.__path__}}
+  }
+  else if (role) {
+    {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Role role.__path__}}
+  }
+  else if (permission) {
+    {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Permission? permission.__path__}}
+  }
 }
 
 workflow signup {
