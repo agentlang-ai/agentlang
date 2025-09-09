@@ -51,6 +51,7 @@ entity ${AgentEntityName} {
     role String @optional,
     flows String @optional,
     conditions String @optional,
+    scenarios String @optional,
     llm String
 }
 
@@ -99,6 +100,7 @@ export class AgentInstance {
   role: string | undefined;
   flows: string | undefined;
   conditions: string | undefined;
+  scenarios: string | undefined;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;
@@ -211,6 +213,11 @@ export class AgentInstance {
       return this.cachedInstruction;
     }
     this.cachedInstruction = `${this.instruction || ''} ${this.conditionsAsString()}`;
+    if (this.scenarios) {
+      const prefix =
+        'To help you with your analysis, the following example scenarios are provided:';
+      this.cachedInstruction = `${this.cachedInstruction}\n${prefix}\n\n${this.scenarios}`;
+    }
     return this.cachedInstruction;
   }
 
