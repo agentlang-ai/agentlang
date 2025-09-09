@@ -2221,9 +2221,9 @@ function getEntityDef(entityName: string, moduleName: string): Entity | undefine
     const mname = parts.hasModule() ? parts.getModuleName() : moduleName;
     return getEntity(parts.getEntryName(), mname);
   } catch (reason: any) {
-    logger.error(`getEntityDef: ${reason}`)
+    logger.error(`getEntityDef: ${reason}`);
   }
-  return undefined
+  return undefined;
 }
 
 export function getWorkflow(eventInstance: Instance): Workflow {
