@@ -2216,9 +2216,14 @@ export function parsePrePostWorkflowName(name: string): ThinWfHeader {
 }
 
 function getEntityDef(entityName: string, moduleName: string): Entity | undefined {
-  const parts = splitFqName(entityName);
-  const mname = parts.hasModule() ? parts.getModuleName() : moduleName;
-  return getEntity(parts.getEntryName(), mname);
+  try {
+    const parts = splitFqName(entityName);
+    const mname = parts.hasModule() ? parts.getModuleName() : moduleName;
+    return getEntity(parts.getEntryName(), mname);
+  } catch (reason: any) {
+    logger.error(`getEntityDef: ${reason}`)
+  }
+  return undefined
 }
 
 export function getWorkflow(eventInstance: Instance): Workflow {
