@@ -50,6 +50,7 @@ entity ${AgentEntityName} {
     output String @optional, // fq-name of another agent to which the result will be pushed
     role String @optional,
     flows String @optional,
+    conditions String @optional,
     llm String
 }
 
@@ -97,6 +98,7 @@ export class AgentInstance {
   output: string | undefined;
   role: string | undefined;
   flows: string | undefined;
+  conditions: string | undefined
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;
@@ -175,6 +177,43 @@ export class AgentInstance {
     return this.type == 'flow-exec';
   }
 
+  private conditionsAsString(): string {
+    if (this.conditions) {
+      const conds = this.conditions.split(',')
+      const ss = new Array<string>()
+      let prefix = ''
+      const rs = new Array<string>()
+      for (let i = 0; i < conds.length; ++i) {
+        const c = conds[i++]
+        let r: string | undefined = undefined
+        if (i < conds.length) {
+          r = conds[i++]
+        }
+        if (r) {
+          ss.push(`${prefix}if ${c} then return ${r}`)
+          rs.push(r)
+          prefix = 'else '
+        } else {
+          ss.push(`else return ${c}`)
+          rs.push(c)
+        }
+      }
+      ss.push(`Only return one of: ${rs.join(',')}. Do not return anything else.`)
+      return ss.join('\n')
+    }
+    return ''
+  }
+
+  private cachedInstruction: string | undefined = undefined
+
+  private getFullInstructions(): string {
+    if (this.cachedInstruction) {
+      return this.cachedInstruction
+    }
+    this.cachedInstruction = `${this.instruction || ''} ${this.conditionsAsString()}`
+    return this.cachedInstruction
+  }
+
   async invoke(message: string, env: Environment) {
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
@@ -192,14 +231,14 @@ export class AgentInstance {
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      msgs = [systemMessage(this.instruction || '')];
+      msgs = [systemMessage(this.getFullInstructions() || '')];
     }
     if (msgs) {
       try {
         const sysMsg = msgs[0];
         if (isplnr || isflow) {
           const s = isplnr ? PlannerInstructions : FlowExecInstructions;
-          const newSysMsg = systemMessage(`${s}\n${this.toolsAsString()}\n${this.instruction}`);
+          const newSysMsg = systemMessage(`${s}\n${this.toolsAsString()}\n${this.getFullInstructions()}`);
           msgs[0] = newSysMsg;
         }
         msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
