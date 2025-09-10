@@ -183,7 +183,7 @@ export class AgentInstance {
       this.withSession = false;
     }
     const sess: Instance | null = this.withSession
-      ? await parseHelper(`{findAgentChatSession {id "${chatId}"}}`, env)
+      ? await parseHelper(`{${CoreAIModuleName}/findAgentChatSession {id "${chatId}"}}`, env)
       : null;
     let msgs: BaseMessage[] | undefined;
     if (sess) {
@@ -208,7 +208,7 @@ export class AgentInstance {
         }
         if (this.withSession) {
           await parseHelper(
-            `{saveAgentChatSession {id "${chatId}", messages ${JSON.stringify(msgs)}}}`,
+            `{${CoreAIModuleName}/saveAgentChatSession {id "${chatId}", messages ${JSON.stringify(msgs)}}}`,
             env
           );
         }
