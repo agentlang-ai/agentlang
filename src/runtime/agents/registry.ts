@@ -17,5 +17,6 @@ export function provider(service: string) {
 
 export function getDefaultLLMService(): string {
   // Always default to OpenAI when no service is explicitly specified
+  // This is the DEFAULT service, not based on available API keys
   return 'openai';
 }
