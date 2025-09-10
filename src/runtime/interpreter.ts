@@ -139,6 +139,8 @@ export class Environment extends Instance {
   private suspensionId: string | undefined;
   private activeCatchHandlers: Array<CatchHandlers>;
 
+  activeUserData: any = undefined;
+
   constructor(name?: string, parent?: Environment) {
     super(
       PlaceholderRecordEntry,
@@ -725,7 +727,7 @@ async function evaluateAsyncPattern(
   }
 }
 
-async function evaluateStatement(stmt: Statement, env: Environment): Promise<void> {
+export async function evaluateStatement(stmt: Statement, env: Environment): Promise<void> {
   const hints = stmt.hints;
   const hasHints = hints && hints.length > 0;
   const thenStmts: Statement[] | undefined = hasHints ? maybeFindThenStatements(hints) : undefined;
@@ -913,7 +915,7 @@ export class PatternHandler {
 
 const DefaultPatternHandler = new PatternHandler();
 
-async function evaluatePattern(
+export async function evaluatePattern(
   pat: Pattern,
   env: Environment,
   handler: PatternHandler = DefaultPatternHandler

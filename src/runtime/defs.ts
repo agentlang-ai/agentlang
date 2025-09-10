@@ -1,3 +1,5 @@
+import { Statement } from '../language/generated/ast.js';
+
 export const PathAttributeName: string = '__path__';
 export const PathAttributeNameQuery: string = '__path__?';
 export const ParentAttributeName: string = '__parent__';
@@ -90,3 +92,45 @@ export function setSubscriptionFn(f: Function) {
 
 export const ForceReadPermFlag = 'f-r-f';
 export const FlowSuspensionTag = `--`;
+
+export type ExecGraphNode = {
+  statement: Statement;
+  next: number;
+  subGraphIndex?: number;
+};
+
+export class ExecGraph {
+  rootNodes: ExecGraphNode[];
+  subGraphs: ExecGraph[];
+  parentGraph: ExecGraph | undefined = undefined;
+  parentOffset: number = -1;
+
+  constructor() {
+    this.rootNodes = new Array<ExecGraphNode>();
+    this.subGraphs = new Array<ExecGraph>();
+  }
+
+  pushNode(node: ExecGraphNode): ExecGraph {
+    this.rootNodes.push(node);
+    return this;
+  }
+
+  pushSubGraph(execGraph: ExecGraph, parentOffset: number): ExecGraph {
+    execGraph.parentGraph = this;
+    execGraph.parentOffset = parentOffset;
+    this.subGraphs.push(execGraph);
+    return this;
+  }
+
+  subGraphLength(): number {
+    return this.subGraphs.length;
+  }
+
+  getNode(offset: number, subGraphIndex?: number): ExecGraphNode {
+    if (subGraphIndex == undefined) {
+      return this.rootNodes[offset];
+    } else {
+      return this.subGraphs[subGraphIndex].getNode(offset);
+    }
+  }
+}
