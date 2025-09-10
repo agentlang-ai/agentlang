@@ -3,9 +3,21 @@ import { EmptyFileSystem, type LangiumDocument } from 'langium';
 import { expandToString as s } from 'langium/generate';
 import { parseHelper } from 'langium/test';
 import { createAgentlangServices } from '../../src/language/agentlang-module.js';
-import { Definition, isModuleDefinition, isStandaloneStatement, ModuleDefinition } from '../../src/language/generated/ast.js';
+import {
+  Definition,
+  isModuleDefinition,
+  isStandaloneStatement,
+  ModuleDefinition,
+} from '../../src/language/generated/ast.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
-import { Agent, Entity, enumAttributeSpec, fetchModule, getRelationship, oneOfAttributeSpec } from '../../src/runtime/module.js';
+import {
+  Agent,
+  Entity,
+  enumAttributeSpec,
+  fetchModule,
+  getRelationship,
+  oneOfAttributeSpec,
+} from '../../src/runtime/module.js';
 import { doInternModule } from '../util.js';
 import { introspect } from '../../src/language/parser.js';
 import { BasePattern } from '../../src/language/syntax.js';
@@ -48,10 +60,10 @@ describe('Parsing tests', () => {
       // prior to the tagged template expression we check for validity of the parsed document object
       //  by means of the reusable function 'checkDocumentValid()' to sort out (critical) typos first;
       checkDocumentValid(model) ||
-      model.parseResult.value.defs.map((v: Definition) => {
-        if (isStandaloneStatement(v)) return 'standalone-statement'
-        else return v.name;
-      })
+        model.parseResult.value.defs.map((v: Definition) => {
+          if (isStandaloneStatement(v)) return 'standalone-statement';
+          else return v.name;
+        })
     ).toStrictEqual(['Person', 'UpdatePersonEmail']);
   });
 });
@@ -74,33 +86,43 @@ describe('Workflow update tests', () => {
   test('check setting and removing statements in workflows', async () => {
     await parseAndIntern(`module WfUpdateTest
       workflow Test {}
-      `)
-    const wf = fetchModule('WfUpdateTest').getWorkflowForEvent('Test')
-    await wf.addStatement('{Acme/User {salary?> 1500}} @as users')
-    await wf.setStatementAt('for u in users { }', 1)
-    await wf.setStatementAt('{Acme/Profile {email u.email}}', [1, 0])
-    await wf.setStatementAt('{Acme/Account {email u.email}}', [1, 1])
-    await wf.addStatement('users')
-    assert(wf.toString() == `workflow Test {
+      `);
+    const wf = fetchModule('WfUpdateTest').getWorkflowForEvent('Test');
+    await wf.addStatement('{Acme/User {salary?> 1500}} @as users');
+    await wf.setStatementAt('for u in users { }', 1);
+    await wf.setStatementAt('{Acme/Profile {email u.email}}', [1, 0]);
+    await wf.setStatementAt('{Acme/Account {email u.email}}', [1, 1]);
+    await wf.addStatement('users');
+    assert(
+      wf.toString() ==
+        `workflow Test {
     {Acme/User {salary?> 1500}} @as users;
    for u in users {
             {Acme/Profile {email u.email}};
     {Acme/Account {email u.email}}
     };
     users
-}`, 'Failed to set statements by index')
-    wf.removeStatementAt([1, 1])
-    assert(wf.toString() == `workflow Test {
+}`,
+      'Failed to set statements by index'
+    );
+    wf.removeStatementAt([1, 1]);
+    assert(
+      wf.toString() ==
+        `workflow Test {
     {Acme/User {salary?> 1500}} @as users;
    for u in users {
             {Acme/Profile {email u.email}}
     };
     users
-}`, 'Failed to remove statement by index')
-    await wf.setStatementAt('if (u.age < 20) {} else {}', [1, 1])
-    await wf.setStatementAt('{Acme/Account {email u.email, type "A"}}', [1, 1, 0])
-    await wf.setStatementAt('{Acme/Account {email u.email, type "B"}}', [1, 1, -0])
-    assert(wf.toString() == `workflow Test {
+}`,
+      'Failed to remove statement by index'
+    );
+    await wf.setStatementAt('if (u.age < 20) {} else {}', [1, 1]);
+    await wf.setStatementAt('{Acme/Account {email u.email, type "A"}}', [1, 1, 0]);
+    await wf.setStatementAt('{Acme/Account {email u.email, type "B"}}', [1, 1, -0]);
+    assert(
+      wf.toString() ==
+        `workflow Test {
     {Acme/User {salary?> 1500}} @as users;
    for u in users {
             {Acme/Profile {email u.email}};
@@ -111,9 +133,12 @@ describe('Workflow update tests', () => {
     }
     };
     users
-}`)
-    wf.removeStatementAt([1, 1, -0])
-    assert(wf.toString() == `workflow Test {
+}`
+    );
+    wf.removeStatementAt([1, 1, -0]);
+    assert(
+      wf.toString() ==
+        `workflow Test {
     {Acme/User {salary?> 1500}} @as users;
    for u in users {
             {Acme/Profile {email u.email}};
@@ -124,24 +149,30 @@ describe('Workflow update tests', () => {
     }
     };
     users
-}`)
-  })
-})
+}`
+    );
+  });
+});
 
 describe('Module toString tests', () => {
   test('Code generation from Modules', async () => {
-    await doInternModule('MtoStr', `
+    await doInternModule(
+      'MtoStr',
+      `
       entity E {
         name String @id
       }
       entity F {
         Id UUID @default(uuid()) @id
       }
-      `)
-    const m = fetchModule('MtoStr')
-    m.addAgent(new Agent('agent01', 'MtoStr'))
-    const str = m.toString()
-    assert(str == `module MtoStr
+      `
+    );
+    const m = fetchModule('MtoStr');
+    m.addAgent(new Agent('agent01', 'MtoStr'));
+    const str = m.toString();
+    assert(
+      str ==
+        `module MtoStr
 
 entity E
 {
@@ -156,13 +187,16 @@ entity F
 agent agent01
 {
 
-}`)
-  })
-})
+}`
+    );
+  });
+});
 
 describe('Agent toString test', () => {
   test('Code generation for agent', async () => {
-    await doInternModule('AtoStr', `
+    await doInternModule(
+      'AtoStr',
+      `
       entity E {
         name String @id
       }
@@ -179,10 +213,13 @@ describe('Agent toString test', () => {
         tools "a,b",
         llm "agent2_llm"
       }
-      `)
-    const m = fetchModule('AtoStr')
-    const str = m.toString()
-    assert(str === `module AtoStr
+      `
+    );
+    const m = fetchModule('AtoStr');
+    const str = m.toString();
+    assert(
+      str ===
+        `module AtoStr
 
 entity E
 {
@@ -203,20 +240,26 @@ agent Agent2
     instruction "This Agent will solve any math problem",
     tools "a,b",
     llm "agent2_llm"
-}`)
-  })
-})
+}`
+    );
+  });
+});
 
 describe('Rbac toString test', () => {
   test('Code generation for rbac', async () => {
-    await doInternModule('RbacToStr', `
+    await doInternModule(
+      'RbacToStr',
+      `
       entity E {
         name String @id,
         @rbac [(roles: [manager], allow: [create]),
            (allow: [read], where: auth.user = this.id)]
-      }`)
-    const str = fetchModule('RbacToStr').toString()
-    assert(str == `module RbacToStr
+      }`
+    );
+    const str = fetchModule('RbacToStr').toString();
+    assert(
+      str ==
+        `module RbacToStr
 
 entity E
 {
@@ -224,13 +267,15 @@ entity E
     @rbac [(roles: [manager], allow: [create]),
 (where: auth.user = this.id, allow: [read])]
 }
-`)
-  })
-})
+`
+    );
+  });
+});
 
 describe('enum toString test', () => {
   test('test01', async () => {
-    await doInternModule('EnumOutTest',
+    await doInternModule(
+      'EnumOutTest',
       `entity E {
         id Int @id,
         x Int,
@@ -238,19 +283,21 @@ describe('enum toString test', () => {
         r String @default("ok"),
         d DateTime @default(now()) @optional
       }`
-    )
-    let m = fetchModule('EnumOutTest')
-    const e = m.getEntry('E') as Entity
-    let attrSpec = enumAttributeSpec(new Set(["a", "b", "c"]))
-    e.addAttribute('s', attrSpec)
-    attrSpec = oneOfAttributeSpec('Acme/F.name')
-    e.addAttribute('t', attrSpec)
-    let str = m.toString()
-    const idx = str.indexOf('entity')
-    await doInternModule('EnumOutTest2', str.substring(idx))
-    m = fetchModule('EnumOutTest2')
-    str = m.toString()
-    assert(str == `module EnumOutTest2
+    );
+    let m = fetchModule('EnumOutTest');
+    const e = m.getEntry('E') as Entity;
+    let attrSpec = enumAttributeSpec(new Set(['a', 'b', 'c']));
+    e.addAttribute('s', attrSpec);
+    attrSpec = oneOfAttributeSpec('Acme/F.name');
+    e.addAttribute('t', attrSpec);
+    let str = m.toString();
+    const idx = str.indexOf('entity');
+    await doInternModule('EnumOutTest2', str.substring(idx));
+    m = fetchModule('EnumOutTest2');
+    str = m.toString();
+    assert(
+      str ==
+        `module EnumOutTest2
 
 entity E
 {
@@ -262,13 +309,15 @@ entity E
     s  @enum("a","b","c"),
     t  @oneof(Acme/F.name)
 }
-`)
-  })
-})
+`
+    );
+  });
+});
 
 describe('relationships toString test', () => {
   test('test01', async () => {
-    await doInternModule('RelOutTest',
+    await doInternModule(
+      'RelOutTest',
       `entity A {
         id Int @id
       }
@@ -281,15 +330,18 @@ describe('relationships toString test', () => {
       relationship AB between(A, B) @one_many
       relationship BA between(B, A)
       relationship BC contains(B, C)
-      `)
-    const m = fetchModule('RelOutTest')
-    const r = getRelationship('BA', m.name)
-    r.setOneToOne()
-    let str = m.toString()
-    const idx = str.indexOf('entity')
-    await doInternModule('RelOutTest2', str.substring(idx))
-    str = fetchModule('RelOutTest2').toString()
-    assert(str == `module RelOutTest2
+      `
+    );
+    const m = fetchModule('RelOutTest');
+    const r = getRelationship('BA', m.name);
+    r.setOneToOne();
+    let str = m.toString();
+    const idx = str.indexOf('entity');
+    await doInternModule('RelOutTest2', str.substring(idx));
+    str = fetchModule('RelOutTest2').toString();
+    assert(
+      str ==
+        `module RelOutTest2
 
 entity A
 {
@@ -311,25 +363,29 @@ relationship AB between (A, B) @one_many
 relationship BA between (B, A) @one_one
 
 relationship BC contains (B, C)
-`)
-  })
-})
+`
+    );
+  });
+});
 
 describe('Statements to string issue', () => {
-  test("test01", async () => {
-    await doInternModule('StmtsToStr',
+  test('test01', async () => {
+    await doInternModule(
+      'StmtsToStr',
       `workflow updateIncidentApprovalStatus {
     updateIncidentApprovalStatus.incidentSysId + ": " + updateIncidentApprovalStatus.approvalStatus + ", " + updateIncidentApprovalStatus.updatedOn @as s;
     console.log(s);
     {servicenow/incident {sys_id? updateIncidentApprovalStatus.incidentSysId, data {"comment": updateIncidentApprovalStatus.approvalStatus}}}
-}`)
-    const m = fetchModule('StmtsToStr')
-    const wf = m.getWorkflowForEvent('updateIncidentApprovalStatus')
+}`
+    );
+    const m = fetchModule('StmtsToStr');
+    const wf = m.getWorkflowForEvent('updateIncidentApprovalStatus');
     const s = wf.statementsToStrings();
     for (let i = 0; i < s.length; ++i) {
-      const bp: BasePattern = await introspect(s[i])
-      const ps = bp.toString()
-      assert(ps.trim() == s[i].trim())
+      const bps: BasePattern[] = await introspect(s[i]);
+      assert(bps.length > 0);
+      const ps = bps[0].toString();
+      assert(ps.trim() == s[i].trim());
     }
-  })
-})
+  });
+});

@@ -301,7 +301,7 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
 }
 
 export async function resetDefaultDatabase() {
-  if (defaultDataSource) {
+  if (defaultDataSource && defaultDataSource.isInitialized) {
     await defaultDataSource.destroy();
     defaultDataSource = undefined;
   }

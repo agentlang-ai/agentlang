@@ -521,13 +521,18 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   if (!attrs.has('llm')) {
     // Agent doesn't have an LLM specified, create a default one
     llmName = `${name}_llm`;
-    attrsStrs.push(`llm "${llmName}"`);
-    attrs.set('llm', llmName);
     createDefaultLLM = true;
   }
 
+  // Create a copy of attrsStrs for the database operation
+  const dbAttrsStrs = [...attrsStrs];
+  // Only add llm to database attributes if we have one
+  if (llmName) {
+    dbAttrsStrs.push(`llm "${llmName}"`);
+  }
+
   const createAgent = `{${CoreAIModuleName}/${AgentEntityName} {
-    ${attrsStrs.join(',')}
+    ${dbAttrsStrs.join(',')}
   }, @upsert}`;
   let wf = createAgent;
   // Only create an LLM with default service if we're creating a default LLM
@@ -539,6 +544,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
     addStandaloneStatement(stmt, moduleName, false);
   });
+  // Don't add llm to module attrs if it wasn't originally specified
   addAgent(def.name, attrs, moduleName);
 }
 

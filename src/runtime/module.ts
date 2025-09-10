@@ -866,7 +866,7 @@ export class Agent extends Record {
     const attrs = new Array<string>();
     this.attributes.forEach((value: any, key: string) => {
       const skip = key == 'moduleName' || (key == 'type' && value == 'flow-exec');
-      if (!skip) {
+      if (!skip && value !== null && value !== undefined) {
         let v = value;
         if (key == 'flows') {
           v = `[${v}]`;
