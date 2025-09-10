@@ -902,7 +902,8 @@ async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Pr
     if (inst) {
       n = makeFqName(inst.moduleName, n);
     } else {
-      throw new Error(`Fully qualified name required for full-text-search in ${n}`);
+      console.error(`Fully qualified name required for full-text-search in ${n}`);
+      return;
     }
   }
   const path = splitFqName(n);
@@ -912,7 +913,8 @@ async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Pr
   await evaluateLiteral(fts.query, env);
   const q = env.getLastResult();
   if (!isString(q)) {
-    throw new Error(`Full text search query must be a string - ${q}`);
+    console.error(`Full text search query must be a string - ${q}`);
+    return;
   }
   let options: Map<string, any> | undefined;
   if (fts.options) {
