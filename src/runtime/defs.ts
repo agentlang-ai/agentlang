@@ -96,6 +96,7 @@ export const FlowSuspensionTag = `--`;
 export type ExecGraphNode = {
   statement: Statement;
   next: number;
+  generic: boolean;
   subGraphIndex?: number;
 };
 
@@ -125,12 +126,26 @@ export class ExecGraph {
   subGraphLength(): number {
     return this.subGraphs.length;
   }
+}
 
-  getNode(offset: number, subGraphIndex?: number): ExecGraphNode {
-    if (subGraphIndex == undefined) {
-      return this.rootNodes[offset];
-    } else {
-      return this.subGraphs[subGraphIndex].getNode(offset);
+export class ExecGraphWalker {
+  private execGraph: ExecGraph;
+  private offset = 0;
+  private maxOffset: number;
+
+  constructor(execGraph: ExecGraph) {
+    this.execGraph = execGraph;
+    this.maxOffset = this.execGraph.rootNodes.length;
+  }
+
+  hasNext(): boolean {
+    return this.offset < this.maxOffset;
+  }
+
+  nextNode(): ExecGraphNode {
+    if (this.offset < this.maxOffset) {
+      return this.execGraph.rootNodes[this.offset++];
     }
+    throw new Error('End of execution-graph');
   }
 }

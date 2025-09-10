@@ -1301,7 +1301,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
 }
 
 const CoreAIModuleName = makeCoreModuleName('ai');
-const DocEventName = `${CoreAIModuleName}/doc`;
+export const DocEventName = `${CoreAIModuleName}/doc`;
 
 function isDocEventInstance(inst: Instance): boolean {
   return isInstanceOfType(inst, DocEventName);
