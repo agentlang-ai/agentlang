@@ -20,6 +20,7 @@ import {
   Pattern,
   Purge,
   RelationshipPattern,
+  Return,
   RuntimeHint,
   SelectIntoEntry,
   SelectIntoSpec,
@@ -166,6 +167,8 @@ export class Environment extends Instance {
       this.attributes.set('process', process);
     }
   }
+
+  public static EmptyEnvironment = new Environment();
 
   static from(
     parent: Environment,
@@ -874,23 +877,63 @@ export async function parseAndEvaluateStatement(
   }
 }
 
-async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
+export class PatternHandler {
+  async handleExpression(expr: Expr, env: Environment) {
+    await evaluateExpression(expr, env);
+  }
+
+  async handleCrudMap(crudMap: CrudMap, env: Environment) {
+    await evaluateCrudMap(crudMap, env);
+  }
+
+  async handleForEach(forEach: ForEach, env: Environment) {
+    await evaluateForEach(forEach, env);
+  }
+
+  async handleIf(_if: If, env: Environment) {
+    await evaluateIf(_if, env);
+  }
+
+  async handleDelete(del: Delete, env: Environment) {
+    await evaluateDelete(del, env);
+  }
+
+  async handlePurge(purge: Purge, env: Environment) {
+    await evaluatePurge(purge, env);
+  }
+
+  async handleFullTextSearch(fullTextSearch: FullTextSearch, env: Environment) {
+    await evaluateFullTextSearch(fullTextSearch, env);
+  }
+
+  async handleReturn(ret: Return, env: Environment) {
+    await evaluatePattern(ret.pat, env);
+  }
+}
+
+const DefaultPatternHandler = new PatternHandler();
+
+async function evaluatePattern(
+  pat: Pattern,
+  env: Environment,
+  handler: PatternHandler = DefaultPatternHandler
+): Promise<void> {
   if (pat.expr) {
-    await evaluateExpression(pat.expr, env);
+    await handler.handleExpression(pat.expr, env);
   } else if (pat.crudMap) {
-    await evaluateCrudMap(pat.crudMap, env);
+    await handler.handleCrudMap(pat.crudMap, env);
   } else if (pat.forEach) {
-    await evaluateForEach(pat.forEach, env);
+    await handler.handleForEach(pat.forEach, env);
   } else if (pat.if) {
-    await evaluateIf(pat.if, env);
+    await handler.handleIf(pat.if, env);
   } else if (pat.delete) {
-    await evaluateDelete(pat.delete, env);
+    await handler.handleDelete(pat.delete, env);
   } else if (pat.purge) {
-    await evaluatePurge(pat.purge, env);
+    await handler.handlePurge(pat.purge, env);
   } else if (pat.fullTextSearch) {
-    await evaluateFullTextSearch(pat.fullTextSearch, env);
+    await handler.handleFullTextSearch(pat.fullTextSearch, env);
   } else if (pat.return) {
-    await evaluatePattern(pat.return.pat, env);
+    await handler.handleReturn(pat.return, env);
     env.markForReturn();
   }
 }
