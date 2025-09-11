@@ -1,4 +1,4 @@
-import { Statement } from '../language/generated/ast.js';
+import { Expr, Pattern, Statement } from '../language/generated/ast.js';
 
 export const PathAttributeName: string = '__path__';
 export const PathAttributeNameQuery: string = '__path__?';
@@ -98,20 +98,31 @@ export enum SubGraphType {
   IF,
   FOR_EACH,
   AGENT,
+  NONE,
 }
 
-export type ExecGraphNode = {
-  statement: Statement;
-  next: number;
-  subGraphIndex?: number;
-  subGraphType?: SubGraphType;
-};
+export class ExecGraphNode {
+  code: Statement | Pattern | Expr;
+  codeAtr: string | undefined;
+  subGraphIndex: number;
+  subGraphType: SubGraphType;
+
+  constructor(
+    statement: Statement | Pattern | Expr,
+    subGraphIndex: number = -1,
+    subGraphType: SubGraphType = SubGraphType.NONE
+  ) {
+    this.code = statement;
+    this.codeAtr = this.code.$cstNode?.text;
+    this.subGraphType = subGraphType;
+    this.subGraphIndex = subGraphIndex;
+  }
+}
 
 export class ExecGraph {
   private rootNodes: ExecGraphNode[];
   private subGraphs: ExecGraph[];
   private parentGraph: ExecGraph | undefined = undefined;
-  private parentOffset: number = -1;
   private activeModuleName: string | undefined;
 
   static Empty = new ExecGraph();
@@ -130,9 +141,8 @@ export class ExecGraph {
     return this;
   }
 
-  pushSubGraph(execGraph: ExecGraph, parentOffset: number): ExecGraph {
+  pushSubGraph(execGraph: ExecGraph): ExecGraph {
     execGraph.parentGraph = this;
-    execGraph.parentOffset = parentOffset;
     this.subGraphs.push(execGraph);
     return this;
   }
@@ -175,10 +185,6 @@ export class ExecGraph {
 
   getParentGraph(): ExecGraph | undefined {
     return this.parentGraph;
-  }
-
-  getParentOffset(): number {
-    return this.parentOffset;
   }
 }
 

@@ -140,7 +140,7 @@ export class Environment extends Instance {
   private activeCatchHandlers: Array<CatchHandlers>;
   private graphExecMode: boolean = false;
 
-  activeUserData: any = undefined;
+  private activeUserData: any = undefined;
 
   constructor(name?: string, parent?: Environment) {
     super(
@@ -162,6 +162,7 @@ export class Environment extends Instance {
       this.inKernelMode = parent.inKernelMode;
       this.activeCatchHandlers = parent.activeCatchHandlers;
       this.suspensionId = parent.suspensionId;
+      this.graphExecMode = parent.graphExecMode;
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
@@ -584,6 +585,15 @@ export class Environment extends Instance {
 
   isInGraphExecMode(): boolean {
     return this.graphExecMode;
+  }
+
+  setActiveUserData(data: any): Environment {
+    this.activeUserData = data;
+    return this;
+  }
+
+  getActiveUserData(): any {
+    return this.activeUserData;
   }
 }
 
@@ -1740,7 +1750,7 @@ async function evaluatePurge(purgeStmt: Purge, env: Environment): Promise<void> 
   await evaluateDeleteHelper(purgeStmt.pattern, true, env);
 }
 
-async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
+export async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
   let result: Result = EmptyResult;
   if (isBinExpr(expr)) {
     await evaluateExpression(expr.e1, env);

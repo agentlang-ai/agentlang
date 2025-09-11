@@ -7,6 +7,7 @@ import {
   If,
   isWorkflowDefinition,
   ModuleDefinition,
+  Pattern,
   Purge,
   Return,
   Statement,
@@ -16,6 +17,7 @@ import { ExecGraph, ExecGraphNode, ExecGraphWalker, SubGraphType } from './defs.
 import {
   DocEventName,
   Environment,
+  evaluateExpression,
   evaluatePattern,
   evaluateStatement,
   PatternHandler,
@@ -29,11 +31,13 @@ import {
   RecordType,
 } from './module.js';
 import { isOpenApiModule } from './openapi.js';
-import { splitFqName } from './util.js';
+import { escapeQueryName, splitFqName } from './util.js';
 
 const GraphCache = new Map<string, ExecGraph>();
 
 export async function generateExecutionGraph(eventName: string): Promise<ExecGraph | undefined> {
+  const cg = GraphCache.get(eventName);
+  if (cg) return cg;
   const wf = getWorkflowForEvent(eventName);
   const parts = splitFqName(eventName);
   const moduleName = parts.hasModule() ? parts.getModuleName() : undefined;
@@ -47,13 +51,9 @@ export async function generateExecutionGraph(eventName: string): Promise<ExecGra
 
 class GraphGenerator extends PatternHandler {
   private graph: ExecGraph = new ExecGraph();
-  private activeOffset = 0;
 
   private genericHandler(env: Environment) {
-    this.graph.pushNode({
-      statement: env.activeUserData,
-      next: ++this.activeOffset,
-    });
+    this.graph.pushNode(new ExecGraphNode(env.getActiveUserData()));
   }
 
   override async handleExpression(_: Expr, env: Environment) {
@@ -70,15 +70,10 @@ class GraphGenerator extends PatternHandler {
       return this.genericHandler(env);
     }
     const module = fetchModule(moduleName);
-    const record = module.getRecord(parts.getEntryName());
+    const record = module.getRecord(escapeQueryName(parts.getEntryName()));
     if (record.type == RecordType.EVENT) {
       if (isAgentEvent(record)) {
-        this.graph.pushNode({
-          statement: env.activeUserData,
-          next: ++this.activeOffset,
-          subGraphIndex: -1,
-          subGraphType: SubGraphType.AGENT,
-        });
+        this.graph.pushNode(new ExecGraphNode(env.getActiveUserData(), -1, SubGraphType.AGENT));
         return;
       } else {
         const g = await generateExecutionGraph(crudMap.name);
@@ -92,24 +87,28 @@ class GraphGenerator extends PatternHandler {
 
   override async handleForEach(forEach: ForEach, env: Environment) {
     const handler = new GraphGenerator();
-    await evaluatePattern(forEach.src, env, handler);
+    const srcEnv = Environment.from(env).setActiveUserData(forEach.src);
+    await evaluatePattern(forEach.src, srcEnv, handler);
     const srcg = handler.getGraph();
     const g = await graphFromStatements(forEach.statements);
-    srcg.pushSubGraph(g, 0);
+    srcg.pushSubGraph(g);
     this.addSubGraph(SubGraphType.FOR_EACH, srcg, env);
   }
 
   override async handleIf(ifStmt: If, env: Environment) {
     const handler = new GraphGenerator();
-    await handler.handleExpression(ifStmt.cond, env);
+    await handler.handleExpression(
+      ifStmt.cond,
+      Environment.from(env).setActiveUserData(ifStmt.cond)
+    );
     const cond = handler.getGraph();
     const conseq = await graphFromStatements(ifStmt.statements);
-    cond.pushSubGraph(conseq, 0);
+    cond.pushSubGraph(conseq);
     if (ifStmt.else != undefined) {
       const alter = await graphFromStatements(ifStmt.else.statements);
-      cond.pushSubGraph(alter, 0);
+      cond.pushSubGraph(alter);
     } else {
-      cond.pushSubGraph(ExecGraph.Empty, 0);
+      cond.pushSubGraph(ExecGraph.Empty);
     }
     this.addSubGraph(SubGraphType.IF, cond, env);
   }
@@ -135,13 +134,10 @@ class GraphGenerator extends PatternHandler {
   }
 
   private addSubGraph(subGraphType: SubGraphType, g: ExecGraph, env: Environment) {
-    this.graph.pushSubGraph(g, this.activeOffset);
-    this.graph.pushNode({
-      statement: env.activeUserData,
-      subGraphIndex: this.graph.getSubGraphsLength() - 1,
-      subGraphType: subGraphType,
-      next: ++this.activeOffset,
-    });
+    this.graph.pushSubGraph(g);
+    this.graph.pushNode(
+      new ExecGraphNode(env.getActiveUserData(), this.graph.getSubGraphsLength() - 1, subGraphType)
+    );
   }
 }
 
@@ -156,7 +152,7 @@ async function graphFromStatements(
   }
   for (let i = 0; i < stmts.length; ++i) {
     const stmt = stmts[i];
-    env.activeUserData = stmt;
+    env.setActiveUserData(stmt);
     await evaluatePattern(stmt.pattern, env, handler);
   }
   return handler.getGraph().setActiveModuleName(activeModuleName);
@@ -164,6 +160,7 @@ async function graphFromStatements(
 
 export async function executeGraph(execGraph: ExecGraph, env: Environment): Promise<any> {
   const activeModuleName = execGraph.getActiveModuleName();
+  env.setGraphExecMode(true);
   let oldModule: string | undefined = undefined;
   if (activeModuleName) {
     oldModule = env.switchActiveModuleName(activeModuleName);
@@ -172,8 +169,8 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
     const walker = new ExecGraphWalker(execGraph);
     while (walker.hasNext()) {
       const node = walker.nextNode();
-      if (!node.subGraphIndex) {
-        await evaluateStatement(node.statement, env);
+      if (node.subGraphIndex == -1) {
+        await evaluateStatement(node.code as Statement, env);
       } else {
         const subg = execGraph.fetchSubGraphAt(node.subGraphIndex);
         switch (node.subGraphType) {
@@ -206,7 +203,7 @@ async function executeEventSubGraph(
   triggeringNode: ExecGraphNode,
   env: Environment
 ) {
-  await evaluateStatement(triggeringNode.statement, env);
+  await evaluateStatement(triggeringNode.code as Statement, env);
   const eventInst: Instance = env.getLastResult();
   const newEnv = new Environment(`${eventInst.name}-env`, env);
   newEnv.bind(eventInst.name, eventInst);
@@ -219,10 +216,11 @@ async function executeForEachSubGraph(
   triggeringNode: ExecGraphNode,
   env: Environment
 ) {
-  await executeGraph(subGraph, env);
+  await evaluatePattern(subGraph.getRootNodes()[0].code as Pattern, env);
   const rs: any[] = env.getLastResult();
   if (rs.length > 0) {
-    const loopVar = triggeringNode.statement.pattern.forEach?.var || 'x';
+    const stmt = triggeringNode.code as Statement;
+    const loopVar = stmt.pattern.forEach?.var || 'x';
     const loopEnv: Environment = Environment.from(env);
     const loopg = subGraph.fetchForEachBodySubGraph();
     const finalResult = new Array<any>();
@@ -238,7 +236,7 @@ async function executeForEachSubGraph(
 }
 
 async function executeIfSubGraph(subGraph: ExecGraph, env: Environment) {
-  await executeGraph(subGraph, env);
+  await evaluateExpression(subGraph.getRootNodes()[0].code as Expr, env);
   const newEnv = Environment.from(env);
   if (env.getLastResult()) {
     const conseq = subGraph.fetchIfConsequentSubGraph();
@@ -260,7 +258,7 @@ async function executeAgentSubGraph(
   env: Environment
 ) {
   // TODO: planner agents should be allowed to extend the exec-graph
-  await evaluateStatement(triggeringNode.statement, env);
+  await evaluateStatement(triggeringNode.code as Statement, env);
 }
 
 export async function executeEvent(eventInstance: Instance, env?: Environment): Promise<any> {
@@ -270,7 +268,7 @@ export async function executeEvent(eventInstance: Instance, env?: Environment): 
     env = new Environment(`${fqn}-env`);
     isLocalEnv = true;
   }
-  const g = GraphCache.get(fqn) || (await generateExecutionGraph(fqn));
+  const g = await generateExecutionGraph(fqn);
   if (!g) {
     throw new Error(`Failed to generate graph for event ${fqn}`);
   }
@@ -292,11 +290,19 @@ export async function executeEvent(eventInstance: Instance, env?: Environment): 
   }
 }
 
-export async function executeStatment(stmt: string, env?: Environment): Promise<any> {
-  return await excuteStatements([stmt], env);
+export async function executeStatment(
+  stmt: string,
+  env?: Environment,
+  activeModule?: string
+): Promise<any> {
+  return await excuteStatements([stmt], env, activeModule);
 }
 
-export async function excuteStatements(stmts: string[], env?: Environment): Promise<any> {
+export async function excuteStatements(
+  stmts: string[],
+  env?: Environment,
+  activeModule?: string
+): Promise<any> {
   const mod: ModuleDefinition = await parseModule(
     `module Temp\nworkflow TempEvent { ${stmts.join(';')} }`
   );
@@ -306,6 +312,10 @@ export async function excuteStatements(stmts: string[], env?: Environment): Prom
     if (env == undefined) {
       env = new Environment(`stmt-exec-env`);
       isLocalEnv = true;
+    }
+    let oldModuleName: string | undefined = undefined;
+    if (activeModule) {
+      oldModuleName = env.switchActiveModuleName(activeModule);
     }
     try {
       await executeGraph(g, env);
@@ -318,6 +328,10 @@ export async function excuteStatements(stmts: string[], env?: Environment): Prom
         await env.rollbackAllTransactions();
       }
       throw err;
+    } finally {
+      if (oldModuleName) {
+        env.switchActiveModuleName(oldModuleName);
+      }
     }
   } else {
     throw new Error('Failed to extract workflow-statement');
