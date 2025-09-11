@@ -93,11 +93,18 @@ export function setSubscriptionFn(f: Function) {
 export const ForceReadPermFlag = 'f-r-f';
 export const FlowSuspensionTag = `--`;
 
+export enum SubGraphType {
+  EVENT,
+  IF,
+  FOR_EACH,
+  AGENT,
+}
+
 export type ExecGraphNode = {
   statement: Statement;
   next: number;
-  generic: boolean;
   subGraphIndex?: number;
+  subGraphType?: SubGraphType;
 };
 
 export class ExecGraph {
@@ -105,6 +112,12 @@ export class ExecGraph {
   subGraphs: ExecGraph[];
   parentGraph: ExecGraph | undefined = undefined;
   parentOffset: number = -1;
+
+  static Empty = new ExecGraph();
+
+  static isEmpty(g: ExecGraph): boolean {
+    return Object.is(ExecGraph.Empty, g);
+  }
 
   constructor() {
     this.rootNodes = new Array<ExecGraphNode>();
@@ -123,8 +136,27 @@ export class ExecGraph {
     return this;
   }
 
-  subGraphLength(): number {
+  getSubGraphsLength(): number {
     return this.subGraphs.length;
+  }
+
+  fetchSubGraphAt(index: number): ExecGraph {
+    if (index < 0 || index >= this.subGraphs.length) {
+      throw new Error(`Invalid sub-graph index: ${index}`);
+    }
+    return this.subGraphs[index];
+  }
+
+  fetchForEachBodySubGraph(): ExecGraph {
+    return this.fetchSubGraphAt(this.subGraphs.length - 1);
+  }
+
+  fetchIfConsequentSubGraph(): ExecGraph {
+    return this.fetchSubGraphAt(this.subGraphs.length - 2);
+  }
+
+  fetchIfAlternativeSubGraph(): ExecGraph {
+    return this.fetchSubGraphAt(this.subGraphs.length - 1);
   }
 }
 

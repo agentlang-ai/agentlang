@@ -9,7 +9,7 @@ import {
   Return,
   Statement,
 } from '../language/generated/ast.js';
-import { ExecGraph, ExecGraphWalker } from './defs.js';
+import { ExecGraph, ExecGraphNode, ExecGraphWalker, SubGraphType } from './defs.js';
 import {
   DocEventName,
   Environment,
@@ -20,6 +20,7 @@ import {
 import {
   fetchModule,
   getWorkflowForEvent,
+  Instance,
   isAgentEvent,
   isEmptyWorkflow,
   RecordType,
@@ -39,11 +40,10 @@ class GraphGenerator extends PatternHandler {
   private graph: ExecGraph = new ExecGraph();
   private activeOffset = 0;
 
-  private genericHandler(env: Environment, generic: boolean = true) {
+  private genericHandler(env: Environment) {
     this.graph.pushNode({
       statement: env.activeUserData,
       next: ++this.activeOffset,
-      generic: generic,
     });
   }
 
@@ -64,11 +64,18 @@ class GraphGenerator extends PatternHandler {
     const record = module.getRecord(parts.getEntryName());
     if (record.type == RecordType.EVENT) {
       if (isAgentEvent(record)) {
-        return this.genericHandler(env, false);
-      }
-      const g = await generateExecutionGraph(crudMap.name);
-      if (g) {
-        return this.addSubGraph(g, env);
+        this.graph.pushNode({
+          statement: env.activeUserData,
+          next: ++this.activeOffset,
+          subGraphIndex: -1,
+          subGraphType: SubGraphType.AGENT,
+        });
+        return;
+      } else {
+        const g = await generateExecutionGraph(crudMap.name);
+        if (g) {
+          return this.addSubGraph(SubGraphType.EVENT, g, env);
+        }
       }
     }
     this.genericHandler(env);
@@ -80,7 +87,7 @@ class GraphGenerator extends PatternHandler {
     const srcg = handler.getGraph();
     const g = await graphFromStatements(forEach.statements);
     srcg.pushSubGraph(g, 0);
-    this.addSubGraph(srcg, env);
+    this.addSubGraph(SubGraphType.FOR_EACH, srcg, env);
   }
 
   override async handleIf(ifStmt: If, env: Environment) {
@@ -88,12 +95,14 @@ class GraphGenerator extends PatternHandler {
     await handler.handleExpression(ifStmt.cond, env);
     const cond = handler.getGraph();
     const conseq = await graphFromStatements(ifStmt.statements);
+    cond.pushSubGraph(conseq, 0);
     if (ifStmt.else != undefined) {
       const alter = await graphFromStatements(ifStmt.else.statements);
-      conseq.pushSubGraph(alter, 0);
+      cond.pushSubGraph(alter, 0);
+    } else {
+      cond.pushSubGraph(ExecGraph.Empty, 0);
     }
-    cond.pushSubGraph(conseq, 0);
-    this.addSubGraph(cond, env);
+    this.addSubGraph(SubGraphType.IF, cond, env);
   }
 
   override async handleDelete(_: Delete, env: Environment) {
@@ -116,13 +125,13 @@ class GraphGenerator extends PatternHandler {
     return this.graph;
   }
 
-  private addSubGraph(g: ExecGraph, env: Environment) {
+  private addSubGraph(subGraphType: SubGraphType, g: ExecGraph, env: Environment) {
     this.graph.pushSubGraph(g, this.activeOffset);
     this.graph.pushNode({
       statement: env.activeUserData,
-      subGraphIndex: this.graph.subGraphLength() - 1,
+      subGraphIndex: this.graph.getSubGraphsLength() - 1,
+      subGraphType: subGraphType,
       next: ++this.activeOffset,
-      generic: false,
     });
   }
 }
@@ -142,10 +151,88 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
   const walker = new ExecGraphWalker(execGraph);
   while (walker.hasNext()) {
     const node = walker.nextNode();
-    if (node.generic) {
+    if (!node.subGraphIndex) {
       await evaluateStatement(node.statement, env);
     } else {
-      // TODO: deal with special handling of graph-node
+      const subg = execGraph.fetchSubGraphAt(node.subGraphIndex);
+      switch (node.subGraphType) {
+        case SubGraphType.EVENT:
+          await executeEventSubGraph(subg, node, env);
+          break;
+        case SubGraphType.IF:
+          await executeIfSubGraph(subg, env);
+          break;
+        case SubGraphType.FOR_EACH:
+          await executeForEachSubGraph(subg, node, env);
+          break;
+        case SubGraphType.AGENT:
+          await executeAgentSubGraph(subg, node, env);
+          break;
+        default:
+          throw new Error(`Invalid sub-graph type: ${node.subGraphType}`);
+      }
     }
   }
+}
+
+async function executeEventSubGraph(
+  subGraph: ExecGraph,
+  triggeringNode: ExecGraphNode,
+  env: Environment
+) {
+  await evaluateStatement(triggeringNode.statement, env);
+  const eventInst: Instance = env.getLastResult();
+  const newEnv = new Environment(`${eventInst.name}-env`, env);
+  newEnv.bind(eventInst.name, eventInst);
+  await executeGraph(subGraph, newEnv);
+  env.setLastResult(newEnv.getLastResult());
+}
+
+async function executeForEachSubGraph(
+  subGraph: ExecGraph,
+  triggeringNode: ExecGraphNode,
+  env: Environment
+) {
+  await executeGraph(subGraph, env);
+  const rs: any[] = env.getLastResult();
+  if (rs.length > 0) {
+    const loopVar = triggeringNode.statement.pattern.forEach?.var || 'x';
+    const loopEnv: Environment = Environment.from(env);
+    const loopg = subGraph.fetchForEachBodySubGraph();
+    const finalResult = new Array<any>();
+    for (let i = 0; i < rs.length; ++i) {
+      loopEnv.bind(loopVar, rs[i]);
+      await executeGraph(loopg, loopEnv);
+      finalResult.push(loopEnv.getLastResult());
+    }
+    env.setLastResult(finalResult);
+  } else {
+    env.setLastResult([]);
+  }
+}
+
+async function executeIfSubGraph(subGraph: ExecGraph, env: Environment) {
+  await executeGraph(subGraph, env);
+  const newEnv = Environment.from(env);
+  if (env.getLastResult()) {
+    const conseq = subGraph.fetchIfConsequentSubGraph();
+    await executeGraph(conseq, newEnv);
+  } else {
+    const alter = subGraph.fetchIfAlternativeSubGraph();
+    if (ExecGraph.isEmpty(alter)) {
+      newEnv.setLastResult(false);
+    } else {
+      await executeGraph(alter, newEnv);
+    }
+  }
+  env.setLastResult(newEnv.getLastResult());
+}
+
+async function executeAgentSubGraph(
+  subGraph: ExecGraph,
+  triggeringNode: ExecGraphNode,
+  env: Environment
+) {
+  // TODO: planner agents should be allowed to extend the exec-graph
+  await evaluateStatement(triggeringNode.statement, env);
 }

@@ -138,6 +138,7 @@ export class Environment extends Instance {
   private inKernelMode: boolean = false;
   private suspensionId: string | undefined;
   private activeCatchHandlers: Array<CatchHandlers>;
+  private graphExecMode: boolean = false;
 
   activeUserData: any = undefined;
 
@@ -574,6 +575,15 @@ export class Environment extends Instance {
       throw new Error(`No more handlers to pop`);
     }
     return r;
+  }
+
+  setGraphExecMode(flag: boolean): Environment {
+    this.graphExecMode = flag;
+    return this;
+  }
+
+  isInGraphExecMode(): boolean {
+    return this.graphExecMode;
   }
 }
 
@@ -1288,12 +1298,16 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
     }
   } else if (isEventInstance(inst)) {
-    if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
-    else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
-    else if (isDocEventInstance(inst)) await handleDocEvent(inst, env);
-    else {
-      await evaluate(inst, (result: Result) => env.setLastResult(result), env);
-      env.resetReturnFlag();
+    if (env.isInGraphExecMode()) {
+      env.setLastResult(inst);
+    } else {
+      if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
+      else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
+      else if (isDocEventInstance(inst)) await handleDocEvent(inst, env);
+      else {
+        await evaluate(inst, (result: Result) => env.setLastResult(result), env);
+        env.resetReturnFlag();
+      }
     }
   } else {
     env.setLastResult(inst);
