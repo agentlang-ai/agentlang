@@ -5,7 +5,7 @@ import { executeEvent, executeStatment as executeStatement } from '../../src/run
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../../src/runtime/module.js';
 
 describe('Basic exec-graph evaluation', () => {
-  test('test01', async () => {
+  test('basic-crud', async () => {
     await doInternModule(
           'eg01',
           `entity E {
@@ -19,24 +19,38 @@ describe('Basic exec-graph evaluation', () => {
             {E {id? findE.id}} @as [e]
             e
           }
+          workflow deleteE {
+            delete {findE {id deleteE.id}}
+          }
           `)
     const mke = (id: number, x: number) => {
         return makeInstance('eg01', 'createE', newInstanceAttributes().set('id', id).set('x', x))
     }
     const cre = async (id: number, x: number) => {
-        const r01: Instance = await executeEvent(mke(id,x))
-        assert(isInstanceOfType(r01, 'eg01/E'))
-        assert(r01.lookup('id') == id && r01.lookup('x') == x)
+        const e: Instance = await executeEvent(mke(id,x))
+        chkE(e, id)
+        assert(e.lookup('x') == x)
+    }
+    const chkE = (e: Instance, id: number) => {
+        assert(isInstanceOfType(e, 'eg01/E'))
+        assert(e.lookup('id') == id)
     }
     await cre(1, 100)
     await cre(2, 200)
     const r02: Instance[] = await executeStatement(`{eg01/E {id? 1}}`)
     assert(r02.length == 1)
-    assert(isInstanceOfType(r02[0], 'eg01/E'))
-    assert(r02[0].lookup('id') == 1)
-    const finde = makeInstance('eg01', 'findE', newInstanceAttributes().set('id', 2))
+    chkE(r02[0], 1)
+    const attrs2 = newInstanceAttributes().set('id', 2)
+    const finde = makeInstance('eg01', 'findE', attrs2)
     const r03: Instance = await executeEvent(finde)
-    assert(isInstanceOfType(r03, 'eg01/E'))
-    assert(r03.lookup('id') == 2)
+    chkE(r03, 2)
+    const dele = makeInstance('eg01', 'deleteE', attrs2)
+    const r04: Instance = await executeEvent(dele)
+    chkE(r04, 2)
+    const r05 = await executeEvent(finde)
+    assert(r05 == null)
+    attrs2.set('id', 1)
+    const r06: Instance = await executeEvent(finde)
+    chkE(r06, 1)
   })
 })
