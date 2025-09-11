@@ -108,10 +108,11 @@ export type ExecGraphNode = {
 };
 
 export class ExecGraph {
-  rootNodes: ExecGraphNode[];
-  subGraphs: ExecGraph[];
-  parentGraph: ExecGraph | undefined = undefined;
-  parentOffset: number = -1;
+  private rootNodes: ExecGraphNode[];
+  private subGraphs: ExecGraph[];
+  private parentGraph: ExecGraph | undefined = undefined;
+  private parentOffset: number = -1;
+  private activeModuleName: string | undefined;
 
   static Empty = new ExecGraph();
 
@@ -158,16 +159,37 @@ export class ExecGraph {
   fetchIfAlternativeSubGraph(): ExecGraph {
     return this.fetchSubGraphAt(this.subGraphs.length - 1);
   }
+
+  getRootNodes(): ExecGraphNode[] {
+    return this.rootNodes;
+  }
+
+  setActiveModuleName(moduleName: string | undefined): ExecGraph {
+    if (moduleName) this.activeModuleName = moduleName;
+    return this;
+  }
+
+  getActiveModuleName(): string | undefined {
+    return this.activeModuleName;
+  }
+
+  getParentGraph(): ExecGraph | undefined {
+    return this.parentGraph;
+  }
+
+  getParentOffset(): number {
+    return this.parentOffset;
+  }
 }
 
 export class ExecGraphWalker {
-  private execGraph: ExecGraph;
   private offset = 0;
   private maxOffset: number;
+  private rootNodes;
 
   constructor(execGraph: ExecGraph) {
-    this.execGraph = execGraph;
-    this.maxOffset = this.execGraph.rootNodes.length;
+    this.rootNodes = execGraph.getRootNodes();
+    this.maxOffset = this.rootNodes.length;
   }
 
   hasNext(): boolean {
@@ -176,7 +198,7 @@ export class ExecGraphWalker {
 
   nextNode(): ExecGraphNode {
     if (this.offset < this.maxOffset) {
-      return this.execGraph.rootNodes[this.offset++];
+      return this.rootNodes[this.offset++];
     }
     throw new Error('End of execution-graph');
   }

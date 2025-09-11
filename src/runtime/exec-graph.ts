@@ -28,10 +28,16 @@ import {
 import { isOpenApiModule } from './openapi.js';
 import { splitFqName } from './util.js';
 
+const GraphCache = new Map<string, ExecGraph>();
+
 export async function generateExecutionGraph(eventName: string): Promise<ExecGraph | undefined> {
   const wf = getWorkflowForEvent(eventName);
+  const parts = splitFqName(eventName);
+  const moduleName = parts.hasModule() ? parts.getModuleName() : undefined;
   if (!isEmptyWorkflow(wf)) {
-    return await graphFromStatements(wf.statements);
+    const g = await graphFromStatements(wf.statements, moduleName);
+    GraphCache.set(eventName, g);
+    return g;
   }
   return undefined;
 }
@@ -56,7 +62,7 @@ class GraphGenerator extends PatternHandler {
       return this.genericHandler(env);
     }
     const parts = splitFqName(crudMap.name);
-    const moduleName = parts.getModuleName();
+    const moduleName = parts.hasModule() ? parts.getModuleName() : env.getActiveModuleName();
     if (isOpenApiModule(moduleName)) {
       return this.genericHandler(env);
     }
@@ -136,41 +142,58 @@ class GraphGenerator extends PatternHandler {
   }
 }
 
-async function graphFromStatements(stmts: Statement[]): Promise<ExecGraph> {
+async function graphFromStatements(
+  stmts: Statement[],
+  activeModuleName?: string
+): Promise<ExecGraph> {
   const handler = new GraphGenerator();
   const env = Environment.EmptyEnvironment;
+  if (activeModuleName) {
+    env.switchActiveModuleName(activeModuleName);
+  }
   for (let i = 0; i < stmts.length; ++i) {
     const stmt = stmts[i];
     env.activeUserData = stmt;
     await evaluatePattern(stmt.pattern, env, handler);
   }
-  return handler.getGraph();
+  return handler.getGraph().setActiveModuleName(activeModuleName);
 }
 
 export async function executeGraph(execGraph: ExecGraph, env: Environment): Promise<any> {
-  const walker = new ExecGraphWalker(execGraph);
-  while (walker.hasNext()) {
-    const node = walker.nextNode();
-    if (!node.subGraphIndex) {
-      await evaluateStatement(node.statement, env);
-    } else {
-      const subg = execGraph.fetchSubGraphAt(node.subGraphIndex);
-      switch (node.subGraphType) {
-        case SubGraphType.EVENT:
-          await executeEventSubGraph(subg, node, env);
-          break;
-        case SubGraphType.IF:
-          await executeIfSubGraph(subg, env);
-          break;
-        case SubGraphType.FOR_EACH:
-          await executeForEachSubGraph(subg, node, env);
-          break;
-        case SubGraphType.AGENT:
-          await executeAgentSubGraph(subg, node, env);
-          break;
-        default:
-          throw new Error(`Invalid sub-graph type: ${node.subGraphType}`);
+  const activeModuleName = execGraph.getActiveModuleName();
+  let oldModule: string | undefined = undefined;
+  if (activeModuleName) {
+    oldModule = env.switchActiveModuleName(activeModuleName);
+  }
+  try {
+    const walker = new ExecGraphWalker(execGraph);
+    while (walker.hasNext()) {
+      const node = walker.nextNode();
+      if (!node.subGraphIndex) {
+        await evaluateStatement(node.statement, env);
+      } else {
+        const subg = execGraph.fetchSubGraphAt(node.subGraphIndex);
+        switch (node.subGraphType) {
+          case SubGraphType.EVENT:
+            await executeEventSubGraph(subg, node, env);
+            break;
+          case SubGraphType.IF:
+            await executeIfSubGraph(subg, env);
+            break;
+          case SubGraphType.FOR_EACH:
+            await executeForEachSubGraph(subg, node, env);
+            break;
+          case SubGraphType.AGENT:
+            await executeAgentSubGraph(subg, node, env);
+            break;
+          default:
+            throw new Error(`Invalid sub-graph type: ${node.subGraphType}`);
+        }
       }
+    }
+  } finally {
+    if (oldModule) {
+      env.switchActiveModuleName(oldModule);
     }
   }
 }
@@ -235,4 +258,33 @@ async function executeAgentSubGraph(
 ) {
   // TODO: planner agents should be allowed to extend the exec-graph
   await evaluateStatement(triggeringNode.statement, env);
+}
+
+export async function executeEvent(eventInstance: Instance, env?: Environment): Promise<any> {
+  const fqn = eventInstance.getFqName();
+  let isLocalEnv = false;
+  if (env == undefined) {
+    env = new Environment(`${fqn}-env`);
+    isLocalEnv = true;
+  }
+  const g = GraphCache.get(fqn) || (await generateExecutionGraph(fqn));
+  if (!g) {
+    throw new Error(`Failed to generate graph for event ${fqn}`);
+  }
+  const oldModuleName = env.switchActiveModuleName(eventInstance.moduleName);
+  env.bind(eventInstance.name, eventInstance);
+  try {
+    await executeGraph(g, env);
+    if (isLocalEnv) {
+      await env.commitAllTransactions();
+    }
+    return env.getLastResult();
+  } catch (err: any) {
+    if (isLocalEnv) {
+      await env.rollbackAllTransactions();
+    }
+    throw err;
+  } finally {
+    if (!isLocalEnv) env.switchActiveModuleName(oldModuleName);
+  }
 }
