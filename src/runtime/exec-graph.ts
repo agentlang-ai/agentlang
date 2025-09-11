@@ -5,10 +5,13 @@ import {
   ForEach,
   FullTextSearch,
   If,
+  isWorkflowDefinition,
+  ModuleDefinition,
   Purge,
   Return,
   Statement,
 } from '../language/generated/ast.js';
+import { parseModule } from '../language/parser.js';
 import { ExecGraph, ExecGraphNode, ExecGraphWalker, SubGraphType } from './defs.js';
 import {
   DocEventName,
@@ -286,5 +289,37 @@ export async function executeEvent(eventInstance: Instance, env?: Environment): 
     throw err;
   } finally {
     if (!isLocalEnv) env.switchActiveModuleName(oldModuleName);
+  }
+}
+
+export async function executeStatment(stmt: string, env?: Environment): Promise<any> {
+  return await excuteStatements([stmt], env);
+}
+
+export async function excuteStatements(stmts: string[], env?: Environment): Promise<any> {
+  const mod: ModuleDefinition = await parseModule(
+    `module Temp\nworkflow TempEvent { ${stmts.join(';')} }`
+  );
+  if (isWorkflowDefinition(mod.defs[0])) {
+    const g = await graphFromStatements(mod.defs[0].statements);
+    let isLocalEnv = false;
+    if (env == undefined) {
+      env = new Environment(`stmt-exec-env`);
+      isLocalEnv = true;
+    }
+    try {
+      await executeGraph(g, env);
+      if (isLocalEnv) {
+        await env.commitAllTransactions();
+      }
+      return env.getLastResult();
+    } catch (err: any) {
+      if (isLocalEnv) {
+        await env.rollbackAllTransactions();
+      }
+      throw err;
+    }
+  } else {
+    throw new Error('Failed to extract workflow-statement');
   }
 }
