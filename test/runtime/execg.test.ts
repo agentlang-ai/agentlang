@@ -27,7 +27,11 @@ describe('Basic exec-graph evaluation', () => {
           }
           workflow createRs {
             for e in {E? {}} {
+              if (e.x = 100) {
                 {R {y e.x * 10}}
+              } else {
+                {R {y e.x * 4}}
+              }
             } @as rs;
             rs
           }
@@ -57,7 +61,7 @@ describe('Basic exec-graph evaluation', () => {
     assert(rs.every((inst: Instance) => {
       assert(isInstanceOfType(inst, 'exg01/R'))
       const y = inst.lookup('y')
-      return y == 1000 || y == 2000
+      return y == 1000 || y == 800
     }))
     const dele = makeInstance('exg01', 'deleteE', attrs2)
     const r04: Instance = await executeEvent(dele)

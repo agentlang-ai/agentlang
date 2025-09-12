@@ -238,7 +238,7 @@ async function executeForEachSubGraph(
   if (rs.length > 0) {
     const stmt = triggeringNode.code as Statement;
     const loopVar = stmt.pattern.forEach?.var || 'x';
-    const loopEnv: Environment = Environment.from(env);
+    const loopEnv: Environment = new Environment('for-each-body-env', env);
     const loopg = subGraph.fetchForEachBodySubGraph();
     const finalResult = new Array<any>();
     for (let i = 0; i < rs.length; ++i) {
@@ -254,7 +254,7 @@ async function executeForEachSubGraph(
 
 async function executeIfSubGraph(subGraph: ExecGraph, env: Environment) {
   await evaluateExpression(subGraph.getRootNodes()[0].code as Expr, env);
-  const newEnv = Environment.from(env);
+  const newEnv = new Environment('cond-env', env);
   if (env.getLastResult()) {
     const conseq = subGraph.fetchIfConsequentSubGraph();
     await executeGraph(conseq, newEnv);
