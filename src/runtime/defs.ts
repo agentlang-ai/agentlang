@@ -97,6 +97,9 @@ export enum SubGraphType {
   EVENT,
   IF,
   FOR_EACH,
+  DELETE,
+  PURGE,
+  RETURN,
   AGENT,
   NONE,
 }

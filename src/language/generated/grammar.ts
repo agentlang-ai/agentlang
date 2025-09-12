@@ -3734,7 +3734,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           },
           {
             "$type": "Assignment",
-            "feature": "pat",
+            "feature": "pattern",
             "operator": "=",
             "terminal": {
               "$type": "RuleCall",

@@ -53,18 +53,19 @@ describe('Basic exec-graph evaluation', () => {
     const finde = makeInstance('exg01', 'findE', attrs2)
     const r03: Instance = await executeEvent(finde)
     chkE(r03, 2)
-    // TODO: fix pattern evaluation for for-each
-    //const rs: Instance[] = await executeStatement(`{exg01/createRs {}}`)
-    //console.log(rs)
-
-    // TODO: delete and purge will need sub-graphs (to evaluate the query-pattern)
-    /*const dele = makeInstance('exg01', 'deleteE', attrs2)
+    const rs: Instance[] = await executeStatement(`{exg01/createRs {}}`)
+    assert(rs.every((inst: Instance) => {
+      assert(isInstanceOfType(inst, 'exg01/R'))
+      const y = inst.lookup('y')
+      return y == 1000 || y == 2000
+    }))
+    const dele = makeInstance('exg01', 'deleteE', attrs2)
     const r04: Instance = await executeEvent(dele)
     chkE(r04, 2)
     const r05 = await executeEvent(finde)
     assert(r05 == null)
     attrs2.set('id', 1)
     const r06: Instance = await executeEvent(finde)
-    chkE(r06, 1)*/
+    chkE(r06, 1)
   })
 })

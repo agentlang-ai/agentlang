@@ -138,7 +138,7 @@ export class Environment extends Instance {
   private inKernelMode: boolean = false;
   private suspensionId: string | undefined;
   private activeCatchHandlers: Array<CatchHandlers>;
-  private graphExecMode: boolean = false;
+  private eventExecutor: Function | undefined = undefined;
 
   private activeUserData: any = undefined;
 
@@ -162,7 +162,7 @@ export class Environment extends Instance {
       this.inKernelMode = parent.inKernelMode;
       this.activeCatchHandlers = parent.activeCatchHandlers;
       this.suspensionId = parent.suspensionId;
-      this.graphExecMode = parent.graphExecMode;
+      this.eventExecutor = parent.eventExecutor;
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
@@ -171,8 +171,6 @@ export class Environment extends Instance {
       this.attributes.set('process', process);
     }
   }
-
-  public static EmptyEnvironment = new Environment();
 
   static from(
     parent: Environment,
@@ -578,13 +576,13 @@ export class Environment extends Instance {
     return r;
   }
 
-  setGraphExecMode(flag: boolean): Environment {
-    this.graphExecMode = flag;
+  setEventExecutor(exec: Function): Environment {
+    this.eventExecutor = exec;
     return this;
   }
 
-  isInGraphExecMode(): boolean {
-    return this.graphExecMode;
+  getEventExecutor(): Function | undefined {
+    return this.eventExecutor;
   }
 
   setActiveUserData(data: any): Environment {
@@ -811,7 +809,7 @@ async function maybeHandleError(
   }
 }
 
-function maybeBindStatementResultToAlias(hints: RuntimeHint[], env: Environment) {
+export function maybeBindStatementResultToAlias(hints: RuntimeHint[], env: Environment) {
   for (let i = 0; i < hints.length; ++i) {
     const rh = hints[i];
     if (rh.aliasSpec) {
@@ -929,7 +927,7 @@ export class PatternHandler {
   }
 
   async handleReturn(ret: Return, env: Environment) {
-    await evaluatePattern(ret.pat, env);
+    await evaluatePattern(ret.pattern, env);
   }
 }
 
@@ -1308,8 +1306,9 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
     }
   } else if (isEventInstance(inst)) {
-    if (env.isInGraphExecMode()) {
-      env.setLastResult(inst);
+    const eventExec = env.getEventExecutor();
+    if (eventExec) {
+      await eventExec(inst, env);
     } else {
       if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
       else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
@@ -1716,11 +1715,19 @@ async function evaluateDeleteHelper(
 ): Promise<void> {
   const newEnv = Environment.from(env).setInDeleteMode(true);
   await evaluatePattern(pattern, newEnv);
-  const inst: Instance[] | Instance = newEnv.getLastResult();
+  await maybeDeleteQueriedInstances(newEnv, env, purge);
+}
+
+export async function maybeDeleteQueriedInstances(
+  queryEnv: Environment,
+  env: Environment,
+  purge: boolean = false
+): Promise<void> {
+  const inst: Instance[] | Instance = queryEnv.getLastResult();
   let resolver: Resolver = Resolver.Default;
   if (inst instanceof Array) {
     if (inst.length > 0) {
-      resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, newEnv);
+      resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, queryEnv);
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
         await runPreDeleteEvents(inst[i], env);
@@ -1728,18 +1735,18 @@ async function evaluateDeleteHelper(
         await runPostDeleteEvents(inst[i], env);
         finalResult.push(r);
       }
-      newEnv.setLastResult(finalResult);
+      queryEnv.setLastResult(finalResult);
     } else {
-      newEnv.setLastResult(inst);
+      queryEnv.setLastResult(inst);
     }
   } else {
-    resolver = await getResolverForPath(inst.name, inst.moduleName, newEnv);
+    resolver = await getResolverForPath(inst.name, inst.moduleName, queryEnv);
     await runPreDeleteEvents(inst, env);
     const r: Instance | null = await resolver.deleteInstance(inst, purge);
     await runPostDeleteEvents(inst, env);
-    newEnv.setLastResult(r);
+    queryEnv.setLastResult(r);
   }
-  env.setLastResult(newEnv.getLastResult());
+  env.setLastResult(queryEnv.getLastResult());
 }
 
 async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> {

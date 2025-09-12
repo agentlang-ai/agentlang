@@ -127,7 +127,7 @@ SelectIntoEntry: alias=ID attribute=Ref;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
-Return: 'return' pat=Pattern;
+Return: 'return' pattern=Pattern;
 
 AgentDefinition: 'agent' name=GenericName (body=GenericDefBody? | '{''}');
 
