@@ -260,10 +260,12 @@ async function executeIfSubGraph(subGraph: ExecGraph, env: Environment) {
     await executeGraph(conseq, newEnv);
   } else {
     const alter = subGraph.fetchIfAlternativeSubGraph();
-    if (ExecGraph.isEmpty(alter)) {
-      newEnv.setLastResult(false);
-    } else {
-      await executeGraph(alter, newEnv);
+    if (alter) {
+      if (ExecGraph.isEmpty(alter)) {
+        newEnv.setLastResult(false);
+      } else {
+        await executeGraph(alter, newEnv);
+      }
     }
   }
   env.setLastResult(newEnv.getLastResult());

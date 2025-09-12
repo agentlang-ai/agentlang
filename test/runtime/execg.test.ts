@@ -1,7 +1,7 @@
 // Exec-graph tests
 import { assert, describe, test } from 'vitest';
 import { doInternModule } from '../util.js';
-import { executeEvent, executeStatment as executeStatement } from '../../src/runtime/exec-graph.js';
+import { executeEvent, executeStatment as executeStatement, generateExecutionGraph } from '../../src/runtime/exec-graph.js';
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../../src/runtime/module.js';
 
 describe('Basic exec-graph evaluation', () => {
@@ -71,5 +71,10 @@ describe('Basic exec-graph evaluation', () => {
     attrs2.set('id', 1)
     const r06: Instance = await executeEvent(finde)
     chkE(r06, 1)
+    const exg = await generateExecutionGraph('exg01/createRs')
+    if (exg) {
+      const obj = exg.asObject()
+      console.log(obj)
+    }
   })
 })

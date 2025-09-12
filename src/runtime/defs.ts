@@ -106,7 +106,7 @@ export enum SubGraphType {
 
 export class ExecGraphNode {
   code: Statement | Pattern | Expr;
-  codeAtr: string | undefined;
+  codeStr: string | undefined;
   subGraphIndex: number;
   subGraphType: SubGraphType;
 
@@ -116,9 +116,17 @@ export class ExecGraphNode {
     subGraphType: SubGraphType = SubGraphType.NONE
   ) {
     this.code = statement;
-    this.codeAtr = this.code.$cstNode?.text;
+    this.codeStr = this.code.$cstNode?.text;
     this.subGraphType = subGraphType;
     this.subGraphIndex = subGraphIndex;
+  }
+
+  asObject(): any {
+    const r: any = { code: this.codeStr };
+    if (this.subGraphType != SubGraphType.NONE) {
+      r.type = SubGraphType[this.subGraphType];
+    }
+    return r;
   }
 }
 
@@ -166,11 +174,19 @@ export class ExecGraph {
   }
 
   fetchIfConsequentSubGraph(): ExecGraph {
-    return this.fetchSubGraphAt(this.subGraphs.length - 2);
+    if (this.subGraphs.length >= 2) {
+      return this.fetchSubGraphAt(this.subGraphs.length - 2);
+    } else {
+      return this.fetchSubGraphAt(this.subGraphs.length - 1);
+    }
   }
 
-  fetchIfAlternativeSubGraph(): ExecGraph {
-    return this.fetchSubGraphAt(this.subGraphs.length - 1);
+  fetchIfAlternativeSubGraph(): ExecGraph | undefined {
+    if (this.subGraphs.length >= 2) {
+      return this.fetchSubGraphAt(this.subGraphs.length - 1);
+    } else {
+      return undefined;
+    }
   }
 
   getRootNodes(): ExecGraphNode[] {
@@ -188,6 +204,34 @@ export class ExecGraph {
 
   getParentGraph(): ExecGraph | undefined {
     return this.parentGraph;
+  }
+
+  asObject(): any[] {
+    const nodeObjs = new Array<any>();
+    this.rootNodes.forEach((node: ExecGraphNode) => {
+      const n = node.asObject();
+      if (node.subGraphIndex >= 0) {
+        const g = this.subGraphs[node.subGraphIndex];
+        const gobj = g.asObject();
+        if (node.subGraphType == SubGraphType.FOR_EACH) {
+          const stmt = node.code as Statement;
+          n.var = stmt.pattern.forEach?.var;
+          n.source = gobj;
+          n.body = g.fetchForEachBodySubGraph().asObject();
+        } else if (node.subGraphType == SubGraphType.IF) {
+          n.condition = gobj;
+          n.body = g.fetchIfConsequentSubGraph().asObject();
+          const a = g.fetchIfAlternativeSubGraph();
+          if (a) {
+            n.else = a.asObject();
+          }
+        } else {
+          n.subGraph = gobj;
+        }
+      }
+      nodeObjs.push(n);
+    });
+    return nodeObjs;
   }
 }
 
