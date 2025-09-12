@@ -74,6 +74,7 @@ describe('Basic exec-graph evaluation', () => {
     const exg = await generateExecutionGraph('exg01/createRs')
     if (exg) {
       const obj = exg.asObject()
+      // TODO: assert structure of obj
       console.log(obj)
     }
   })
