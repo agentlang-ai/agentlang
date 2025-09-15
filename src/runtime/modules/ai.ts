@@ -1,5 +1,10 @@
 import { isFqName, makeCoreModuleName, makeFqName, splitFqName } from '../util.js';
-import { Environment, GlobalEnvironment, parseAndEvaluateStatement } from '../interpreter.js';
+import {
+  Environment,
+  GlobalEnvironment,
+  makeEventEvaluator,
+  parseAndEvaluateStatement,
+} from '../interpreter.js';
 import {
   fetchModule,
   Instance,
@@ -16,7 +21,7 @@ import {
   humanMessage,
   systemMessage,
 } from '../agents/provider.js';
-import { BaseMessage } from '@langchain/core/messages';
+import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
 import { FlowExecInstructions, FlowStep, PlannerInstructions } from '../agents/common.js';
 import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
@@ -76,7 +81,7 @@ event doc {
 
 export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
-// const ProviderDb = new Map<string, AgentServiceProvider>();  // Disabled caching to ensure correct provider is always used
+const ProviderDb = new Map<string, AgentServiceProvider>();
 
 export class AgentInstance {
   llm: string = '';
@@ -182,9 +187,7 @@ export class AgentInstance {
     if (isflow) {
       this.withSession = false;
     }
-    const sess: Instance | null = this.withSession
-      ? await parseHelper(`{${CoreAIModuleName}/findAgentChatSession {id "${chatId}"}}`, env)
-      : null;
+    const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
     let msgs: BaseMessage[] | undefined;
     if (sess) {
       msgs = sess.lookup('messages');
@@ -207,10 +210,7 @@ export class AgentInstance {
           msgs[0] = sysMsg;
         }
         if (this.withSession) {
-          await parseHelper(
-            `{${CoreAIModuleName}/saveAgentChatSession {id "${chatId}", messages ${JSON.stringify(msgs)}}}`,
-            env
-          );
+          await saveAgentChatSession(chatId, msgs, env);
         }
         env.setLastResult(response.content);
       } catch (err: any) {
@@ -333,43 +333,86 @@ export async function findProviderForLLM(
   llmName: string,
   env: Environment
 ): Promise<AgentServiceProvider> {
-  // Always fetch the LLM to check its current service
-  const query = `{${CoreAIModuleName}/${LlmEntityName} {name? "${llmName}"}}`;
-  const result: Instance[] = await parseAndEvaluateStatement(query, undefined, env);
-
-  if (result.length > 0) {
-    const llm: Instance = result[0];
-    let service = llm.lookup('service');
-
-    // If service is not set or is null, use the default
-    if (!service || service === '' || service === null || service === undefined) {
-      service = 'openai';
-    }
-
-    // Ensure service is lowercase string for consistency
-    service = String(service).toLowerCase();
-
-    // ALWAYS create a new provider - no caching for now to avoid stale providers
-    const pclass = provider(service);
-    const configValue = llm.lookup('config');
-    const providerConfig: Map<string, any> = configValue
-      ? configValue instanceof Map
-        ? configValue
-        : new Map(Object.entries(configValue))
-      : new Map();
-
-    const p = new pclass(providerConfig);
-
-    if (p) {
-      return p;
-    }
-  } else {
-    throw new Error(
-      `LLM '${llmName}' not found. Please create it first with {agentlang.ai/LLM {name "${llmName}", service "...", config {...}}}`
+  let p: AgentServiceProvider | undefined = ProviderDb.get(llmName);
+  if (p == undefined) {
+    const result: Instance[] = await parseAndEvaluateStatement(
+      `{${CoreAIModuleName}/${LlmEntityName} {name? "${llmName}"}}`,
+      undefined,
+      env
     );
+    if (result.length > 0) {
+      const llm: Instance = result[0];
+      const service = llm.lookup('service');
+      const pclass = provider(service);
+      const configValue = llm.lookup('config');
+      const providerConfig: Map<string, any> = configValue
+        ? configValue instanceof Map
+          ? configValue
+          : new Map(Object.entries(configValue))
+        : new Map().set('service', service);
+      p = new pclass(providerConfig);
+      if (p) ProviderDb.set(llmName, p);
+    }
   }
+  if (p) {
+    return p;
+  } else {
+    throw new Error(`Failed to load provider for ${llmName}`);
+  }
+}
 
-  throw new Error(`Failed to load provider for ${llmName}`);
+const evalEvent = makeEventEvaluator(CoreAIModuleName);
+
+type GenericMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+};
+
+function asBaseMessages(gms: GenericMessage[]): BaseMessage[] {
+  return gms.map((gm: GenericMessage): BaseMessage => {
+    switch (gm.role) {
+      case 'user': {
+        return humanMessage(gm.content);
+      }
+      case 'assistant': {
+        return assistantMessage(gm.content);
+      }
+      default: {
+        return systemMessage(gm.content);
+      }
+    }
+  });
+}
+
+function asGenericMessages(bms: BaseMessage[]): GenericMessage[] {
+  return bms.map((bm: BaseMessage): GenericMessage => {
+    if (bm instanceof HumanMessage) {
+      return { role: 'user', content: bm.text };
+    } else if (bm instanceof AIMessage) {
+      return { role: 'assistant', content: bm.text };
+    } else {
+      return { role: 'system', content: bm.text };
+    }
+  });
+}
+
+export async function findAgentChatSession(
+  chatId: string,
+  env: Environment
+): Promise<Instance | null> {
+  const result: Instance | null = await evalEvent('findAgentChatSession', { id: chatId }, env);
+  if (result) {
+    result.attributes.set('messages', asBaseMessages(JSON.parse(result.lookup('messages'))));
+  }
+  return result;
+}
+
+export async function saveAgentChatSession(chatId: string, messages: any[], env: Environment) {
+  await evalEvent(
+    'saveAgentChatSession',
+    { id: chatId, messages: JSON.stringify(asGenericMessages(messages)) },
+    env
+  );
 }
 
 export function agentName(agentInstance: Instance): string {
