@@ -36,6 +36,7 @@ export interface AnthropicConfig {
    * Enable extended thinking mode for Claude to show its reasoning process.
    * When enabled, responses include thinking blocks showing Claude's thought process.
    * Requires minimum budgetTokens of 1024 and counts towards maxTokens.
+   * NOTE: When thinking is enabled, temperature cannot be customized and will use default.
    * Useful for complex reasoning, problem-solving, and transparency.
    * @see https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking
    */
@@ -147,6 +148,10 @@ export class AnthropicProvider implements AgentServiceProvider {
           `budgetTokens (${budgetTokens}) must be less than maxTokens (${this.config.maxTokens || 8192})`
         );
       }
+
+      // When thinking is enabled, temperature must not be customized
+      // Anthropic requires using default temperature with thinking mode
+      delete chatConfig.temperature;
 
       chatConfig.thinking = {
         type: 'enabled',
@@ -381,6 +386,10 @@ export class AnthropicProvider implements AgentServiceProvider {
           `budgetTokens (${budgetTokens}) must be less than maxTokens (${this.config.maxTokens || 8192})`
         );
       }
+
+      // When thinking is enabled, temperature must not be customized
+      // Anthropic requires using default temperature with thinking mode
+      delete chatConfig.temperature;
 
       // Add thinking configuration to the ChatAnthropic constructor
       chatConfig.thinking = {
