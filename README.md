@@ -7,7 +7,11 @@
 
 AgentLang is the **easiest way** to build the **most reliable** AI agents. Build **teams of AI Agents** that really grok your requirements and follow your organization's processes closely, while adapting to new scenarios. Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
 
+<div align="center">
+
 ### **Open | Enterprise-grade | Production-ready**
+
+</div>
 
 AgentLang is also the industry's first "no-code programming language" for building anything involving agents - Fractl Studio (coming soon!) allows your to build and manage agents visually with no code, while the language enables the developer in you to build the same in your favorite IDE.
 
