@@ -7,8 +7,8 @@ import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from 
 describe('Basic exec-graph evaluation', () => {
   test('basic-patterns', async () => {
     await doInternModule(
-          'exg01',
-          `entity E {
+      'exg01',
+      `entity E {
             id Int @id,
             x Int 
           }
@@ -37,16 +37,16 @@ describe('Basic exec-graph evaluation', () => {
           }
           `)
     const mke = (id: number, x: number) => {
-        return makeInstance('exg01', 'createE', newInstanceAttributes().set('id', id).set('x', x))
+      return makeInstance('exg01', 'createE', newInstanceAttributes().set('id', id).set('x', x))
     }
     const cre = async (id: number, x: number) => {
-        const e: Instance = await executeEvent(mke(id,x))
-        chkE(e, id)
-        assert(e.lookup('x') == x)
+      const e: Instance = await executeEvent(mke(id, x))
+      chkE(e, id)
+      assert(e.lookup('x') == x)
     }
     const chkE = (e: Instance, id: number) => {
-        assert(isInstanceOfType(e, 'exg01/E'))
-        assert(e.lookup('id') == id)
+      assert(isInstanceOfType(e, 'exg01/E'))
+      assert(e.lookup('id') == id)
     }
     await cre(1, 100)
     await cre(2, 200)
@@ -78,4 +78,22 @@ describe('Basic exec-graph evaluation', () => {
       console.log(obj)
     }
   })
+  test('basic-agents', async () => {
+    if (process.env.AL_TEST === 'true') {
+      await doInternModule(
+        'exg02',
+        `entity Person {
+            email Email @id
+            name String
+          }
+          agent personManager {
+            instruction "Based on user request, create, update and delete persons",
+            tools [exg02/Person]
+          }
+          `)
+        const r01: Instance = await executeStatement(`{exg02/personManager {message "create Joe with email joe@acme.com"}}`)
+        assert(isInstanceOfType(r01, 'exg02/Person'))
+        assert(r01.lookup('email') == 'joe@acme.com' && r01.lookup('name') == 'Joe')
+      }
+    })
 })

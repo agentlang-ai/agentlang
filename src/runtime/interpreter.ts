@@ -139,6 +139,7 @@ export class Environment extends Instance {
   private suspensionId: string | undefined;
   private activeCatchHandlers: Array<CatchHandlers>;
   private eventExecutor: Function | undefined = undefined;
+  private statementsExecutor: Function | undefined = undefined;
 
   private activeUserData: any = undefined;
 
@@ -583,6 +584,25 @@ export class Environment extends Instance {
 
   getEventExecutor(): Function | undefined {
     return this.eventExecutor;
+  }
+
+  setStatementsExecutor(f: Function): Environment {
+    this.statementsExecutor = f;
+    return this;
+  }
+
+  getStatementsExecutor(): Function | undefined {
+    return this.statementsExecutor;
+  }
+
+  async callWithStatementsExecutor(exec: Function, f: Function): Promise<any> {
+    const oldExec = this.statementsExecutor;
+    this.statementsExecutor = exec;
+    try {
+      return await f();
+    } finally {
+      this.statementsExecutor = oldExec;
+    }
   }
 
   setActiveUserData(data: any): Environment {
@@ -1306,17 +1326,17 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
     }
   } else if (isEventInstance(inst)) {
-    const eventExec = env.getEventExecutor();
-    if (eventExec) {
-      await eventExec(inst, env);
-    } else {
-      if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
-      else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
-      else if (isDocEventInstance(inst)) await handleDocEvent(inst, env);
-      else {
+    if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
+    else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
+    else if (isDocEventInstance(inst)) await handleDocEvent(inst, env);
+    else {
+      const eventExec = env.getEventExecutor();
+      if (eventExec) {
+        await eventExec(inst, env);
+      } else {
         await evaluate(inst, (result: Result) => env.setLastResult(result), env);
-        env.resetReturnFlag();
       }
+      env.resetReturnFlag();
     }
   } else {
     env.setLastResult(inst);
@@ -1464,6 +1484,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   const r: string | undefined = env.getLastResult();
   const isPlanner = agent.isPlanner();
   let result: string | undefined = isPlanner ? cleanupAgentResponse(r) : r;
+  const stmtsExec = env.getStatementsExecutor();
   if (result) {
     if (isPlanner) {
       let retries = 0;
@@ -1487,9 +1508,18 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           }
           if (isWf) {
             const wf = await parseWorkflow(rs);
-            await evaluateStatements(wf.statements, env);
+            if (stmtsExec) {
+              await stmtsExec(wf.statements, env);
+            } else {
+              await evaluateStatements(wf.statements, env);
+            }
           } else {
-            env.setLastResult(await parseAndEvaluateStatement(rs, undefined, env));
+            if (stmtsExec) {
+              const stmt = await parseStatement(rs);
+              env.setLastResult(await stmtsExec([stmt], env));
+            } else {
+              env.setLastResult(await parseAndEvaluateStatement(rs, undefined, env));
+            }
           }
           break;
         } catch (err: any) {

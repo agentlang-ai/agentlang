@@ -135,6 +135,7 @@ export class ExecGraph {
   private subGraphs: ExecGraph[];
   private parentGraph: ExecGraph | undefined = undefined;
   private activeModuleName: string | undefined;
+  private hasAgentsFlag: boolean = false;
 
   static Empty = new ExecGraph();
 
@@ -160,6 +161,10 @@ export class ExecGraph {
 
   getSubGraphsLength(): number {
     return this.subGraphs.length;
+  }
+
+  getLastSubGraphIndex(): number {
+    return this.subGraphs.length - 1;
   }
 
   fetchSubGraphAt(index: number): ExecGraph {
@@ -204,6 +209,22 @@ export class ExecGraph {
 
   getParentGraph(): ExecGraph | undefined {
     return this.parentGraph;
+  }
+
+  setHasAgents(flag: boolean): ExecGraph {
+    this.hasAgentsFlag = flag;
+    if (this.parentGraph) {
+      this.parentGraph.setHasAgents(flag);
+    }
+    return this;
+  }
+
+  hasAgents(): boolean {
+    return this.hasAgentsFlag;
+  }
+
+  canCache(): boolean {
+    return !this.hasAgentsFlag;
   }
 
   asObject(): any[] {

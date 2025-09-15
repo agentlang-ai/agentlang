@@ -45,7 +45,7 @@ export async function generateExecutionGraph(eventName: string): Promise<ExecGra
   const moduleName = parts.hasModule() ? parts.getModuleName() : undefined;
   if (!isEmptyWorkflow(wf)) {
     const g = await graphFromStatements(wf.statements, moduleName);
-    GraphCache.set(eventName, g);
+    if (g.canCache()) GraphCache.set(eventName, g);
     return g;
   }
   return undefined;
@@ -76,7 +76,8 @@ class GraphGenerator extends PatternHandler {
     const record = module.getRecord(escapeQueryName(parts.getEntryName()));
     if (record.type == RecordType.EVENT) {
       if (isAgentEvent(record)) {
-        this.graph.pushNode(new ExecGraphNode(env.getActiveUserData(), -1, SubGraphType.AGENT));
+        this.graph.pushNode(new ExecGraphNode(env.getActiveUserData(), -2, SubGraphType.AGENT));
+        this.graph.setHasAgents(true);
         return;
       } else {
         const g = await generateExecutionGraph(crudName);
@@ -146,7 +147,7 @@ class GraphGenerator extends PatternHandler {
   private addSubGraph(subGraphType: SubGraphType, g: ExecGraph, env: Environment) {
     this.graph.pushSubGraph(g);
     this.graph.pushNode(
-      new ExecGraphNode(env.getActiveUserData(), this.graph.getSubGraphsLength() - 1, subGraphType)
+      new ExecGraphNode(env.getActiveUserData(), this.graph.getLastSubGraphIndex(), subGraphType)
     );
   }
 }
@@ -174,6 +175,15 @@ async function eventExecutor(eventInst: Instance, env: Environment) {
   env.setLastResult(newEnv.getLastResult());
 }
 
+function makeStatementsExecutor(execGraph: ExecGraph, triggeringNode: ExecGraphNode): Function {
+  return async (stmts: Statement[], env: Environment): Promise<any> => {
+    const g = await graphFromStatements(stmts, env.getActiveModuleName());
+    execGraph.pushSubGraph(g);
+    triggeringNode.subGraphIndex = execGraph.getLastSubGraphIndex();
+    return await executeGraph(g, env);
+  };
+}
+
 export async function executeGraph(execGraph: ExecGraph, env: Environment): Promise<any> {
   const activeModuleName = execGraph.getActiveModuleName();
   env.setEventExecutor(eventExecutor);
@@ -188,31 +198,32 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
       if (node.subGraphIndex == -1) {
         await evaluateStatement(node.code as Statement, env);
       } else {
-        const subg = execGraph.fetchSubGraphAt(node.subGraphIndex);
-        switch (node.subGraphType) {
-          case SubGraphType.EVENT:
-            await evaluateStatement(node.code as Statement, env);
-            break;
-          case SubGraphType.IF:
-            await executeIfSubGraph(subg, env);
-            break;
-          case SubGraphType.FOR_EACH:
-            await executeForEachSubGraph(subg, node, env);
-            break;
-          case SubGraphType.AGENT:
-            await executeAgentSubGraph(subg, node, env);
-            break;
-          case SubGraphType.DELETE:
-            await executeDeleteSubGraph(subg, node, env);
-            break;
-          case SubGraphType.PURGE:
-            await executePurgeSubGraph(subg, node, env);
-            break;
-          case SubGraphType.RETURN:
-            await executeReturnSubGraph(subg, env);
-            return;
-          default:
-            throw new Error(`Invalid sub-graph type: ${node.subGraphType}`);
+        if (node.subGraphType == SubGraphType.AGENT) {
+          await executeAgent(node, execGraph, env);
+        } else {
+          const subg = execGraph.fetchSubGraphAt(node.subGraphIndex);
+          switch (node.subGraphType) {
+            case SubGraphType.EVENT:
+              await evaluateStatement(node.code as Statement, env);
+              break;
+            case SubGraphType.IF:
+              await executeIfSubGraph(subg, env);
+              break;
+            case SubGraphType.FOR_EACH:
+              await executeForEachSubGraph(subg, node, env);
+              break;
+            case SubGraphType.DELETE:
+              await executeDeleteSubGraph(subg, node, env);
+              break;
+            case SubGraphType.PURGE:
+              await executePurgeSubGraph(subg, node, env);
+              break;
+            case SubGraphType.RETURN:
+              await executeReturnSubGraph(subg, env);
+              return;
+            default:
+              throw new Error(`Invalid sub-graph type: ${node.subGraphType}`);
+          }
         }
         maybeSetAlias(node, env);
       }
@@ -271,13 +282,11 @@ async function executeIfSubGraph(subGraph: ExecGraph, env: Environment) {
   env.setLastResult(newEnv.getLastResult());
 }
 
-async function executeAgentSubGraph(
-  subGraph: ExecGraph,
-  triggeringNode: ExecGraphNode,
-  env: Environment
-) {
-  // TODO: planner agents should be allowed to extend the exec-graph
-  await evaluateStatement(triggeringNode.code as Statement, env);
+async function executeAgent(triggeringNode: ExecGraphNode, execGraph: ExecGraph, env: Environment) {
+  await env.callWithStatementsExecutor(
+    makeStatementsExecutor(execGraph, triggeringNode),
+    async () => await evaluateStatement(triggeringNode.code as Statement, env)
+  );
 }
 
 async function executeReturnSubGraph(subGraph: ExecGraph, env: Environment) {
