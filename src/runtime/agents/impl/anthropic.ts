@@ -183,37 +183,55 @@ export class AnthropicProvider implements AgentServiceProvider {
       temperature: config.get('temperature') ?? defaultConfig.temperature,
       maxTokens: config.get('maxTokens') || config.get('max_tokens') || defaultConfig.maxTokens,
       maxRetries: config.get('maxRetries') || config.get('max_retries') || defaultConfig.maxRetries,
-      enablePromptCaching:
-        config.get('enablePromptCaching') ||
-        config.get('enable_prompt_caching') ||
-        defaultConfig.enablePromptCaching,
+      enablePromptCaching: (() => {
+        const value = config.get('enablePromptCaching') || config.get('enable_prompt_caching');
+        console.log(`Enable Prompt Caching value is: ${value}`);
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        return value || defaultConfig.enablePromptCaching;
+      })(),
       cacheControl:
         config.get('cacheControl') || config.get('cache_control') || defaultConfig.cacheControl,
-      enableThinking:
-        config.get('enableThinking') ||
-        config.get('enable_thinking') ||
-        config.get('thinking') ||
-        defaultConfig.enableThinking,
+      enableThinking: (() => {
+        const value =
+          config.get('enableThinking') || config.get('enable_thinking') || config.get('thinking');
+        console.log(`Enable Thinking value is: ${value}`);
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        return value || defaultConfig.enableThinking;
+      })(),
       budgetTokens:
         config.get('budgetTokens') ||
         config.get('budget_tokens') ||
         config.get('thinking_budget') ||
         defaultConfig.budgetTokens,
-      enableExtendedOutput:
-        config.get('enableExtendedOutput') ||
-        config.get('enable_extended_output') ||
-        config.get('extendedOutput') ||
-        defaultConfig.enableExtendedOutput,
-      enableInterleavedThinking:
-        config.get('enableInterleavedThinking') ||
-        config.get('enable_interleaved_thinking') ||
-        config.get('interleavedThinking') ||
-        defaultConfig.enableInterleavedThinking,
-      enableFineGrainedToolStreaming:
-        config.get('enableFineGrainedToolStreaming') ||
-        config.get('enable_fine_grained_tool_streaming') ||
-        config.get('fineGrainedToolStreaming') ||
-        defaultConfig.enableFineGrainedToolStreaming,
+      enableExtendedOutput: (() => {
+        const value =
+          config.get('enableExtendedOutput') ||
+          config.get('enable_extended_output') ||
+          config.get('extendedOutput');
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        return value || defaultConfig.enableExtendedOutput;
+      })(),
+      enableInterleavedThinking: (() => {
+        const value =
+          config.get('enableInterleavedThinking') ||
+          config.get('enable_interleaved_thinking') ||
+          config.get('interleavedThinking');
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        return value || defaultConfig.enableInterleavedThinking;
+      })(),
+      enableFineGrainedToolStreaming: (() => {
+        const value =
+          config.get('enableFineGrainedToolStreaming') ||
+          config.get('enable_fine_grained_tool_streaming') ||
+          config.get('fineGrainedToolStreaming');
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        return value || defaultConfig.enableFineGrainedToolStreaming;
+      })(),
       apiKey,
       clientOptions: config.get('clientOptions') || config.get('client_options'),
     };
