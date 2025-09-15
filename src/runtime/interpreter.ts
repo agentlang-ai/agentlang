@@ -617,7 +617,7 @@ export class Environment extends Instance {
 
 export const GlobalEnvironment = new Environment();
 
-export async function evaluate(
+export let evaluate = async function (
   eventInstance: Instance,
   continuation?: Function,
   activeEnv?: Environment,
@@ -669,6 +669,12 @@ export async function evaluate(
       await env.commitAllTransactions();
     }
   }
+};
+
+export function setEvaluateFn(f: any): Function {
+  const oldf = evaluate;
+  evaluate = f;
+  return oldf;
 }
 
 export async function evaluateAsEvent(
@@ -885,7 +891,7 @@ function maybeFindThenStatements(hints: RuntimeHint[]): Statement[] | undefined 
   return undefined;
 }
 
-export async function parseAndEvaluateStatement(
+export let parseAndEvaluateStatement = async function (
   stmtString: string,
   activeUserId?: string,
   actievEnv?: Environment
@@ -915,6 +921,12 @@ export async function parseAndEvaluateStatement(
       }
     }
   }
+};
+
+export function setParseAndEvaluateStatementFn(f: any): Function {
+  const oldf = parseAndEvaluateStatement;
+  parseAndEvaluateStatement = f;
+  return oldf;
 }
 
 export class PatternHandler {
@@ -1545,7 +1557,10 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   }
 }
 
-async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
+export async function handleAgentInvocation(
+  agentEventInst: Instance,
+  env: Environment
+): Promise<void> {
   const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
   const origMsg: any = agentEventInst.lookup('message');
   const msg: string = isString(origMsg) ? origMsg : agentInputAsString(origMsg);
@@ -1693,7 +1708,7 @@ function cleanupAgentResponse(response: string | undefined): string | undefined 
   }
 }
 
-async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
+export async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
   const r = await invokeOpenApiEvent(
     eventInst.moduleName,
     eventInst.name,

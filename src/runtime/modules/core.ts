@@ -4,7 +4,6 @@ import { DefaultModuleName, DefaultModules, escapeSpecialChars } from '../util.j
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../module.js';
 import {
   Environment,
-  evaluate,
   evaluateStatements,
   parseAndEvaluateStatement,
   restartFlow,
@@ -14,6 +13,7 @@ import { Statement } from '../../language/generated/ast.js';
 import { parseStatements } from '../../language/parser.js';
 import { Resolver } from '../resolvers/interface.js';
 import { FlowSuspensionTag, ForceReadPermFlag, PathAttributeName } from '../defs.js';
+import { evaluate } from '../interpreter.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 

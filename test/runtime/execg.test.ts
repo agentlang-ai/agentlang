@@ -1,7 +1,7 @@
 // Exec-graph tests
 import { assert, describe, test } from 'vitest';
 import { doInternModule } from '../util.js';
-import { executeEvent, executeStatment as executeStatement, generateExecutionGraph } from '../../src/runtime/exec-graph.js';
+import { executeEventHelper, executeStatement as executeStatement, generateExecutionGraph } from '../../src/runtime/exec-graph.js';
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../../src/runtime/module.js';
 
 describe('Basic exec-graph evaluation', () => {
@@ -40,7 +40,7 @@ describe('Basic exec-graph evaluation', () => {
       return makeInstance('exg01', 'createE', newInstanceAttributes().set('id', id).set('x', x))
     }
     const cre = async (id: number, x: number) => {
-      const e: Instance = await executeEvent(mke(id, x))
+      const e: Instance = await executeEventHelper(mke(id, x))
       chkE(e, id)
       assert(e.lookup('x') == x)
     }
@@ -55,7 +55,7 @@ describe('Basic exec-graph evaluation', () => {
     chkE(r02[0], 1)
     const attrs2 = newInstanceAttributes().set('id', 2)
     const finde = makeInstance('exg01', 'findE', attrs2)
-    const r03: Instance = await executeEvent(finde)
+    const r03: Instance = await executeEventHelper(finde)
     chkE(r03, 2)
     const rs: Instance[] = await executeStatement(`{exg01/createRs {}}`)
     assert(rs.every((inst: Instance) => {
@@ -64,12 +64,12 @@ describe('Basic exec-graph evaluation', () => {
       return y == 1000 || y == 800
     }))
     const dele = makeInstance('exg01', 'deleteE', attrs2)
-    const r04: Instance = await executeEvent(dele)
+    const r04: Instance = await executeEventHelper(dele)
     chkE(r04, 2)
-    const r05 = await executeEvent(finde)
+    const r05 = await executeEventHelper(finde)
     assert(r05 == null)
     attrs2.set('id', 1)
-    const r06: Instance = await executeEvent(finde)
+    const r06: Instance = await executeEventHelper(finde)
     chkE(r06, 1)
     const exg = await generateExecutionGraph('exg01/createRs')
     if (exg) {

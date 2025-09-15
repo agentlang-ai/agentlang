@@ -12,7 +12,7 @@ import {
   Return,
   Statement,
 } from '../language/generated/ast.js';
-import { parseModule } from '../language/parser.js';
+import { parseModule, parseStatement } from '../language/parser.js';
 import { ExecGraph, ExecGraphNode, ExecGraphWalker, SubGraphType } from './defs.js';
 import {
   DocEventName,
@@ -20,19 +20,25 @@ import {
   evaluateExpression,
   evaluatePattern,
   evaluateStatement,
+  handleAgentInvocation,
+  handleOpenApiEvent,
   maybeBindStatementResultToAlias,
   maybeDeleteQueriedInstances,
   PatternHandler,
+  setEvaluateFn,
+  setParseAndEvaluateStatementFn,
 } from './interpreter.js';
 import {
   fetchModule,
   getWorkflowForEvent,
   Instance,
   isAgentEvent,
+  isAgentEventInstance,
   isEmptyWorkflow,
+  isEventInstance,
   RecordType,
 } from './module.js';
-import { isOpenApiModule } from './openapi.js';
+import { isOpenApiEventInstance, isOpenApiModule } from './openapi.js';
 import { escapeQueryName, makeFqName, splitFqName } from './util.js';
 
 const GraphCache = new Map<string, ExecGraph>();
@@ -171,16 +177,19 @@ async function graphFromStatements(
 
 async function eventExecutor(eventInst: Instance, env: Environment) {
   const newEnv = new Environment(`${eventInst.name}-env`, env);
-  await executeEvent(eventInst, newEnv);
+  await executeEventHelper(eventInst, newEnv);
   env.setLastResult(newEnv.getLastResult());
 }
 
 function makeStatementsExecutor(execGraph: ExecGraph, triggeringNode: ExecGraphNode): Function {
   return async (stmts: Statement[], env: Environment): Promise<any> => {
     const g = await graphFromStatements(stmts, env.getActiveModuleName());
-    execGraph.pushSubGraph(g);
-    triggeringNode.subGraphIndex = execGraph.getLastSubGraphIndex();
-    return await executeGraph(g, env);
+    if (execGraph && triggeringNode) {
+      execGraph.pushSubGraph(g);
+      triggeringNode.subGraphIndex = execGraph.getLastSubGraphIndex();
+    }
+    await executeGraph(g, env);
+    return env.getLastResult();
   };
 }
 
@@ -194,6 +203,9 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
   try {
     const walker = new ExecGraphWalker(execGraph);
     while (walker.hasNext()) {
+      if (env.isMarkedForReturn()) {
+        break;
+      }
       const node = walker.nextNode();
       if (node.subGraphIndex == -1) {
         await evaluateStatement(node.code as Statement, env);
@@ -285,12 +297,16 @@ async function executeIfSubGraph(subGraph: ExecGraph, env: Environment) {
 async function executeAgent(triggeringNode: ExecGraphNode, execGraph: ExecGraph, env: Environment) {
   await env.callWithStatementsExecutor(
     makeStatementsExecutor(execGraph, triggeringNode),
-    async () => await evaluateStatement(triggeringNode.code as Statement, env)
+    async () => {
+      await evaluateStatement(triggeringNode.code as Statement, env);
+      return env.getLastResult();
+    }
   );
 }
 
 async function executeReturnSubGraph(subGraph: ExecGraph, env: Environment) {
   await evaluateFirstPattern(subGraph, env);
+  env.markForReturn();
 }
 
 async function executeDeleteSubGraph(subGraph: ExecGraph, node: ExecGraphNode, env: Environment) {
@@ -307,7 +323,52 @@ async function executePurgeSubGraph(subGraph: ExecGraph, node: ExecGraphNode, en
   maybeSetAlias(node, env);
 }
 
-export async function executeEvent(eventInstance: Instance, env?: Environment): Promise<any> {
+export async function executeEvent(
+  eventInstance: Instance,
+  continuation?: Function,
+  activeEnv?: Environment,
+  kernelCall?: boolean
+): Promise<any> {
+  const env: Environment = new Environment(eventInstance.name + '.env', activeEnv);
+  let txnRolledBack: boolean = false;
+  try {
+    if (isEventInstance(eventInstance)) {
+      env.setActiveEvent(eventInstance);
+      if (kernelCall) {
+        env.setInKernelMode(true);
+      }
+      await executeEventHelper(eventInstance, env);
+    } else if (isAgentEventInstance(eventInstance)) {
+      env.setStatementsExecutor(executeStatements);
+      await handleAgentInvocation(eventInstance, env);
+    }
+    const r = env.getLastResult();
+    if (continuation) continuation(r);
+    return r;
+  } catch (err) {
+    if (env && env.hasHandlers()) {
+      throw err;
+    } else {
+      if (env != undefined && activeEnv == undefined) {
+        await env.rollbackAllTransactions().then(() => {
+          txnRolledBack = true;
+        });
+      }
+      throw err;
+    }
+  } finally {
+    if (!txnRolledBack && env != undefined && activeEnv == undefined) {
+      await env.commitAllTransactions();
+    }
+  }
+}
+
+export async function executeEventHelper(eventInstance: Instance, env?: Environment): Promise<any> {
+  if (isOpenApiEventInstance(eventInstance)) {
+    env = env || new Environment();
+    await handleOpenApiEvent(eventInstance, env);
+    return env.getLastResult();
+  }
   const fqn = eventInstance.getFqName();
   let isLocalEnv = false;
   if (env == undefined) {
@@ -336,15 +397,15 @@ export async function executeEvent(eventInstance: Instance, env?: Environment): 
   }
 }
 
-export async function executeStatment(
+export async function executeStatement(
   stmt: string,
   env?: Environment,
   activeModule?: string
 ): Promise<any> {
-  return await excuteStatements([stmt], env, activeModule);
+  return await executeStatements([stmt], env, activeModule);
 }
 
-export async function excuteStatements(
+export async function executeStatements(
   stmts: string[],
   env?: Environment,
   activeModule?: string
@@ -353,34 +414,78 @@ export async function excuteStatements(
     `module Temp\nworkflow TempEvent { ${stmts.join(';')} }`
   );
   if (isWorkflowDefinition(mod.defs[0])) {
-    const g = await graphFromStatements(mod.defs[0].statements);
-    let isLocalEnv = false;
-    if (env == undefined) {
-      env = new Environment(`stmt-exec-env`);
-      isLocalEnv = true;
-    }
-    let oldModuleName: string | undefined = undefined;
-    if (activeModule) {
-      oldModuleName = env.switchActiveModuleName(activeModule);
-    }
-    try {
-      await executeGraph(g, env);
-      if (isLocalEnv) {
-        await env.commitAllTransactions();
-      }
-      return env.getLastResult();
-    } catch (err: any) {
-      if (isLocalEnv) {
-        await env.rollbackAllTransactions();
-      }
-      throw err;
-    } finally {
-      if (oldModuleName) {
-        env.switchActiveModuleName(oldModuleName);
-      }
-    }
+    return await executeStatementsHelper(mod.defs[0].statements, env, activeModule);
   } else {
     throw new Error('Failed to extract workflow-statement');
+  }
+}
+
+async function executeStatementsHelper(
+  stmts: Statement[],
+  env?: Environment,
+  activeModule?: string
+): Promise<any> {
+  const g = await graphFromStatements(stmts);
+  let isLocalEnv = false;
+  if (env == undefined) {
+    env = new Environment(`stmt-exec-env`);
+    isLocalEnv = true;
+  }
+  let oldModuleName: string | undefined = undefined;
+  if (activeModule) {
+    oldModuleName = env.switchActiveModuleName(activeModule);
+  }
+  try {
+    await executeGraph(g, env);
+    if (isLocalEnv) {
+      await env.commitAllTransactions();
+    }
+    return env.getLastResult();
+  } catch (err: any) {
+    if (isLocalEnv) {
+      await env.rollbackAllTransactions();
+    }
+    throw err;
+  } finally {
+    if (oldModuleName) {
+      env.switchActiveModuleName(oldModuleName);
+    }
+  }
+}
+
+async function executeStatementHelper(stmt: Statement, env: Environment): Promise<any> {
+  return await executeStatementsHelper([stmt], env);
+}
+
+export async function parseAndExecuteStatement(
+  stmtString: string,
+  activeUserId?: string,
+  actievEnv?: Environment
+): Promise<any> {
+  const env = actievEnv ? actievEnv : new Environment();
+  if (activeUserId) {
+    env.setActiveUser(activeUserId);
+  }
+  let commit: boolean = true;
+  try {
+    const stmt: Statement = await parseStatement(stmtString);
+    if (stmt) {
+      await executeStatementHelper(stmt, env);
+      return env.getLastResult();
+    } else {
+      commit = false;
+    }
+  } catch (err) {
+    commit = false;
+    throw err;
+  } finally {
+    if (!actievEnv) {
+      if (commit) {
+        await env.commitAllTransactions();
+      } else {
+        await env.rollbackAllTransactions();
+      }
+    }
   }
 }
 
@@ -390,4 +495,24 @@ function maybeSetAlias(node: ExecGraphNode, env: Environment) {
   if (hints && hints.length > 0) {
     maybeBindStatementResultToAlias(hints, env);
   }
+}
+
+export type EvalFns = {
+  evaluate: Function;
+  parseAndEvaluateStatement: Function;
+};
+
+export function enableExecutionGraph(): EvalFns {
+  const e = setEvaluateFn(executeEvent);
+  const es = setParseAndEvaluateStatementFn(parseAndExecuteStatement);
+  return { evaluate: e, parseAndEvaluateStatement: es };
+}
+
+export function disableExecutionGraph(oldFns: EvalFns): boolean {
+  if (oldFns.evaluate && oldFns.parseAndEvaluateStatement) {
+    setEvaluateFn(oldFns.evaluate);
+    setParseAndEvaluateStatementFn(oldFns.parseAndEvaluateStatement);
+    return true;
+  }
+  return false;
 }
