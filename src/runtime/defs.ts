@@ -137,6 +137,7 @@ export class ExecGraph {
   private parentGraph: ExecGraph | undefined = undefined;
   private activeModuleName: string | undefined;
   private hasAgentsFlag: boolean = false;
+  private loopBody: boolean = false;
 
   static Empty = new ExecGraph();
 
@@ -228,6 +229,15 @@ export class ExecGraph {
     return !this.hasAgentsFlag;
   }
 
+  setIsLoopBody(): ExecGraph {
+    this.loopBody = true;
+    return this;
+  }
+
+  isLoopBody(): boolean {
+    return this.loopBody;
+  }
+
   asObject(): any[] {
     const nodeObjs = new Array<any>();
     this.rootNodes.forEach((node: ExecGraphNode) => {
@@ -276,5 +286,18 @@ export class ExecGraphWalker {
       return this.rootNodes[this.offset++];
     }
     throw new Error('End of execution-graph');
+  }
+
+  currentNode(): ExecGraphNode {
+    if (this.offset > 0) {
+      return this.rootNodes[this.offset - 1];
+    } else {
+      return this.rootNodes[0];
+    }
+  }
+
+  reset(): ExecGraphWalker {
+    this.offset = 0;
+    return this;
   }
 }

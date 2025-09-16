@@ -1,33 +1,58 @@
-import { assert, describe, test } from "vitest"
-import { provider } from "../../src/runtime/agents/registry.js"
-import { AgentServiceProvider, AIResponse, humanMessage, systemMessage } from "../../src/runtime/agents/provider.js"
-import { doInternModule } from "../util.js"
-import { parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
-import { Agent, fetchModule, Instance, isInstanceOfType, newInstanceAttributes } from "../../src/runtime/module.js"
-import { WorkflowDefinition } from "../../src/language/generated/ast.js"
-import { parseWorkflow } from "../../src/language/parser.js"
-import { addWorkflowFromDef } from "../../src/runtime/loader.js"
+import { assert, describe, test } from 'vitest';
+import { provider } from '../../src/runtime/agents/registry.js';
+import {
+  AgentServiceProvider,
+  AIResponse,
+  humanMessage,
+  systemMessage,
+} from '../../src/runtime/agents/provider.js';
+import { doInternModule } from '../util.js';
+import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
+import {
+  Agent,
+  fetchModule,
+  Instance,
+  isInstanceOfType,
+  newInstanceAttributes,
+} from '../../src/runtime/module.js';
+import { WorkflowDefinition } from '../../src/language/generated/ast.js';
+import { parseWorkflow } from '../../src/language/parser.js';
+import { addWorkflowFromDef } from '../../src/runtime/loader.js';
 
 describe('Agent API', () => {
   test('test01', async () => {
-    await doInternModule('AAPI', `entity E {id Int @id}`)
-    const m = fetchModule('AAPI')
-    const ae01 = new Agent('agent01', m.name, newInstanceAttributes().set('llm', 'llm01').set('tools', 'X, Y'))
-    m.addAgent(ae01)
-    const ae02 = new Agent('agent02', m.name, newInstanceAttributes().set('llm', 'llm02'))
-    m.addAgent(ae02)
-    let agentNames = m.getAgentNames()
-    assert(agentNames.length == 2)
-    assert(agentNames.find((n: string) => { return n == 'agent01' }))
-    assert(agentNames.find((n: string) => { return n == 'agent02' }))
-    m.removeAgent('agent01')
-    agentNames = m.getAgentNames()
-    assert(agentNames.length == 1)
-    assert(agentNames[0] == 'agent02')
-    const ae = m.getAgent('agent02')
-    ae?.attributes.set('tools', 'A, B')
-    const str = m.toString()
-    assert(str == `module AAPI
+    await doInternModule('AAPI', `entity E {id Int @id}`);
+    const m = fetchModule('AAPI');
+    const ae01 = new Agent(
+      'agent01',
+      m.name,
+      newInstanceAttributes().set('llm', 'llm01').set('tools', 'X, Y')
+    );
+    m.addAgent(ae01);
+    const ae02 = new Agent('agent02', m.name, newInstanceAttributes().set('llm', 'llm02'));
+    m.addAgent(ae02);
+    let agentNames = m.getAgentNames();
+    assert(agentNames.length == 2);
+    assert(
+      agentNames.find((n: string) => {
+        return n == 'agent01';
+      })
+    );
+    assert(
+      agentNames.find((n: string) => {
+        return n == 'agent02';
+      })
+    );
+    m.removeAgent('agent01');
+    agentNames = m.getAgentNames();
+    assert(agentNames.length == 1);
+    assert(agentNames[0] == 'agent02');
+    const ae = m.getAgent('agent02');
+    ae?.attributes.set('tools', 'A, B');
+    const str = m.toString();
+    assert(
+      str ==
+        `module AAPI
 
 entity E
 {
@@ -38,111 +63,141 @@ agent agent02
 {
     llm "llm02",
     tools "A, B"
-}`)
-  })
-})
+}`
+    );
+  });
+});
 
 if (process.env.AL_TEST === 'true') {
-
   describe('Basic module operations', () => {
     test('test02 - OpenAI', async () => {
       if (!process.env.OPENAI_API_KEY) {
-        console.log('Skipping OpenAI test - no API key')
-        return
+        console.log('Skipping OpenAI test - no API key');
+        return;
       }
-      const ai: AgentServiceProvider = new (provider("openai"))()
-      await ai.invoke([
-        systemMessage("Is the following number odd? Answer YES or NO."),
-        humanMessage("11")
-      ]).then((result: AIResponse) => {
-        assert(result.content == "YES", `Expected YES, got ${result.content}`)
-      })
-    })
+      const ai: AgentServiceProvider = new (provider('openai'))();
+      await ai
+        .invoke(
+          [systemMessage('Is the following number odd? Answer YES or NO.'), humanMessage('11')],
+          undefined
+        )
+        .then((result: AIResponse) => {
+          assert(result.content == 'YES', `Expected YES, got ${result.content}`);
+        });
+    });
 
     test('test03 - Anthropic', async () => {
       if (!process.env.ANTHROPIC_API_KEY) {
-        console.log('Skipping Anthropic test - no API key')
-        return
+        console.log('Skipping Anthropic test - no API key');
+        return;
       }
-      const ai: AgentServiceProvider = new (provider("anthropic"))()
-      await ai.invoke([
-        systemMessage("Is the following number odd? Answer YES or NO."),
-        humanMessage("11")
-      ]).then((result: AIResponse) => {
-        assert(result.content == "YES", `Expected YES, got ${result.content}`)
-      })
-    })
-  })
+      const ai: AgentServiceProvider = new (provider('anthropic'))();
+      await ai
+        .invoke(
+          [systemMessage('Is the following number odd? Answer YES or NO.'), humanMessage('11')],
+          undefined
+        )
+        .then((result: AIResponse) => {
+          assert(result.content == 'YES', `Expected YES, got ${result.content}`);
+        });
+    });
+  });
 
   describe('Simple chat agent', () => {
     test('test01', async () => {
-      await doInternModule('SimpleAIChat',
+      await doInternModule(
+        'SimpleAIChat',
         `agent simpleChatAgent
           {instruction "Is the following number odd? Answer YES or NO.",
            llm "simpleChatLLM"}
           workflow chat {
             {simpleChatAgent {message chat.N}}
           }
-          `)
-      assert("NO" == await parseAndEvaluateStatement(`{SimpleAIChat/chat {N "12"}}`), 'Expected response was NO')
-      assert("YES" == await parseAndEvaluateStatement(`{SimpleAIChat/chat {N "13"}}`), 'Expected response was YES')
-    })
-  })
+          `
+      );
+      assert(
+        'NO' == (await parseAndEvaluateStatement(`{SimpleAIChat/chat {N "12"}}`)),
+        'Expected response was NO'
+      );
+      assert(
+        'YES' == (await parseAndEvaluateStatement(`{SimpleAIChat/chat {N "13"}}`)),
+        'Expected response was YES'
+      );
+    });
+  });
 
   describe('Simple planner agent', () => {
     test('test01', async () => {
-      await doInternModule('SPA', `entity Person {id Int @id, name String, age Int}`)
-      await doInternModule('SimplePlannerAgent',
+      await doInternModule('SPA', `entity Person {id Int @id, name String, age Int}`);
+      await doInternModule(
+        'SimplePlannerAgent',
         `agent planner01
           {instruction "Based on the user request, create appropriate patterns based on the SPA module.",
            tools "SPA",
            runWorkflows false,
            llm "planner01_llm"}
           workflow chat {{planner01 {message chat.msg}}}
-          `)
+          `
+      );
       const k = async (ins: string) => {
-        return await parseAndEvaluateStatement(`{SimplePlannerAgent/chat {msg "${ins}"}}`)
-      }
-      type P = { id: number, name: string, age: number }
+        return await parseAndEvaluateStatement(`{SimplePlannerAgent/chat {msg "${ins}"}}`);
+      };
+      type P = { id: number; name: string; age: number };
       const cr = async (p: P) => {
-        return await k(`Create a new Person aged ${p.age} with id ${p.id} and name '${p.name}'. Return only the pattern, no need to return a complete workflow.`)
-      }
+        return await k(
+          `Create a new Person aged ${p.age} with id ${p.id} and name '${p.name}'. Return only the pattern, no need to return a complete workflow.`
+        );
+      };
       const chk = (inst: Instance | Instance[], p: P) => {
         if (inst instanceof Array) {
-          assert(inst.length == 1)
-          inst = inst[0]
+          assert(inst.length == 1);
+          inst = inst[0];
         }
-        assert(isInstanceOfType(inst, 'SPA/Person'))
-        assert(inst.lookup('id') == p.id && inst.lookup('age') == p.age && inst.lookup('name') == p.name)
-      }
-      const p1: P = { id: 101, name: 'Joe', age: 23 }
-      chk(await cr(p1), p1)
-      const p2: P = { id: 102, name: 'Mat', age: 34 }
-      chk(await cr(p2), p2)
-      let r: Instance[] = await k('Lookup person by id 101')
-      assert(r.length == 1)
-      chk(r[0], p1)
-      const ins = "Generate a workflow for creating new Persons. All attributes must be receieved via the event. "
-        .concat("The event should have an extra boolean attribute called X. ")
-        .concat("If X is set create the Person with age incremented by one, otherwise use the age as specified in the event. ")
-        .concat("(Only define the workflow, no need to define the event. Do not add additional quotes, etc to the workflow definition).")
-      const wfs: string = await k(ins)
-      const wf: WorkflowDefinition = await parseWorkflow(wfs)
-      addWorkflowFromDef(wf, 'SPA')
-      let p = { id: 103, name: "Chole", age: 11 }
-      chk(await parseAndEvaluateStatement(`{SPA/${wf.name} {id 103, name "Chole", age 10, X true}}`), p)
-      p = { id: 104, name: "Dew", age: 10 }
-      chk(await parseAndEvaluateStatement(`{SPA/${wf.name} {id 104, name "Dew", age 10, X false}}`), p)
-      r = await k('Lookup person by id 104')
-      assert(r.length == 1)
-      chk(r[0], p)
-    })
-  })
+        assert(isInstanceOfType(inst, 'SPA/Person'));
+        assert(
+          inst.lookup('id') == p.id && inst.lookup('age') == p.age && inst.lookup('name') == p.name
+        );
+      };
+      const p1: P = { id: 101, name: 'Joe', age: 23 };
+      chk(await cr(p1), p1);
+      const p2: P = { id: 102, name: 'Mat', age: 34 };
+      chk(await cr(p2), p2);
+      let r: Instance[] = await k('Lookup person by id 101');
+      assert(r.length == 1);
+      chk(r[0], p1);
+      const ins =
+        'Generate a workflow for creating new Persons. All attributes must be receieved via the event. '
+          .concat('The event should have an extra boolean attribute called X. ')
+          .concat(
+            'If X is set create the Person with age incremented by one, otherwise use the age as specified in the event. '
+          )
+          .concat(
+            '(Only define the workflow, no need to define the event. Do not add additional quotes, etc to the workflow definition).'
+          );
+      const wfs: string = await k(ins);
+      const wf: WorkflowDefinition = await parseWorkflow(wfs);
+      addWorkflowFromDef(wf, 'SPA');
+      let p = { id: 103, name: 'Chole', age: 11 };
+      chk(
+        await parseAndEvaluateStatement(`{SPA/${wf.name} {id 103, name "Chole", age 10, X true}}`),
+        p
+      );
+      p = { id: 104, name: 'Dew', age: 10 };
+      chk(
+        await parseAndEvaluateStatement(`{SPA/${wf.name} {id 104, name "Dew", age 10, X false}}`),
+        p
+      );
+      r = await k('Lookup person by id 104');
+      assert(r.length == 1);
+      chk(r[0], p);
+    });
+  });
 
   describe('Custom LLM provider', () => {
     test('test01', async () => {
-      const apiKey = process.env["OPENAI_API_KEY"]
-      await doInternModule('CustomLLM',
+      const apiKey = process.env['OPENAI_API_KEY'];
+      await doInternModule(
+        'CustomLLM',
         `{agentlang.ai/LLM {
             name "custom-test-llm",
             service "openai",
@@ -170,18 +225,21 @@ if (process.env.AL_TEST === 'true') {
           tools [CustomLLM/Employee]
         }
         `
-      )
-      const e = await parseAndEvaluateStatement(`{CustomLLM/empAgent {message "Employee id is 101 and name is Jacob"}}`)
-      assert(isInstanceOfType(e, 'CustomLLM/Employee'))
-      assert(e.lookup('id') == 101)
-      assert(e.lookup('name') == 'Jacob')
-    })
-  })
+      );
+      const e = await parseAndEvaluateStatement(
+        `{CustomLLM/empAgent {message "Employee id is 101 and name is Jacob"}}`
+      );
+      assert(isInstanceOfType(e, 'CustomLLM/Employee'));
+      assert(e.lookup('id') == 101);
+      assert(e.lookup('name') == 'Jacob');
+    });
+  });
 
   describe('Agent-chaining via output', () => {
     test('test01', async () => {
-      await doInternModule('OPA', `entity Person {id Int @id, name String, age Int}`)
-      await doInternModule('OutputAgent',
+      await doInternModule('OPA', `entity Person {id Int @id, name String, age Int}`);
+      await doInternModule(
+        'OutputAgent',
         `agent a01
           {instruction "Based on the user request, create appropriate patterns based on the OPA module.",
            tools "OPA",
@@ -191,24 +249,25 @@ if (process.env.AL_TEST === 'true') {
           {instruction "If the person's age is less than 18 return 'minor', else return 'major'.",
            llm "a01_llm"}
           workflow chat {{a01 {message chat.msg}}}
-          `)
+          `
+      );
       const k = async (ins: string) => {
-        return await parseAndEvaluateStatement(`{OutputAgent/chat {msg "${ins}"}}`)
-      }
-      type P = { id: number, name: string, age: number }
+        return await parseAndEvaluateStatement(`{OutputAgent/chat {msg "${ins}"}}`);
+      };
+      type P = { id: number; name: string; age: number };
       const cr = async (p: P) => {
-        return await k(`Create a new Person aged ${p.age} with id ${p.id} and name '${p.name}'. Return only the pattern, no need to return a complete workflow.`)
-      }
-      let r = await cr({ id: 1, name: "Joe", age: 20 })
-      assert(r == 'major')
-      r = await cr({ id: 2, name: "Mat", age: 15 })
-      assert(r == 'minor')
-    })
-  })
-
+        return await k(
+          `Create a new Person aged ${p.age} with id ${p.id} and name '${p.name}'. Return only the pattern, no need to return a complete workflow.`
+        );
+      };
+      let r = await cr({ id: 1, name: 'Joe', age: 20 });
+      assert(r == 'major');
+      r = await cr({ id: 2, name: 'Mat', age: 15 });
+      assert(r == 'minor');
+    });
+  });
 } else {
   describe('Skipping agent tests', () => {
-    test('test01', async () => {
-    })
-  })
+    test('test01', async () => {});
+  });
 }
