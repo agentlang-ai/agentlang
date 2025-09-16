@@ -1508,7 +1508,7 @@ async function iterateOnFlow(
   rootAgent.disableSession();
   const s = `Now consider the following flowchart and context:\n${flow}\n\n${msg}
   If you understand from the context that a step with no further possible steps has been evaluated,
-  terminate the flow by returning DONE.\n`;
+  terminate the flowchart by returning DONE. Never return to the top or root step of the flowchart, instead return DONE.\n`;
   await agentInvoke(rootAgent, s, env);
   let step = env.getLastResult();
   let context = msg;
