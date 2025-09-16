@@ -1392,14 +1392,24 @@ const MAX_PLANNER_RETRIES = 3;
 async function agentInvoke(agent: AgentInstance, msg: string, env: Environment): Promise<void> {
   const flowContext = env.getFlowContext();
   msg = flowContext ? `context: ${flowContext}\n${msg}` : msg;
+
+  // log invocation details
+  let invokeDebugMsg = `Invoking agent ${agent.name}`;
+  if (agent.role) {
+    invokeDebugMsg = `${invokeDebugMsg} Role=${agent.role}`;
+  }
+  invokeDebugMsg = `\nMessage=${msg}`;
+  console.debug(invokeDebugMsg);
+  //
+
   await agent.invoke(msg, env);
   let result: string | undefined = env.getLastResult();
+  logger.debug(`Agent ${agent.name} result: ${result}`);
   const isPlanner = agent.isPlanner();
   if (result) {
     if (isPlanner) {
       let retries = 0;
       while (true) {
-        logger.debug(`Agent ${agent.name} generated pattern: ${result}`);
         try {
           let rs: string = result ? result.trim() : '';
           let isWf = rs.startsWith('workflow');
@@ -1510,15 +1520,17 @@ async function iterateOnFlow(
   If you understand from the context that a step with no further possible steps has been evaluated,
   terminate the flowchart by returning DONE. Never return to the top or root step of the flowchart, instead return DONE.\n`;
   await agentInvoke(rootAgent, s, env);
-  let step = env.getLastResult();
+  let step = env.getLastResult().trim();
   let context = msg;
   let stepc = 0;
   const iterId = crypto.randomUUID();
   console.debug(`Starting iteration ${iterId} on flow: ${flow}`);
-  while (step != 'DONE') {
+  const executedSteps = new Set<string>();
+  while (step != 'DONE' && !executedSteps.has(step)) {
     if (stepc > MaxFlowSteps) {
       throw new Error(`Flow execution exceeded maximum steps limit`);
     }
+    executedSteps.add(step);
     ++stepc;
     const agent = AgentInstance.FromFlowStep(step, rootAgent);
     console.debug(`${iterId} evaluating step ${step} with agent ${agent.name}, context ${context}`);
@@ -1534,9 +1546,9 @@ async function iterateOnFlow(
     const r = env.getLastResult();
     const rs = agentInputAsString(r);
     console.debug(`${iterId} result of step ${step} - ${rs}`);
-    context = `${context}\n${step} --> ${rs}\n`;
+    context = `${context}\nExecuted steps: ${[...executedSteps].join(', ')}\n${step} --> ${rs}\n`;
     await agentInvoke(rootAgent, `${s}\n${context}`, env);
-    step = env.getLastResult();
+    step = env.getLastResult().trim();
   }
 }
 
