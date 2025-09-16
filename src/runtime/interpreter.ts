@@ -937,7 +937,7 @@ async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
 function getMapKey(k: MapKey): Result {
   if (k.str != undefined) return k.str;
   else if (k.num != undefined) return k.num;
-  else if (k.bool != undefined) k.bool == 'true' ? true : false;
+  else if (k.bool != undefined) return k.bool == 'true' ? true : false;
 }
 
 const DefaultResolverName: string = '-';
@@ -1393,9 +1393,8 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   const flowContext = env.getFlowContext();
   msg = flowContext ? `context: ${flowContext}\n${msg}` : msg;
   await agent.invoke(msg, env);
-  const r: string | undefined = env.getLastResult();
+  let result: string | undefined = env.getLastResult();
   const isPlanner = agent.isPlanner();
-  let result: string | undefined = isPlanner ? cleanupAgentResponse(r) : r;
   if (result) {
     if (isPlanner) {
       let retries = 0;
@@ -1428,7 +1427,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           if (retries < MAX_PLANNER_RETRIES) {
             await agent.invoke(`Please fix these errors:\n ${err}`, env);
             const r: string | undefined = env.getLastResult();
-            result = cleanupAgentResponse(r);
+            result = r;
             ++retries;
           } else {
             logger.error(
@@ -1563,38 +1562,6 @@ async function pushToAgent(agentName: string, result: any, env: Environment) {
   const r = escapeSpecialChars(agentInputAsString(result));
   const pat = `{${agentName} {message "\n${r}"}}`;
   env.setLastResult(await parseAndEvaluateStatement(pat, undefined, env));
-}
-
-function cleanupAgentResponse(response: string | undefined): string | undefined {
-  if (response) {
-    const resp = response.trim();
-    if (resp.startsWith('[') && resp.endsWith(']')) {
-      return resp;
-    }
-    const parts = resp.split('\n');
-    const validated = parts.filter((s: string) => {
-      let stmt = s.trim();
-      if (stmt.endsWith(',')) {
-        stmt = `${stmt.substring(0, stmt.length - 1)};`;
-      }
-      const r =
-        stmt.startsWith('{') ||
-        stmt.startsWith('}') ||
-        stmt.startsWith('if') ||
-        stmt.startsWith('for') ||
-        stmt.startsWith('delete') ||
-        stmt.startsWith('workflow');
-      if (!r) {
-        const i = stmt.indexOf('(');
-        return i > 0 && stmt.indexOf(')') > i;
-      } else {
-        return r;
-      }
-    });
-    return validated.join('\n');
-  } else {
-    return response;
-  }
 }
 
 async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
