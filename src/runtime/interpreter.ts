@@ -26,6 +26,7 @@ import {
   SelectIntoSpec,
   SetAttribute,
   Statement,
+  Suspend,
 } from '../language/generated/ast.js';
 import {
   defineAgentEvent,
@@ -960,6 +961,10 @@ export class PatternHandler {
 
   async handleReturn(ret: Return, env: Environment) {
     await evaluatePattern(ret.pattern, env);
+  }
+
+  async handleSuspend(susp: Suspend, env: Environment) {
+    throw new Error(`suspend is not directly supported in core evaluator`)
   }
 }
 

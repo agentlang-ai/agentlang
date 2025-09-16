@@ -11,6 +11,7 @@ import {
   Purge,
   Return,
   Statement,
+  Suspend,
 } from '../language/generated/ast.js';
 import { parseModule, parseStatement } from '../language/parser.js';
 import { ExecGraph, ExecGraphNode, ExecGraphWalker, SubGraphType } from './defs.js';
@@ -146,6 +147,10 @@ class GraphGenerator extends PatternHandler {
     this.handleSubPattern(SubGraphType.RETURN, ret.pattern, env);
   }
 
+  override async handleSuspend(susp: Suspend, env: Environment) {
+    this.handleSubPattern(SubGraphType.SUSPEND, susp.pattern, env);
+  }
+
   getGraph(): ExecGraph {
     return this.graph;
   }
@@ -233,6 +238,11 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
             case SubGraphType.RETURN:
               await executeReturnSubGraph(subg, env);
               return;
+            case SubGraphType.SUSPEND:
+              const suspId = executeSuspendSubGraph(subg, env)
+              await saveSuspension(suspId, execGraph)
+              env.setLastResult([env.getLastResult(), suspId])
+              return;
             default:
               throw new Error(`Invalid sub-graph type: ${node.subGraphType}`);
           }
@@ -307,6 +317,11 @@ async function executeAgent(triggeringNode: ExecGraphNode, execGraph: ExecGraph,
 async function executeReturnSubGraph(subGraph: ExecGraph, env: Environment) {
   await evaluateFirstPattern(subGraph, env);
   env.markForReturn();
+}
+
+async function executeSuspendSubGraph(subGraph: ExecGraph, env: Environment): Promise<string> {
+  await evaluateFirstPattern(subGraph, env);
+  return env.suspend()
 }
 
 async function executeDeleteSubGraph(subGraph: ExecGraph, node: ExecGraphNode, env: Environment) {

@@ -74,8 +74,8 @@ describe('Basic exec-graph evaluation', () => {
     const exg = await generateExecutionGraph('exg01/createRs')
     if (exg) {
       const obj = exg.asObject()
-      // TODO: assert structure of obj
-      console.log(obj)
+      const s = JSON.stringify(obj)
+      console.log(s)
     }
   })
   test('basic-agents', async () => {
