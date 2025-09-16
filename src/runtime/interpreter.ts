@@ -1507,7 +1507,9 @@ async function iterateOnFlow(
   env: Environment
 ): Promise<void> {
   rootAgent.disableSession();
-  const s = `Now consider the following flowchart and context:\n${flow}\n\n${msg}`;
+  const s = `Now consider the following flowchart and context:\n${flow}\n\n${msg}
+  If you understand from the context that a step with no further possible steps has been evaluated,
+  terminate the flow by returning DONE.\n`;
   await agentInvoke(rootAgent, s, env);
   let step = env.getLastResult();
   let context = msg;
@@ -1525,8 +1527,8 @@ async function iterateOnFlow(
     env.setFlowContext(context);
     await agentInvoke(agent, '', env);
     env.resetFlowContext();
-    console.debug(`${iterId} suspending iteration on step ${step}`);
     if (env.isSuspended()) {
+      console.debug(`${iterId} suspending iteration on step ${step}`);
       await saveFlowSuspension(rootAgent, context, step, env);
       return;
     }
