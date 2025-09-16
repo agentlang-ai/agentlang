@@ -4,7 +4,6 @@ import { isModule } from '../src/runtime/module.js';
 import { resetDefaultDatabase } from '../src/runtime/resolvers/sqldb/database.js';
 import { testLogger } from './test-logger.js';
 import { runPostInitTasks, runPreInitTasks } from '../src/cli/main.js';
-import { enableExecutionGraph } from '../src/runtime/exec-graph.js';
 
 let CoreModulesInited = false;
 
@@ -15,14 +14,7 @@ export async function doPreInit() {
   }
 }
 
-const ExecGraphEnabled = process.env['EXEC_GRAPH_ENABLED'] == 'true'
-let execGraphEnabled = false
-
 export async function doInternModule(moduleName: string, code: string) {
-  if (ExecGraphEnabled && !execGraphEnabled) {
-    enableExecutionGraph()
-    execGraphEnabled = true
-  }
   await resetDefaultDatabase();
   await doPreInit();
   await parseAndIntern(`module ${moduleName} ${code}`);
