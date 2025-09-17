@@ -1,8 +1,9 @@
 // Exec-graph tests
 import { assert, describe, test } from 'vitest';
 import { doInternModule } from '../util.js';
-import { executeEventHelper, executeStatement as executeStatement, generateExecutionGraph } from '../../src/runtime/exec-graph.js';
+import { executeEventHelper, executeStatement as executeStatement, parseAndExecuteStatement } from '../../src/runtime/exec-graph.js';
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../../src/runtime/module.js';
+import { restartSuspension } from '../../src/runtime/modules/core.js';
 
 describe('Basic exec-graph evaluation', () => {
   test('basic-patterns', async () => {
@@ -71,13 +72,30 @@ describe('Basic exec-graph evaluation', () => {
     attrs2.set('id', 1)
     const r06: Instance = await executeEventHelper(finde)
     chkE(r06, 1)
-    const exg = await generateExecutionGraph('exg01/createRs')
-    if (exg) {
-      const obj = exg.asObject()
-      const s = JSON.stringify(obj)
-      console.log(s)
-    }
   })
+
+  test('simple-suspension', async () => {
+    await doInternModule(
+      'exgsusp',
+      `entity E {
+        id Int @id,
+        x String
+      }
+      entity F {
+        id Int @id
+      }
+        
+      workflow EF {
+        suspend {E {id EF.id, x EF.x}} @as e;
+        {F {id e.id * 10}}
+      }`)
+
+    const [e, suspId] = await parseAndExecuteStatement(`{exgsusp/EF {id 10, x "hello"}}`)
+    assert(isInstanceOfType(e, 'exgsusp/E'))
+    const [susp, _] = await restartSuspension(suspId, 'x=100')
+    assert(susp.length > 0)
+  })
+
   test('basic-agents', async () => {
     if (process.env.AL_TEST === 'true') {
       await doInternModule(
@@ -91,9 +109,9 @@ describe('Basic exec-graph evaluation', () => {
             tools [exg02/Person]
           }
           `)
-        const r01: Instance = await executeStatement(`{exg02/personManager {message "create Joe with email joe@acme.com"}}`)
-        assert(isInstanceOfType(r01, 'exg02/Person'))
-        assert(r01.lookup('email') == 'joe@acme.com' && r01.lookup('name') == 'Joe')
-      }
-    })
+      const r01: Instance = await executeStatement(`{exg02/personManager {message "create Joe with email joe@acme.com"}}`)
+      assert(isInstanceOfType(r01, 'exg02/Person'))
+      assert(r01.lookup('email') == 'joe@acme.com' && r01.lookup('name') == 'Joe')
+    }
+  })
 })

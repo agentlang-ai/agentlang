@@ -39,6 +39,7 @@ import {
   isEventInstance,
   RecordType,
 } from './module.js';
+import { createSuspension } from './modules/core.js';
 import { isOpenApiEventInstance, isOpenApiModule } from './openapi.js';
 import { escapeQueryName, makeFqName, splitFqName } from './util.js';
 
@@ -180,28 +181,6 @@ async function graphFromStatements(
   return handler.getGraph().setActiveModuleName(activeModuleName);
 }
 
-/*
-async function eventExecutor(eventInst: Instance, env: Environment) {
-  const newEnv = new Environment(`${eventInst.name}-env`, env);
-  await executeEventHelper(eventInst, newEnv);
-  env.setLastResult(newEnv.getLastResult());
-}
-*/
-
-/*
-function makeStatementsExecutor(execGraph: ExecGraph, triggeringNode: ExecGraphNode): Function {
-  return async (stmts: Statement[], env: Environment): Promise<any> => {
-    const g = await graphFromStatements(stmts, env.getActiveModuleName());
-    if (execGraph && triggeringNode) {
-      execGraph.pushSubGraph(g);
-      triggeringNode.subGraphIndex = execGraph.getLastSubGraphIndex();
-    }
-    await executeGraph(g, env);
-    return env.getLastResult();
-  };
-}
-*/
-
 type LoopState = {
   index: number;
   result: any[];
@@ -209,12 +188,43 @@ type LoopState = {
   varname: string;
 };
 
+function asSerializableArray(arr: any[]): any[] {
+  if (arr.length > 0) {
+    if (arr[0] instanceof Instance) {
+      const result: any[] = [];
+      arr.forEach((a: Instance) => {
+        result.push(a.asSerializableObject());
+      });
+      return result;
+    }
+  }
+  return arr;
+}
+
+function loopStateAsSerializableObject(loopState: LoopState): object {
+  return {
+    index: loopState.index,
+    result: asSerializableArray(loopState.result),
+    src: asSerializableArray(loopState.src),
+    varname: loopState.varname,
+  };
+}
+
 type ExecState = {
   env: Environment;
   execGraph: ExecGraph;
   walker: ExecGraphWalker;
   isEventGraph?: boolean;
 };
+
+function execStateAsSerializableObject(execState: ExecState): object {
+  return {
+    env: execState.env.asSerializableObject(),
+    execGraph: execState.execGraph.asObject(),
+    walker: [],
+    isEventGraph: execState.isEventGraph ? true : false,
+  };
+}
 
 class GraphExecutionState {
   private execStack: ExecState[];
@@ -263,6 +273,17 @@ class GraphExecutionState {
       throw new Error('Failed to get loop-state');
     }
     return s;
+  }
+
+  asSerializableObject(): object {
+    return {
+      execStack: this.execStack.map((es: ExecState) => {
+        return execStateAsSerializableObject(es);
+      }),
+      loopStates: this.loopStates.map((ls: LoopState) => {
+        return loopStateAsSerializableObject(ls);
+      }),
+    };
   }
 }
 
@@ -329,6 +350,11 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
             continue;
           }
         }
+        env.propagateLastResult();
+        break;
+      } else if (env.isSuspended()) {
+        const suspId = env.releaseSuspension();
+        await saveSuspension(suspId, { execGraph, walker, env }, state, loopState, env);
         env.propagateLastResult();
         break;
       }
@@ -438,9 +464,8 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
               break;
             case SubGraphType.SUSPEND:
               const suspId = await executeSuspendSubGraph(subg, env);
-              await saveSuspension(suspId, execGraph);
               env.setLastResult([env.getLastResult(), suspId]);
-              return;
+              break;
             default:
               throw new Error(`Invalid sub-graph type: ${node.subGraphType}`);
           }
@@ -458,59 +483,6 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
 async function evaluateFirstPattern(g: ExecGraph, env: Environment) {
   await evaluatePattern(g.getRootNodes()[0].code as Pattern, env);
 }
-/*
-async function executeForEachSubGraph(
-  subGraph: ExecGraph,
-  triggeringNode: ExecGraphNode,
-  env: Environment
-) {
-  await evaluateFirstPattern(subGraph, env);
-  const rs: any[] = env.getLastResult();
-  if (rs.length > 0) {
-    const stmt = triggeringNode.code as Statement;
-    const loopVar = stmt.pattern.forEach?.var || 'x';
-    const loopEnv: Environment = new Environment('for-each-body-env', env);
-    const loopg = subGraph.fetchForEachBodySubGraph();
-    const finalResult = new Array<any>();
-    for (let i = 0; i < rs.length; ++i) {
-      loopEnv.bind(loopVar, rs[i]);
-      await executeGraph(loopg, loopEnv);
-      finalResult.push(loopEnv.getLastResult());
-    }
-    env.setLastResult(finalResult);
-  } else {
-    env.setLastResult([]);
-  }
-}*/
-/*
-async function executeIfSubGraph(subGraph: ExecGraph, env: Environment) {
-  await evaluateExpression(subGraph.getRootNodes()[0].code as Expr, env);
-  const newEnv = new Environment('cond-env', env);
-  if (env.getLastResult()) {
-    const conseq = subGraph.fetchIfConsequentSubGraph();
-    await executeGraph(conseq, newEnv);
-  } else {
-    const alter = subGraph.fetchIfAlternativeSubGraph();
-    if (alter) {
-      if (ExecGraph.isEmpty(alter)) {
-        newEnv.setLastResult(false);
-      } else {
-        await executeGraph(alter, newEnv);
-      }
-    }
-  }
-  env.setLastResult(newEnv.getLastResult());
-}
-*/
-/*async function executeAgent(triggeringNode: ExecGraphNode, execGraph: ExecGraph, env: Environment) {
-  await env.callWithStatementsExecutor(
-    makeStatementsExecutor(execGraph, triggeringNode),
-    async () => {
-      await evaluateStatement(triggeringNode.code as Statement, env);
-      return env.getLastResult();
-    }
-  );
-}*/
 
 async function executeReturnSubGraph(subGraph: ExecGraph, env: Environment) {
   const newEnv = new Environment(`return-env`, env).unsetEventExecutor();
@@ -732,6 +704,17 @@ export function disableExecutionGraph(oldFns: EvalFns): boolean {
   return false;
 }
 
-export async function saveSuspension(suspId: string, execGraph: ExecGraph): Promise<any> {
-  throw new Error(`saveSuspension ${suspId}, ${execGraph}`);
+export async function saveSuspension(
+  suspId: string,
+  currentState: ExecState,
+  stacks: GraphExecutionState,
+  loopState: LoopState | undefined,
+  env: Environment
+): Promise<any> {
+  const susp = {
+    currentState: execStateAsSerializableObject(currentState),
+    stacks: stacks.asSerializableObject(),
+    loopState: loopState ? loopStateAsSerializableObject(loopState) : null,
+  };
+  await createSuspension(suspId, JSON.stringify(susp), env);
 }

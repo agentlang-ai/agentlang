@@ -320,6 +320,18 @@ export class Environment extends Instance {
     }
   }
 
+  releaseSuspension(): string {
+    if (this.suspensionId) {
+      const sid = this.suspensionId;
+      this.suspensionId = undefined;
+      if (this.parent) {
+        this.parent.releaseSuspension();
+      }
+      return sid;
+    }
+    throw new Error(`Environment is not in suspended state`);
+  }
+
   markForReturn(): Environment {
     if (this.parent) {
       this.parent.markForReturn();
@@ -723,27 +735,6 @@ export function makeEventEvaluator(moduleName: string): Function {
   };
 }
 
-function statemtentString(stmt: Statement): string {
-  if (stmt.$cstNode) {
-    return stmt.$cstNode.text;
-  } else {
-    throw new Error(`Failed to fetch text for statement - ${stmt}`);
-  }
-}
-
-async function saveSuspension(cont: Statement[], env: Environment) {
-  if (cont.length > 0) {
-    const suspId = await createSuspension(
-      env.getSuspensionId(),
-      cont.map((stmt: Statement) => {
-        return statemtentString(stmt);
-      }),
-      env
-    );
-    env.setLastResult({ suspension: suspId || 'null' });
-  }
-}
-
 export async function evaluateStatements(
   stmts: Statement[],
   env: Environment,
@@ -772,7 +763,7 @@ async function evaluateAsyncPattern(
     await evaluatePattern(pat, env);
     maybeBindStatementResultToAlias(hints, env);
     if (env.isSuspended()) {
-      await saveSuspension(thenStmts, env);
+      throw new Error(`Cannot suspend asynchronous execution`);
     } else {
       await evaluateStatements(thenStmts, env);
     }
@@ -1008,6 +999,8 @@ export async function evaluatePattern(
   } else if (pat.return) {
     await handler.handleReturn(pat.return, env);
     env.markForReturn();
+  } else if (pat.suspend) {
+    await handler.handleSuspend(pat.suspend, env);
   }
 }
 
@@ -1608,7 +1601,7 @@ async function saveFlowSuspension(
 ): Promise<void> {
   const suspId = await createSuspension(
     env.getSuspensionId(),
-    [FlowSuspensionTag, agent.name, step, context],
+    JSON.stringify([FlowSuspensionTag, agent.name, step, context]),
     env
   );
   env.setLastResult({ suspension: suspId || 'null' });
