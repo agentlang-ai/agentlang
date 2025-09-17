@@ -57,7 +57,6 @@ import {
   DefaultModuleName,
   escapeFqName,
   escapeQueryName,
-  escapeSpecialChars,
   fqNameFromPath,
   isFqName,
   isPath,
@@ -335,10 +334,10 @@ export class Environment extends Instance {
 
   propagateLastResult(): Environment {
     if (this.parent) {
-      this.parent.lastResult = this.lastResult
-      this.parent.propagateLastResult()
+      this.parent.lastResult = this.lastResult;
+      this.parent.propagateLastResult();
     }
-    return this
+    return this;
   }
 
   resetReturnFlag(): Environment {
@@ -831,9 +830,9 @@ async function maybeHandleNotFound(handlers: CatchHandlers | undefined, env: Env
   ) {
     const onNotFound = handlers ? handlers.get('not_found') : undefined;
     if (onNotFound) {
-      const newEnv = new Environment('not-found-env', env).unsetEventExecutor()
+      const newEnv = new Environment('not-found-env', env).unsetEventExecutor();
       await evaluateStatement(onNotFound, newEnv);
-      env.setLastResult(newEnv.getLastResult())
+      env.setLastResult(newEnv.getLastResult());
     }
   }
 }
@@ -845,9 +844,9 @@ async function maybeHandleError(
 ) {
   const handler = handlers ? handlers.get('error') : undefined;
   if (handler) {
-    const newEnv = new Environment('handler-env', env).unsetEventExecutor()
+    const newEnv = new Environment('handler-env', env).unsetEventExecutor();
     await evaluateStatement(handler, newEnv);
-    env.setLastResult(newEnv.getLastResult())
+    env.setLastResult(newEnv.getLastResult());
   } else {
     throw reason;
   }
@@ -1570,9 +1569,6 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
         }
       }
     }
-    if (agent.output) {
-      await pushToAgent(agent.output, env.getLastResult(), env);
-    }
   } else {
     throw new Error(`Agent ${agent.name} failed to generate a response`);
   }
@@ -1689,12 +1685,6 @@ function agentInputAsString(result: any): string {
     }
   }
   return result;
-}
-
-async function pushToAgent(agentName: string, result: any, env: Environment) {
-  const r = escapeSpecialChars(agentInputAsString(result));
-  const pat = `{${agentName} {message "\n${r}"}}`;
-  env.setLastResult(await parseAndEvaluateStatement(pat, undefined, env));
 }
 
 export async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {

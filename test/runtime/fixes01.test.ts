@@ -5,7 +5,7 @@ import { parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
 import { isUsingSqlite } from "../../src/runtime/resolvers/sqldb/database.js"
 
 describe('Issue 92', () => {
-    test('test01', async () => {
+    test('Refresh modules on reload', async () => {
         await doInternModule('I92', `entity E { id Int @id, x Int }`)
         const chk = (ent: string) => {
             assert(isModule('I92'))
@@ -225,7 +225,7 @@ describe('Issue 179 - @from', () => {
 
 if (isUsingSqlite()) { // Postgres will rollback transaction on SQL error
     describe('Issue-197', () => {
-        test('test01', async () => {
+        test('Catch handler should execute', async () => {
             await doInternModule(
                 'I197',
                 `entity E {

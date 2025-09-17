@@ -213,7 +213,7 @@ type ExecState = {
   env: Environment;
   execGraph: ExecGraph;
   walker: ExecGraphWalker;
-  isEventGraph?: boolean
+  isEventGraph?: boolean;
 };
 
 class GraphExecutionState {
@@ -227,7 +227,7 @@ class GraphExecutionState {
 
   pushState(state: ExecState, loopState?: LoopState): number {
     if (state.isEventGraph == undefined) {
-      state.isEventGraph = false
+      state.isEventGraph = false;
     }
     this.execStack.push(state);
     const lastIdx = this.execStack.length - 1;
@@ -241,16 +241,16 @@ class GraphExecutionState {
     if (this.execStack.length > 0) {
       for (let i = this.execStack.length - 1; i < this.execStack.length; --i) {
         if (!this.execStack[i].isEventGraph) {
-          this.execStack.pop()
+          this.execStack.pop();
         } else {
-          break
+          break;
         }
       }
       if (this.execStack.length > 0) {
-        return true
+        return true;
       }
     }
-    return false
+    return false;
   }
 
   popState(): ExecState | undefined {
@@ -325,11 +325,11 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
       if (env.isMarkedForReturn()) {
         if (state.popTillEvent()) {
           if (maybePopState()) {
-            env.resetReturnFlag()
-            continue
+            env.resetReturnFlag();
+            continue;
           }
         }
-        env.propagateLastResult()
+        env.propagateLastResult();
         break;
       }
       if (!walker.hasNext()) {
@@ -368,8 +368,10 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
             node.subGraphIndex = execGraph.getLastSubGraphIndex();
             state.pushState({ execGraph, walker, env });
             switchG(g, newEnv);
+            continue;
+          } else {
+            env.setLastResult(newEnv.getLastResult());
           }
-          continue;
         } else {
           const subg = execGraph.fetchSubGraphAt(node.subGraphIndex);
           switch (node.subGraphType) {
@@ -513,7 +515,7 @@ async function executeIfSubGraph(subGraph: ExecGraph, env: Environment) {
 async function executeReturnSubGraph(subGraph: ExecGraph, env: Environment) {
   const newEnv = new Environment(`return-env`, env).unsetEventExecutor();
   await evaluateFirstPattern(subGraph, newEnv);
-  env.setLastResult(newEnv.getLastResult())
+  env.setLastResult(newEnv.getLastResult());
   env.markForReturn();
 }
 
