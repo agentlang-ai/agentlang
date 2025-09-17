@@ -543,12 +543,14 @@ export async function assignUserToRoleByEmail(
   env: Environment
 ): Promise<boolean> {
   let r: boolean = true;
-  await evalEvent('AssignUserToRoleByEmail', { email: email.toLowerCase(), roleName: roleName }, env).catch(
-    (reason: any) => {
-      logger.error(`Failed to assign user ${email} to role ${roleName} - ${reason}`);
-      r = false;
-    }
-  );
+  await evalEvent(
+    'AssignUserToRoleByEmail',
+    { email: email.toLowerCase(), roleName: roleName },
+    env
+  ).catch((reason: any) => {
+    logger.error(`Failed to assign user ${email} to role ${roleName} - ${reason}`);
+    r = false;
+  });
   return r;
 }
 
@@ -784,7 +786,12 @@ export async function confirmForgotPasswordUser(
   env: Environment
 ): Promise<Result> {
   try {
-    await fetchAuthImpl().confirmForgotPassword(username.toLowerCase(), confirmationCode, newPassword, env);
+    await fetchAuthImpl().confirmForgotPassword(
+      username.toLowerCase(),
+      confirmationCode,
+      newPassword,
+      env
+    );
     return { status: 'ok', message: 'Password has been reset' };
   } catch (err: any) {
     logger.error(`Confirm forgot password failed for ${username}: ${err.message}`);
