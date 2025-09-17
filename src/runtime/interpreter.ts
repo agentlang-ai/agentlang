@@ -587,6 +587,11 @@ export class Environment extends Instance {
     return this.eventExecutor;
   }
 
+  unsetEventExecutor(): Environment {
+    this.eventExecutor = undefined;
+    return this;
+  }
+
   setStatementsExecutor(f: Function): Environment {
     this.statementsExecutor = f;
     return this;

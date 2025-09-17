@@ -262,7 +262,9 @@ async function eventIdentity(eventInstance: Instance, env?: Environment): Promis
 }
 
 const stmtExec = async (stmts: Statement[], env: Environment): Promise<GeneratedExecGraph> => {
-  return new GeneratedExecGraph(await graphFromStatements(stmts, env.getActiveModuleName()));
+  const g = new GeneratedExecGraph(await graphFromStatements(stmts, env.getActiveModuleName()));
+  env.setLastResult(g);
+  return g;
 };
 
 export async function executeGraph(execGraph: ExecGraph, env: Environment): Promise<any> {
@@ -340,7 +342,7 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
             state.pushState({ execGraph, walker, env });
             switchG(g, newEnv);
           }
-          break;
+          continue;
         } else {
           const subg = execGraph.fetchSubGraphAt(node.subGraphIndex);
           switch (node.subGraphType) {
@@ -482,7 +484,8 @@ async function executeIfSubGraph(subGraph: ExecGraph, env: Environment) {
 }*/
 
 async function executeReturnSubGraph(subGraph: ExecGraph, env: Environment) {
-  await evaluateFirstPattern(subGraph, env);
+  const newEnv = new Environment(`return-env`, env).unsetEventExecutor();
+  await evaluateFirstPattern(subGraph, newEnv);
   env.markForReturn();
 }
 
@@ -492,14 +495,14 @@ async function executeSuspendSubGraph(subGraph: ExecGraph, env: Environment): Pr
 }
 
 async function executeDeleteSubGraph(subGraph: ExecGraph, node: ExecGraphNode, env: Environment) {
-  const newEnv = new Environment(`delete-env`, env).setInDeleteMode(true);
+  const newEnv = new Environment(`delete-env`, env).setInDeleteMode(true).unsetEventExecutor();
   await evaluateFirstPattern(subGraph, newEnv);
   await maybeDeleteQueriedInstances(newEnv, env, false);
   maybeSetAlias(node, env);
 }
 
 async function executePurgeSubGraph(subGraph: ExecGraph, node: ExecGraphNode, env: Environment) {
-  const newEnv = new Environment(`purge-env`, env).setInDeleteMode(true);
+  const newEnv = new Environment(`purge-env`, env).setInDeleteMode(true).unsetEventExecutor();
   await evaluateFirstPattern(subGraph, newEnv);
   await maybeDeleteQueriedInstances(newEnv, env, true);
   maybeSetAlias(node, env);
