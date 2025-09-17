@@ -108,8 +108,7 @@ if (process.env.AL_TEST === 'true') {
       await doInternModule(
         'SimpleAIChat',
         `agent simpleChatAgent
-          {instruction "Is the following number odd? Answer YES or NO.",
-           llm "simpleChatLLM"}
+          {instruction "Is the following number odd? Answer YES or NO."}
           workflow chat {
             {simpleChatAgent {message chat.N}}
           }
@@ -134,8 +133,7 @@ if (process.env.AL_TEST === 'true') {
         `agent planner01
           {instruction "Based on the user request, create appropriate patterns based on the SPA module.",
            tools "SPA",
-           runWorkflows false,
-           llm "planner01_llm"}
+           runWorkflows false}
           workflow chat {{planner01 {message chat.msg}}}
           `
       );
@@ -243,11 +241,9 @@ if (process.env.AL_TEST === 'true') {
         `agent a01
           {instruction "Based on the user request, create appropriate patterns based on the OPA module.",
            tools "OPA",
-           output "OutputAgent/a02",
-           llm "a01_llm"}
+           output "OutputAgent/a02"}
           agent a02
-          {instruction "If the person's age is less than 18 return 'minor', else return 'major'.",
-           llm "a01_llm"}
+          {instruction "If the person's age is less than 18 return 'minor', else return 'major'."}
           workflow chat {{a01 {message chat.msg}}}
           `
       );
