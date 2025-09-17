@@ -243,8 +243,7 @@ if (isUsingSqlite()) { // Postgres will rollback transaction on SQL error
       workflow HandleError {
         {F {id 2, y 20}}
       }
-      `
-            );
+      `);
             const cre = (async (id: number, x: number): Promise<any> => {
                 await parseAndEvaluateStatement(`{I197/E {id ${id}, x ${x}}}
             @catch {error {I197/HandleError {}}}`)

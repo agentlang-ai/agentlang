@@ -213,6 +213,7 @@ type ExecState = {
   env: Environment;
   execGraph: ExecGraph;
   walker: ExecGraphWalker;
+  isEventGraph?: boolean
 };
 
 class GraphExecutionState {
@@ -225,12 +226,31 @@ class GraphExecutionState {
   }
 
   pushState(state: ExecState, loopState?: LoopState): number {
+    if (state.isEventGraph == undefined) {
+      state.isEventGraph = false
+    }
     this.execStack.push(state);
     const lastIdx = this.execStack.length - 1;
     if (loopState) {
       this.loopStates.push(loopState);
     }
     return lastIdx;
+  }
+
+  popTillEvent(): boolean {
+    if (this.execStack.length > 0) {
+      for (let i = this.execStack.length - 1; i < this.execStack.length; --i) {
+        if (!this.execStack[i].isEventGraph) {
+          this.execStack.pop()
+        } else {
+          break
+        }
+      }
+      if (this.execStack.length > 0) {
+        return true
+      }
+    }
+    return false
   }
 
   popState(): ExecState | undefined {
@@ -302,6 +322,16 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
       return false;
     };
     while (true) {
+      if (env.isMarkedForReturn()) {
+        if (state.popTillEvent()) {
+          if (maybePopState()) {
+            env.resetReturnFlag()
+            continue
+          }
+        }
+        env.propagateLastResult()
+        break;
+      }
       if (!walker.hasNext()) {
         if (execGraph.isLoopBody()) {
           loopState = state.getLoopState();
@@ -322,9 +352,6 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
           if (maybePopState()) continue;
           else break;
         }
-      }
-      if (env.isMarkedForReturn()) {
-        break;
       }
       const node = walker.nextNode();
       if (node.subGraphIndex == -1) {
@@ -350,7 +377,7 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
               await evaluateStatement(node.code as Statement, env);
               const r: any = env.getLastResult();
               if (r instanceof Instance) {
-                state.pushState({ execGraph, walker, env });
+                state.pushState({ execGraph, walker, env, isEventGraph: true });
                 const newEnv = new Environment('event-env', env).bind(r.name, r);
                 switchG(subg, newEnv);
               }
@@ -406,7 +433,7 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
               break;
             case SubGraphType.RETURN:
               await executeReturnSubGraph(subg, env);
-              return;
+              break;
             case SubGraphType.SUSPEND:
               const suspId = await executeSuspendSubGraph(subg, env);
               await saveSuspension(suspId, execGraph);
@@ -486,6 +513,7 @@ async function executeIfSubGraph(subGraph: ExecGraph, env: Environment) {
 async function executeReturnSubGraph(subGraph: ExecGraph, env: Environment) {
   const newEnv = new Environment(`return-env`, env).unsetEventExecutor();
   await evaluateFirstPattern(subGraph, newEnv);
+  env.setLastResult(newEnv.getLastResult())
   env.markForReturn();
 }
 

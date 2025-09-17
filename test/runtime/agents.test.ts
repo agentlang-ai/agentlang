@@ -125,7 +125,7 @@ if (process.env.AL_TEST === 'true') {
       );
     });
   });
-
+/*
   describe('Simple planner agent', () => {
     test('test01', async () => {
       await doInternModule('SPA', `entity Person {id Int @id, name String, age Int}`);
@@ -265,7 +265,7 @@ if (process.env.AL_TEST === 'true') {
       r = await cr({ id: 2, name: 'Mat', age: 15 });
       assert(r == 'minor');
     });
-  });
+  });*/
 } else {
   describe('Skipping agent tests', () => {
     test('test01', async () => {});

@@ -333,6 +333,14 @@ export class Environment extends Instance {
     return this.returnFlag;
   }
 
+  propagateLastResult(): Environment {
+    if (this.parent) {
+      this.parent.lastResult = this.lastResult
+      this.parent.propagateLastResult()
+    }
+    return this
+  }
+
   resetReturnFlag(): Environment {
     if (this.returnFlag) {
       this.returnFlag = false;
@@ -823,7 +831,9 @@ async function maybeHandleNotFound(handlers: CatchHandlers | undefined, env: Env
   ) {
     const onNotFound = handlers ? handlers.get('not_found') : undefined;
     if (onNotFound) {
-      await evaluateStatement(onNotFound, env);
+      const newEnv = new Environment('not-found-env', env).unsetEventExecutor()
+      await evaluateStatement(onNotFound, newEnv);
+      env.setLastResult(newEnv.getLastResult())
     }
   }
 }
@@ -835,7 +845,9 @@ async function maybeHandleError(
 ) {
   const handler = handlers ? handlers.get('error') : undefined;
   if (handler) {
-    await evaluateStatement(handler, env);
+    const newEnv = new Environment('handler-env', env).unsetEventExecutor()
+    await evaluateStatement(handler, newEnv);
+    env.setLastResult(newEnv.getLastResult())
   } else {
     throw reason;
   }
