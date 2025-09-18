@@ -1,6 +1,7 @@
 <div align="center">
 
 # AgentLang - Reliable Enterprise AI Agents
+
 ## Build AI Agents that actually work!
 
 </div>
@@ -18,7 +19,10 @@ AgentLang is also the industry's first "no-code programming language" for buildi
 <div align="center">
 
 [![AgentLang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml)
-[![Lint and Format Check](https://github.com/agentlang-ai/agentlang/actions/workflows/lint.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/lint.yml)
+[![Integration Tests](https://github.com/agentlang-ai/agentlang/actions/workflows/integration.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/integration.yml)
+[![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg)](LICENSE)
+[![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org)
+[![pnpm](https://img.shields.io/badge/pnpm-10.13.1-blue)](https://pnpm.io)
 
 </div>
 
@@ -62,8 +66,6 @@ npm test
 ```
 
 > **Note**: If pnpm shows build script warnings, run `pnpm approve-builds` and approve esbuild and sqlite3.
-
-
 
 ## CLI Usage
 

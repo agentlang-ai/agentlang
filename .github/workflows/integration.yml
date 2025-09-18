@@ -1,0 +1,224 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  integration-test:
+    name: Example App Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          # Auto-approve build scripts for esbuild and sqlite3 if needed
+          if pnpm approve-builds --help >/dev/null 2>&1; then
+            echo -e "\ny\ny\n" | pnpm approve-builds || true
+          fi
+
+      - name: Generate Langium files
+        run: pnpm run langium:generate
+
+      - name: Build project
+        run: pnpm run build
+
+      - name: Run Pets Example App
+        run: |
+          cd example/pets
+          # Start the app in background
+          node ../../bin/cli.js serve --port 3000 &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+
+          # Wait for server to be ready
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:3000/health >/dev/null 2>&1; then
+              echo "Server is ready!"
+              break
+            fi
+            echo "Attempt $i: Server not ready yet..."
+            sleep 2
+          done
+
+          # If server is not ready after 30 attempts, check if it's still running
+          if ! curl -s http://localhost:3000/health >/dev/null 2>&1; then
+            if ! kill -0 $SERVER_PID 2>/dev/null; then
+              echo "Server process died"
+              exit 1
+            fi
+            echo "Server failed to start after 60 seconds"
+            exit 1
+          fi
+
+      - name: Test Health Endpoint
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health)
+          if [ "$response" != "200" ]; then
+            echo "Health check failed with status code: $response"
+            exit 1
+          fi
+          echo "Health check passed with status code: $response"
+
+      - name: Test API Endpoints
+        run: |
+          # Test creating a pet
+          echo "Testing POST /api/pets endpoint..."
+          response=$(curl -s -X POST http://localhost:3000/api/pets \
+            -H "Content-Type: application/json" \
+            -d '{"name":"Fluffy","type":"cat"}' \
+            -o /tmp/response.json \
+            -w "%{http_code}")
+
+          if [ "$response" = "200" ] || [ "$response" = "201" ]; then
+            echo "POST /api/pets passed with status code: $response"
+            cat /tmp/response.json
+          else
+            echo "POST /api/pets failed with status code: $response"
+            cat /tmp/response.json
+            exit 1
+          fi
+
+          # Test getting pets
+          echo "Testing GET /api/pets endpoint..."
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" http://localhost:3000/api/pets)
+
+          if [ "$response" = "200" ]; then
+            echo "GET /api/pets passed with status code: $response"
+            cat /tmp/response.json
+          else
+            echo "GET /api/pets failed with status code: $response"
+            cat /tmp/response.json
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ ! -z "$SERVER_PID" ]; then
+            echo "Stopping server with PID: $SERVER_PID"
+            kill $SERVER_PID || true
+          fi
+
+  integration-test-blog:
+    name: Blog Example Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          # Auto-approve build scripts for esbuild and sqlite3 if needed
+          if pnpm approve-builds --help >/dev/null 2>&1; then
+            echo -e "\ny\ny\n" | pnpm approve-builds || true
+          fi
+
+      - name: Generate Langium files
+        run: pnpm run langium:generate
+
+      - name: Build project
+        run: pnpm run build
+
+      - name: Run Blog Example App
+        run: |
+          cd example/blog
+          # Start the app in background
+          node ../../bin/cli.js serve --port 3001 &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+
+          # Wait for server to be ready
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:3001/health >/dev/null 2>&1; then
+              echo "Server is ready!"
+              break
+            fi
+            echo "Attempt $i: Server not ready yet..."
+            sleep 2
+          done
+
+          # If server is not ready after 30 attempts, fail
+          if ! curl -s http://localhost:3001/health >/dev/null 2>&1; then
+            echo "Server failed to start after 60 seconds"
+            exit 1
+          fi
+
+      - name: Test Blog API Endpoints
+        run: |
+          # Test health endpoint
+          echo "Testing health endpoint..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/health)
+          if [ "$response" != "200" ]; then
+            echo "Health check failed with status code: $response"
+            exit 1
+          fi
+          echo "Health check passed with status code: $response"
+
+          # Test creating a blog post
+          echo "Testing POST /api/posts endpoint..."
+          response=$(curl -s -X POST http://localhost:3001/api/posts \
+            -H "Content-Type: application/json" \
+            -d '{"title":"Test Post","content":"This is a test blog post","author":"CI Bot"}' \
+            -o /tmp/response.json \
+            -w "%{http_code}")
+
+          if [ "$response" = "200" ] || [ "$response" = "201" ]; then
+            echo "POST /api/posts passed with status code: $response"
+          else
+            echo "POST /api/posts failed with status code: $response"
+            cat /tmp/response.json
+            exit 1
+          fi
+
+          # Test getting posts
+          echo "Testing GET /api/posts endpoint..."
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" http://localhost:3001/api/posts)
+
+          if [ "$response" = "200" ]; then
+            echo "GET /api/posts passed with status code: $response"
+          else
+            echo "GET /api/posts failed with status code: $response"
+            cat /tmp/response.json
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ ! -z "$SERVER_PID" ]; then
+            echo "Stopping server with PID: $SERVER_PID"
+            kill $SERVER_PID || true
+          fi
