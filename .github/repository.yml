@@ -1,0 +1,6 @@
+# Repository configuration for GitHub
+# This links the npm package to show in the repository sidebar
+
+npm:
+  package: agentlang
+  registry: https://www.npmjs.com
