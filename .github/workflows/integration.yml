@@ -44,14 +44,14 @@ jobs:
         run: |
           cd example/pets
           # Start the app in background
-          node ../../bin/cli.js serve --port 3000 &
+          node ../../bin/cli.js run . &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
 
           # Wait for server to be ready
           echo "Waiting for server to start..."
           for i in {1..30}; do
-            if curl -s http://localhost:3000/health >/dev/null 2>&1; then
+            if curl -s http://localhost:8080/health >/dev/null 2>&1; then
               echo "Server is ready!"
               break
             fi
@@ -60,7 +60,7 @@ jobs:
           done
 
           # If server is not ready after 30 attempts, check if it's still running
-          if ! curl -s http://localhost:3000/health >/dev/null 2>&1; then
+          if ! curl -s http://localhost:8080/health >/dev/null 2>&1; then
             if ! kill -0 $SERVER_PID 2>/dev/null; then
               echo "Server process died"
               exit 1
@@ -71,7 +71,7 @@ jobs:
 
       - name: Test Health Endpoint
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health)
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
           if [ "$response" != "200" ]; then
             echo "Health check failed with status code: $response"
             exit 1
@@ -82,7 +82,7 @@ jobs:
         run: |
           # Test creating a pet
           echo "Testing POST /api/pets endpoint..."
-          response=$(curl -s -X POST http://localhost:3000/api/pets \
+          response=$(curl -s -X POST http://localhost:8080/api/pets \
             -H "Content-Type: application/json" \
             -d '{"name":"Fluffy","type":"cat"}' \
             -o /tmp/response.json \
@@ -99,7 +99,7 @@ jobs:
 
           # Test getting pets
           echo "Testing GET /api/pets endpoint..."
-          response=$(curl -s -o /tmp/response.json -w "%{http_code}" http://localhost:3000/api/pets)
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" http://localhost:8080/api/pets)
 
           if [ "$response" = "200" ]; then
             echo "GET /api/pets passed with status code: $response"
@@ -155,14 +155,14 @@ jobs:
         run: |
           cd example/blog
           # Start the app in background
-          node ../../bin/cli.js serve --port 3001 &
+          node ../../bin/cli.js run . &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
 
           # Wait for server to be ready
           echo "Waiting for server to start..."
           for i in {1..30}; do
-            if curl -s http://localhost:3001/health >/dev/null 2>&1; then
+            if curl -s http://localhost:8080/health >/dev/null 2>&1; then
               echo "Server is ready!"
               break
             fi
@@ -171,7 +171,7 @@ jobs:
           done
 
           # If server is not ready after 30 attempts, fail
-          if ! curl -s http://localhost:3001/health >/dev/null 2>&1; then
+          if ! curl -s http://localhost:8080/health >/dev/null 2>&1; then
             echo "Server failed to start after 60 seconds"
             exit 1
           fi
@@ -180,7 +180,7 @@ jobs:
         run: |
           # Test health endpoint
           echo "Testing health endpoint..."
-          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/health)
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
           if [ "$response" != "200" ]; then
             echo "Health check failed with status code: $response"
             exit 1
@@ -189,7 +189,7 @@ jobs:
 
           # Test creating a blog post
           echo "Testing POST /api/posts endpoint..."
-          response=$(curl -s -X POST http://localhost:3001/api/posts \
+          response=$(curl -s -X POST http://localhost:8080/api/posts \
             -H "Content-Type: application/json" \
             -d '{"title":"Test Post","content":"This is a test blog post","author":"CI Bot"}' \
             -o /tmp/response.json \
@@ -205,7 +205,7 @@ jobs:
 
           # Test getting posts
           echo "Testing GET /api/posts endpoint..."
-          response=$(curl -s -o /tmp/response.json -w "%{http_code}" http://localhost:3001/api/posts)
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" http://localhost:8080/api/posts)
 
           if [ "$response" = "200" ]; then
             echo "GET /api/posts passed with status code: $response"
