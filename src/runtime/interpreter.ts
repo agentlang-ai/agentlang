@@ -902,7 +902,7 @@ async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Pr
     if (inst) {
       n = makeFqName(inst.moduleName, n);
     } else {
-      throw new Error(`Fully qualified name required for full-text-search in ${n}`);
+      console.log(`Fully qualified name required for full-text-search in ${n}`);
     }
   }
   const path = splitFqName(n);
@@ -912,7 +912,7 @@ async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Pr
   await evaluateLiteral(fts.query, env);
   const q = env.getLastResult();
   if (!isString(q)) {
-    throw new Error(`Full text search query must be a string - ${q}`);
+    console.log(`Full text search query must be a string - ${q}`);
   }
   let options: Map<string, any> | undefined;
   if (fts.options) {
@@ -982,7 +982,7 @@ async function patternToInstance(
   entryName: string,
   attributes: SetAttribute[] | undefined,
   env: Environment
-): Promise<Instance> {
+): Promise<Instance | undefined> {
   const attrs: InstanceAttributes = newInstanceAttributes();
   let qattrs: InstanceAttributes | undefined;
   let qattrVals: InstanceAttributes | undefined;
@@ -1016,7 +1016,13 @@ async function patternToInstance(
     if (p.hasModule()) moduleName = p.getModuleName();
     if (p.hasEntry()) entryName = p.getEntryName();
   }
-  return makeInstance(moduleName, entryName, attrs, qattrs, qattrVals, isQueryAll);
+
+  try {
+    return makeInstance(moduleName, entryName, attrs, qattrs, qattrVals, isQueryAll);
+  } catch (error) {
+    console.error(`patternToInstance: Failed to create instance of ${entryName} - ${error}`);
+    return undefined;
+  }
 }
 
 async function instanceFromSource(crud: CrudMap, env: Environment): Promise<Instance> {
@@ -1072,9 +1078,13 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   if (!env.isInUpsertMode() && crud.upsert.length > 0) {
     return await evaluateUpsert(crud, env);
   }
-  const inst: Instance = crud.source
+  const inst: Instance | undefined = crud.source
     ? await instanceFromSource(crud, env)
     : await patternToInstance(crud.name, crud.body?.attributes, env);
+  if (!inst) {
+    console.error(`evaluateCrudMap: Failed to create instance of ${crud.name}`);
+    return;
+  }
   const entryName = inst.name;
   const moduleName = inst.moduleName;
   const attrs = inst.attributes;
@@ -1376,6 +1386,10 @@ async function walkJoinQueryPattern(
       }
     }
     const qInst = await patternToInstance(crudMap.name, crudMap.body?.attributes, env);
+    if (!qInst) {
+      console.error(`walkJoinQueryPattern: Failed to create instance of ${crudMap.name}`);
+      return [];
+    }
     joinsSpec.push({
       relationship: getRelationship(rp.name, qInst.moduleName),
       queryInstance: qInst,
