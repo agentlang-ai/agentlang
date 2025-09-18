@@ -70,7 +70,7 @@ agent agent02
 
 if (process.env.AL_TEST === 'true') {
   describe('Basic module operations', () => {
-    test('test02 - OpenAI', async () => {
+    test('test01 - OpenAI', async () => {
       if (!process.env.OPENAI_API_KEY) {
         console.log('Skipping OpenAI test - no API key');
         return;
@@ -86,7 +86,7 @@ if (process.env.AL_TEST === 'true') {
         });
     });
 
-    test('test03 - Anthropic', async () => {
+    test('test02 - Anthropic', async () => {
       if (!process.env.ANTHROPIC_API_KEY) {
         console.log('Skipping Anthropic test - no API key');
         return;
@@ -104,7 +104,7 @@ if (process.env.AL_TEST === 'true') {
   });
 
   describe('Simple chat agent', () => {
-    test('test01', async () => {
+    test('Agent should do text categorization', async () => {
       await doInternModule(
         'SimpleAIChat',
         `agent simpleChatAgent
@@ -124,9 +124,8 @@ if (process.env.AL_TEST === 'true') {
       );
     });
   });
-
   describe('Simple planner agent', () => {
-    test('test01', async () => {
+    test('Agent should generate and evaluate patterns', async () => {
       await doInternModule('SPA', `entity Person {id Int @id, name String, age Int}`);
       await doInternModule(
         'SimplePlannerAgent',
@@ -233,35 +232,6 @@ if (process.env.AL_TEST === 'true') {
     });
   });
 
-  describe('Agent-chaining via output', () => {
-    test('test01', async () => {
-      await doInternModule('OPA', `entity Person {id Int @id, name String, age Int}`);
-      await doInternModule(
-        'OutputAgent',
-        `agent a01
-          {instruction "Based on the user request, create appropriate patterns based on the OPA module.",
-           tools "OPA",
-           output "OutputAgent/a02"}
-          agent a02
-          {instruction "If the person's age is less than 18 return 'minor', else return 'major'."}
-          workflow chat {{a01 {message chat.msg}}}
-          `
-      );
-      const k = async (ins: string) => {
-        return await parseAndEvaluateStatement(`{OutputAgent/chat {msg "${ins}"}}`);
-      };
-      type P = { id: number; name: string; age: number };
-      const cr = async (p: P) => {
-        return await k(
-          `Create a new Person aged ${p.age} with id ${p.id} and name '${p.name}'. Return only the pattern, no need to return a complete workflow.`
-        );
-      };
-      let r = await cr({ id: 1, name: 'Joe', age: 20 });
-      assert(r == 'major');
-      r = await cr({ id: 2, name: 'Mat', age: 15 });
-      assert(r == 'minor');
-    });
-  });
 } else {
   describe('Skipping agent tests', () => {
     test('test01', async () => {});

@@ -26,6 +26,7 @@ import {
   SelectIntoSpec,
   SetAttribute,
   Statement,
+  Suspend,
 } from '../language/generated/ast.js';
 import {
   defineAgentEvent,
@@ -56,7 +57,6 @@ import {
   DefaultModuleName,
   escapeFqName,
   escapeQueryName,
-  escapeSpecialChars,
   fqNameFromPath,
   isFqName,
   isPath,
@@ -139,6 +139,7 @@ export class Environment extends Instance {
   private suspensionId: string | undefined;
   private activeCatchHandlers: Array<CatchHandlers>;
   private eventExecutor: Function | undefined = undefined;
+  private statementsExecutor: Function | undefined = undefined;
 
   private activeUserData: any = undefined;
 
@@ -319,6 +320,18 @@ export class Environment extends Instance {
     }
   }
 
+  releaseSuspension(): string {
+    if (this.suspensionId) {
+      const sid = this.suspensionId;
+      this.suspensionId = undefined;
+      if (this.parent) {
+        this.parent.releaseSuspension();
+      }
+      return sid;
+    }
+    throw new Error(`Environment is not in suspended state`);
+  }
+
   markForReturn(): Environment {
     if (this.parent) {
       this.parent.markForReturn();
@@ -329,6 +342,14 @@ export class Environment extends Instance {
 
   isMarkedForReturn(): boolean {
     return this.returnFlag;
+  }
+
+  propagateLastResult(): Environment {
+    if (this.parent) {
+      this.parent.lastResult = this.lastResult;
+      this.parent.propagateLastResult();
+    }
+    return this;
   }
 
   resetReturnFlag(): Environment {
@@ -585,6 +606,30 @@ export class Environment extends Instance {
     return this.eventExecutor;
   }
 
+  unsetEventExecutor(): Environment {
+    this.eventExecutor = undefined;
+    return this;
+  }
+
+  setStatementsExecutor(f: Function): Environment {
+    this.statementsExecutor = f;
+    return this;
+  }
+
+  getStatementsExecutor(): Function | undefined {
+    return this.statementsExecutor;
+  }
+
+  async callWithStatementsExecutor(exec: Function, f: Function): Promise<any> {
+    const oldExec = this.statementsExecutor;
+    this.statementsExecutor = exec;
+    try {
+      return await f();
+    } finally {
+      this.statementsExecutor = oldExec;
+    }
+  }
+
   setActiveUserData(data: any): Environment {
     this.activeUserData = data;
     return this;
@@ -597,7 +642,7 @@ export class Environment extends Instance {
 
 export const GlobalEnvironment = new Environment();
 
-export async function evaluate(
+export let evaluate = async function (
   eventInstance: Instance,
   continuation?: Function,
   activeEnv?: Environment,
@@ -649,6 +694,12 @@ export async function evaluate(
       await env.commitAllTransactions();
     }
   }
+};
+
+export function setEvaluateFn(f: any): Function {
+  const oldf = evaluate;
+  evaluate = f;
+  return oldf;
 }
 
 export async function evaluateAsEvent(
@@ -684,27 +735,6 @@ export function makeEventEvaluator(moduleName: string): Function {
   };
 }
 
-function statemtentString(stmt: Statement): string {
-  if (stmt.$cstNode) {
-    return stmt.$cstNode.text;
-  } else {
-    throw new Error(`Failed to fetch text for statement - ${stmt}`);
-  }
-}
-
-async function saveSuspension(cont: Statement[], env: Environment) {
-  if (cont.length > 0) {
-    const suspId = await createSuspension(
-      env.getSuspensionId(),
-      cont.map((stmt: Statement) => {
-        return statemtentString(stmt);
-      }),
-      env
-    );
-    env.setLastResult({ suspension: suspId || 'null' });
-  }
-}
-
 export async function evaluateStatements(
   stmts: Statement[],
   env: Environment,
@@ -733,7 +763,7 @@ async function evaluateAsyncPattern(
     await evaluatePattern(pat, env);
     maybeBindStatementResultToAlias(hints, env);
     if (env.isSuspended()) {
-      await saveSuspension(thenStmts, env);
+      throw new Error(`Cannot suspend asynchronous execution`);
     } else {
       await evaluateStatements(thenStmts, env);
     }
@@ -791,7 +821,9 @@ async function maybeHandleNotFound(handlers: CatchHandlers | undefined, env: Env
   ) {
     const onNotFound = handlers ? handlers.get('not_found') : undefined;
     if (onNotFound) {
-      await evaluateStatement(onNotFound, env);
+      const newEnv = new Environment('not-found-env', env).unsetEventExecutor();
+      await evaluateStatement(onNotFound, newEnv);
+      env.setLastResult(newEnv.getLastResult());
     }
   }
 }
@@ -803,7 +835,9 @@ async function maybeHandleError(
 ) {
   const handler = handlers ? handlers.get('error') : undefined;
   if (handler) {
-    await evaluateStatement(handler, env);
+    const newEnv = new Environment('handler-env', env).unsetEventExecutor();
+    await evaluateStatement(handler, newEnv);
+    env.setLastResult(newEnv.getLastResult());
   } else {
     throw reason;
   }
@@ -865,7 +899,7 @@ function maybeFindThenStatements(hints: RuntimeHint[]): Statement[] | undefined 
   return undefined;
 }
 
-export async function parseAndEvaluateStatement(
+export let parseAndEvaluateStatement = async function (
   stmtString: string,
   activeUserId?: string,
   actievEnv?: Environment
@@ -895,6 +929,12 @@ export async function parseAndEvaluateStatement(
       }
     }
   }
+};
+
+export function setParseAndEvaluateStatementFn(f: any): Function {
+  const oldf = parseAndEvaluateStatement;
+  parseAndEvaluateStatement = f;
+  return oldf;
 }
 
 export class PatternHandler {
@@ -929,6 +969,10 @@ export class PatternHandler {
   async handleReturn(ret: Return, env: Environment) {
     await evaluatePattern(ret.pattern, env);
   }
+
+  async handleSuspend(susp: Suspend, _: Environment) {
+    throw new Error(`suspend is not directly supported in core evaluator for ${susp}`);
+  }
 }
 
 const DefaultPatternHandler = new PatternHandler();
@@ -955,6 +999,8 @@ export async function evaluatePattern(
   } else if (pat.return) {
     await handler.handleReturn(pat.return, env);
     env.markForReturn();
+  } else if (pat.suspend) {
+    await handler.handleSuspend(pat.suspend, env);
   }
 }
 
@@ -1306,17 +1352,17 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
     }
   } else if (isEventInstance(inst)) {
-    const eventExec = env.getEventExecutor();
-    if (eventExec) {
-      await eventExec(inst, env);
-    } else {
-      if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
-      else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
-      else if (isDocEventInstance(inst)) await handleDocEvent(inst, env);
-      else {
+    if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
+    else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
+    else if (isDocEventInstance(inst)) await handleDocEvent(inst, env);
+    else {
+      const eventExec = env.getEventExecutor();
+      if (eventExec) {
+        await eventExec(inst, env);
+      } else {
         await evaluate(inst, (result: Result) => env.setLastResult(result), env);
-        env.resetReturnFlag();
       }
+      env.resetReturnFlag();
     }
   } else {
     env.setLastResult(inst);
@@ -1463,6 +1509,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   await agent.invoke(msg, env);
   let result: string | undefined = env.getLastResult();
   const isPlanner = agent.isPlanner();
+  const stmtsExec = env.getStatementsExecutor();
   if (result) {
     if (isPlanner) {
       let retries = 0;
@@ -1486,9 +1533,18 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           }
           if (isWf) {
             const wf = await parseWorkflow(rs);
-            await evaluateStatements(wf.statements, env);
+            if (stmtsExec) {
+              await stmtsExec(wf.statements, env);
+            } else {
+              await evaluateStatements(wf.statements, env);
+            }
           } else {
-            env.setLastResult(await parseAndEvaluateStatement(rs, undefined, env));
+            if (stmtsExec) {
+              const stmt = await parseStatement(rs);
+              env.setLastResult(await stmtsExec([stmt], env));
+            } else {
+              env.setLastResult(await parseAndEvaluateStatement(rs, undefined, env));
+            }
           }
           break;
         } catch (err: any) {
@@ -1506,15 +1562,15 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
         }
       }
     }
-    if (agent.output) {
-      await pushToAgent(agent.output, env.getLastResult(), env);
-    }
   } else {
     throw new Error(`Agent ${agent.name} failed to generate a response`);
   }
 }
 
-async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
+export async function handleAgentInvocation(
+  agentEventInst: Instance,
+  env: Environment
+): Promise<void> {
   const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
   const origMsg: any = agentEventInst.lookup('message');
   const msg: string = isString(origMsg) ? origMsg : agentInputAsString(origMsg);
@@ -1545,7 +1601,7 @@ async function saveFlowSuspension(
 ): Promise<void> {
   const suspId = await createSuspension(
     env.getSuspensionId(),
-    [FlowSuspensionTag, agent.name, step, context],
+    JSON.stringify([FlowSuspensionTag, agent.name, step, context]),
     env
   );
   env.setLastResult({ suspension: suspId || 'null' });
@@ -1624,13 +1680,7 @@ function agentInputAsString(result: any): string {
   return result;
 }
 
-async function pushToAgent(agentName: string, result: any, env: Environment) {
-  const r = escapeSpecialChars(agentInputAsString(result));
-  const pat = `{${agentName} {message "\n${r}"}}`;
-  env.setLastResult(await parseAndEvaluateStatement(pat, undefined, env));
-}
-
-async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
+export async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
   const r = await invokeOpenApiEvent(
     eventInst.moduleName,
     eventInst.name,

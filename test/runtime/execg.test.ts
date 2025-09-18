@@ -1,14 +1,15 @@
 // Exec-graph tests
 import { assert, describe, test } from 'vitest';
 import { doInternModule } from '../util.js';
-import { executeEvent, executeStatment as executeStatement, generateExecutionGraph } from '../../src/runtime/exec-graph.js';
+import { executeEventHelper, executeStatement as executeStatement, parseAndExecuteStatement } from '../../src/runtime/exec-graph.js';
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../../src/runtime/module.js';
+import { restartSuspension } from '../../src/runtime/modules/core.js';
 
 describe('Basic exec-graph evaluation', () => {
   test('basic-patterns', async () => {
     await doInternModule(
-          'exg01',
-          `entity E {
+      'exg01',
+      `entity E {
             id Int @id,
             x Int 
           }
@@ -37,16 +38,16 @@ describe('Basic exec-graph evaluation', () => {
           }
           `)
     const mke = (id: number, x: number) => {
-        return makeInstance('exg01', 'createE', newInstanceAttributes().set('id', id).set('x', x))
+      return makeInstance('exg01', 'createE', newInstanceAttributes().set('id', id).set('x', x))
     }
     const cre = async (id: number, x: number) => {
-        const e: Instance = await executeEvent(mke(id,x))
-        chkE(e, id)
-        assert(e.lookup('x') == x)
+      const e: Instance = await executeEventHelper(mke(id, x))
+      chkE(e, id)
+      assert(e.lookup('x') == x)
     }
     const chkE = (e: Instance, id: number) => {
-        assert(isInstanceOfType(e, 'exg01/E'))
-        assert(e.lookup('id') == id)
+      assert(isInstanceOfType(e, 'exg01/E'))
+      assert(e.lookup('id') == id)
     }
     await cre(1, 100)
     await cre(2, 200)
@@ -55,7 +56,7 @@ describe('Basic exec-graph evaluation', () => {
     chkE(r02[0], 1)
     const attrs2 = newInstanceAttributes().set('id', 2)
     const finde = makeInstance('exg01', 'findE', attrs2)
-    const r03: Instance = await executeEvent(finde)
+    const r03: Instance = await executeEventHelper(finde)
     chkE(r03, 2)
     const rs: Instance[] = await executeStatement(`{exg01/createRs {}}`)
     assert(rs.every((inst: Instance) => {
@@ -64,18 +65,53 @@ describe('Basic exec-graph evaluation', () => {
       return y == 1000 || y == 800
     }))
     const dele = makeInstance('exg01', 'deleteE', attrs2)
-    const r04: Instance = await executeEvent(dele)
+    const r04: Instance = await executeEventHelper(dele)
     chkE(r04, 2)
-    const r05 = await executeEvent(finde)
+    const r05 = await executeEventHelper(finde)
     assert(r05 == null)
     attrs2.set('id', 1)
-    const r06: Instance = await executeEvent(finde)
+    const r06: Instance = await executeEventHelper(finde)
     chkE(r06, 1)
-    const exg = await generateExecutionGraph('exg01/createRs')
-    if (exg) {
-      const obj = exg.asObject()
-      // TODO: assert structure of obj
-      console.log(obj)
+  })
+
+  test('simple-suspension', async () => {
+    await doInternModule(
+      'exgsusp',
+      `entity E {
+        id Int @id,
+        x String
+      }
+      entity F {
+        id Int @id
+      }
+        
+      workflow EF {
+        suspend {E {id EF.id, x EF.x}} @as e;
+        {F {id e.id * 10}}
+      }`)
+
+    const [e, suspId] = await parseAndExecuteStatement(`{exgsusp/EF {id 10, x "hello"}}`)
+    assert(isInstanceOfType(e, 'exgsusp/E'))
+    const [susp, _] = await restartSuspension(suspId, 'x=100')
+    assert(susp.length > 0)
+  })
+
+  test('basic-agents', async () => {
+    if (process.env.AL_TEST === 'true') {
+      await doInternModule(
+        'exg02',
+        `entity Person {
+            email Email @id
+            name String
+          }
+          agent personManager {
+            instruction "Based on user request, create, update and delete persons",
+            tools [exg02/Person]
+          }
+          `)
+      const r01: Instance = await executeStatement(`{exg02/personManager {message "create Joe with email joe@acme.com"}}`)
+      assert(isInstanceOfType(r01, 'exg02/Person'))
+      assert(r01.lookup('email') == 'joe@acme.com' && r01.lookup('name') == 'Joe')
     }
   })
 })
