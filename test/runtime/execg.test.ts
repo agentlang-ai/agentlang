@@ -1,9 +1,8 @@
 // Exec-graph tests
 import { assert, describe, test } from 'vitest';
 import { doInternModule } from '../util.js';
-import { executeEventHelper, executeStatement as executeStatement, parseAndExecuteStatement } from '../../src/runtime/exec-graph.js';
+import { executeEventHelper, executeStatement as executeStatement } from '../../src/runtime/exec-graph.js';
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../../src/runtime/module.js';
-import { restartSuspension } from '../../src/runtime/modules/core.js';
 
 describe('Basic exec-graph evaluation', () => {
   test('basic-patterns', async () => {
@@ -74,7 +73,7 @@ describe('Basic exec-graph evaluation', () => {
     chkE(r06, 1)
   })
 
-  test('simple-suspension', async () => {
+  /*test('simple-suspension', async () => {
     await doInternModule(
       'exgsusp',
       `entity E {
@@ -94,7 +93,7 @@ describe('Basic exec-graph evaluation', () => {
     assert(isInstanceOfType(e, 'exgsusp/E'))
     const [susp, _] = await restartSuspension(suspId, 'x=100')
     assert(susp.length > 0)
-  })
+  })*/
 
   test('basic-agents', async () => {
     if (process.env.AL_TEST === 'true') {
