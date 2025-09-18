@@ -101,7 +101,7 @@ WorkflowHeaderTag returns string: '@after' | '@before';
 WorkflowHeaderPrefix returns string: 'create' | 'update' | 'delete';
 
 Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
-| fullTextSearch=FullTextSearch | return=Return | suspend=Suspend;
+| fullTextSearch=FullTextSearch | return=Return;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 
@@ -129,8 +129,6 @@ SelectIntoEntry: alias=ID attribute=Ref;
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
 Return: 'return' pattern=Pattern;
-
-Suspend: 'suspend' pattern=Pattern;
 
 AgentDefinition: 'agent' name=GenericName (body=GenericDefBody? | '{''}');
 

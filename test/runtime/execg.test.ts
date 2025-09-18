@@ -73,28 +73,6 @@ describe('Basic exec-graph evaluation', () => {
     chkE(r06, 1)
   })
 
-  /*test('simple-suspension', async () => {
-    await doInternModule(
-      'exgsusp',
-      `entity E {
-        id Int @id,
-        x String
-      }
-      entity F {
-        id Int @id
-      }
-        
-      workflow EF {
-        suspend {E {id EF.id, x EF.x}} @as e;
-        {F {id e.id * 10}}
-      }`)
-
-    const [e, suspId] = await parseAndExecuteStatement(`{exgsusp/EF {id 10, x "hello"}}`)
-    assert(isInstanceOfType(e, 'exgsusp/E'))
-    const [susp, _] = await restartSuspension(suspId, 'x=100')
-    assert(susp.length > 0)
-  })*/
-
   test('basic-agents', async () => {
     if (process.env.AL_TEST === 'true') {
       await doInternModule(

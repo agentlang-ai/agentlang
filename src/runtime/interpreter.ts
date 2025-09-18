@@ -26,7 +26,6 @@ import {
   SelectIntoSpec,
   SetAttribute,
   Statement,
-  Suspend,
 } from '../language/generated/ast.js';
 import {
   defineAgentEvent,
@@ -137,6 +136,7 @@ export class Environment extends Instance {
   private inDeleteMode: boolean = false;
   private inKernelMode: boolean = false;
   private suspensionId: string | undefined;
+  private preGeneratedSuspensionId: string;
   private activeCatchHandlers: Array<CatchHandlers>;
   private eventExecutor: Function | undefined = undefined;
   private statementsExecutor: Function | undefined = undefined;
@@ -171,6 +171,7 @@ export class Environment extends Instance {
       this.activeCatchHandlers = new Array<CatchHandlers>();
       this.attributes.set('process', process);
     }
+    this.preGeneratedSuspensionId = crypto.randomUUID();
   }
 
   static from(
@@ -183,6 +184,7 @@ export class Environment extends Instance {
       env.activeResolvers = new Map<string, Resolver>();
       env.activeTransactions = new Map<string, string>();
       env.activeCatchHandlers = new Array<CatchHandlers>();
+      env.preGeneratedSuspensionId = parent.preGeneratedSuspensionId;
     }
     return env;
   }
@@ -312,7 +314,7 @@ export class Environment extends Instance {
 
   suspend(): string {
     if (this.suspensionId == undefined) {
-      const id = crypto.randomUUID();
+      const id = this.preGeneratedSuspensionId;
       this.propagateSuspension(id);
       return id;
     } else {
@@ -320,16 +322,8 @@ export class Environment extends Instance {
     }
   }
 
-  releaseSuspension(): string {
-    if (this.suspensionId) {
-      const sid = this.suspensionId;
-      this.suspensionId = undefined;
-      if (this.parent) {
-        this.parent.releaseSuspension();
-      }
-      return sid;
-    }
-    throw new Error(`Environment is not in suspended state`);
+  fetchSuspensionId(): string {
+    return this.preGeneratedSuspensionId;
   }
 
   markForReturn(): Environment {
@@ -763,7 +757,17 @@ async function evaluateAsyncPattern(
     await evaluatePattern(pat, env);
     maybeBindStatementResultToAlias(hints, env);
     if (env.isSuspended()) {
-      throw new Error(`Cannot suspend asynchronous execution`);
+      await createSuspension(
+        env.fetchSuspensionId(),
+        thenStmts.map((s: Statement) => {
+          if (s.$cstNode) {
+            return s.$cstNode.text;
+          } else {
+            throw new Error('failed to extract code for suspension statement');
+          }
+        }),
+        env
+      );
     } else {
       await evaluateStatements(thenStmts, env);
     }
@@ -788,8 +792,12 @@ export async function evaluateStatement(stmt: Statement, env: Environment): Prom
       hints,
       Environment.from(env, env.name + 'async', true)
     );
+    env.setLastResult(env.fetchSuspensionId());
     if (isReturn(stmt.pattern)) {
       env.markForReturn();
+    }
+    if (hasHints) {
+      maybeBindStatementResultToAlias(hints, env);
     }
     return;
   }
@@ -969,10 +977,6 @@ export class PatternHandler {
   async handleReturn(ret: Return, env: Environment) {
     await evaluatePattern(ret.pattern, env);
   }
-
-  async handleSuspend(susp: Suspend, _: Environment) {
-    throw new Error(`suspend is not directly supported in core evaluator for ${susp}`);
-  }
 }
 
 const DefaultPatternHandler = new PatternHandler();
@@ -999,8 +1003,6 @@ export async function evaluatePattern(
   } else if (pat.return) {
     await handler.handleReturn(pat.return, env);
     env.markForReturn();
-  } else if (pat.suspend) {
-    await handler.handleSuspend(pat.suspend, env);
   }
 }
 
@@ -1601,7 +1603,7 @@ async function saveFlowSuspension(
 ): Promise<void> {
   const suspId = await createSuspension(
     env.getSuspensionId(),
-    JSON.stringify([FlowSuspensionTag, agent.name, step, context]),
+    [FlowSuspensionTag, agent.name, step, context],
     env
   );
   env.setLastResult({ suspension: suspId || 'null' });

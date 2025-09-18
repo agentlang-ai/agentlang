@@ -100,7 +100,6 @@ export enum SubGraphType {
   DELETE,
   PURGE,
   RETURN,
-  SUSPEND,
   AGENT,
   NONE,
 }
