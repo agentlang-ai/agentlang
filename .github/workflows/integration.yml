@@ -7,118 +7,24 @@ on:
     branches: [main]
 
 jobs:
-  integration-test-pets:
-    name: Pets Example Integration Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          # Auto-approve build scripts for esbuild and sqlite3 if needed
-          if pnpm approve-builds --help >/dev/null 2>&1; then
-            echo -e "\ny\ny\n" | pnpm approve-builds || true
-          fi
-
-      - name: Generate Langium files
-        run: pnpm run langium:generate
-
-      - name: Build project
-        run: pnpm run build
-
-      - name: Run Pets Example App
-        run: |
-          cd example/pets
-          # Start the app in background and capture logs
-          node ../../bin/cli.js run . > server.log 2>&1 &
-          SERVER_PID=$!
-          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
-
-          # Wait for server to be ready by checking for module loaded message
-          echo "Waiting for server to start..."
-          for i in {1..30}; do
-            if grep -i "Module.*pets.*loaded" server.log 2>/dev/null || grep -i "Module pets.core loaded" server.log 2>/dev/null; then
-              echo "Server is ready! Pets module loaded."
-              echo "Server logs:"
-              cat server.log
-              break
-            fi
-            echo "Attempt $i: Waiting for module to load..."
-            sleep 2
-          done
-
-          # Check if module loaded
-          if ! grep -i "Module.*loaded" server.log 2>/dev/null; then
-            echo "Server logs:"
-            cat server.log || echo "No logs available"
-            if ! kill -0 $SERVER_PID 2>/dev/null; then
-              echo "Server process died"
-              exit 1
-            fi
-            echo "Server failed to start after 60 seconds"
-            exit 1
-          fi
-
-          # Give server extra time to bind to port
-          sleep 5
-
-      - name: Test API Endpoints
-        run: |
-          # First, test if server is responding
-          echo "Testing if server responds..."
-          curl -v http://localhost:8080/ || true
-
-          # Test creating a pet via the workflow
-          echo "Testing POST /pets/createPet endpoint..."
-          response=$(curl -s -X POST http://localhost:8080/pets/createPet \
-            -H "Content-Type: application/json" \
-            -d '{"data": {"name":"Fluffy","type":"cat","status":"available"}}' \
-            -o /tmp/response.json \
-            -w "%{http_code}")
-
-          echo "Response code: $response"
-          echo "Response body:"
-          cat /tmp/response.json || true
-
-          if [ "$response" = "200" ] || [ "$response" = "201" ]; then
-            echo "POST /pets/createPet passed with status code: $response"
-          else
-            # This might fail since we're using OpenAPI spec, but that's okay for now
-            echo "POST /pets/createPet returned status code: $response (API may not be fully implemented)"
-          fi
-
-          # Show server logs for debugging
-          echo "Current server logs:"
-          cd example/pets && tail -20 server.log || true
-
-      - name: Cleanup
-        if: always()
-        run: |
-          if [ ! -z "$SERVER_PID" ]; then
-            echo "Stopping server with PID: $SERVER_PID"
-            kill $SERVER_PID || true
-          fi
-          # Show final logs
-          echo "Final server logs:"
-          cd example/pets && cat server.log || true
-
   integration-test-blog:
-    name: Blog Example Integration Tests
+    name: Blog Example Integration Test
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout code
@@ -150,58 +56,88 @@ jobs:
         run: pnpm run build
 
       - name: Run Blog Example App
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+          POSTGRES_PORT: 5432
+          SERVICE_PORT: 8080
+          AUTH_ENABLED: false
+          RBAC_ENABLED: false
+          GRAPHQL_ENABLED: false
+          AUDIT_TRAIL_ENABLED: false
         run: |
           cd example/blog
           # Start the app in background and capture logs
+          echo "Starting Blog application..."
           node ../../bin/cli.js run . > server.log 2>&1 &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
 
           # Wait for server to be ready by checking for module loaded message
-          echo "Waiting for server to start..."
+          echo "Waiting for Blog module to load..."
           for i in {1..30}; do
-            if grep -i "Module.*blog.*loaded" server.log 2>/dev/null || grep -i "Module blog.core loaded" server.log 2>/dev/null; then
-              echo "Server is ready! Blog module loaded."
+            if grep -i "Module Blog.Core loaded" server.log 2>/dev/null; then
+              echo "✓ Blog module loaded successfully!"
               echo "Server logs:"
               cat server.log
               break
             fi
-            echo "Attempt $i: Waiting for module to load..."
+            echo "Attempt $i/30: Waiting for module to load..."
             sleep 2
           done
 
           # Check if module loaded
-          if ! grep -i "Module.*loaded" server.log 2>/dev/null; then
+          if ! grep -i "Module Blog.Core loaded" server.log 2>/dev/null; then
+            echo "❌ Blog module failed to load"
             echo "Server logs:"
             cat server.log || echo "No logs available"
             if ! kill -0 $SERVER_PID 2>/dev/null; then
               echo "Server process died"
-              exit 1
             fi
-            echo "Server failed to start after 60 seconds"
             exit 1
           fi
 
-          # Give server extra time to bind to port
+          # Give server extra time to bind to port and initialize database
+          echo "Waiting for server to fully initialize..."
           sleep 5
 
-      - name: Test Blog API Endpoints
+      - name: Test Blog POST Endpoint
         run: |
-          # First, test if server is responding
-          echo "Testing if server responds..."
-          curl -v http://localhost:8080/ || true
+          echo "Testing Blog POST endpoint..."
 
-          # Try to test blog endpoints based on blog.al structure
-          echo "Testing blog endpoint..."
-          response=$(curl -s -o /tmp/response.json -w "%{http_code}" http://localhost:8080/)
+          # Create a blog post
+          echo "Sending POST request to create a blog post..."
+          response=$(curl -s -X POST http://localhost:8080/Blog.Core/CreateUser \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "CI Bot",
+              "email": "ci@bot.com"
+            }' \
+            -o /tmp/response.json \
+            -w "%{http_code}")
 
           echo "Response code: $response"
           echo "Response body:"
           cat /tmp/response.json || true
+          echo ""
 
-          # Show server logs for debugging
-          echo "Current server logs:"
-          cd example/blog && tail -20 server.log || true
+          # Check if response is successful (200 or 201)
+          if [ "$response" = "200" ] || [ "$response" = "201" ]; then
+            echo "✓ POST request successful with status code: $response"
+          else
+            echo "❌ POST request failed with status code: $response"
+            echo "Server logs:"
+            cd example/blog && tail -50 server.log || true
+            exit 1
+          fi
+
+      - name: Show Server Logs
+        if: always()
+        run: |
+          echo "Final server logs:"
+          cd example/blog && cat server.log || true
 
       - name: Cleanup
         if: always()
@@ -210,6 +146,3 @@ jobs:
             echo "Stopping server with PID: $SERVER_PID"
             kill $SERVER_PID || true
           fi
-          # Show final logs
-          echo "Final server logs:"
-          cd example/blog && cat server.log || true
