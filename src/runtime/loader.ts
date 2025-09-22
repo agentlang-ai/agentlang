@@ -69,6 +69,7 @@ import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
 import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
+import { getDefaultLLMService } from './agents/registry.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
 import { Config, ConfigSchema, setAppConfig } from './state.js';
@@ -464,7 +465,6 @@ export async function runStandaloneStatements() {
 async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   let llmName: string | undefined = undefined;
   const name = def.name;
-  let hasUserLlm = false;
   const attrsStrs = new Array<string>();
   attrsStrs.push(`name "${name}"`);
   const attrs = newInstanceAttributes();
@@ -504,9 +504,8 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
       if (v == undefined) {
         throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
       }
-      if (llmName == undefined && apdef.name == 'llm') {
+      if (apdef.name == 'llm') {
         llmName = v;
-        hasUserLlm = true;
       }
       const ov = v;
       if (apdef.value.id || apdef.value.ref || apdef.value.array) {
@@ -518,22 +517,34 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
       attrs.set(apdef.name, ov);
     }
   });
+  let createDefaultLLM = false;
   if (!attrs.has('llm')) {
+    // Agent doesn't have an LLM specified, create a default one
     llmName = `${name}_llm`;
-    attrsStrs.push(`llm "${llmName}"`);
-    if (hasUserLlm) attrs.set('llm', llmName);
+    createDefaultLLM = true;
   }
+
+  // Create a copy of attrsStrs for the database operation
+  const dbAttrsStrs = [...attrsStrs];
+  // Only add llm to database attributes if we have one
+  if (llmName) {
+    dbAttrsStrs.push(`llm "${llmName}"`);
+  }
+
   const createAgent = `{${CoreAIModuleName}/${AgentEntityName} {
-    ${attrsStrs.join(',')}
+    ${dbAttrsStrs.join(',')}
   }, @upsert}`;
   let wf = createAgent;
-  if (llmName) {
-    const service = process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'openai';
+  // Only create an LLM with default service if we're creating a default LLM
+  // If the user specified an LLM name, don't create/upsert it (it should already exist)
+  if (createDefaultLLM && llmName) {
+    const service = getDefaultLLMService();
     wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}", service "${service}"}, @upsert}; ${wf}`;
   }
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
     addStandaloneStatement(stmt, moduleName, false);
   });
+  // Don't add llm to module attrs if it wasn't originally specified
   addAgent(def.name, attrs, moduleName);
 }
 

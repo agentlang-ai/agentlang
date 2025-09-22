@@ -324,7 +324,7 @@ export async function createUser(
     'CreateUser',
     {
       id: id,
-      email: email,
+      email: email.toLowerCase(),
       firstName: firstName,
       lastName: lastName,
     },
@@ -346,7 +346,7 @@ export async function findUserByEmail(email: string, env: Environment): Promise<
   return await evalEvent(
     'FindUserByEmail',
     {
-      email: email,
+      email: email.toLowerCase(),
     },
     env
   );
@@ -375,7 +375,7 @@ export async function ensureUser(
   lastName: string,
   env: Environment
 ) {
-  const user = await findUserByEmail(email, env);
+  const user = await findUserByEmail(email.toLowerCase(), env);
   if (user) {
     // Update existing user with latest name information from ID token
     const userId = user.lookup('id');
@@ -384,7 +384,7 @@ export async function ensureUser(
     });
     return user;
   }
-  return await createUser(crypto.randomUUID(), email, firstName, lastName, env);
+  return await createUser(crypto.randomUUID(), email.toLowerCase(), firstName, lastName, env);
 }
 
 export async function ensureUserRoles(userid: string, userRoles: string[], env: Environment) {
@@ -543,12 +543,14 @@ export async function assignUserToRoleByEmail(
   env: Environment
 ): Promise<boolean> {
   let r: boolean = true;
-  await evalEvent('AssignUserToRoleByEmail', { email: email, roleName: roleName }, env).catch(
-    (reason: any) => {
-      logger.error(`Failed to assign user ${email} to role ${roleName} - ${reason}`);
-      r = false;
-    }
-  );
+  await evalEvent(
+    'AssignUserToRoleByEmail',
+    { email: email.toLowerCase(), roleName: roleName },
+    env
+  ).catch((reason: any) => {
+    logger.error(`Failed to assign user ${email} to role ${roleName} - ${reason}`);
+    r = false;
+  });
   return r;
 }
 
@@ -719,7 +721,7 @@ export async function signUpUser(
     await fetchAuthImpl().signUp(
       firstName,
       lastName,
-      username,
+      username.toLowerCase(),
       password,
       userData ? new Map(Object.entries(userData)) : undefined,
       env,
@@ -740,7 +742,7 @@ export async function confirmSignupUser(
   env: Environment
 ): Promise<Result> {
   try {
-    await fetchAuthImpl().confirmSignup(username, confirmationCode, env);
+    await fetchAuthImpl().confirmSignup(username.toLowerCase(), confirmationCode, env);
     return {
       status: 'ok',
       message: 'User confirmed successfully',
@@ -756,7 +758,7 @@ export async function resendConfirmationCodeUser(
   env: Environment
 ): Promise<Result> {
   try {
-    await fetchAuthImpl().resendConfirmationCode(username, env);
+    await fetchAuthImpl().resendConfirmationCode(username.toLowerCase(), env);
     return {
       status: 'ok',
       message: 'Confirmation code resent successfully',
@@ -769,7 +771,7 @@ export async function resendConfirmationCodeUser(
 
 export async function forgotPasswordUser(username: string, env: Environment): Promise<Result> {
   try {
-    await fetchAuthImpl().forgotPassword(username, env);
+    await fetchAuthImpl().forgotPassword(username.toLowerCase(), env);
     return { status: 'ok', message: 'Password reset code sent' };
   } catch (err: any) {
     logger.error(`Forgot password failed for ${username}: ${err.message}`);
@@ -784,7 +786,12 @@ export async function confirmForgotPasswordUser(
   env: Environment
 ): Promise<Result> {
   try {
-    await fetchAuthImpl().confirmForgotPassword(username, confirmationCode, newPassword, env);
+    await fetchAuthImpl().confirmForgotPassword(
+      username.toLowerCase(),
+      confirmationCode,
+      newPassword,
+      env
+    );
     return { status: 'ok', message: 'Password has been reset' };
   } catch (err: any) {
     logger.error(`Confirm forgot password failed for ${username}: ${err.message}`);
@@ -799,7 +806,7 @@ export async function loginUser(
 ): Promise<string | object> {
   let result: string | object = '';
   try {
-    await fetchAuthImpl().login(username, password, env, (r: SessionInfo) => {
+    await fetchAuthImpl().login(username.toLowerCase(), password, env, (r: SessionInfo) => {
       // Check if Cognito is configured by checking if we have the tokens
       if (r.idToken && r.accessToken && r.refreshToken) {
         // Return full token response for Cognito
@@ -928,7 +935,7 @@ async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveS
 
       let localUser = null;
       if (email) {
-        localUser = await findUserByEmail(email, env);
+        localUser = await findUserByEmail(email.toLowerCase(), env);
       }
 
       if (!localUser && userId) {
@@ -1026,7 +1033,7 @@ export async function getUserInfoByEmail(email: string, env: Environment): Promi
   env = env ? env : new Environment();
   const f = async () => {
     try {
-      return await fetchAuthImpl().getUserByEmail(email, env);
+      return await fetchAuthImpl().getUserByEmail(email.toLowerCase(), env);
     } catch (err: any) {
       logger.error(`Failed to get user info for email ${email}: ${err.message}`);
       throw err; // Re-throw to preserve error type

@@ -937,7 +937,7 @@ async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
 function getMapKey(k: MapKey): Result {
   if (k.str != undefined) return k.str;
   else if (k.num != undefined) return k.num;
-  else if (k.bool != undefined) k.bool == 'true' ? true : false;
+  else if (k.bool != undefined) return k.bool == 'true' ? true : false;
 }
 
 const DefaultResolverName: string = '-';
@@ -1392,15 +1392,24 @@ const MAX_PLANNER_RETRIES = 3;
 async function agentInvoke(agent: AgentInstance, msg: string, env: Environment): Promise<void> {
   const flowContext = env.getFlowContext();
   msg = flowContext ? `context: ${flowContext}\n${msg}` : msg;
+
+  // log invocation details
+  let invokeDebugMsg = `Invoking agent ${agent.name}`;
+  if (agent.role) {
+    invokeDebugMsg = `${invokeDebugMsg} Role=${agent.role}`;
+  }
+  invokeDebugMsg = `\nMessage=${msg}`;
+  console.debug(invokeDebugMsg);
+  //
+
   await agent.invoke(msg, env);
-  const r: string | undefined = env.getLastResult();
+  let result: string | undefined = env.getLastResult();
+  logger.debug(`Agent ${agent.name} result: ${result}`);
   const isPlanner = agent.isPlanner();
-  let result: string | undefined = isPlanner ? cleanupAgentResponse(r) : r;
   if (result) {
     if (isPlanner) {
       let retries = 0;
       while (true) {
-        logger.debug(`Agent ${agent.name} generated pattern: ${result}`);
         try {
           let rs: string = result ? result.trim() : '';
           let isWf = rs.startsWith('workflow');
@@ -1428,7 +1437,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           if (retries < MAX_PLANNER_RETRIES) {
             await agent.invoke(`Please fix these errors:\n ${err}`, env);
             const r: string | undefined = env.getLastResult();
-            result = cleanupAgentResponse(r);
+            result = r;
             ++retries;
           } else {
             logger.error(
@@ -1507,17 +1516,21 @@ async function iterateOnFlow(
   env: Environment
 ): Promise<void> {
   rootAgent.disableSession();
-  const s = `Now consider the following flowchart and context:\n${flow}\n\n${msg}`;
+  const s = `Now consider the following flowchart and context:\n${flow}\n\n${msg}
+  If you understand from the context that a step with no further possible steps has been evaluated,
+  terminate the flowchart by returning DONE. Never return to the top or root step of the flowchart, instead return DONE.\n`;
   await agentInvoke(rootAgent, s, env);
-  let step = env.getLastResult();
+  let step = env.getLastResult().trim();
   let context = msg;
   let stepc = 0;
   const iterId = crypto.randomUUID();
   console.debug(`Starting iteration ${iterId} on flow: ${flow}`);
-  while (step != 'DONE') {
+  const executedSteps = new Set<string>();
+  while (step != 'DONE' && !executedSteps.has(step)) {
     if (stepc > MaxFlowSteps) {
       throw new Error(`Flow execution exceeded maximum steps limit`);
     }
+    executedSteps.add(step);
     ++stepc;
     const agent = AgentInstance.FromFlowStep(step, rootAgent);
     console.debug(`${iterId} evaluating step ${step} with agent ${agent.name}, context ${context}`);
@@ -1525,17 +1538,17 @@ async function iterateOnFlow(
     env.setFlowContext(context);
     await agentInvoke(agent, '', env);
     env.resetFlowContext();
-    console.debug(`${iterId} suspending iteration on step ${step}`);
     if (env.isSuspended()) {
+      console.debug(`${iterId} suspending iteration on step ${step}`);
       await saveFlowSuspension(rootAgent, context, step, env);
       return;
     }
     const r = env.getLastResult();
     const rs = agentInputAsString(r);
     console.debug(`${iterId} result of step ${step} - ${rs}`);
-    context = `${context}\n${step} --> ${rs}\n`;
+    context = `${context}\nExecuted steps: ${[...executedSteps].join(', ')}\n${step} --> ${rs}\n`;
     await agentInvoke(rootAgent, `${s}\n${context}`, env);
-    step = env.getLastResult();
+    step = env.getLastResult().trim();
   }
 }
 
@@ -1561,38 +1574,6 @@ async function pushToAgent(agentName: string, result: any, env: Environment) {
   const r = escapeSpecialChars(agentInputAsString(result));
   const pat = `{${agentName} {message "\n${r}"}}`;
   env.setLastResult(await parseAndEvaluateStatement(pat, undefined, env));
-}
-
-function cleanupAgentResponse(response: string | undefined): string | undefined {
-  if (response) {
-    const resp = response.trim();
-    if (resp.startsWith('[') && resp.endsWith(']')) {
-      return resp;
-    }
-    const parts = resp.split('\n');
-    const validated = parts.filter((s: string) => {
-      let stmt = s.trim();
-      if (stmt.endsWith(',')) {
-        stmt = `${stmt.substring(0, stmt.length - 1)};`;
-      }
-      const r =
-        stmt.startsWith('{') ||
-        stmt.startsWith('}') ||
-        stmt.startsWith('if') ||
-        stmt.startsWith('for') ||
-        stmt.startsWith('delete') ||
-        stmt.startsWith('workflow');
-      if (!r) {
-        const i = stmt.indexOf('(');
-        return i > 0 && stmt.indexOf(')') > i;
-      } else {
-        return r;
-      }
-    });
-    return validated.join('\n');
-  } else {
-    return response;
-  }
 }
 
 async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
