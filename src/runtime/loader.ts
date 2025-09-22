@@ -29,6 +29,7 @@ import {
   Expr,
   FlowDefinition,
   isFlowDefinition,
+  Literal,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -68,7 +69,17 @@ import { maybeGetValidationErrors, parse, parseModule, parseWorkflow } from '../
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
-import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
+import {
+  AgentCondition,
+  AgentEntityName,
+  AgentGlossaryEntry,
+  AgentScenario,
+  CoreAIModuleName,
+  LlmEntityName,
+  registerAgentConditions,
+  registerAgentGlossary,
+  registerAgentScenarios,
+} from './modules/ai.js';
 import { getDefaultLLMService } from './agents/registry.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
@@ -462,6 +473,99 @@ export async function runStandaloneStatements() {
   }
 }
 
+function processAgentConditions(agentName: string, value: Literal): AgentCondition[] | undefined {
+  if (value.array) {
+    const conds = new Array<AgentCondition>();
+    value.array.vals.forEach((stmt: Statement) => {
+      const expr = stmt.pattern.expr;
+      if (expr && isLiteral(expr) && expr.map) {
+        let cond: string | undefined;
+        let then: string | undefined;
+        expr.map.entries.forEach((me: MapEntry) => {
+          const v = isLiteral(me.value) ? me.value.str : undefined;
+          if (v) {
+            if (me.key.str == 'if') {
+              cond = v;
+            } else if (me.key.str == 'then') {
+              then = v;
+            }
+          }
+        });
+        if (cond && then) {
+          conds?.push({ cond, then });
+        } else {
+          throw new Error(`Invalid condition spec in agent ${agentName}`);
+        }
+      }
+    });
+    return conds;
+  }
+  return undefined;
+}
+
+function processAgentScenarios(agentName: string, value: Literal): AgentScenario[] | undefined {
+  if (value.array) {
+    const scenarios = new Array<AgentScenario>();
+    value.array.vals.forEach((stmt: Statement) => {
+      const expr = stmt.pattern.expr;
+      if (expr && isLiteral(expr) && expr.map) {
+        let user: string | undefined;
+        let ai: string | undefined;
+        expr.map.entries.forEach((me: MapEntry) => {
+          const v = isLiteral(me.value) ? me.value.str : undefined;
+          if (v) {
+            if (me.key.str == 'user') {
+              user = v;
+            } else if (me.key.str == 'ai') {
+              ai = v;
+            }
+          }
+        });
+        if (user && ai) {
+          scenarios.push({ user, ai });
+        } else {
+          throw new Error(`Invalid glossary spec in agent ${agentName}`);
+        }
+      }
+    });
+    return scenarios;
+  }
+  return undefined;
+}
+
+function processAgentGlossary(agentName: string, value: Literal): AgentGlossaryEntry[] | undefined {
+  if (value.array) {
+    const gls = new Array<AgentGlossaryEntry>();
+    value.array.vals.forEach((stmt: Statement) => {
+      const expr = stmt.pattern.expr;
+      if (expr && isLiteral(expr) && expr.map) {
+        let name: string | undefined;
+        let meaning: string | undefined;
+        let synonyms: string | undefined;
+        expr.map.entries.forEach((me: MapEntry) => {
+          const v = isLiteral(me.value) ? me.value.str : undefined;
+          if (v) {
+            if (me.key.str == 'name') {
+              name = v;
+            } else if (me.key.str == 'meaning') {
+              meaning = v;
+            } else if (me.key.str == 'synonyms') {
+              synonyms = v;
+            }
+          }
+        });
+        if (name && meaning) {
+          gls.push({ name, meaning, synonyms });
+        } else {
+          throw new Error(`Invalid glossary spec in agent ${agentName}`);
+        }
+      }
+    });
+    return gls;
+  }
+  return undefined;
+}
+
 async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   let llmName: string | undefined = undefined;
   const name = def.name;
@@ -470,6 +574,9 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   const attrs = newInstanceAttributes();
   attrsStrs.push(`moduleName "${moduleName}"`);
   attrs.set('moduleName', moduleName);
+  let conds: AgentCondition[] | undefined = undefined;
+  let scenarios: AgentScenario[] | undefined = undefined;
+  let glossary: AgentGlossaryEntry[] | undefined = undefined;
   def.body?.attributes.forEach((apdef: GenericPropertyDef) => {
     if (apdef.name == 'flows') {
       let fnames: string | undefined = undefined;
@@ -491,6 +598,12 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
       } else {
         throw new Error(`Invalid flows list in agent ${name}`);
       }
+    } else if (apdef.name == 'conditions') {
+      conds = processAgentConditions(name, apdef.value);
+    } else if (apdef.name == 'scenarios') {
+      scenarios = processAgentScenarios(name, apdef.value);
+    } else if (apdef.name == 'glossary') {
+      glossary = processAgentGlossary(name, apdef.value);
     } else {
       let v: any = undefined;
       if (apdef.value.array) {
@@ -544,6 +657,15 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
     addStandaloneStatement(stmt, moduleName, false);
   });
+  if (conds) {
+    registerAgentConditions(moduleName, name, conds);
+  }
+  if (scenarios) {
+    registerAgentScenarios(moduleName, name, scenarios);
+  }
+  if (glossary) {
+    registerAgentGlossary(moduleName, name, glossary);
+  }
   // Don't add llm to module attrs if it wasn't originally specified
   addAgent(def.name, attrs, moduleName);
 }

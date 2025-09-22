@@ -52,7 +52,7 @@ describe('Agent API', () => {
     const str = m.toString();
     assert(
       str ==
-        `module AAPI
+      `module AAPI
 
 entity E
 {
@@ -262,8 +262,41 @@ if (process.env.AL_TEST === 'true') {
       assert(r == 'minor');
     });
   });
+
+  describe('Agent-guidance', () => {
+    test('Apply scenarios and conditions for agents', async () => {
+      await doInternModule('GA', `entity Employee {id Int @id, name String, salary Number}`);
+      await doInternModule(
+        'GuidedAgent',
+        `agent ga
+          {instruction "Create appropriate patterns for managing Employee information",
+           tools "GA",
+           conditions [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
+                       {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
+           scenarios  [{"user": "Jake hit a jackpot!", "ai": "[{GA/Employee {name? &quote;Jake&quote;}} @as [employee]; {GA/Employee {id? employee.id, salary employee.salary + employee.salary * .5}}]"}],
+           glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
+         workflow chat {{ga {message chat.msg}}}
+          `
+      );
+      const k = async (ins: string) => {
+        return await parseAndEvaluateStatement(`{GuidedAgent/chat {msg "${ins}"}}`);
+      };
+      let r = await k(
+        `Create an Employee named Joe with id 102 and salary 2050`
+      );
+      assert(isInstanceOfType(r, 'GA/Employee'))
+      r = await k(
+        `Joe hit a jackpot`
+      );
+      assert(isInstanceOfType(r[0], 'GA/Employee'))
+      assert(r[0].lookup('salary') == 2050 + 2050 * 0.5)
+      r = await parseAndEvaluateStatement(`{GA/Employee {id? 102}}`)
+      assert(isInstanceOfType(r[0], 'GA/Employee'))
+      assert(r[0].lookup('salary') == 2050 + 2050 * 0.5)
+    })
+  })
 } else {
   describe('Skipping agent tests', () => {
-    test('test01', async () => {});
+    test('test01', async () => { });
   });
 }

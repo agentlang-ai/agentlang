@@ -50,8 +50,6 @@ entity ${AgentEntityName} {
     output String @optional, // fq-name of another agent to which the result will be pushed
     role String @optional,
     flows String @optional,
-    conditions String @optional,
-    scenarios String @optional,
     llm String
 }
 
@@ -85,6 +83,52 @@ export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
 const ProviderDb = new Map<string, AgentServiceProvider>();
 
+export type AgentCondition = {
+  cond: string;
+  then: string;
+};
+
+const AgentConditions = new Map<string, AgentCondition[]>();
+
+export function registerAgentConditions(
+  moduleName: string,
+  agentName: string,
+  conds: AgentCondition[]
+) {
+  AgentConditions.set(makeFqName(moduleName, agentName), conds);
+}
+
+export type AgentScenario = {
+  user: string;
+  ai: string;
+};
+
+const AgentScenarios = new Map<string, AgentScenario[]>();
+
+export function registerAgentScenarios(
+  moduleName: string,
+  agentName: string,
+  scenarios: AgentScenario[]
+) {
+  AgentScenarios.set(makeFqName(moduleName, agentName), scenarios);
+}
+
+export type AgentGlossaryEntry = {
+  name: string;
+  meaning: string;
+  synonyms: string | undefined;
+};
+
+const AgentGlossary = new Map<string, AgentGlossaryEntry[]>();
+
+export function registerAgentGlossary(
+  moduleName: string,
+  agentName: string,
+  glossary: AgentGlossaryEntry[]
+) {
+  AgentGlossary.set(makeFqName(moduleName, agentName), glossary);
+}
+
 export class AgentInstance {
   llm: string = '';
   name: string = '';
@@ -99,8 +143,6 @@ export class AgentInstance {
   output: string | undefined;
   role: string | undefined;
   flows: string | undefined;
-  conditions: string | undefined;
-  scenarios: string | undefined;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;
@@ -179,29 +221,17 @@ export class AgentInstance {
     return this.type == 'flow-exec';
   }
 
-  private conditionsAsString(): string {
-    if (this.conditions) {
-      const conds = this.conditions.split(',');
+  private conditionsAsString(fqName: string): string {
+    const conds = AgentConditions.get(fqName);
+    if (conds) {
       const ss = new Array<string>();
-      let prefix = '';
-      const rs = new Array<string>();
-      for (let i = 0; i < conds.length; ++i) {
-        const c = conds[i];
-        let r: string | undefined = undefined;
-        if (i + 1 < conds.length) {
-          r = conds[++i];
-        }
-        if (r) {
-          ss.push(`${prefix}if ${c} then return ${r}`);
-          rs.push(r);
-          prefix = 'else ';
-        } else {
-          ss.push(`else return ${c}`);
-          rs.push(c);
-        }
-      }
-      ss.push(`Only return one of: ${rs.join(',')}. Do not return anything else.`);
-      return ss.join('\n');
+      ss.push(
+        '\nUse the following guidelines to take more accurate decisions in relevant scenarios.\n'
+      );
+      conds.forEach((ac: AgentCondition) => {
+        ss.push(`if ${ac.cond}, then ${ac.then}`);
+      });
+      return `${ss.join('\n')}\n`;
     }
     return '';
   }
@@ -212,11 +242,26 @@ export class AgentInstance {
     if (this.cachedInstruction) {
       return this.cachedInstruction;
     }
-    this.cachedInstruction = `${this.instruction || ''} ${this.conditionsAsString()}`;
-    if (this.scenarios) {
-      const prefix =
-        'To help you with your analysis, the following example scenarios are provided:';
-      this.cachedInstruction = `${this.cachedInstruction}\n${prefix}\n\n${this.scenarios}`;
+    const fqName = makeFqName(this.moduleName, this.name);
+    this.cachedInstruction = `${this.instruction || ''} ${this.conditionsAsString(fqName)}`;
+    const gls = AgentGlossary.get(fqName);
+    if (gls) {
+      const glss = new Array<string>();
+      gls.forEach((age: AgentGlossaryEntry) => {
+        glss.push(
+          `${age.name}: ${age.meaning}. ${age.synonyms ? `These words are synonyms for ${age.name}: ${age.synonyms}` : ''}`
+        );
+      });
+      this.cachedInstruction = `${this.cachedInstruction}\nThe following glossary will be helpful for understanding user requests.
+      ${glss.join('\n')}\n`;
+    }
+    const scenarios = AgentScenarios.get(fqName);
+    if (scenarios) {
+      const scs = new Array<string>();
+      scenarios.forEach((sc: AgentScenario) => {
+        scs.push(`User: ${sc.user}\nAI: ${sc.ai}\n`);
+      });
+      this.cachedInstruction = `${this.cachedInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
     }
     return this.cachedInstruction;
   }
