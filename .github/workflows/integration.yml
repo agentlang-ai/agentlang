@@ -1,0 +1,179 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  integration-test-blog:
+    name: Blog Example Integration Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          # Auto-approve build scripts for esbuild and sqlite3 if needed
+          if pnpm approve-builds --help >/dev/null 2>&1; then
+            echo -e "\ny\ny\n" | pnpm approve-builds || true
+          fi
+
+      - name: Generate Langium files
+        run: pnpm run langium:generate
+
+      - name: Build project
+        run: pnpm run build
+
+      - name: Run Blog Example App
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+          POSTGRES_PORT: 5432
+          SERVICE_PORT: 8080
+          AUTH_ENABLED: false
+          RBAC_ENABLED: false
+          GRAPHQL_ENABLED: false
+          AUDIT_TRAIL_ENABLED: false
+        run: |
+          cd example/blog
+          # Start the app in background and capture logs
+          echo "Starting Blog application..."
+          node ../../bin/cli.js run . > server.log 2>&1 &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+
+          # Wait for server to be ready by checking for module loaded message
+          echo "Waiting for Blog module to load..."
+          for i in {1..30}; do
+            if grep -i "Module Blog.Core loaded" server.log 2>/dev/null; then
+              echo "✓ Blog module loaded successfully!"
+              echo "Server logs:"
+              cat server.log
+              break
+            fi
+            echo "Attempt $i/30: Waiting for module to load..."
+            sleep 2
+          done
+
+          # Check if module loaded
+          if ! grep -i "Module Blog.Core loaded" server.log 2>/dev/null; then
+            echo "❌ Blog module failed to load"
+            echo "Server logs:"
+            cat server.log || echo "No logs available"
+            if ! kill -0 $SERVER_PID 2>/dev/null; then
+              echo "Server process died"
+            fi
+            exit 1
+          fi
+
+          # Give server extra time to bind to port and initialize database
+          echo "Waiting for server to fully initialize..."
+          sleep 5
+
+      - name: Test Blog CreateUser Endpoint
+        run: |
+          echo "Testing Blog CreateUser endpoint..."
+
+          # Create a user
+          echo "Sending POST request to create a user..."
+          response=$(curl -s -X POST http://localhost:8080/Blog.Core/CreateUser \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "CI Bot",
+              "email": "ci@bot.com"
+            }' \
+            -o /tmp/response.json \
+            -w "%{http_code}")
+
+          echo "Response code: $response"
+          echo "Response body:"
+          cat /tmp/response.json | python3 -m json.tool 2>/dev/null || cat /tmp/response.json
+          echo ""
+
+          # Check if response is successful (200 or 201)
+          if [ "$response" = "200" ] || [ "$response" = "201" ]; then
+            echo "✓ POST request successful with status code: $response"
+            
+            # Verify the response contains the expected name and email
+            if grep -q '"name":"CI Bot"' /tmp/response.json; then
+              echo "✓ Response contains correct name: 'CI Bot'"
+            else
+              echo "❌ Response does not contain expected name 'CI Bot'"
+              exit 1
+            fi
+            
+            if grep -q '"email":"ci@bot.com"' /tmp/response.json; then
+              echo "✓ Response contains correct email: 'ci@bot.com'"
+            else
+              echo "❌ Response does not contain expected email 'ci@bot.com'"
+              exit 1
+            fi
+            
+            # Verify the response has the expected structure
+            if grep -q '"User":{' /tmp/response.json; then
+              echo "✓ Response has User object structure"
+            else
+              echo "❌ Response does not have expected User structure"
+              exit 1
+            fi
+            
+            # Verify IDs are present (UUIDs)
+            if grep -E '"id":"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"' /tmp/response.json; then
+              echo "✓ Response contains valid UUID(s)"
+            else
+              echo "⚠️ No UUID found in response"
+            fi
+            
+          else
+            echo "❌ POST request failed with status code: $response"
+            echo "Server logs:"
+            cd example/blog && tail -50 server.log || true
+            exit 1
+          fi
+
+      - name: Show Server Logs
+        if: always()
+        run: |
+          echo "Final server logs:"
+          cd example/blog && cat server.log || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ ! -z "$SERVER_PID" ]; then
+            echo "Stopping server with PID: $SERVER_PID"
+            kill $SERVER_PID || true
+          fi

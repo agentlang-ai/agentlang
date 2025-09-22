@@ -7,12 +7,50 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  lint:
+    name: Lint and Format Check
     runs-on: ubuntu-latest
-    
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          # Auto-approve build scripts for esbuild and sqlite3 if needed
+          if pnpm approve-builds --help >/dev/null 2>&1; then
+            echo -e "\ny\ny\n" | pnpm approve-builds || true
+          fi
+
+      - name: Generate Langium files
+        run: pnpm run langium:generate
+
+      - name: Run ESLint
+        run: pnpm run lint
+
+      - name: Run Prettier check
+        run: pnpm run format:check
+
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    needs: lint
+
     strategy:
       matrix:
-        node-version: [22.x]
+        node-version: [20.x, 22.x]
 
     steps:
       - name: Checkout code
@@ -40,8 +78,15 @@ jobs:
       - name: Generate Langium files
         run: pnpm run langium:generate
 
-      - name: Build
+      - name: Build TypeScript
+        run: pnpm run build:ts
+
+      - name: Build project
         run: pnpm run build
 
       - name: Run tests
         run: NODE_ENV=test pnpm test
+
+      - name: Run verbose tests if failed
+        if: failure()
+        run: NODE_ENV=test pnpm test:verbose

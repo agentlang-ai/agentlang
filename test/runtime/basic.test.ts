@@ -93,7 +93,8 @@ describe('Basic loader test', () => {
         let re: Record = m.getEntry('UserPost') as Record;
         assert(re != undefined, 'UserPost entry not found');
         const attrs: Set<string> = new Set(['User', 'Post']);
-        re.schema.keys().forEach((k: string) => {
+        // Convert iterator to array for compatibility with Node.js 20.x
+        Array.from(re.schema.keys()).forEach((k: string) => {
           assert(attrs.has(k), `Attribute ${k} not found in UserProfile`);
         });
         assert(re.getUserAttributes().size == 0, 'UserProfile has no user-attributes');
@@ -411,13 +412,13 @@ describe('Pre-Post trigger tests', () => {
       }
      `
     );
-    const m = fetchModule('PrePostEvents')
-    const events = m.getEventNames()
-    let c = 0
+    const m = fetchModule('PrePostEvents');
+    const events = m.getEventNames();
+    let c = 0;
     events.forEach((n: string) => {
-      if (m.isPrePostEvent(n)) ++c
-    })
-    assert(c == 1)
+      if (m.isPrePostEvent(n)) ++c;
+    });
+    assert(c == 1);
     await parseAndEvaluateStatement(`{PrePostEvents/CrE {id 1, v 10}}`).then((result: Instance) => {
       assert(isInstanceOfType(result, 'PrePostEvents/E'));
     });
@@ -438,11 +439,13 @@ describe('Pre-Post trigger tests', () => {
       assert(isInstanceOfType(result[0], 'PrePostEvents/F'));
       assert(result[0].lookup('w') == 200);
     });
-    await parseAndEvaluateStatement(`{PrePostEvents/E {id? 2, v 30}}`).then((result: Instance[]) => {
-      assert(result.length == 1)
-      assert(isInstanceOfType(result[0], 'PrePostEvents/E'));
-      assert(result[0].lookup('v') == 30);
-    });
+    await parseAndEvaluateStatement(`{PrePostEvents/E {id? 2, v 30}}`).then(
+      (result: Instance[]) => {
+        assert(result.length == 1);
+        assert(isInstanceOfType(result[0], 'PrePostEvents/E'));
+        assert(result[0].lookup('v') == 30);
+      }
+    );
     await parseAndEvaluateStatement(`{PrePostEvents/F {id? 2}}`).then((result: Instance[]) => {
       assert(result.length == 1);
       assert(isInstanceOfType(result[0], 'PrePostEvents/F'));
@@ -628,10 +631,10 @@ describe('Multiple module loading tests', () => {
     } finally {
       try {
         removeModule('Blog.Core');
-      } catch { }
+      } catch {}
       try {
         removeModule('Family');
-      } catch { }
+      } catch {}
     }
   });
 });
@@ -785,21 +788,21 @@ describe('Between operator test', () => {
   });
 });
 
-describe("Test string append", () => {
+describe('Test string append', () => {
   test('test01', async () => {
     await doInternModule(
       'TestExpr',
       `workflow T {
         T.a + ", " + T.b @as result;
         result
-      }`)
-    const r = await parseAndEvaluateStatement(`{TestExpr/T {a "hello", b "world"}}`)
-    assert(r == "hello, world")
-  })
-})
+      }`
+    );
+    const r = await parseAndEvaluateStatement(`{TestExpr/T {a "hello", b "world"}}`);
+    assert(r == 'hello, world');
+  });
+});
 
-
-describe("Return from Workflow", () => {
+describe('Return from Workflow', () => {
   test('test01', async () => {
     await doInternModule(
       'Ret',
@@ -813,44 +816,48 @@ describe("Return from Workflow", () => {
           {Z {z T.z}}
         }
         {Y {y 200}}
-      }`)
+      }`
+    );
     const t = async (v: number, z: number) => {
-      return await parseAndEvaluateStatement(`{Ret/T {v ${v}, z ${z}}}`)
-    }
-    const r1 = await t(1, 0)
-    assert(isInstanceOfType(r1, 'Ret/X'))
-    const r2 = await t(0, 1)
-    assert(isInstanceOfType(r2, 'Ret/Y'))
-    const zs = await parseAndEvaluateStatement(`{Ret/Z? {}}`)
-    assert(zs.length == 1)
-    assert(isInstanceOfType(zs[0], 'Ret/Z'))
-  })
-})
+      return await parseAndEvaluateStatement(`{Ret/T {v ${v}, z ${z}}}`);
+    };
+    const r1 = await t(1, 0);
+    assert(isInstanceOfType(r1, 'Ret/X'));
+    const r2 = await t(0, 1);
+    assert(isInstanceOfType(r2, 'Ret/Y'));
+    const zs = await parseAndEvaluateStatement(`{Ret/Z? {}}`);
+    assert(zs.length == 1);
+    assert(isInstanceOfType(zs[0], 'Ret/Z'));
+  });
+});
 
-describe("Not-equals", () => {
+describe('Not-equals', () => {
   test('test01', async () => {
-    await doInternModule('neq',
+    await doInternModule(
+      'neq',
       `workflow test {
         if (test.x != 100) {
           return 200
         } else {
           return test.x
         }
-      }`)
+      }`
+    );
     const t = async (x: number) => {
-      return await parseAndEvaluateStatement(`{neq/test {x ${x}}}`)
-    }
+      return await parseAndEvaluateStatement(`{neq/test {x ${x}}}`);
+    };
 
-    const a = await t(100)
-    assert(a == 100)
-    const b = await t(300)
-    assert(b == 200)
-  })
-})
+    const a = await t(100);
+    assert(a == 100);
+    const b = await t(300);
+    assert(b == 200);
+  });
+});
 
-describe("Config entity", () => {
+describe('Config entity', () => {
   test('test01', async () => {
-    await doInternModule('cfge',
+    await doInternModule(
+      'cfge',
       `entity A {
         id Int @id, x Int
       }
@@ -862,24 +869,27 @@ describe("Config entity", () => {
       entity C {
         id Int @id, y Int
       }
-      `)
-    const m = fetchModule('cfge')
-    const e = m.getConfigEntity()
+      `
+    );
+    const m = fetchModule('cfge');
+    const e = m.getConfigEntity();
     if (e) {
-      assert(e.getFqName() == 'cfge/B')
+      assert(e.getFqName() == 'cfge/B');
       e.getUserAttributes().forEach((attr: AttributeSpec, n: string) => {
-        const c = attr.properties?.get('comment')
+        const c = attr.properties?.get('comment');
         if (n == 'key') {
-          assert(c == 'Secret key')
+          assert(c == 'Secret key');
         } else if (n == 'host') {
-          assert(c == 'Host name')
+          assert(c == 'Host name');
         }
-      })
+      });
     } else {
-      assert(e != undefined)
+      assert(e != undefined);
     }
-    const s = m.toString()
-    assert(s == `module cfge
+    const s = m.toString();
+    assert(
+      s ==
+        `module cfge
 
 entity A
 {
@@ -899,16 +909,18 @@ entity C
     id Int @id,
     y Int
 }
-`)
-    const idx = s.indexOf('entity')
-    await doInternModule('cfge2', s.substring(idx))
-    assert(fetchModule('cfge2'))
-  })
-})
+`
+    );
+    const idx = s.indexOf('entity');
+    await doInternModule('cfge2', s.substring(idx));
+    assert(fetchModule('cfge2'));
+  });
+});
 
-describe("Fetch rels for entity", () => {
+describe('Fetch rels for entity', () => {
   test('test01', async () => {
-    await doInternModule('FRels',
+    await doInternModule(
+      'FRels',
       `entity A {
         id Int @id, x Int
       }
@@ -921,24 +933,27 @@ describe("Fetch rels for entity", () => {
       relationship AB between(A, B)
       relationship AC between(A, C)
       relationship BC contains(B, C)
-    `)
-    let rels = getAllBetweenRelationshipsForEntity('FRels', 'A')
+    `
+    );
+    let rels = getAllBetweenRelationshipsForEntity('FRels', 'A');
     const chk = (rels: Relationship[], names: string[]) => {
-      assert(rels.length == names.length)
-      const s1 = new Set(rels.map((r: Relationship) => {
-        return r.getFqName()
-      }))
+      assert(rels.length == names.length);
+      const s1 = new Set(
+        rels.map((r: Relationship) => {
+          return r.getFqName();
+        })
+      );
       names.forEach((n: string) => {
-        assert(s1.has(n))
-      })
-    }
-    chk(rels, ["FRels/AB", "FRels/AC"])
-    rels = getAllBetweenRelationshipsForEntity('FRels', 'C')
-    chk(rels, ['FRels/AC'])
-    rels = getAllBetweenRelationshipsForEntity('FRels', 'B')
-    chk(rels, ['FRels/AB'])
-  })
-})
+        assert(s1.has(n));
+      });
+    };
+    chk(rels, ['FRels/AB', 'FRels/AC']);
+    rels = getAllBetweenRelationshipsForEntity('FRels', 'C');
+    chk(rels, ['FRels/AC']);
+    rels = getAllBetweenRelationshipsForEntity('FRels', 'B');
+    chk(rels, ['FRels/AB']);
+  });
+});
 
 describe('Destructuring', () => {
   test('test01', async () => {
@@ -961,34 +976,39 @@ describe('Destructuring', () => {
         {Des/Employee {salary?> 5000}} @as [e1, _, e2, __, es];
         [e1, e2, es]
       }
-      `)
+      `
+    );
     const isemp = (obj: any) => {
-      return isInstanceOfType(obj, 'Des/Employee')
-    }
+      return isInstanceOfType(obj, 'Des/Employee');
+    };
     const cre = async (id: number, name: string, salary: number) => {
-      const e = await parseAndEvaluateStatement(`{Des/Employee {id ${id}, name "${name}", salary ${salary}}}`)
-      assert(isemp(e))
-    }
-    await cre(1, 'a', 2000)
-    await cre(2, 'b', 5001)
-    await cre(3, 'c', 5600)
-    await cre(4, 'd', 2600)
-    await cre(5, 'e', 6800)
-    await cre(6, 'f', 9000)
-    const r1: Instance[] = await parseAndEvaluateStatement(`{Des/Test1 {}}`)
-    assert(r1.length == 4)
-    assert(r1.every((inst: Instance) => {
-      return isemp(inst)
-    }))
-    const r2 = await parseAndEvaluateStatement(`{Des/Test2 {}}`)
-    assert(isemp(r2))
-    const r3: any[] = await parseAndEvaluateStatement(`{Des/Test3 {}}`)
-    assert(isemp(r3[0]) && isemp(r3[1]))
-    assert(isemp(r3[2][0]))
-    })
-  })
+      const e = await parseAndEvaluateStatement(
+        `{Des/Employee {id ${id}, name "${name}", salary ${salary}}}`
+      );
+      assert(isemp(e));
+    };
+    await cre(1, 'a', 2000);
+    await cre(2, 'b', 5001);
+    await cre(3, 'c', 5600);
+    await cre(4, 'd', 2600);
+    await cre(5, 'e', 6800);
+    await cre(6, 'f', 9000);
+    const r1: Instance[] = await parseAndEvaluateStatement(`{Des/Test1 {}}`);
+    assert(r1.length == 4);
+    assert(
+      r1.every((inst: Instance) => {
+        return isemp(inst);
+      })
+    );
+    const r2 = await parseAndEvaluateStatement(`{Des/Test2 {}}`);
+    assert(isemp(r2));
+    const r3: any[] = await parseAndEvaluateStatement(`{Des/Test3 {}}`);
+    assert(isemp(r3[0]) && isemp(r3[1]));
+    assert(isemp(r3[2][0]));
+  });
+});
 
-  describe('Flow API', () => {
+describe('Flow API', () => {
   test('test01', async () => {
     await doInternModule(
       'flowApi',
@@ -1009,17 +1029,20 @@ describe('Destructuring', () => {
     flow analyser {
       analyseEmail --> "OK" sendConfirmation
       analyseEmail --> "SPAM" deleteEmail
-    }`)
-    const mod = fetchModule('flowApi')
-    let flows = mod.getAllFlows()
-    assert(flows.length == 2)
-    mod.removeFlow('orchestrator')
-    flows = mod.getAllFlows()
-    assert(flows.length == 1)
-    const s0 = new FlowStepPattern('analyseEmail', 'archiveEmail', "ARC")
-    flows[0].appendStep(s0.toString())
-    const s = mod.toString()
-    assert(s == `module flowApi
+    }`
+    );
+    const mod = fetchModule('flowApi');
+    let flows = mod.getAllFlows();
+    assert(flows.length == 2);
+    mod.removeFlow('orchestrator');
+    flows = mod.getAllFlows();
+    assert(flows.length == 1);
+    const s0 = new FlowStepPattern('analyseEmail', 'archiveEmail', 'ARC');
+    flows[0].appendStep(s0.toString());
+    const s = mod.toString();
+    assert(
+      s ==
+        `module flowApi
 
 entity E
 {
@@ -1030,6 +1053,7 @@ flow analyser {
       analyseEmail --> "OK" sendConfirmation
 analyseEmail --> "SPAM" deleteEmail
 analyseEmail --> "ARC" archiveEmail
-    }`)
-  })
-})
+    }`
+    );
+  });
+});
