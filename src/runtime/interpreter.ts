@@ -322,6 +322,12 @@ export class Environment extends Instance {
     }
   }
 
+  releaseSuspension(): Environment {
+    this.suspensionId = undefined;
+    this.preGeneratedSuspensionId = crypto.randomUUID();
+    return this;
+  }
+
   fetchSuspensionId(): string {
     return this.preGeneratedSuspensionId;
   }
@@ -1667,6 +1673,7 @@ async function iterateOnFlow(
     if (env.isSuspended()) {
       console.debug(`${iterId} suspending iteration on step ${step}`);
       await saveFlowSuspension(rootAgent, context, step, env);
+      env.releaseSuspension();
       return;
     }
     const r = env.getLastResult();

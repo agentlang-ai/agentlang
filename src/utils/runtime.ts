@@ -12,7 +12,7 @@ if (isNodeEnv) {
   });
 }
 
-const ExecGraphEnabled = isNodeEnv ? process.env['AL_EXEC_GRAPH_ENABLED'] == 'true' : true;
+const ExecGraphEnabled = /*isNodeEnv ? process.env['AL_EXEC_GRAPH_ENABLED'] == 'true' :*/ true;
 
 export function isExecGraphEnabled(): boolean {
   return ExecGraphEnabled;
