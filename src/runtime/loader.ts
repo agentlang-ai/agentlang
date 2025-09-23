@@ -77,7 +77,7 @@ import { getModuleFn, importModule } from './jsmodules.js';
 import { SetSubscription } from './defs.js';
 import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
 import z from 'zod';
-import { registerAgentFlow, registerFlow } from './agents/common.js';
+import { registerAgentFlow, registerFlow } from './agents/flows.js';
 
 export async function extractDocument(
   fileName: string,

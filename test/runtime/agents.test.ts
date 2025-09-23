@@ -262,6 +262,66 @@ if (process.env.AL_TEST === 'true') {
       assert(r == 'minor');
     });
   });
+   describe('Agent-flow', () => {
+    test('test01', async () => {
+      await doInternModule(
+        'FlowTest',
+        `entity Customer {
+          email Email @id, name String, phone String
+         }
+         entity Product {
+          id Int @id, name String, price Number
+         }
+         entity Failure {
+          message String
+         } 
+         agent classifyUserRequest {
+            instruction "Analyse the user request and classify it as either 'Customer', 'Product' or 'Other'. Return one of Customer, Product or Other and nothing else"
+         }
+         agent createCustomer {
+            instruction "Using the data provided by the user, create a new customer.",
+            tools "FlowTest/Customer"
+         }
+        agent createProduct {
+            instruction "Using the data provided by the user, create a product.",
+            tools "FlowTest/Product"
+         }
+        event reportFailure {
+          message String
+        }
+        workflow reportFailure {
+          {Failure {message reportFailure.message}}
+        }
+        flow customerProductManager {
+          classifyUserRequest --> "Product" createProduct
+          classifyUserRequest --> "Customer" createCustomer
+          classifyUserRequest --> "Other" reportFailure
+        }
+        agent customerProductManager
+        {role "You are a product and customer manager"}
+          `);
+      const k = async (ins: string) => {
+        return await parseAndEvaluateStatement(`{FlowTest/customerProductManager {message "${ins}"}}`);
+      };
+      await k('A new customer named Joseph K needs to be added. His email is jk@acme.com and phone number is 8989893')
+      await k('A new product named X90 is added to the company. Its price is 789.22 and it should be assigned the id 1090')
+      await k('Add an employee named Joe with email j@acme.com and phone 9674763') // reportFailure
+      await k('Add a customer named Joe with email j@acme.com and phone 9674763')
+      const custs: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Customer? {}}`)
+      assert(custs.length == 2)
+      const emails = new Set<string>().add('jk@acme.com').add('j@acme.com')
+      assert(custs.every((inst: Instance) => {
+        return isInstanceOfType(inst, 'FlowTest/Customer') && emails.has(inst.lookup('email'))
+      }))
+      const prods: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Product? {}}`)
+      assert(prods.length == 1)
+      assert(isInstanceOfType(prods[0], 'FlowTest/Product'))
+      assert(prods[0].lookup('price') == 789.22)
+      const fails: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Failure? {}}`)
+      assert(fails.length == 1)
+      assert(isInstanceOfType(fails[0], 'FlowTest/Failure'))
+    })
+  })
 } else {
   describe('Skipping agent tests', () => {
     test('test01', async () => {});

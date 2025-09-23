@@ -22,9 +22,10 @@ import {
   systemMessage,
 } from '../agents/provider.js';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { FlowExecInstructions, FlowStep, PlannerInstructions } from '../agents/common.js';
+import { FlowExecInstructions, PlannerInstructions } from '../agents/common.js';
 import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
+import { FlowStep } from '../agents/flows.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -173,6 +174,11 @@ export class AgentInstance {
 
   isFlowExecutor(): boolean {
     return this.type == 'flow-exec';
+  }
+
+  markAsFlowExecutor(): AgentInstance {
+    this.type = 'flow-exec';
+    return this;
   }
 
   async invoke(message: string, env: Environment) {
