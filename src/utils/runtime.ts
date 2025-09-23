@@ -12,10 +12,14 @@ if (isNodeEnv) {
   });
 }
 
-const ExecGraphEnabled = /*isNodeEnv ? process.env['AL_EXEC_GRAPH_ENABLED'] == 'true' :*/ true;
-
 export function isExecGraphEnabled(): boolean {
-  return ExecGraphEnabled;
+  if (isNodeEnv) {
+    const flag = process.env['AL_EXEC_GRAPH_ENABLED'];
+    if (flag != undefined && flag == 'false') {
+      return false;
+    }
+  }
+  return true;
 }
 
 // Browser-compatible path utilities
