@@ -14,7 +14,7 @@ import {
   getModuleNames,
   Record,
 } from '../runtime/module.js';
-import { evaluate, parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
+import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
 import { requireAuth, verifySession } from '../runtime/modules/auth.js';
@@ -30,6 +30,7 @@ import {
   walkDownInstancePath,
 } from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
+import { evaluate } from '../runtime/interpreter.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number, host?: string) {
   const app = express();

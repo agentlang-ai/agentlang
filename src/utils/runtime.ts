@@ -12,6 +12,16 @@ if (isNodeEnv) {
   });
 }
 
+export function isExecGraphEnabled(): boolean {
+  if (isNodeEnv) {
+    const flag = process.env['AL_EXEC_GRAPH_ENABLED'];
+    if (flag != undefined && flag == 'false') {
+      return false;
+    }
+  }
+  return true;
+}
+
 // Browser-compatible path utilities
 export const browserPath = {
   extname: (path: string): string => {
