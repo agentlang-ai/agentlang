@@ -20,12 +20,13 @@ import { Module } from '../runtime/module.js';
 import { ModuleDefinition } from '../language/generated/ast.js';
 import { Config } from '../runtime/state.js';
 import { prepareIntegrations } from '../runtime/integrations.js';
-import { isNodeEnv } from '../utils/runtime.js';
+import { isExecGraphEnabled, isNodeEnv } from '../utils/runtime.js';
 import { OpenAPIClientAxios } from 'openapi-client-axios';
 import { registerOpenApiModule } from '../runtime/openapi.js';
 import { initDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { runInitFunctions } from '../runtime/util.js';
 import { startServer } from '../api/http.js';
+import { enableExecutionGraph } from '../runtime/exec-graph.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -89,7 +90,13 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   if (appSpec) startServer(appSpec, config?.service?.port || 8080, config?.service?.host);
 }
 
+let execGraphEnabled = false;
+
 export async function runPreInitTasks(): Promise<boolean> {
+  if (!execGraphEnabled && isExecGraphEnabled()) {
+    enableExecutionGraph();
+    execGraphEnabled = true;
+  }
   let result: boolean = true;
   await loadCoreModules().catch((reason: any) => {
     const msg = `Failed to load core modules - ${reason.toString()}`;

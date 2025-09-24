@@ -1082,7 +1082,7 @@ export function isResolverMethodSpec(item: unknown): item is ResolverMethodSpec 
 export interface Return extends langium.AstNode {
     readonly $container: Pattern;
     readonly $type: 'Return';
-    pat: Pattern;
+    pattern: Pattern;
 }
 
 export const Return = 'Return';
@@ -1994,7 +1994,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: Return,
                     properties: [
-                        { name: 'pat' }
+                        { name: 'pattern' }
                     ]
                 };
             }

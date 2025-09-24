@@ -48,7 +48,6 @@ entity ${AgentEntityName} {
     tools String @optional, // comma-separated list of tool names
     documents String @optional, // comma-separated list of document names
     channels String @optional, // comma-separated list of channel names
-    output String @optional, // fq-name of another agent to which the result will be pushed
     role String @optional,
     flows String @optional,
     llm String
@@ -95,7 +94,6 @@ export class AgentInstance {
   documents: string | undefined;
   channels: string | undefined;
   runWorkflows: boolean = true;
-  output: string | undefined;
   role: string | undefined;
   flows: string | undefined;
   private toolsArray: string[] | undefined = undefined;

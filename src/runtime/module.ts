@@ -2246,12 +2246,21 @@ function getEntityDef(entityName: string, moduleName: string): Entity | undefine
 }
 
 export function getWorkflow(eventInstance: Instance): Workflow {
-  const eventName: string = eventInstance.name;
-  const moduleName: string = eventInstance.moduleName;
-  const wfName: string = asWorkflowName(eventName);
-  const module: Module = fetchModule(moduleName);
-  if (module.hasEntry(wfName)) {
-    return module.getEntry(wfName) as Workflow;
+  return getWorkflowForEvent(eventInstance.name, eventInstance.moduleName);
+}
+
+export function getWorkflowForEvent(eventName: string, moduleName?: string): Workflow {
+  if (isFqName(eventName)) {
+    const parts = splitFqName(eventName);
+    eventName = parts.getEntryName();
+    moduleName = parts.getModuleName();
+  }
+  if (moduleName) {
+    const wfName: string = asWorkflowName(eventName);
+    const module: Module = fetchModule(moduleName);
+    if (module.hasEntry(wfName)) {
+      return module.getEntry(wfName) as Workflow;
+    }
   }
   return EmptyWorkflow;
 }
