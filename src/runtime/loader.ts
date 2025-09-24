@@ -78,6 +78,7 @@ import {
   LlmEntityName,
   registerAgentDirectives,
   registerAgentGlossary,
+  registerAgentResponseSchema,
   registerAgentScenarios,
 } from './modules/ai.js';
 import { getDefaultLLMService } from './agents/registry.js';
@@ -577,6 +578,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   let conds: AgentCondition[] | undefined = undefined;
   let scenarios: AgentScenario[] | undefined = undefined;
   let glossary: AgentGlossaryEntry[] | undefined = undefined;
+  let responseSchema: string | undefined = undefined;
   def.body?.attributes.forEach((apdef: GenericPropertyDef) => {
     if (apdef.name == 'flows') {
       let fnames: string | undefined = undefined;
@@ -604,6 +606,17 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
       scenarios = processAgentScenarios(name, apdef.value);
     } else if (apdef.name == 'glossary') {
       glossary = processAgentGlossary(name, apdef.value);
+    } else if (apdef.name == 'responseSchema') {
+      const s = apdef.value.id || apdef.value.str || apdef.value.id;
+      if (s) {
+        if (isFqName(s)) {
+          responseSchema = s;
+        } else {
+          responseSchema = makeFqName(moduleName, s);
+        }
+      } else {
+        throw new Error(`responseSchema must be a valid name in agent ${name}`);
+      }
     } else {
       let v: any = undefined;
       if (apdef.value.array) {
@@ -665,6 +678,9 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   }
   if (glossary) {
     registerAgentGlossary(moduleName, name, glossary);
+  }
+  if (responseSchema) {
+    registerAgentResponseSchema(moduleName, name, responseSchema);
   }
   // Don't add llm to module attrs if it wasn't originally specified
   addAgent(def.name, attrs, moduleName);

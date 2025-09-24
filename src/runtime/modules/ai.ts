@@ -6,6 +6,7 @@ import {
   parseAndEvaluateStatement,
 } from '../interpreter.js';
 import {
+  asJSONSchema,
   fetchModule,
   Instance,
   instanceToObject,
@@ -127,6 +128,16 @@ export function registerAgentGlossary(
   glossary: AgentGlossaryEntry[]
 ) {
   AgentGlossary.set(makeFqName(moduleName, agentName), glossary);
+}
+
+const AgentResponseSchema = new Map<string, string>();
+
+export function registerAgentResponseSchema(
+  moduleName: string,
+  agentName: string,
+  responseSchema: string
+) {
+  AgentResponseSchema.set(makeFqName(moduleName, agentName), responseSchema);
 }
 
 export class AgentInstance {
@@ -262,7 +273,25 @@ export class AgentInstance {
       });
       this.cachedInstruction = `${this.cachedInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
     }
+    const responseSchema = AgentResponseSchema.get(fqName);
+    if (responseSchema) {
+      this.cachedInstruction = `${this.cachedInstruction}\nReturn your response in the following JSON schema:\n${asJSONSchema(responseSchema)}
+Only return a pure JSON object with no extra text, annotations etc.`;
+    }
     return this.cachedInstruction;
+  }
+
+  maybeValidateJSONResponse(response: string | undefined): object | undefined {
+    if (response) {
+      const responseSchema = AgentResponseSchema.get(makeFqName(this.moduleName, this.name));
+      if (responseSchema) {
+        const attrs = JSON.parse(response);
+        const parts = splitFqName(responseSchema);
+        makeInstance(parts.getModuleName(), parts.getEntryName(), new Map(Object.entries(attrs)));
+        return attrs;
+      }
+    }
+    return undefined;
   }
 
   markAsFlowExecutor(): AgentInstance {

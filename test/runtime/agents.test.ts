@@ -325,6 +325,42 @@ if (process.env.AL_TEST === 'true') {
       assert(r[0].lookup('salary') == 2050 + 2050 * 0.5)
     })
   })
+
+  describe('Agent-schema', () => {
+    test('Response schema support for agents', async () => {
+      await doInternModule(
+        'AgentResponseSchema',
+        `
+        record NetworkProvisioningRequest {
+          type @enum("DNS", "WLAN"),
+          requestRaisedBy String,
+          CNAME String,
+          IPAddress String
+        }
+        agent NetworkRequestClassifier
+          {instruction "Analyse the network provisioning request and return the relevant pieces of data",
+           responseSchema NetworkProvisioningRequest}
+          `
+      );
+      const k = async (ins: string) => {
+        return await parseAndEvaluateStatement(`{AgentResponseSchema/NetworkRequestClassifier {message "${ins}"}}`);
+      };
+      let r = await k(
+        `User Jake needs a DNS for 192.3.4.5 for jake.blog.com`
+      );
+      const chk = (obj: any, type: string, user: string, cname: string, ip: string) => {
+        assert(obj.type == type)
+        assert(obj.requestRaisedBy == user)
+        assert(obj.CNAME == cname)
+        assert(obj.IPAddress == ip)
+      }
+      chk(r, 'DNS', 'Jake', 'jake.blog.com', '192.3.4.5')
+      r = await k(
+        `Provision a WLAN for Kate on abc.com/192.4.4.5`
+      );
+      chk(r, 'WLAN', 'Kate', 'abc.com', '192.4.4.5')
+    })
+  })
 } else {
   describe('Skipping agent tests', () => {
     test('test01', async () => { });
