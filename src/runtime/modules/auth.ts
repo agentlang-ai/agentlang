@@ -309,6 +309,15 @@ workflow getUser {
 workflow getUserByEmail {
   await Auth.getUserInfoByEmail(getUserByEmail.email)
 }
+
+workflow inviteUser {
+  await Auth.inviteUser(inviteUser.email, inviteUser.firstName, inviteUser.lastName, inviteUser.userData)
+}
+
+
+workflow acceptInvitation {
+  await Auth.acceptInvitationUser(acceptInvitation.email, acceptInvitation.tempPassword, acceptInvitation.newPassword)
+}
 `;
 
 const evalEvent = makeEventEvaluator(CoreAuthModuleName);
@@ -1074,6 +1083,68 @@ export async function refreshUserToken(refreshToken: string, env: Environment): 
   }
 }
 
+export async function inviteUser(
+  email: string,
+  firstName: string,
+  lastName: string,
+  userData: Map<string, any> | undefined,
+  env: Environment
+): Promise<object> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    try {
+      let invitationInfo: any;
+      await fetchAuthImpl().inviteUser(email, firstName, lastName, userData, env, (info: any) => {
+        invitationInfo = info;
+      });
+
+      return {
+        email: invitationInfo.email,
+        firstName: invitationInfo.firstName,
+        lastName: invitationInfo.lastName,
+        invitationId: invitationInfo.invitationId,
+        message: 'User invitation sent successfully',
+      };
+    } catch (err: any) {
+      logger.error(`User invitation failed: ${err.message}`);
+      throw err;
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
+export async function acceptInvitationUser(
+  email: string,
+  tempPassword: string,
+  newPassword: string,
+  env: Environment
+): Promise<object> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    try {
+      await fetchAuthImpl().acceptInvitation(email, tempPassword, newPassword, env);
+      return {
+        email: email,
+        message: 'Invitation accepted successfully',
+      };
+    } catch (err: any) {
+      logger.error(`Accept invitation failed: ${err.message}`);
+      throw err;
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
 export function requireAuth(moduleName: string, eventName: string): boolean {
   if (isAuthEnabled()) {
     const f =
@@ -1084,7 +1155,8 @@ export function requireAuth(moduleName: string, eventName: string): boolean {
         eventName == 'resendConfirmationCode' ||
         eventName == 'forgotPassword' ||
         eventName == 'confirmForgotPassword' ||
-        eventName == 'refreshToken');
+        eventName == 'refreshToken' ||
+        eventName == 'acceptInvitation');
     return !f;
   } else {
     return false;
