@@ -90,7 +90,7 @@ import {
 import { invokeModuleFn } from './jsmodules.js';
 import { invokeOpenApiEvent, isOpenApiEventInstance } from './openapi.js';
 import { fetchDoc } from './docs.js';
-import { FlowSpec, FlowStep, getAgentFlow } from './agents/common.js';
+import { FlowSpec, FlowStep, getAgentFlow } from './agents/flows.js';
 
 export type Result = any;
 
@@ -1592,7 +1592,7 @@ export async function handleAgentInvocation(
   const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
   const origMsg: any = agentEventInst.lookup('message');
   const msg: string = isString(origMsg) ? origMsg : agentInputAsString(origMsg);
-  const flow = getAgentFlow(agent.name);
+  const flow = getAgentFlow(agent.name, agent.moduleName);
   if (flow) {
     await handleAgentInvocationWithFlow(agent, flow, msg, env);
   } else {
@@ -1608,6 +1608,7 @@ async function handleAgentInvocationWithFlow(
   msg: string,
   env: Environment
 ): Promise<void> {
+  rootAgent.markAsFlowExecutor();
   await iterateOnFlow(flow, rootAgent, msg, env);
 }
 
@@ -1631,9 +1632,9 @@ export async function restartFlow(
   env: Environment
 ): Promise<void> {
   const [_, agentName, step, ctx] = flowContext;
-  const flow = getAgentFlow(agentName);
+  const rootAgent: AgentInstance = await findAgentByName(agentName, env);
+  const flow = getAgentFlow(agentName, rootAgent.moduleName);
   if (flow) {
-    const rootAgent = await findAgentByName(agentName, env);
     const newCtx = `${ctx}\n${step} --> ${userData}\n`;
     await iterateOnFlow(flow, rootAgent, newCtx, env);
   }

@@ -1393,8 +1393,21 @@ export class Flow extends ModuleEntry {
     return result;
   }
 
+  static asFlowName(n: string): string {
+    return `${n}.flow`;
+  }
+
+  static normaliseFlowName(n: string): string {
+    const i = n.lastIndexOf('.flow');
+    if (i > 0) {
+      return n.substring(0, i);
+    } else {
+      return n;
+    }
+  }
+
   override toString(): string {
-    return `flow ${this.name} {
+    return `flow ${Flow.normaliseFlowName(this.name)} {
       ${this.getFlow()}
     }`;
   }
@@ -1491,16 +1504,18 @@ export class Module {
   }
 
   addFlow(name: string, flowString?: string): Flow {
-    const flow: Flow = new Flow(name, this.name, flowString);
+    const flow: Flow = new Flow(Flow.asFlowName(name), this.name, flowString);
     this.addEntry(flow);
     return flow;
   }
 
   getFlow(name: string): Flow | undefined {
-    if (this.hasEntry(name)) {
-      return this.getEntry(name) as Flow;
+    const n = Flow.asFlowName(name);
+    if (this.hasEntry(n)) {
+      return this.getEntry(n) as Flow;
+    } else {
+      return undefined;
     }
-    return undefined;
   }
 
   getAllFlows(): Flow[] {
@@ -1511,7 +1526,7 @@ export class Module {
 
   removeFlow(name: string): boolean {
     if (this.getFlow(name)) {
-      return this.removeEntry(name);
+      return this.removeEntry(Flow.asFlowName(name));
     }
     return false;
   }
