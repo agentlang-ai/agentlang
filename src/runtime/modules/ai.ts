@@ -22,9 +22,10 @@ import {
   systemMessage,
 } from '../agents/provider.js';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { FlowExecInstructions, FlowStep, PlannerInstructions } from '../agents/common.js';
+import { FlowExecInstructions, PlannerInstructions } from '../agents/common.js';
 import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
+import { FlowStep } from '../agents/flows.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -47,7 +48,6 @@ entity ${AgentEntityName} {
     tools String @optional, // comma-separated list of tool names
     documents String @optional, // comma-separated list of document names
     channels String @optional, // comma-separated list of channel names
-    output String @optional, // fq-name of another agent to which the result will be pushed
     role String @optional,
     flows String @optional,
     llm String
@@ -88,14 +88,14 @@ export type AgentCondition = {
   then: string;
 };
 
-const AgentConditions = new Map<string, AgentCondition[]>();
+const AgentDirectives = new Map<string, AgentCondition[]>();
 
-export function registerAgentConditions(
+export function registerAgentDirectives(
   moduleName: string,
   agentName: string,
   conds: AgentCondition[]
 ) {
-  AgentConditions.set(makeFqName(moduleName, agentName), conds);
+  AgentDirectives.set(makeFqName(moduleName, agentName), conds);
 }
 
 export type AgentScenario = {
@@ -140,7 +140,6 @@ export class AgentInstance {
   documents: string | undefined;
   channels: string | undefined;
   runWorkflows: boolean = true;
-  output: string | undefined;
   role: string | undefined;
   flows: string | undefined;
   private toolsArray: string[] | undefined = undefined;
@@ -221,8 +220,8 @@ export class AgentInstance {
     return this.type == 'flow-exec';
   }
 
-  private conditionsAsString(fqName: string): string {
-    const conds = AgentConditions.get(fqName);
+  private directivesAsString(fqName: string): string {
+    const conds = AgentDirectives.get(fqName);
     if (conds) {
       const ss = new Array<string>();
       ss.push(
@@ -243,7 +242,7 @@ export class AgentInstance {
       return this.cachedInstruction;
     }
     const fqName = makeFqName(this.moduleName, this.name);
-    this.cachedInstruction = `${this.instruction || ''} ${this.conditionsAsString(fqName)}`;
+    this.cachedInstruction = `${this.instruction || ''} ${this.directivesAsString(fqName)}`;
     const gls = AgentGlossary.get(fqName);
     if (gls) {
       const glss = new Array<string>();
@@ -264,6 +263,11 @@ export class AgentInstance {
       this.cachedInstruction = `${this.cachedInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
     }
     return this.cachedInstruction;
+  }
+
+  markAsFlowExecutor(): AgentInstance {
+    this.type = 'flow-exec';
+    return this;
   }
 
   async invoke(message: string, env: Environment) {

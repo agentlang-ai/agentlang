@@ -57,6 +57,11 @@ export class Resolver {
     return this.env;
   }
 
+  public suspend(): Resolver {
+    this.env?.suspend();
+    return this;
+  }
+
   public getName(): string {
     return this.name;
   }

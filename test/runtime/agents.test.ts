@@ -70,7 +70,7 @@ agent agent02
 
 if (process.env.AL_TEST === 'true') {
   describe('Basic module operations', () => {
-    test('test02 - OpenAI', async () => {
+    test('test01 - OpenAI', async () => {
       if (!process.env.OPENAI_API_KEY) {
         console.log('Skipping OpenAI test - no API key');
         return;
@@ -86,7 +86,7 @@ if (process.env.AL_TEST === 'true') {
         });
     });
 
-    test('test03 - Anthropic', async () => {
+    test('test02 - Anthropic', async () => {
       if (!process.env.ANTHROPIC_API_KEY) {
         console.log('Skipping Anthropic test - no API key');
         return;
@@ -104,7 +104,7 @@ if (process.env.AL_TEST === 'true') {
   });
 
   describe('Simple chat agent', () => {
-    test('test01', async () => {
+    test('Agent should do text categorization', async () => {
       await doInternModule(
         'SimpleAIChat',
         `agent simpleChatAgent
@@ -124,9 +124,8 @@ if (process.env.AL_TEST === 'true') {
       );
     });
   });
-
   describe('Simple planner agent', () => {
-    test('test01', async () => {
+    test('Agent should generate and evaluate patterns', async () => {
       await doInternModule('SPA', `entity Person {id Int @id, name String, age Int}`);
       await doInternModule(
         'SimplePlannerAgent',
@@ -233,45 +232,76 @@ if (process.env.AL_TEST === 'true') {
     });
   });
 
-  describe('Agent-chaining via output', () => {
+  describe('Agent-flow', () => {
     test('test01', async () => {
-      await doInternModule('OPA', `entity Person {id Int @id, name String, age Int}`);
       await doInternModule(
-        'OutputAgent',
-        `agent a01
-          {instruction "Based on the user request, create appropriate patterns based on the OPA module.",
-           tools "OPA",
-           output "OutputAgent/a02"}
-          agent a02
-          {instruction "If the person's age is less than 18 return 'minor', else return 'major'."}
-          workflow chat {{a01 {message chat.msg}}}
-          `
-      );
+        'FlowTest',
+        `entity Customer {
+          email Email @id, name String, phone String
+         }
+         entity Product {
+          id Int @id, name String, price Number
+         }
+         entity Failure {
+          message String
+         } 
+         agent classifyUserRequest {
+            instruction "Analyse the user request and classify it as either 'Customer', 'Product' or 'Other'. Return one of Customer, Product or Other and nothing else"
+         }
+         agent createCustomer {
+            instruction "Using the data provided by the user, create a new customer.",
+            tools "FlowTest/Customer"
+         }
+        agent createProduct {
+            instruction "Using the data provided by the user, create a product.",
+            tools "FlowTest/Product"
+         }
+        event reportFailure {
+          message String
+        }
+        workflow reportFailure {
+          {Failure {message reportFailure.message}}
+        }
+        flow customerProductManager {
+          classifyUserRequest --> "Product" createProduct
+          classifyUserRequest --> "Customer" createCustomer
+          classifyUserRequest --> "Other" reportFailure
+        }
+        agent customerProductManager
+        {role "You are a product and customer manager"}
+          `);
       const k = async (ins: string) => {
-        return await parseAndEvaluateStatement(`{OutputAgent/chat {msg "${ins}"}}`);
+        return await parseAndEvaluateStatement(`{FlowTest/customerProductManager {message "${ins}"}}`);
       };
-      type P = { id: number; name: string; age: number };
-      const cr = async (p: P) => {
-        return await k(
-          `Create a new Person aged ${p.age} with id ${p.id} and name '${p.name}'. Return only the pattern, no need to return a complete workflow.`
-        );
-      };
-      let r = await cr({ id: 1, name: 'Joe', age: 20 });
-      assert(r == 'major');
-      r = await cr({ id: 2, name: 'Mat', age: 15 });
-      assert(r == 'minor');
-    });
-  });
+      await k('A new customer named Joseph K needs to be added. His email is jk@acme.com and phone number is 8989893')
+      await k('A new product named X90 is added to the company. Its price is 789.22 and it should be assigned the id 1090')
+      await k('Add an employee named Joe with email j@acme.com and phone 9674763') // reportFailure
+      await k('Add a customer named Joe with email j@acme.com and phone 9674763')
+      const custs: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Customer? {}}`)
+      assert(custs.length == 2)
+      const emails = new Set<string>().add('jk@acme.com').add('j@acme.com')
+      assert(custs.every((inst: Instance) => {
+        return isInstanceOfType(inst, 'FlowTest/Customer') && emails.has(inst.lookup('email'))
+      }))
+      const prods: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Product? {}}`)
+      assert(prods.length == 1)
+      assert(isInstanceOfType(prods[0], 'FlowTest/Product'))
+      assert(prods[0].lookup('price') == 789.22)
+      const fails: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Failure? {}}`)
+      assert(fails.length == 1)
+      assert(isInstanceOfType(fails[0], 'FlowTest/Failure'))
+    })
+  })
 
   describe('Agent-guidance', () => {
-    test('Apply scenarios and conditions for agents', async () => {
+    test('Apply scenarios and directives for agents', async () => {
       await doInternModule('GA', `entity Employee {id Int @id, name String, salary Number}`);
       await doInternModule(
         'GuidedAgent',
         `agent ga
           {instruction "Create appropriate patterns for managing Employee information",
            tools "GA",
-           conditions [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
+           directives [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
                        {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
            scenarios  [{"user": "Jake hit a jackpot!", "ai": "[{GA/Employee {name? &quote;Jake&quote;}} @as [employee]; {GA/Employee {id? employee.id, salary employee.salary + employee.salary * .5}}]"}],
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}

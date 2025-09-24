@@ -76,7 +76,7 @@ import {
   AgentScenario,
   CoreAIModuleName,
   LlmEntityName,
-  registerAgentConditions,
+  registerAgentDirectives,
   registerAgentGlossary,
   registerAgentScenarios,
 } from './modules/ai.js';
@@ -88,7 +88,7 @@ import { getModuleFn, importModule } from './jsmodules.js';
 import { SetSubscription } from './defs.js';
 import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
 import z from 'zod';
-import { registerAgentFlow, registerFlow } from './agents/common.js';
+import { registerAgentFlow, registerFlow } from './agents/flows.js';
 
 export async function extractDocument(
   fileName: string,
@@ -473,7 +473,7 @@ export async function runStandaloneStatements() {
   }
 }
 
-function processAgentConditions(agentName: string, value: Literal): AgentCondition[] | undefined {
+function processAgentDirectives(agentName: string, value: Literal): AgentCondition[] | undefined {
   if (value.array) {
     const conds = new Array<AgentCondition>();
     value.array.vals.forEach((stmt: Statement) => {
@@ -598,8 +598,8 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
       } else {
         throw new Error(`Invalid flows list in agent ${name}`);
       }
-    } else if (apdef.name == 'conditions') {
-      conds = processAgentConditions(name, apdef.value);
+    } else if (apdef.name == 'directives') {
+      conds = processAgentDirectives(name, apdef.value);
     } else if (apdef.name == 'scenarios') {
       scenarios = processAgentScenarios(name, apdef.value);
     } else if (apdef.name == 'glossary') {
@@ -658,7 +658,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     addStandaloneStatement(stmt, moduleName, false);
   });
   if (conds) {
-    registerAgentConditions(moduleName, name, conds);
+    registerAgentDirectives(moduleName, name, conds);
   }
   if (scenarios) {
     registerAgentScenarios(moduleName, name, scenarios);
