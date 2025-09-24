@@ -83,6 +83,52 @@ export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
 const ProviderDb = new Map<string, AgentServiceProvider>();
 
+export type AgentCondition = {
+  cond: string;
+  then: string;
+};
+
+const AgentDirectives = new Map<string, AgentCondition[]>();
+
+export function registerAgentDirectives(
+  moduleName: string,
+  agentName: string,
+  conds: AgentCondition[]
+) {
+  AgentDirectives.set(makeFqName(moduleName, agentName), conds);
+}
+
+export type AgentScenario = {
+  user: string;
+  ai: string;
+};
+
+const AgentScenarios = new Map<string, AgentScenario[]>();
+
+export function registerAgentScenarios(
+  moduleName: string,
+  agentName: string,
+  scenarios: AgentScenario[]
+) {
+  AgentScenarios.set(makeFqName(moduleName, agentName), scenarios);
+}
+
+export type AgentGlossaryEntry = {
+  name: string;
+  meaning: string;
+  synonyms: string | undefined;
+};
+
+const AgentGlossary = new Map<string, AgentGlossaryEntry[]>();
+
+export function registerAgentGlossary(
+  moduleName: string,
+  agentName: string,
+  glossary: AgentGlossaryEntry[]
+) {
+  AgentGlossary.set(makeFqName(moduleName, agentName), glossary);
+}
+
 export class AgentInstance {
   llm: string = '';
   name: string = '';
@@ -174,6 +220,51 @@ export class AgentInstance {
     return this.type == 'flow-exec';
   }
 
+  private directivesAsString(fqName: string): string {
+    const conds = AgentDirectives.get(fqName);
+    if (conds) {
+      const ss = new Array<string>();
+      ss.push(
+        '\nUse the following guidelines to take more accurate decisions in relevant scenarios.\n'
+      );
+      conds.forEach((ac: AgentCondition) => {
+        ss.push(`if ${ac.cond}, then ${ac.then}`);
+      });
+      return `${ss.join('\n')}\n`;
+    }
+    return '';
+  }
+
+  private cachedInstruction: string | undefined = undefined;
+
+  private getFullInstructions(): string {
+    if (this.cachedInstruction) {
+      return this.cachedInstruction;
+    }
+    const fqName = makeFqName(this.moduleName, this.name);
+    this.cachedInstruction = `${this.instruction || ''} ${this.directivesAsString(fqName)}`;
+    const gls = AgentGlossary.get(fqName);
+    if (gls) {
+      const glss = new Array<string>();
+      gls.forEach((age: AgentGlossaryEntry) => {
+        glss.push(
+          `${age.name}: ${age.meaning}. ${age.synonyms ? `These words are synonyms for ${age.name}: ${age.synonyms}` : ''}`
+        );
+      });
+      this.cachedInstruction = `${this.cachedInstruction}\nThe following glossary will be helpful for understanding user requests.
+      ${glss.join('\n')}\n`;
+    }
+    const scenarios = AgentScenarios.get(fqName);
+    if (scenarios) {
+      const scs = new Array<string>();
+      scenarios.forEach((sc: AgentScenario) => {
+        scs.push(`User: ${sc.user}\nAI: ${sc.ai}\n`);
+      });
+      this.cachedInstruction = `${this.cachedInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
+    }
+    return this.cachedInstruction;
+  }
+
   markAsFlowExecutor(): AgentInstance {
     this.type = 'flow-exec';
     return this;
@@ -196,14 +287,16 @@ export class AgentInstance {
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      msgs = [systemMessage(this.instruction || '')];
+      msgs = [systemMessage(this.getFullInstructions() || '')];
     }
     if (msgs) {
       try {
         const sysMsg = msgs[0];
         if (isplnr || isflow) {
           const s = isplnr ? PlannerInstructions : FlowExecInstructions;
-          const newSysMsg = systemMessage(`${s}\n${this.toolsAsString()}\n${this.instruction}`);
+          const newSysMsg = systemMessage(
+            `${s}\n${this.toolsAsString()}\n${this.getFullInstructions()}`
+          );
           msgs[0] = newSysMsg;
         }
         msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
