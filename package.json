@@ -1,7 +1,7 @@
 {
   "name": "agentlang",
   "description": "The easiest way to build the most reliable AI agents - enterprise-grade teams of AI agents that collaborate with each other and humans",
-  "version": "0.0.67",
+  "version": "0.1.1",
   "license": "Sustainable Use License",
   "author": "agentlang-ai",
   "homepage": "https://github.com/agentlang-ai/agentlang#readme",
@@ -22,7 +22,12 @@
     "agent-teams",
     "production-ready"
   ],
-  "files": ["bin", "out", "src", "LICENSE"],
+  "files": [
+    "bin",
+    "out",
+    "src",
+    "LICENSE"
+  ],
   "type": "module",
   "publishConfig": {
     "access": "public",
@@ -131,13 +136,20 @@
     "vscode": "^1.67.0",
     "node": ">=20.0.0"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
         "id": "agentlang",
-        "aliases": ["Agentlang", "agentlang"],
-        "extensions": [".al"],
+        "aliases": [
+          "Agentlang",
+          "agentlang"
+        ],
+        "extensions": [
+          ".al"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -149,7 +161,9 @@
       }
     ]
   },
-  "activationEvents": ["onLanguage:agentlang"],
+  "activationEvents": [
+    "onLanguage:agentlang"
+  ],
   "main": "./out/extension/main.cjs",
   "types": "./out/index.d.ts",
   "exports": {
@@ -175,8 +189,13 @@
     "agentlang-cli": "./bin/cli.js"
   },
   "lint-staged": {
-    "*.{js,ts,tsx}": ["eslint --fix --cache", "prettier --write"],
-    "*.{json,md,yml,yaml}": ["prettier --write"]
+    "*.{js,ts,tsx}": [
+      "eslint --fix --cache",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   },
   "packageManager": "pnpm@10.13.1+sha512.37ebf1a5c7a30d5fabe0c5df44ee8da4c965ca0c5af3dbab28c3a1681b70a256218d05c81c9c0dcf767ef6b8551eb5b960042b9ed4300c59242336377e01cfad"
 }
