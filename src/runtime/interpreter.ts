@@ -1520,7 +1520,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   if (agent.role) {
     invokeDebugMsg = `${invokeDebugMsg} Role=${agent.role}`;
   }
-  console.debug(invokeDebugMsg)
+  console.debug(invokeDebugMsg);
   invokeDebugMsg = `\nMessage=${msg}`;
   console.debug(invokeDebugMsg);
   //
@@ -1667,8 +1667,10 @@ async function iterateOnFlow(
     executedSteps.add(step);
     ++stepc;
     const agent = AgentInstance.FromFlowStep(step, rootAgent);
-    console.debug(`\n---------------------------------------------------\n`)
-    console.debug(`Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`);
+    console.debug(`\n---------------------------------------------------\n`);
+    console.debug(
+      `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
+    );
     agent.disableSession();
     env.setFlowContext(context);
     await agentInvoke(agent, '', env);
@@ -1681,7 +1683,9 @@ async function iterateOnFlow(
     }
     const r = env.getLastResult();
     const rs = agentInputAsString(r);
-    console.debug(`\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`);
+    console.debug(
+      `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
+    );
     context = `${context}\nExecuted steps: ${[...executedSteps].join(', ')}\n${step} --> ${rs}\n`;
     await agentInvoke(rootAgent, `${s}\n${context}`, env);
     step = env.getLastResult().trim();
