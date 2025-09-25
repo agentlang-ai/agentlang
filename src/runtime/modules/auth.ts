@@ -389,13 +389,17 @@ export async function ensureUser(
 
 export async function ensureUserRoles(userid: string, userRoles: string[], env: Environment) {
   const currentRoles = await findUserRoles(userid, env);
-  const currentRoleNames = currentRoles?.map((role: Instance) => {
-    const roleName = (role as Instance).attributes.get('name');
-    return roleName && roleName !== '*' ? roleName : null;
-  }).filter(Boolean);
+  const currentRoleNames = currentRoles
+    ?.map((role: Instance) => {
+      const roleName = (role as Instance).attributes.get('name');
+      return roleName && roleName !== '*' ? roleName : null;
+    })
+    .filter(Boolean);
 
   if (currentRoleNames.length > 0) {
-    logger.info(`User ${userid} already has roles: ${currentRoleNames.join(', ')}, skipping role assignment.`);
+    logger.info(
+      `User ${userid} already has roles: ${currentRoleNames.join(', ')}, skipping role assignment.`
+    );
     return;
   }
 
