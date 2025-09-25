@@ -115,12 +115,38 @@ function attributeSpecToString(attrSpec: AttributeSpec): string {
   }
   if (attrSpec.properties) {
     const ps: Array<string> = [];
-    attrSpec.properties.forEach((v: any, k: string) => {
-      if (k != 'array') {
-        if (v == true) ps.push(` @${k}`);
-        else ps.push(` @${k}(${attributePropertyValueToString(k, v, attrSpec.type)})`);
-      }
-    });
+    const hasEnum = attrSpec.properties.has('enum');
+    const hasOneOf = attrSpec.properties.has('oneof');
+    const needsReordering = hasEnum || hasOneOf;
+
+    if (needsReordering) {
+      const priorityKeys = ['enum', 'oneof'];
+      const processedKeys = new Set<string>();
+
+      priorityKeys.forEach(k => {
+        if (attrSpec.properties!.has(k)) {
+          const v = attrSpec.properties!.get(k);
+          if (v == true) ps.push(` @${k}`);
+          else ps.push(` @${k}(${attributePropertyValueToString(k, v, attrSpec.type)})`);
+          processedKeys.add(k);
+        }
+      });
+
+      attrSpec.properties.forEach((v: any, k: string) => {
+        if (k !== 'array' && !processedKeys.has(k)) {
+          if (v == true) ps.push(` @${k}`);
+          else ps.push(` @${k}(${attributePropertyValueToString(k, v, attrSpec.type)})`);
+        }
+      });
+    } else {
+      attrSpec.properties.forEach((v: any, k: string) => {
+        if (k != 'array') {
+          if (v == true) ps.push(` @${k}`);
+          else ps.push(` @${k}(${attributePropertyValueToString(k, v, attrSpec.type)})`);
+        }
+      });
+    }
+
     s = s.concat(ps.join(' '));
   }
   return s;

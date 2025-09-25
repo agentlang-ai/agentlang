@@ -312,6 +312,84 @@ entity E
 `
     );
   });
+
+  test('@enum should appear before other decorators in toString', async () => {
+    await doInternModule(
+      'EnumOrderTest',
+      `entity Product {
+        id UUID @id @default(uuid()),
+        category @enum("electronics", "clothing", "food") @optional,
+        status @enum("active", "inactive") @default("active") @optional,
+        priority @enum("low", "medium", "high") @indexed
+      }`
+    );
+    const m = fetchModule('EnumOrderTest');
+    const result = m.toString();
+
+    const lines = result.split('\n');
+
+    const categoryLine = lines.find((line: string) => line.includes('category'));
+    if (categoryLine) {
+      const enumIndex = categoryLine.indexOf('@enum');
+      const optionalIndex = categoryLine.indexOf('@optional');
+      expect(enumIndex).toBeGreaterThan(-1);
+      expect(optionalIndex).toBeGreaterThan(-1);
+      expect(enumIndex).toBeLessThan(optionalIndex);
+    }
+
+    const statusLine = lines.find((line: string) => line.includes('status'));
+    if (statusLine) {
+      const enumIndex = statusLine.indexOf('@enum');
+      const defaultIndex = statusLine.indexOf('@default');
+      const optionalIndex = statusLine.indexOf('@optional');
+      expect(enumIndex).toBeLessThan(defaultIndex);
+      expect(enumIndex).toBeLessThan(optionalIndex);
+    }
+
+    const priorityLine = lines.find((line: string) => line.includes('priority'));
+    if (priorityLine) {
+      const enumIndex = priorityLine.indexOf('@enum');
+      const indexedIndex = priorityLine.indexOf('@indexed');
+      expect(enumIndex).toBeLessThan(indexedIndex);
+    }
+  });
+
+  test('@oneof should appear before other decorators in toString', async () => {
+    await doInternModule(
+      'OneOfOrderTest',
+      `entity User {
+        name String @id
+      }
+      
+      entity Status {
+        code String @id
+      }
+      
+      entity Reference {
+        id UUID @id @default(uuid()),
+        entityRef @oneof(OneOfOrderTest/User.name) @optional,
+        statusRef @oneof(OneOfOrderTest/Status.code) @indexed
+      }`
+    );
+    const m = fetchModule('OneOfOrderTest');
+    const result = m.toString();
+
+    const lines = result.split('\n');
+
+    const entityRefLine = lines.find((line: string) => line.includes('entityRef'));
+    if (entityRefLine) {
+      const oneofIndex = entityRefLine.indexOf('@oneof');
+      const optionalIndex = entityRefLine.indexOf('@optional');
+      expect(oneofIndex).toBeLessThan(optionalIndex);
+    }
+
+    const statusRefLine = lines.find((line: string) => line.includes('statusRef'));
+    if (statusRefLine) {
+      const oneofIndex = statusRefLine.indexOf('@oneof');
+      const indexedIndex = statusRefLine.indexOf('@indexed');
+      expect(oneofIndex).toBeLessThan(indexedIndex);
+    }
+  });
 });
 
 describe('relationships toString test', () => {
