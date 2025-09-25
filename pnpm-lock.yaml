@@ -209,6 +209,8 @@ importers:
 
   example/support_agent: {}
 
+  example/suspension: {}
+
   example/timer: {}
 
 packages:
