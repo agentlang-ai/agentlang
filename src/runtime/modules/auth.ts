@@ -388,6 +388,17 @@ export async function ensureUser(
 }
 
 export async function ensureUserRoles(userid: string, userRoles: string[], env: Environment) {
+  const currentRoles = await findUserRoles(userid, env);
+  const currentRoleNames = currentRoles?.map((role: Instance) => {
+    const roleName = (role as Instance).attributes.get('name');
+    return roleName && roleName !== '*' ? roleName : null;
+  }).filter(Boolean);
+
+  if (currentRoleNames.length > 0) {
+    logger.info(`User ${userid} already has roles: ${currentRoleNames.join(', ')}, skipping role assignment.`);
+    return;
+  }
+
   for (let i = 0; i < userRoles.length; ++i) {
     const role = userRoles[i];
     await createRole(role, env);
@@ -585,7 +596,7 @@ type RbacPermission = {
   d: boolean;
 };
 
-const UserRoleCache: Map<string, string[]> = new Map();
+const UserRoleCache: Map<string, string[] | null> = new Map();
 const RolePermissionsCache: Map<string, RbacPermission[]> = new Map();
 
 async function findRolePermissions(role: string, env: Environment): Promise<Result> {
@@ -617,7 +628,7 @@ export async function userHasPermissions(
   if (userId == AdminUserId || !isRbacEnabled()) {
     return true;
   }
-  let userRoles: string[] | undefined = UserRoleCache.get(userId);
+  let userRoles: string[] | null | undefined = UserRoleCache.get(userId);
   if (userRoles == undefined) {
     const roles: any = await findUserRoles(userId, env);
     userRoles = [];
@@ -807,6 +818,7 @@ export async function loginUser(
   let result: string | object = '';
   try {
     await fetchAuthImpl().login(username.toLowerCase(), password, env, (r: SessionInfo) => {
+      UserRoleCache.set(r.userId, null);
       // Check if Cognito is configured by checking if we have the tokens
       if (r.idToken && r.accessToken && r.refreshToken) {
         // Return full token response for Cognito
