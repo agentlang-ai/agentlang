@@ -262,6 +262,29 @@ workflow UpdatePermissionAssignment {
   }
 }
 
+workflow UpdatePermission {
+  if (UpdatePermission.resourceFqName and UpdatePermission.c != undefined and UpdatePermission.r != undefined and UpdatePermission.u != undefined and UpdatePermission.d != undefined) {
+    {Permission {id? UpdatePermission.id,
+                resourceFqName UpdatePermission.resourceFqName,
+                c UpdatePermission.c,
+                r UpdatePermission.r,
+                u UpdatePermission.u,
+                d UpdatePermission.d}
+     }
+  } else if (UpdatePermission.c != undefined and UpdatePermission.r != undefined and UpdatePermission.u != undefined and UpdatePermission.d != undefined) {
+    {Permission {id? UpdatePermission.id,
+                 c UpdatePermission.c,
+                 r UpdatePermission.r,
+                 u UpdatePermission.u,
+                 d UpdatePermission.d}
+    } 
+  } else if (UpdatePermission.resourceFqName) {
+    {Permission {id? UpdatePermission.id,
+                resourceFqName UpdatePermission.resourceFqName}
+    }
+  }
+}
+
 workflow signup {
   await Auth.signUpUser(signup.firstName, signup.lastName, signup.email, signup.password, signup.userData)
 }
