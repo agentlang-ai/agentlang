@@ -140,6 +140,16 @@ export function registerAgentResponseSchema(
   AgentResponseSchema.set(makeFqName(moduleName, agentName), responseSchema);
 }
 
+const AgentScratchNames = new Map<string, Set<string>>();
+
+export function registerAgentScratchNames(
+  moduleName: string,
+  agentName: string,
+  scratch: string[]
+) {
+  AgentScratchNames.set(makeFqName(moduleName, agentName), new Set(scratch));
+}
+
 export class AgentInstance {
   llm: string = '';
   name: string = '';
@@ -156,6 +166,7 @@ export class AgentInstance {
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;
+  private fqName: string | undefined;
 
   private constructor() {}
 
@@ -252,7 +263,7 @@ export class AgentInstance {
     if (this.cachedInstruction) {
       return this.cachedInstruction;
     }
-    const fqName = makeFqName(this.moduleName, this.name);
+    const fqName = this.getFqName();
     this.cachedInstruction = `${this.instruction || ''} ${this.directivesAsString(fqName)}`;
     const gls = AgentGlossary.get(fqName);
     if (gls) {
@@ -283,7 +294,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
 
   maybeValidateJSONResponse(response: string | undefined): object | undefined {
     if (response) {
-      const responseSchema = AgentResponseSchema.get(makeFqName(this.moduleName, this.name));
+      const responseSchema = AgentResponseSchema.get(this.getFqName());
       if (responseSchema) {
         const attrs = JSON.parse(response);
         const parts = splitFqName(responseSchema);
@@ -294,8 +305,40 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     return undefined;
   }
 
+  getFqName(): string {
+    if (this.fqName == undefined) {
+      this.fqName = makeFqName(this.moduleName, this.name);
+    }
+    return this.fqName;
+  }
+
   markAsFlowExecutor(): AgentInstance {
     this.type = 'flow-exec';
+    return this;
+  }
+
+  getScratchNames(): Set<string> | undefined {
+    return AgentScratchNames.get(this.getFqName());
+  }
+
+  maybeAddScratchData(env: Environment): AgentInstance {
+    const scratchNames = this.getScratchNames();
+    let data: any = undefined;
+    try {
+      if (scratchNames != undefined && scratchNames.size > 0) {
+        const r: Instance | Instance[] = env.getLastResult();
+        if (r instanceof Array) {
+          data = r.map((inst: Instance) => {
+            return extractScratchData(scratchNames, inst);
+          });
+        } else {
+          data = extractScratchData(scratchNames, r);
+        }
+      }
+      env.addToScratchPad(this.name, data);
+    } catch (reason: any) {
+      logger.error(`Failed to update scratchpad for agent ${this.name} - ${reason}`);
+    }
     return this;
   }
 
@@ -438,6 +481,16 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       return '';
     }
   }
+}
+
+function extractScratchData(scratchNames: Set<string>, inst: Instance): any {
+  const data: any = {};
+  inst.attributes.forEach((v: any, k: string) => {
+    if (scratchNames.has(k)) {
+      data[k] = v;
+    }
+  });
+  return data;
 }
 
 async function parseHelper(stmt: string, env: Environment): Promise<any> {

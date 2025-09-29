@@ -140,6 +140,7 @@ export class Environment extends Instance {
   private activeCatchHandlers: Array<CatchHandlers>;
   private eventExecutor: Function | undefined = undefined;
   private statementsExecutor: Function | undefined = undefined;
+  private scratchPad: any = undefined;
 
   private activeUserData: any = undefined;
 
@@ -268,6 +269,28 @@ export class Environment extends Instance {
 
   getFlowContext(): string | undefined {
     return this.attributes.get(Environment.FlowContextTag);
+  }
+
+  addToScratchPad(k: string, data: any): Environment {
+    if (this.scratchPad == undefined) {
+      this.scratchPad = {};
+    }
+    this.scratchPad[k] = data;
+    return this;
+  }
+
+  getScratchPad(): any {
+    return this.scratchPad;
+  }
+
+  resetScratchPad(): Environment {
+    this.scratchPad = undefined;
+    return this;
+  }
+
+  setScratchPad(obj: any): Environment {
+    this.scratchPad = obj;
+    return this;
   }
 
   static SuspensionUserData = '^';
@@ -1515,6 +1538,11 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   const flowContext = env.getFlowContext();
   msg = flowContext ? `context: ${flowContext}\n${msg}` : msg;
 
+  const scratchPad = env.getScratchPad();
+  if (scratchPad) {
+    const spad = JSON.stringify(scratchPad);
+    msg = `${msg}\nScratchpad:\n${spad}`;
+  }
   // log invocation details
   let invokeDebugMsg = `\nInvoking agent ${agent.name}:`;
   if (agent.role) {
@@ -1565,6 +1593,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
               env.setLastResult(await parseAndEvaluateStatement(rs, undefined, env));
             }
           }
+          agent.maybeAddScratchData(env);
           break;
         } catch (err: any) {
           if (retries < MAX_PLANNER_RETRIES) {
@@ -1588,6 +1617,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           if (obj != undefined) {
             env.setLastResult(obj);
           }
+          env.addToScratchPad(agent.getFqName(), obj);
           break;
         } catch (err: any) {
           if (retries < MAX_PLANNER_RETRIES) {
@@ -1634,6 +1664,7 @@ async function handleAgentInvocationWithFlow(
 ): Promise<void> {
   rootAgent.markAsFlowExecutor();
   await iterateOnFlow(flow, rootAgent, msg, env);
+  env.resetScratchPad();
 }
 
 async function saveFlowSuspension(
@@ -1642,9 +1673,10 @@ async function saveFlowSuspension(
   step: FlowStep,
   env: Environment
 ): Promise<void> {
+  const spad = env.getScratchPad() || {};
   const suspId = await createSuspension(
     env.getSuspensionId(),
-    [FlowSuspensionTag, agent.name, step, context],
+    [FlowSuspensionTag, agent.name, step, context, JSON.stringify(spad)],
     env
   );
   env.setLastResult({ suspension: suspId || 'null' });
@@ -1655,11 +1687,12 @@ export async function restartFlow(
   userData: string,
   env: Environment
 ): Promise<void> {
-  const [_, agentName, step, ctx] = flowContext;
+  const [_, agentName, step, ctx, spad] = flowContext;
   const rootAgent: AgentInstance = await findAgentByName(agentName, env);
   const flow = getAgentFlow(agentName, rootAgent.moduleName);
   if (flow) {
     const newCtx = `${ctx}\n${step} --> ${userData}\n`;
+    env.setScratchPad(JSON.parse(spad));
     await iterateOnFlow(flow, rootAgent, newCtx, env);
   }
 }
@@ -1709,7 +1742,7 @@ async function iterateOnFlow(
     console.debug(
       `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
     );
-    context = `${context}\nExecuted steps: ${[...executedSteps].join(', ')}\n${step} --> ${rs}\n`;
+    context = `${context}\nExecuted steps: ${[...executedSteps].join(', ')}`;
     await agentInvoke(rootAgent, `${s}\n${context}`, env);
     step = env.getLastResult().trim();
   }

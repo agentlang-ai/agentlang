@@ -80,6 +80,7 @@ import {
   registerAgentGlossary,
   registerAgentResponseSchema,
   registerAgentScenarios,
+  registerAgentScratchNames,
 } from './modules/ai.js';
 import { getDefaultLLMService } from './agents/registry.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
@@ -567,6 +568,20 @@ function processAgentGlossary(agentName: string, value: Literal): AgentGlossaryE
   return undefined;
 }
 
+function processAgentScratchNames(agentName: string, value: Literal): string[] | undefined {
+  if (value.array) {
+    const scratch = new Array<string>();
+    value.array.vals.forEach((stmt: Statement) => {
+      const expr = stmt.pattern.expr;
+      if (expr && isLiteral(expr) && (expr.id || expr.str)) {
+        scratch.push(expr.id || expr.str || '');
+      }
+    });
+    return scratch;
+  }
+  return undefined;
+}
+
 async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   let llmName: string | undefined = undefined;
   const name = def.name;
@@ -579,6 +594,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   let scenarios: AgentScenario[] | undefined = undefined;
   let glossary: AgentGlossaryEntry[] | undefined = undefined;
   let responseSchema: string | undefined = undefined;
+  let scratchNames: string[] | undefined = undefined;
   def.body?.attributes.forEach((apdef: GenericPropertyDef) => {
     if (apdef.name == 'flows') {
       let fnames: string | undefined = undefined;
@@ -617,6 +633,8 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
       } else {
         throw new Error(`responseSchema must be a valid name in agent ${name}`);
       }
+    } else if (apdef.name == 'scratch') {
+      scratchNames = processAgentScratchNames(name, apdef.value);
     } else {
       let v: any = undefined;
       if (apdef.value.array) {
@@ -681,6 +699,9 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   }
   if (responseSchema) {
     registerAgentResponseSchema(moduleName, name, responseSchema);
+  }
+  if (scratchNames) {
+    registerAgentScratchNames(moduleName, name, scratchNames);
   }
   // Don't add llm to module attrs if it wasn't originally specified
   addAgent(def.name, attrs, moduleName);
