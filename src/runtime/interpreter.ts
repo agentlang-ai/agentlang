@@ -1498,7 +1498,7 @@ function transformDateFieldsInJoinResult(result: any): any {
     for (const [key, value] of Object.entries(row)) {
       if (value && value instanceof Date) {
         if (value instanceof Date) {
-          row[key] = value.toISOString().split('T')[0];
+          row[key] = value.toLocaleDateString('en-CA');
         }
       }
     }
