@@ -298,7 +298,17 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       if (responseSchema) {
         const attrs = JSON.parse(response);
         const parts = splitFqName(responseSchema);
-        makeInstance(parts.getModuleName(), parts.getEntryName(), new Map(Object.entries(attrs)));
+        const moduleName = parts.getModuleName();
+        const entryName = parts.getEntryName();
+        const attrsMap = new Map(Object.entries(attrs));
+        const scm = fetchModule(moduleName).getRecord(entryName).schema;
+        const recAttrs = new Map<string, any>();
+        attrsMap.forEach((v: any, k: string) => {
+          if (scm.has(k)) {
+            recAttrs.set(k, v);
+          }
+        });
+        makeInstance(moduleName, entryName, recAttrs);
         return attrs;
       }
     }

@@ -405,19 +405,19 @@ if (process.env.AL_TEST === 'true') {
         }
         
         agent provisionDNS {
-          instruction "Get NetworkProvisioningRequest.IPAddress and NetworkProvisioningRequest.CNAME and prvision dns",
+          instruction "Get classifyNetworkProvisioningRequest.IPAddress and classifyNetworkProvisioningRequest.CNAME and prvision dns",
           tools [NetworkProvisoning/doProvisionDNS],
           scratch [provisioningId]
         }
 
         agent provisionWLAN {
-          instruction "Get NetworkProvisioningRequest.IPAddress and prvision WLAN",
+          instruction "Get classifyNetworkProvisioningRequest.IPAddress and prvision WLAN",
           tools [NetworkProvisoning/doProvisionWLAN],
           scratch [provisioningId]
         }
 
         agent reportFailure {
-          instruction "Report the request as failed for NetworkProvisioningRequest.requestedBy."
+          instruction "Report the request as failed for classifyNetworkProvisioningRequest.requestedBy."
           tools [NetworkProvisoning/reportRequestFailed]
         }
         
@@ -427,7 +427,7 @@ if (process.env.AL_TEST === 'true') {
         }
 
         agent markTicketAsDone {
-          instruction "Use NetworkProvisioningRequest.type, NetworkProvisioningRequest.requestedBy and the provisioningId to mark the request as completed",
+          instruction "Use classifyNetworkProvisioningRequest.type, classifyNetworkProvisioningRequest.requestedBy and the provisioningId to mark the request as completed",
           tools [NetworkProvisoning/markRequestCompleted]
         }
         
