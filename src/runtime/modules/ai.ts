@@ -292,7 +292,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     return this.cachedInstruction;
   }
 
-  maybeValidateJSONResponse(response: string | undefined): object | string | undefined {
+  maybeValidateJsonResponse(response: string | undefined): object | undefined {
     if (response) {
       const responseSchema = AgentResponseSchema.get(this.getFqName());
       if (responseSchema) {
@@ -301,7 +301,6 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         makeInstance(parts.getModuleName(), parts.getEntryName(), new Map(Object.entries(attrs)));
         return attrs;
       }
-      return response;
     }
     return undefined;
   }

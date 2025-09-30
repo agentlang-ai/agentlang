@@ -332,7 +332,7 @@ if (process.env.AL_TEST === 'true') {
         'NetworkProvisoning',
         `record NetworkProvisioningRequest {
           type @enum("DNS", "WLAN"),
-          requestRaisedBy String,
+          requestedBy String,
           CNAME String,
           IPAddress String
         }
@@ -405,19 +405,19 @@ if (process.env.AL_TEST === 'true') {
         }
         
         agent provisionDNS {
-          instruction "Get the IPAddress and CNAME from the scratchpad and prvision dns",
+          instruction "Get NetworkProvisioningRequest.IPAddress and NetworkProvisioningRequest.CNAME and prvision dns",
           tools [NetworkProvisoning/doProvisionDNS],
           scratch [provisioningId]
         }
 
         agent provisionWLAN {
-          instruction "Get the IPAddress from the scratchpad and prvision WLAN",
+          instruction "Get NetworkProvisioningRequest.IPAddress and prvision WLAN",
           tools [NetworkProvisoning/doProvisionWLAN],
           scratch [provisioningId]
         }
 
         agent reportFailure {
-          instruction "Get the email of the requester from the scratchpad and report the request as failed."
+          instruction "Report the request as failed for NetworkProvisioningRequest.requestedBy."
           tools [NetworkProvisoning/reportRequestFailed]
         }
         
@@ -427,7 +427,7 @@ if (process.env.AL_TEST === 'true') {
         }
 
         agent markTicketAsDone {
-          instruction "Get the type of network provisoning request, the provisioning-id, and the name of the requester from the scratchpad. Mark the request as completed",
+          instruction "Use NetworkProvisioningRequest.type, NetworkProvisioningRequest.requestedBy and the provisioningId to mark the request as completed",
           tools [NetworkProvisoning/markRequestCompleted]
         }
         

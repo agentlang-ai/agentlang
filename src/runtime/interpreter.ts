@@ -1613,7 +1613,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       let retries = 0;
       while (true) {
         try {
-          const obj = agent.maybeValidateJSONResponse(result);
+          const obj = agent.maybeValidateJsonResponse(result);
           if (obj != undefined) {
             env.setLastResult(obj);
             env.addToScratchPad(agent.getFqName(), obj);
