@@ -292,7 +292,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     return this.cachedInstruction;
   }
 
-  maybeValidateJSONResponse(response: string | undefined): object | undefined {
+  maybeValidateJSONResponse(response: string | undefined): object | string | undefined {
     if (response) {
       const responseSchema = AgentResponseSchema.get(this.getFqName());
       if (responseSchema) {
@@ -301,6 +301,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         makeInstance(parts.getModuleName(), parts.getEntryName(), new Map(Object.entries(attrs)));
         return attrs;
       }
+      return response;
     }
     return undefined;
   }
@@ -334,8 +335,8 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         } else {
           data = extractScratchData(scratchNames, r);
         }
+        if (data) env.addToScratchPad(this.name, data);
       }
-      env.addToScratchPad(this.name, data);
     } catch (reason: any) {
       logger.error(`Failed to update scratchpad for agent ${this.name} - ${reason}`);
     }

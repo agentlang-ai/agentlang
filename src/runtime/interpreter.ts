@@ -1616,8 +1616,8 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           const obj = agent.maybeValidateJSONResponse(result);
           if (obj != undefined) {
             env.setLastResult(obj);
+            env.addToScratchPad(agent.getFqName(), obj);
           }
-          env.addToScratchPad(agent.getFqName(), obj);
           break;
         } catch (err: any) {
           if (retries < MAX_PLANNER_RETRIES) {
