@@ -332,23 +332,29 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   }
 
   maybeAddScratchData(env: Environment): AgentInstance {
+    const obj: any = env.getLastResult();
+    let r: Instance | Instance[] | undefined = undefined;
+    if (
+      obj instanceof Instance ||
+      (obj instanceof Array && obj.length > 0 && obj[0] instanceof Instance)
+    ) {
+      r = obj;
+    } else {
+      return this;
+    }
     const scratchNames = this.getScratchNames();
     let data: any = undefined;
-    try {
-      if (scratchNames != undefined && scratchNames.size > 0) {
-        const r: Instance | Instance[] = env.getLastResult();
-        if (r instanceof Array) {
-          data = r.map((inst: Instance) => {
-            return extractScratchData(scratchNames, inst);
-          });
-        } else {
-          data = extractScratchData(scratchNames, r);
-        }
-        if (data) env.addToScratchPad(this.name, data);
-      }
-    } catch (reason: any) {
-      logger.error(`Failed to update scratchpad for agent ${this.name} - ${reason}`);
+    let n = '';
+    if (r instanceof Array) {
+      data = r.map((inst: Instance) => {
+        return extractScratchData(scratchNames, inst);
+      });
+      n = r[0].getFqName();
+    } else {
+      data = extractScratchData(scratchNames, r);
+      n = r.getFqName();
     }
+    if (data) env.addToScratchPad(n, data);
     return this;
   }
 
@@ -493,10 +499,14 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   }
 }
 
-function extractScratchData(scratchNames: Set<string>, inst: Instance): any {
+function extractScratchData(scratchNames: Set<string> | undefined, inst: Instance): any {
   const data: any = {};
   inst.attributes.forEach((v: any, k: string) => {
-    if (scratchNames.has(k)) {
+    if (scratchNames) {
+      if (scratchNames.has(k)) {
+        data[k] = v;
+      }
+    } else {
       data[k] = v;
     }
   });
