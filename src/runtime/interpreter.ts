@@ -1365,10 +1365,12 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     else if (isDocEventInstance(inst)) await handleDocEvent(inst, env);
     else {
       const eventExec = env.getEventExecutor();
+      const newEnv = new Environment(`${inst.name}.env`, env);
       if (eventExec) {
-        await eventExec(inst, env);
+        await eventExec(inst, newEnv);
+        env.setLastResult(newEnv.getLastResult());
       } else {
-        await evaluate(inst, (result: Result) => env.setLastResult(result), env);
+        await evaluate(inst, (result: Result) => env.setLastResult(result), newEnv);
       }
       env.resetReturnFlag();
     }
