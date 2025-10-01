@@ -3139,3 +3139,23 @@ export function getEntityRbacRules(entityFqName: string): RbacSpecification[] | 
   }
   return undefined;
 }
+
+export function asJSONSchema(fqName: string): string {
+  const parts = splitFqName(fqName);
+  if (parts.hasModule()) {
+    const mod = fetchModule(parts.getModuleName());
+    const record = mod.getRecord(parts.getEntryName());
+    const s = new Array<string>();
+    record.schema.forEach((attr: AttributeSpec, n: string) => {
+      let t = attr.type;
+      const enums = getEnumValues(attr);
+      if (enums) {
+        t = `one of the strings: ${[...enums].join(',')}`;
+      }
+      s.push(`"${n}": <${t}>`);
+    });
+    return `{${s.join(',\n')}}`;
+  } else {
+    throw new Error(`Failed to find module for ${fqName}`);
+  }
+}

@@ -6,6 +6,7 @@ import {
   parseAndEvaluateStatement,
 } from '../interpreter.js';
 import {
+  asJSONSchema,
   fetchModule,
   Instance,
   instanceToObject,
@@ -129,6 +130,26 @@ export function registerAgentGlossary(
   AgentGlossary.set(makeFqName(moduleName, agentName), glossary);
 }
 
+const AgentResponseSchema = new Map<string, string>();
+
+export function registerAgentResponseSchema(
+  moduleName: string,
+  agentName: string,
+  responseSchema: string
+) {
+  AgentResponseSchema.set(makeFqName(moduleName, agentName), responseSchema);
+}
+
+const AgentScratchNames = new Map<string, Set<string>>();
+
+export function registerAgentScratchNames(
+  moduleName: string,
+  agentName: string,
+  scratch: string[]
+) {
+  AgentScratchNames.set(makeFqName(moduleName, agentName), new Set(scratch));
+}
+
 export class AgentInstance {
   llm: string = '';
   name: string = '';
@@ -145,6 +166,7 @@ export class AgentInstance {
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;
+  private fqName: string | undefined;
 
   private constructor() {}
 
@@ -241,7 +263,7 @@ export class AgentInstance {
     if (this.cachedInstruction) {
       return this.cachedInstruction;
     }
-    const fqName = makeFqName(this.moduleName, this.name);
+    const fqName = this.getFqName();
     this.cachedInstruction = `${this.instruction || ''} ${this.directivesAsString(fqName)}`;
     const gls = AgentGlossary.get(fqName);
     if (gls) {
@@ -262,11 +284,77 @@ export class AgentInstance {
       });
       this.cachedInstruction = `${this.cachedInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
     }
+    const responseSchema = AgentResponseSchema.get(fqName);
+    if (responseSchema) {
+      this.cachedInstruction = `${this.cachedInstruction}\nReturn your response in the following JSON schema:\n${asJSONSchema(responseSchema)}
+Only return a pure JSON object with no extra text, annotations etc.`;
+    }
     return this.cachedInstruction;
+  }
+
+  maybeValidateJsonResponse(response: string | undefined): object | undefined {
+    if (response) {
+      const responseSchema = AgentResponseSchema.get(this.getFqName());
+      if (responseSchema) {
+        const attrs = JSON.parse(response);
+        const parts = splitFqName(responseSchema);
+        const moduleName = parts.getModuleName();
+        const entryName = parts.getEntryName();
+        const attrsMap = new Map(Object.entries(attrs));
+        const scm = fetchModule(moduleName).getRecord(entryName).schema;
+        const recAttrs = new Map<string, any>();
+        attrsMap.forEach((v: any, k: string) => {
+          if (scm.has(k)) {
+            recAttrs.set(k, v);
+          }
+        });
+        makeInstance(moduleName, entryName, recAttrs);
+        return attrs;
+      }
+    }
+    return undefined;
+  }
+
+  getFqName(): string {
+    if (this.fqName == undefined) {
+      this.fqName = makeFqName(this.moduleName, this.name);
+    }
+    return this.fqName;
   }
 
   markAsFlowExecutor(): AgentInstance {
     this.type = 'flow-exec';
+    return this;
+  }
+
+  getScratchNames(): Set<string> | undefined {
+    return AgentScratchNames.get(this.getFqName());
+  }
+
+  maybeAddScratchData(env: Environment): AgentInstance {
+    const obj: any = env.getLastResult();
+    let r: Instance | Instance[] | undefined = undefined;
+    if (
+      obj instanceof Instance ||
+      (obj instanceof Array && obj.length > 0 && obj[0] instanceof Instance)
+    ) {
+      r = obj;
+    } else {
+      return this;
+    }
+    const scratchNames = this.getScratchNames();
+    let data: any = undefined;
+    let n = '';
+    if (r instanceof Array) {
+      data = r.map((inst: Instance) => {
+        return extractScratchData(scratchNames, inst);
+      });
+      n = r[0].getFqName();
+    } else {
+      data = extractScratchData(scratchNames, r);
+      n = r.getFqName();
+    }
+    if (data) env.addToScratchPad(n, data);
     return this;
   }
 
@@ -409,6 +497,20 @@ export class AgentInstance {
       return '';
     }
   }
+}
+
+function extractScratchData(scratchNames: Set<string> | undefined, inst: Instance): any {
+  const data: any = {};
+  inst.attributes.forEach((v: any, k: string) => {
+    if (scratchNames) {
+      if (scratchNames.has(k)) {
+        data[k] = v;
+      }
+    } else {
+      data[k] = v;
+    }
+  });
+  return data;
 }
 
 async function parseHelper(stmt: string, env: Environment): Promise<any> {
