@@ -1,5 +1,7 @@
 import {
   AgentlangAuth,
+  InviteUserCallback,
+  InvitationInfo,
   LoginCallback,
   LogoutCallback,
   SessionInfo,
@@ -40,6 +42,8 @@ let ForgotPasswordCommand: any = undefined;
 let ConfirmForgotPasswordCommand: any = undefined;
 let AdminGetUserCommand: any = undefined;
 let InitiateAuthCommand: any = undefined;
+let AdminCreateUserCommand: any = undefined;
+let RespondToAuthChallengeCommand: any = undefined;
 let AuthenticationDetails: any = undefined;
 let CognitoUser: any = undefined;
 let CognitoUserPool: any = undefined;
@@ -61,6 +65,8 @@ if (isNodeEnv) {
   ConfirmForgotPasswordCommand = cip.ConfirmForgotPasswordCommand;
   AdminGetUserCommand = cip.AdminGetUserCommand;
   InitiateAuthCommand = cip.InitiateAuthCommand;
+  AdminCreateUserCommand = cip.AdminCreateUserCommand;
+  RespondToAuthChallengeCommand = cip.RespondToAuthChallengeCommand;
 
   const ci = await import('amazon-cognito-identity-js');
   AuthenticationDetails = ci.AuthenticationDetails;
@@ -1011,6 +1017,152 @@ export class CognitoAuth implements AgentlangAuth {
       }
       handleCognitoError(err, 'refreshToken');
       throw err; // This line won't be reached due to handleCognitoError throwing
+    }
+  }
+
+  async inviteUser(
+    email: string,
+    firstName: string,
+    lastName: string,
+    userData: Map<string, any> | undefined,
+    env: Environment,
+    cb: InviteUserCallback
+  ): Promise<void> {
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+      });
+
+      const userAttrs = [
+        {
+          Name: 'email',
+          Value: email,
+        },
+        {
+          Name: 'email_verified',
+          Value: 'true',
+        },
+        {
+          Name: 'given_name',
+          Value: firstName,
+        },
+        {
+          Name: 'family_name',
+          Value: lastName,
+        },
+      ];
+
+      if (userData) {
+        userData.forEach((v: any, k: string) => {
+          userAttrs.push({ Name: k, Value: String(v) });
+        });
+      }
+
+      let userExists = false;
+      try {
+        const getUserCommand = new AdminGetUserCommand({
+          UserPoolId: this.fetchUserPoolId(),
+          Username: email,
+        });
+        await client.send(getUserCommand);
+        userExists = true;
+        logger.debug(`User ${email} already exists, will resend invitation`);
+      } catch (err: any) {
+        if (err.name !== 'UserNotFoundException') {
+          throw err;
+        }
+        logger.debug(`User ${email} does not exist, will create new user`);
+      }
+
+      const command = new AdminCreateUserCommand({
+        UserPoolId: this.fetchUserPoolId(),
+        Username: email,
+        UserAttributes: userAttrs,
+        DesiredDeliveryMediums: ['EMAIL'],
+        ...(userExists ? { MessageAction: 'RESEND' } : {}),
+      });
+
+      logger.debug(`Attempting to invite user: ${email}`);
+      const response = await client.send(command);
+
+      if (response.$metadata.httpStatusCode === 200) {
+        logger.info(`User invitation successful for: ${email}`);
+
+        await ensureUser(email, firstName, lastName, env);
+
+        const invitationInfo: InvitationInfo = {
+          email: email,
+          firstName: firstName,
+          lastName: lastName,
+          invitationId: response.User?.Username,
+          systemInvitationInfo: response,
+        };
+
+        cb(invitationInfo);
+      } else {
+        logger.error(
+          `User invitation failed with HTTP status ${response.$metadata.httpStatusCode}`,
+          {
+            email: email,
+            statusCode: response.$metadata.httpStatusCode,
+          }
+        );
+        throw new BadRequestError(
+          `User invitation failed with status ${response.$metadata.httpStatusCode}`
+        );
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestError) throw err;
+      logger.error(`User invitation error for ${email}:`, {
+        errorName: err.name,
+        errorMessage: sanitizeErrorMessage(err.message),
+      });
+      handleCognitoError(err, 'inviteUser');
+    }
+  }
+
+  async acceptInvitation(
+    email: string,
+    tempPassword: string,
+    newPassword: string,
+    _env: Environment
+  ): Promise<void> {
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+        credentials: fromEnv(),
+      });
+
+      const initAuth = new InitiateAuthCommand({
+        AuthFlow: 'USER_PASSWORD_AUTH',
+        ClientId: this.fetchClientId(),
+        AuthParameters: {
+          USERNAME: email,
+          PASSWORD: tempPassword,
+        },
+      });
+
+      const initResponse = await client.send(initAuth);
+
+      if (initResponse.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
+        const respond = new RespondToAuthChallengeCommand({
+          ClientId: this.fetchClientId(),
+          ChallengeName: 'NEW_PASSWORD_REQUIRED',
+          Session: initResponse.Session,
+          ChallengeResponses: {
+            USERNAME: email,
+            NEW_PASSWORD: newPassword,
+          },
+        });
+
+        await client.send(respond);
+        logger.info(`User invitation accepted successfully for: ${email}`);
+      } else {
+        throw new Error(`Unexpected challenge: ${initResponse.ChallengeName}`);
+      }
+    } catch (err: any) {
+      logger.error(`Accept invitation failed for ${email}: ${sanitizeErrorMessage(err.message)}`);
+      handleCognitoError(err, 'acceptInvitation');
     }
   }
 }
