@@ -597,12 +597,53 @@ describe('Issue-297', () => {
                 {E {id 3}}
             }
             `)
-            await parseAndEvaluateStatement(`{I297/B {}}`)
-            const rs: Instance[] = await parseAndEvaluateStatement(`{I297/E? {}}`)
-            assert(rs.length == 2)
-            const ids = new Set([1, 3])
-            rs.forEach((inst: Instance) => {
-                assert(ids.has(inst.lookup('id')))
-            })
+        await parseAndEvaluateStatement(`{I297/B {}}`)
+        const rs: Instance[] = await parseAndEvaluateStatement(`{I297/E? {}}`)
+        assert(rs.length == 2)
+        const ids = new Set([1, 3])
+        rs.forEach((inst: Instance) => {
+            assert(ids.has(inst.lookup('id')))
         })
     })
+})
+
+describe('Issue-339', () => {
+    test('Block-structure test', async () => {
+        await doInternModule('I339',
+            `entity E {
+                id Int @id,
+                x Int
+            }
+            workflow EF {
+                EF.e @as e;
+                if (EF.mode = 1) {
+                    100 @as e
+                    {E {id 1, x e}}
+                } else {
+                    {E {id 2, x e}}
+                } @as r;
+                {E {id EF.mode+10, x e}} @as s
+                [r, s]
+            }
+            `)
+        const chk = (inst: Instance, id: number, x: number) => {
+            assert(isInstanceOfType(inst, 'I339/E'))
+            assert(id == inst.lookup('id'))
+            assert(x == inst.lookup('x'))
+        }
+        const [e1, e2]: Instance[] = await parseAndEvaluateStatement(`{I339/EF {mode 1, e 10}}`)
+        chk(e1, 1, 100); chk(e2, 11, 10)
+        const [e3, e4]: Instance[] = await parseAndEvaluateStatement(`{I339/EF {mode 0, e 10}}`)
+        chk(e3, 2, 10); chk(e4, 10, 10)
+        const es: Instance[] = await parseAndEvaluateStatement(`{I339/E? {}}`)
+        assert(es.length == 4)
+        let ids = 0
+        let xs = 0
+        es.forEach((inst: Instance) => {
+            ids += inst.lookup('id')
+            xs += inst.lookup('x')
+        })
+        assert(ids == (1 + 11 + 2 + 10))
+        assert(xs == (100 + 10 + 10 + 10))
+    })
+})
