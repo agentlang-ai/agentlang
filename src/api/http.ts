@@ -24,6 +24,7 @@ import {
   forceAsEscapedName,
   forceAsFqName,
   isString,
+  isStringNumeric,
   makeFqName,
   restoreFqName,
   splitFqName,
@@ -169,7 +170,12 @@ function normalizeRequestPath(path: string[], moduleName: string): string[] {
 function pathFromRequest(moduleName: string, entryName: string, req: Request): string {
   const path: any = req.params.path;
   if (!path) {
-    return req.url;
+    const url = req.url;
+    const i = url.indexOf('?');
+    if (i > 0) {
+      return url.substring(0, i);
+    }
+    return url;
   }
   let p = '';
   if (path instanceof Array) {
@@ -247,7 +253,7 @@ async function handleEntityGet(
     if (req.query.tree) {
       pattern = fetchTreePattern(makeFqName(moduleName, entityName), path);
     } else {
-      pattern = queryPatternFromPath(path);
+      pattern = queryPatternFromPath(path, req);
     }
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
@@ -256,14 +262,36 @@ async function handleEntityGet(
   }
 }
 
-function queryPatternFromPath(path: string): string {
+function objectAsAttributesPattern(obj: object): string {
+  const attrs = new Array<string>();
+  Object.keys(obj).forEach(key => {
+    const s: string = obj[key as keyof object];
+    let v = s;
+    if (!s.startsWith('"')) {
+      if (!isStringNumeric(s) && s != 'true' && s != 'false') {
+        v = `"${s}"`;
+      }
+    }
+    attrs.push(`${key}? ${v}`);
+  });
+  return `{
+    ${attrs.join(',')}
+  }`;
+}
+
+function queryPatternFromPath(path: string, req: Request): string {
   const r = walkDownInstancePath(path);
   let moduleName = r[0];
   let entityName = r[1];
   const id = r[2];
   const parts = r[3];
   if (parts.length == 2 && id == undefined) {
-    return `{${moduleName}/${entityName}? {}}`;
+    if (req.query && Object.keys(req.query).length > 0) {
+      const pat = objectAsAttributesPattern(req.query);
+      return `{${moduleName}/${entityName} ${pat}}`;
+    } else {
+      return `{${moduleName}/${entityName}? {}}`;
+    }
   } else {
     moduleName = restoreFqName(moduleName);
     const relName: string | undefined = restoreFqName(parts[parts.length - 2]);
@@ -324,7 +352,7 @@ async function handleEntityDelete(
       return;
     }
     const cmd = req.query.purge == 'true' ? 'purge' : 'delete';
-    const pattern = `${cmd} ${queryPatternFromPath(path)}`;
+    const pattern = `${cmd} ${queryPatternFromPath(path, req)}`;
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);

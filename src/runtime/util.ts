@@ -40,6 +40,10 @@ export function isBoolean(x: any): boolean {
   return typeof x === 'boolean';
 }
 
+export function isStringNumeric(str: string): boolean {
+  return !isNaN(Number(str)) && !isNaN(parseFloat(str));
+}
+
 type MaybeString = string | undefined;
 
 export function isString(s: MaybeString): boolean {
