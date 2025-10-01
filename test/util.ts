@@ -22,6 +22,12 @@ export async function doInternModule(moduleName: string, code: string) {
   assert(isModule(moduleName), `Module ${moduleName} not found`);
 }
 
+export async function doInitRuntime() {
+  await resetDefaultDatabase();
+  await doPreInit();
+  await runPostInitTasks();
+}
+
 function DefaultErrorHandler(err: any): PromiseLike<never> {
   throw new Error(err);
 }
