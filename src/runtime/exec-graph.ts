@@ -218,12 +218,18 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
             case SubGraphType.EVENT:
               await evaluateStatement(node.code as Statement, env);
               break;
-            case SubGraphType.IF:
-              await executeIfSubGraph(subg, env);
+            case SubGraphType.IF: {
+              const newEnv = new Environment(`${env.name}-if`, env);
+              await executeIfSubGraph(subg, newEnv);
+              env.setLastResult(newEnv.getLastResult());
               break;
-            case SubGraphType.FOR_EACH:
-              await executeForEachSubGraph(subg, node, env);
+            }
+            case SubGraphType.FOR_EACH: {
+              const newEnv = new Environment(`${env.name}-forEach`, env);
+              await executeForEachSubGraph(subg, node, newEnv);
+              env.setLastResult(newEnv.getLastResult());
               break;
+            }
             case SubGraphType.DELETE:
               await executeDeleteSubGraph(subg, node, env);
               break;
