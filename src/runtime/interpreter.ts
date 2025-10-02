@@ -1613,7 +1613,10 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           break;
         } catch (err: any) {
           if (retries < MAX_PLANNER_RETRIES) {
-            await agent.invoke(`Please fix these errors:\n ${err}`, env);
+            await agent.invoke(
+              `For my previouns request <${msg}>, you generated this pattern: ${result}. It had these errors: ${err}. Please fix these errors.`,
+              env
+            );
             const r: string | undefined = env.getLastResult();
             result = r;
             ++retries;
