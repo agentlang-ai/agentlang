@@ -489,3 +489,47 @@ agent orchestratorAgent
 {managerSlackChannel {managerId "02", channel "C09BRHX9B7D"}}`)
   })
 })
+
+describe('Extra agent attributes', () => {
+  test('Extra attributes like directives should be emitted', async () => {
+    const mname = 'XtraAgentAttrs'
+    await doInternModule(mname,
+      `record emp {
+        id Int,
+        name String
+      }
+       agent xaaAgent
+          {instruction "Create appropriate patterns for managing Employee information",
+           tools "GA",
+           directives [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
+                       {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
+           scenarios  [{"user": "Jake hit a jackpot!", "ai": "[{GA/Employee {name? &quote;Jake&quote;}} @as [employee]; {GA/Employee {id? employee.id, salary employee.salary + employee.salary * .5}}]"}],
+           glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
+         workflow chat {{xaaAgent {message chat.msg}}}`)
+    const m = fetchModule(mname)
+    const s = m.toString();
+    assert(s == `module XtraAgentAttrs
+
+record emp
+{
+    id Int,
+    name String
+}
+
+agent xaaAgent
+{
+    instruction "Create appropriate patterns for managing Employee information",
+    tools "GA",
+    directives [{"if":"Employee sales exceeded 5000","then":"Give a salary hike of 5 percent"},{"if":"sales is more than 2000 but less than 5000","then":"hike salary by 2 percent"}],
+    scenarios [{"user":"Jake hit a jackpot!","ai":"[{GA/Employee {name? &quote;Jake&quote;}} @as [employee]; {GA/Employee {id? employee.id, salary employee.salary + employee.salary * .5}}]"}],
+    glossary [{"name":"jackpot","meaning":"sales of 5000 or above","synonyms":"high sales, block-buster"}]
+}
+
+workflow chat {
+    {xaaAgent {message chat.msg}}
+}`)
+const i = s.indexOf('record')
+await doInternModule(`${mname}2`, s.substring(i))
+assert(fetchModule(`${mname}2`))
+    })
+  })

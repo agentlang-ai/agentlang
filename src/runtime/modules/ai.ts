@@ -23,7 +23,18 @@ import {
   systemMessage,
 } from '../agents/provider.js';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { FlowExecInstructions, PlannerInstructions } from '../agents/common.js';
+import {
+  AgentCondition,
+  AgentGlossaryEntry,
+  AgentScenario,
+  FlowExecInstructions,
+  getAgentDirectives,
+  getAgentGlossary,
+  getAgentResponseSchema,
+  getAgentScenarios,
+  getAgentScratchNames,
+  PlannerInstructions,
+} from '../agents/common.js';
 import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
@@ -83,72 +94,6 @@ event doc {
 export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
 const ProviderDb = new Map<string, AgentServiceProvider>();
-
-export type AgentCondition = {
-  cond: string;
-  then: string;
-};
-
-const AgentDirectives = new Map<string, AgentCondition[]>();
-
-export function registerAgentDirectives(
-  moduleName: string,
-  agentName: string,
-  conds: AgentCondition[]
-) {
-  AgentDirectives.set(makeFqName(moduleName, agentName), conds);
-}
-
-export type AgentScenario = {
-  user: string;
-  ai: string;
-};
-
-const AgentScenarios = new Map<string, AgentScenario[]>();
-
-export function registerAgentScenarios(
-  moduleName: string,
-  agentName: string,
-  scenarios: AgentScenario[]
-) {
-  AgentScenarios.set(makeFqName(moduleName, agentName), scenarios);
-}
-
-export type AgentGlossaryEntry = {
-  name: string;
-  meaning: string;
-  synonyms: string | undefined;
-};
-
-const AgentGlossary = new Map<string, AgentGlossaryEntry[]>();
-
-export function registerAgentGlossary(
-  moduleName: string,
-  agentName: string,
-  glossary: AgentGlossaryEntry[]
-) {
-  AgentGlossary.set(makeFqName(moduleName, agentName), glossary);
-}
-
-const AgentResponseSchema = new Map<string, string>();
-
-export function registerAgentResponseSchema(
-  moduleName: string,
-  agentName: string,
-  responseSchema: string
-) {
-  AgentResponseSchema.set(makeFqName(moduleName, agentName), responseSchema);
-}
-
-const AgentScratchNames = new Map<string, Set<string>>();
-
-export function registerAgentScratchNames(
-  moduleName: string,
-  agentName: string,
-  scratch: string[]
-) {
-  AgentScratchNames.set(makeFqName(moduleName, agentName), new Set(scratch));
-}
 
 export class AgentInstance {
   llm: string = '';
@@ -243,7 +188,7 @@ export class AgentInstance {
   }
 
   private directivesAsString(fqName: string): string {
-    const conds = AgentDirectives.get(fqName);
+    const conds = getAgentDirectives(fqName);
     if (conds) {
       const ss = new Array<string>();
       ss.push(
@@ -265,7 +210,7 @@ export class AgentInstance {
     }
     const fqName = this.getFqName();
     this.cachedInstruction = `${this.instruction || ''} ${this.directivesAsString(fqName)}`;
-    const gls = AgentGlossary.get(fqName);
+    const gls = getAgentGlossary(fqName);
     if (gls) {
       const glss = new Array<string>();
       gls.forEach((age: AgentGlossaryEntry) => {
@@ -276,7 +221,7 @@ export class AgentInstance {
       this.cachedInstruction = `${this.cachedInstruction}\nThe following glossary will be helpful for understanding user requests.
       ${glss.join('\n')}\n`;
     }
-    const scenarios = AgentScenarios.get(fqName);
+    const scenarios = getAgentScenarios(fqName);
     if (scenarios) {
       const scs = new Array<string>();
       scenarios.forEach((sc: AgentScenario) => {
@@ -284,7 +229,7 @@ export class AgentInstance {
       });
       this.cachedInstruction = `${this.cachedInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
     }
-    const responseSchema = AgentResponseSchema.get(fqName);
+    const responseSchema = getAgentResponseSchema(fqName);
     if (responseSchema) {
       this.cachedInstruction = `${this.cachedInstruction}\nReturn your response in the following JSON schema:\n${asJSONSchema(responseSchema)}
 Only return a pure JSON object with no extra text, annotations etc.`;
@@ -294,7 +239,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
 
   maybeValidateJsonResponse(response: string | undefined): object | undefined {
     if (response) {
-      const responseSchema = AgentResponseSchema.get(this.getFqName());
+      const responseSchema = getAgentResponseSchema(this.getFqName());
       if (responseSchema) {
         const attrs = JSON.parse(response);
         const parts = splitFqName(responseSchema);
@@ -328,7 +273,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   }
 
   getScratchNames(): Set<string> | undefined {
-    return AgentScratchNames.get(this.getFqName());
+    return getAgentScratchNames(this.getFqName());
   }
 
   maybeAddScratchData(env: Environment): AgentInstance {

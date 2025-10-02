@@ -312,3 +312,80 @@ Generally a flowchart has the following two types of entries:
 If you detect that you have reached the end of the chart, return 'DONE'. Otherwise, return only the name of the next step. Never return
 any additional description, direction or comments.
 `;
+
+export type AgentCondition = {
+  cond: string;
+  then: string;
+};
+
+const AgentDirectives = new Map<string, AgentCondition[]>();
+
+export function registerAgentDirectives(agentFqName: string, conds: AgentCondition[]) {
+  AgentDirectives.set(agentFqName, conds);
+}
+
+export function getAgentDirectives(agentFqName: string): AgentCondition[] | undefined {
+  return AgentDirectives.get(agentFqName);
+}
+
+export function getAgentDirectivesJson(agentFqName: string): string | undefined {
+  const conds = AgentDirectives.get(agentFqName);
+  if (conds) {
+    const fmted = conds.map((c: AgentCondition) => {
+      return { if: c.cond, then: c.then };
+    });
+    return JSON.stringify(fmted);
+  }
+  return undefined;
+}
+
+export type AgentScenario = {
+  user: string;
+  ai: string;
+};
+
+const AgentScenarios = new Map<string, AgentScenario[]>();
+
+export function registerAgentScenarios(agentFqName: string, scenarios: AgentScenario[]) {
+  AgentScenarios.set(agentFqName, scenarios);
+}
+
+export function getAgentScenarios(agentFqName: string): AgentScenario[] | undefined {
+  return AgentScenarios.get(agentFqName);
+}
+
+export type AgentGlossaryEntry = {
+  name: string;
+  meaning: string;
+  synonyms: string | undefined;
+};
+
+const AgentGlossary = new Map<string, AgentGlossaryEntry[]>();
+
+export function registerAgentGlossary(agentFqName: string, glossary: AgentGlossaryEntry[]) {
+  AgentGlossary.set(agentFqName, glossary);
+}
+
+export function getAgentGlossary(agentFqName: string): AgentGlossaryEntry[] | undefined {
+  return AgentGlossary.get(agentFqName);
+}
+
+const AgentResponseSchema = new Map<string, string>();
+
+export function registerAgentResponseSchema(agentFqName: string, responseSchema: string) {
+  AgentResponseSchema.set(agentFqName, responseSchema);
+}
+
+export function getAgentResponseSchema(agentFqName: string): string | undefined {
+  return AgentResponseSchema.get(agentFqName);
+}
+
+const AgentScratchNames = new Map<string, Set<string>>();
+
+export function registerAgentScratchNames(agentFqName: string, scratch: string[]) {
+  AgentScratchNames.set(agentFqName, new Set(scratch));
+}
+
+export function getAgentScratchNames(agentFqName: string): Set<string> | undefined {
+  return AgentScratchNames.get(agentFqName);
+}
