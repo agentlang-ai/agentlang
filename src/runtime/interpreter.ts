@@ -275,7 +275,26 @@ export class Environment extends Instance {
     if (this.scratchPad == undefined) {
       this.scratchPad = {};
     }
+    if (isFqName(k)) {
+      const parts = splitFqName(k);
+      this.scratchPad[parts.getEntryName()] = data;
+    }
     this.scratchPad[k] = data;
+    return this.addAttributesToScratchPad(data);
+  }
+
+  private addAttributesToScratchPad(data: any): Environment {
+    if (data instanceof Map) {
+      data.forEach((v: any, k: any) => {
+        this.addToScratchPad(k as string, v);
+      });
+    } else if (data instanceof Array) {
+      return this;
+    } else if (data instanceof Object) {
+      Object.keys(data).forEach((k: string) => {
+        this.addToScratchPad(k, data[k]);
+      });
+    }
     return this;
   }
 
@@ -1538,13 +1557,8 @@ const MAX_PLANNER_RETRIES = 3;
 
 async function agentInvoke(agent: AgentInstance, msg: string, env: Environment): Promise<void> {
   const flowContext = env.getFlowContext();
-  msg = flowContext ? `context: ${flowContext}\n${msg}` : msg;
+  msg = flowContext ? `${msg}\nContext:\n${flowContext}` : msg;
 
-  const scratchPad = env.getScratchPad();
-  if (scratchPad) {
-    const spad = JSON.stringify(scratchPad);
-    msg = `${msg}\nScratchpad:\n${spad}`;
-  }
   // log invocation details
   let invokeDebugMsg = `\nInvoking agent ${agent.name}:`;
   if (agent.role) {
@@ -1708,12 +1722,14 @@ async function iterateOnFlow(
   env: Environment
 ): Promise<void> {
   rootAgent.disableSession();
-  const s = `Now consider the following flowchart and context:\n${flow}\n\nInitial context: ${msg}\n\n
+  const initContext = msg;
+  const s = `Now consider the following flowchart:\n${flow}\n
   If you understand from the context that a step with no further possible steps has been evaluated,
   terminate the flowchart by returning DONE. Never return to the top or root step of the flowchart, instead return DONE.\n`;
+  env.setFlowContext(initContext);
   await agentInvoke(rootAgent, s, env);
   let step = env.getLastResult().trim();
-  let context = msg;
+  let context = initContext;
   let stepc = 0;
   const iterId = crypto.randomUUID();
   console.debug(`Starting iteration ${iterId} on flow: ${flow}`);
@@ -1729,10 +1745,8 @@ async function iterateOnFlow(
     console.debug(
       `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
     );
-    agent.disableSession();
-    env.setFlowContext(context);
+    env.setFlowContext(initContext);
     await agentInvoke(agent, '', env);
-    env.resetFlowContext();
     if (env.isSuspended()) {
       console.debug(`${iterId} suspending iteration on step ${step}`);
       await saveFlowSuspension(rootAgent, context, step, env);
@@ -1744,7 +1758,8 @@ async function iterateOnFlow(
     console.debug(
       `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
     );
-    context = `${context}\nExecuted steps: ${[...executedSteps].join(', ')}`;
+    context = `${context}\n${step} --> ${rs}\n`;
+    env.setFlowContext(context);
     await agentInvoke(rootAgent, `${s}\n${context}`, env);
     step = env.getLastResult().trim();
   }

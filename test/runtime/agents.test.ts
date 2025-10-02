@@ -329,7 +329,7 @@ if (process.env.AL_TEST === 'true') {
   describe('Agent-schema', () => {
     test('Response schema support for agents', async () => {
       await doInternModule(
-        'NetworkProvisoning',
+        'NetworkProvisioning',
         `record NetworkProvisioningRequest {
           type @enum("DNS", "WLAN"),
           requestedBy String,
@@ -405,20 +405,20 @@ if (process.env.AL_TEST === 'true') {
         }
         
         agent provisionDNS {
-          instruction "Get classifyNetworkProvisioningRequest.IPAddress and classifyNetworkProvisioningRequest.CNAME and prvision dns",
-          tools [NetworkProvisoning/doProvisionDNS],
+          instruction "Provision DNS with ipaddress={{classifyNetworkProvisioningRequest.IPAddress}} and cname={{classifyNetworkProvisioningRequest.CNAME}}",
+          tools [NetworkProvisioning/doProvisionDNS],
           scratch [provisioningId]
         }
 
         agent provisionWLAN {
-          instruction "Get classifyNetworkProvisioningRequest.IPAddress and prvision WLAN",
-          tools [NetworkProvisoning/doProvisionWLAN],
+          instruction "Using {{classifyNetworkProvisioningRequest.IPAddress}} as ipaddress, provision WLAN",
+          tools [NetworkProvisioning/doProvisionWLAN],
           scratch [provisioningId]
         }
 
         agent reportFailure {
-          instruction "Report the request as failed for classifyNetworkProvisioningRequest.requestedBy."
-          tools [NetworkProvisoning/reportRequestFailed]
+          instruction "Report the request as failed for {{classifyNetworkProvisioningRequest.requestedBy}}."
+          tools [NetworkProvisioning/reportRequestFailed]
         }
         
         agent classifyNetworkProvisioningRequest {
@@ -427,8 +427,8 @@ if (process.env.AL_TEST === 'true') {
         }
 
         agent markTicketAsDone {
-          instruction "Use classifyNetworkProvisioningRequest.type, classifyNetworkProvisioningRequest.requestedBy and the provisioningId to mark the request as completed",
-          tools [NetworkProvisoning/markRequestCompleted]
+          instruction "Use type={{classifyNetworkProvisioningRequest.type}}, requestedBy={{classifyNetworkProvisioningRequest.requestedBy}} and provisioningId={{provisioningId}} to mark the request as completed",
+          tools [NetworkProvisioning/markRequestCompleted]
         }
         
         flow networkProvisioningRequestManager {
@@ -443,34 +443,34 @@ if (process.env.AL_TEST === 'true') {
           `
       );
       const k = async (ins: string) => {
-        return await parseAndEvaluateStatement(`{NetworkProvisoning/networkProvisioningRequestManager {message "${ins}"}}`);
+        return await parseAndEvaluateStatement(`{NetworkProvisioning/networkProvisioningRequestManager {message "${ins}"}}`);
       };
       await k(
         `User Jake needs a DNS for 192.3.4.5 for jake.blog.com`
       );
+      const r1: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisioning/DNSEntry? {}}`)
+      assert(r1.length == 1)
+      assert(isInstanceOfType(r1[0], 'NetworkProvisioning/DNSEntry'))
+      assert(r1[0].lookup('CNAME') == 'jake.blog.com')
+      assert(r1[0].lookup('IPAddress') == '192.3.4.5')
+      const pid1 = r1[0].lookup('provisioningId')
+      const r2: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisioning/requestCompletedNotification {provisioningId? "${pid1}"}}`)
+      assert(r2.length == 1)
+      assert(isInstanceOfType(r2[0], 'NetworkProvisioning/requestCompletedNotification'))
+      assert(r2[0].lookup('requestedBy').toLowerCase() == 'jake')
+
       await k(
         `WLAN request from Mat. IP 192.1.1.2`
       );
-     const r1: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisoning/DNSEntry? {}}`)
-     assert(r1.length == 1)
-     assert(isInstanceOfType(r1[0], 'NetworkProvisoning/DNSEntry'))
-     assert(r1[0].lookup('CNAME') == 'jake.blog.com')
-     assert(r1[0].lookup('IPAddress') == '192.3.4.5')
-     const pid1 = r1[0].lookup('provisioningId')
-     const r2: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisoning/requestCompletedNotification {provisioningId? "${pid1}"}}`)
-     assert(r2.length == 1)
-     assert(isInstanceOfType(r2[0], 'NetworkProvisoning/requestCompletedNotification'))
-     assert(r2[0].lookup('requestedBy').toLowerCase() == 'jake')
-
-     const r3: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisoning/WLANEntry? {}}`)
-     assert(r3.length == 1)
-     assert(isInstanceOfType(r3[0], 'NetworkProvisoning/WLANEntry'))
-     assert(r3[0].lookup('IPAddress') == '192.1.1.2')
-     const pid2 = r3[0].lookup('provisioningId')
-     const r4: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisoning/requestCompletedNotification {provisioningId? "${pid2}"}}`)
-     assert(r4.length == 1)
-     assert(isInstanceOfType(r4[0], 'NetworkProvisoning/requestCompletedNotification'))
-     assert(r4[0].lookup('requestedBy').toLowerCase() == 'mat')
+      const r3: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisioning/WLANEntry? {}}`)
+      assert(r3.length == 1)
+      assert(isInstanceOfType(r3[0], 'NetworkProvisioning/WLANEntry'))
+      assert(r3[0].lookup('IPAddress') == '192.1.1.2')
+      const pid2 = r3[0].lookup('provisioningId')
+      const r4: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisioning/requestCompletedNotification {provisioningId? "${pid2}"}}`)
+      assert(r4.length == 1)
+      assert(isInstanceOfType(r4[0], 'NetworkProvisioning/requestCompletedNotification'))
+      assert(r4[0].lookup('requestedBy').toLowerCase() == 'mat')
     })
   })
 } else {
