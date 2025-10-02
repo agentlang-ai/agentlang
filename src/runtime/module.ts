@@ -48,6 +48,19 @@ import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
 import { FetchModuleFn, PathAttributeName } from './defs.js';
 import { logger } from './logger.js';
 import { FlowStepPattern } from '../language/syntax.js';
+import {
+  AgentCondition,
+  AgentGlossaryEntry,
+  AgentScenario,
+  getAgentDirectivesJson,
+  getAgentGlossary,
+  getAgentResponseSchema,
+  getAgentScenarios,
+  registerAgentDirectives,
+  registerAgentGlossary,
+  registerAgentResponseSchema,
+  registerAgentScenarios,
+} from './agents/common.js';
 
 export class ModuleEntry {
   name: string;
@@ -889,6 +902,26 @@ export class Agent extends Record {
     return this.getStrings('flows');
   }
 
+  setDirectives(conds: AgentCondition[]): Agent {
+    registerAgentDirectives(this.getFqName(), conds);
+    return this;
+  }
+
+  setScenarios(scenarios: AgentScenario[]): Agent {
+    registerAgentScenarios(this.getFqName(), scenarios);
+    return this;
+  }
+
+  setGlossary(glossary: AgentGlossaryEntry[]): Agent {
+    registerAgentGlossary(this.getFqName(), glossary);
+    return this;
+  }
+
+  setResponseSchema(entryName: string): Agent {
+    registerAgentResponseSchema(this.getFqName(), entryName);
+    return this;
+  }
+
   override toString(): string {
     const attrs = new Array<string>();
     this.attributes.forEach((value: any, key: string) => {
@@ -903,6 +936,23 @@ export class Agent extends Record {
         attrs.push(`    ${key} ${v}`);
       }
     });
+    const fqName = makeFqName(this.moduleName, this.getName());
+    const conds = getAgentDirectivesJson(fqName);
+    if (conds) {
+      attrs.push(`    directives ${conds}`);
+    }
+    const scns = getAgentScenarios(fqName);
+    if (scns) {
+      attrs.push(`    scenarios ${JSON.stringify(scns)}`);
+    }
+    const gls = getAgentGlossary(fqName);
+    if (gls) {
+      attrs.push(`    glossary ${JSON.stringify(gls)}`);
+    }
+    const rscm = getAgentResponseSchema(fqName);
+    if (rscm) {
+      attrs.push(`   responseSchema ${rscm}`);
+    }
     return `agent ${Agent.NormalizeName(this.name)}
 {
 ${attrs.join(',\n')}

@@ -69,19 +69,7 @@ import { maybeGetValidationErrors, parse, parseModule, parseWorkflow } from '../
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
-import {
-  AgentCondition,
-  AgentEntityName,
-  AgentGlossaryEntry,
-  AgentScenario,
-  CoreAIModuleName,
-  LlmEntityName,
-  registerAgentDirectives,
-  registerAgentGlossary,
-  registerAgentResponseSchema,
-  registerAgentScenarios,
-  registerAgentScratchNames,
-} from './modules/ai.js';
+import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
 import { getDefaultLLMService } from './agents/registry.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
@@ -91,6 +79,16 @@ import { SetSubscription } from './defs.js';
 import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
 import z from 'zod';
 import { registerAgentFlow, registerFlow } from './agents/flows.js';
+import {
+  AgentCondition,
+  AgentGlossaryEntry,
+  AgentScenario,
+  registerAgentDirectives,
+  registerAgentGlossary,
+  registerAgentResponseSchema,
+  registerAgentScenarios,
+  registerAgentScratchNames,
+} from './agents/common.js';
 
 export async function extractDocument(
   fileName: string,
@@ -688,20 +686,21 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
     addStandaloneStatement(stmt, moduleName, false);
   });
+  const agentFqName = makeFqName(moduleName, name);
   if (conds) {
-    registerAgentDirectives(moduleName, name, conds);
+    registerAgentDirectives(agentFqName, conds);
   }
   if (scenarios) {
-    registerAgentScenarios(moduleName, name, scenarios);
+    registerAgentScenarios(agentFqName, scenarios);
   }
   if (glossary) {
-    registerAgentGlossary(moduleName, name, glossary);
+    registerAgentGlossary(agentFqName, glossary);
   }
   if (responseSchema) {
-    registerAgentResponseSchema(moduleName, name, responseSchema);
+    registerAgentResponseSchema(agentFqName, responseSchema);
   }
   if (scratchNames) {
-    registerAgentScratchNames(moduleName, name, scratchNames);
+    registerAgentScratchNames(agentFqName, scratchNames);
   }
   // Don't add llm to module attrs if it wasn't originally specified
   addAgent(def.name, attrs, moduleName);
