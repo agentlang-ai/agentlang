@@ -30,6 +30,9 @@ import {
   FlowDefinition,
   isFlowDefinition,
   Literal,
+  isDecisionDefinition,
+  DecisionDefinition,
+  CaseEntry,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -755,6 +758,16 @@ function addFlowDefinition(def: FlowDefinition, moduleName: string) {
   }
 }
 
+function addDecisionDefinition(def: DecisionDefinition, moduleName: string) {
+  if (def.body) {
+    const m = fetchModule(moduleName);
+    const cases = def.body.cases.map((ce: CaseEntry) => {
+      return ce.$cstNode?.text;
+    });
+    m.addDecision(def.name, cases as string[]);
+  }
+}
+
 function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
   const resolverName = `${moduleName}/${def.name}`;
   const paths = def.paths;
@@ -814,6 +827,7 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
   else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);
   else if (isFlowDefinition(def)) addFlowDefinition(def, moduleName);
+  else if (isDecisionDefinition(def)) addDecisionDefinition(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {

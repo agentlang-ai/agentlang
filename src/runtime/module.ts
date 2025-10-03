@@ -23,7 +23,7 @@ import {
 } from '../language/generated/ast.js';
 import {
   Path,
-  splitFqName,
+  nameToPath,
   isString,
   isNumber,
   isBoolean,
@@ -42,6 +42,7 @@ import {
   findUqCompositeAttributes,
   escapeFqName,
   encryptPassword,
+  splitFqName,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -295,7 +296,7 @@ export class Record extends ModuleEntry {
         let t: string | undefined = isArrayType ? a.arrayType : a.type;
         if (a.refSpec) {
           let fp = a.refSpec.ref;
-          const rp = splitFqName(fp);
+          const rp = nameToPath(fp);
           if (!rp.hasModule()) {
             rp.setModuleName(this.moduleName);
             fp = rp.asFqName();
@@ -515,14 +516,34 @@ export class Record extends ModuleEntry {
   }
 
   override toString(): string {
+    return this.toString_();
+  }
+
+  toString_(internParentSchema: boolean = false): string {
     if (this.type == RecordType.EVENT && this.meta && this.meta.get(SystemDefinedEvent)) {
       return '';
     }
     let s: string = `${RecordType[this.type].toLowerCase()} ${this.name}`;
-    if (this.parentEntryName) {
+    let scm: RecordSchema = this.schema;
+    if (this.parentEntryName && !internParentSchema) {
       s = s.concat(` extends ${this.parentEntryName}`);
+      scm = newRecordSchema();
+      let modName = this.moduleName;
+      let pname = this.parentEntryName;
+      if (isFqName(pname)) {
+        const parts = splitFqName(pname);
+        modName = parts[0];
+        pname = parts[1];
+      }
+      const p = fetchModule(modName).getEntry(pname) as Record;
+      const pks = new Set(p.schema.keys());
+      this.schema.forEach((v: AttributeSpec, n: string) => {
+        if (!pks.has(n)) {
+          scm.set(n, v);
+        }
+      });
     }
-    let scms = recordSchemaToString(this.schema);
+    let scms = recordSchemaToString(scm);
     if (this.rbac && this.rbac.length > 0) {
       const rbs = this.rbac.map((rs: RbacSpecification) => {
         return rs.toString();
@@ -563,7 +584,7 @@ function fetchModuleByEntryName(
   suspectModuleName: string
 ): FetchModuleByEntryNameResult {
   if (isFqName(entryName)) {
-    const path: Path = splitFqName(entryName);
+    const path: Path = nameToPath(entryName);
     entryName = path.getEntryName();
     suspectModuleName = path.getModuleName();
   }
@@ -623,7 +644,7 @@ function asPropertiesMap(props: PropertyDefinition[]): Map<string, any> | undefi
 function maybeProcessRefProperty(props: Map<string, any>): Map<string, any> {
   const v: string | undefined = props.get('ref');
   if (v != undefined) {
-    const parts: Path = splitFqName(v);
+    const parts: Path = nameToPath(v);
     if (!parts.hasModule()) {
       parts.setModuleName(activeModule);
     }
@@ -1025,7 +1046,7 @@ export type RelationshipNode = {
 };
 
 export function newRelNodeEntry(nodeFqName: string, alias?: string): RelationshipNode {
-  const p: Path = splitFqName(nodeFqName);
+  const p: Path = nameToPath(nodeFqName);
   return {
     path: p,
     alias: alias ? alias : p.getEntryName(),
@@ -1043,7 +1064,7 @@ function relNodeEntryToString(node: RelationshipNode): string {
 }
 
 function asRelNodeEntry(n: NodeDefinition): RelationshipNode {
-  const path: Path = splitFqName(n.name);
+  const path: Path = nameToPath(n.name);
   let modName = activeModule;
   const entryName = path.getEntryName();
   if (path.hasModule()) {
@@ -1523,6 +1544,25 @@ export function flowGraphNext(
   return undefined;
 }
 
+export class Decision extends ModuleEntry {
+  cases: string[];
+
+  constructor(name: string, moduleName: string, cases: string[]) {
+    super(name, moduleName);
+    this.cases = cases;
+  }
+
+  joinedCases(): string {
+    return this.cases.join('\n');
+  }
+
+  override toString(): string {
+    return `decision ${this.name} {
+      ${this.cases.join('\n')}
+    }`;
+  }
+}
+
 class StandaloneStatement extends ModuleEntry {
   stmt: Statement;
 
@@ -1588,10 +1628,12 @@ export class Module {
   getFlow(name: string): Flow | undefined {
     const n = Flow.asFlowName(name);
     if (this.hasEntry(n)) {
-      return this.getEntry(n) as Flow;
-    } else {
-      return undefined;
+      const e = this.getEntry(n);
+      if (e instanceof Flow) {
+        return e as Flow;
+      }
     }
+    return undefined;
   }
 
   getAllFlows(): Flow[] {
@@ -1605,6 +1647,22 @@ export class Module {
       return this.removeEntry(Flow.asFlowName(name));
     }
     return false;
+  }
+
+  addDecision(name: string, cases: string[]): Decision {
+    const d = new Decision(name, this.name, cases);
+    this.addEntry(d);
+    return d;
+  }
+
+  getDecision(name: string): Decision | undefined {
+    if (this.hasEntry(name)) {
+      const e = this.getEntry(name);
+      if (e instanceof Decision) {
+        return e as Decision;
+      }
+    }
+    return undefined;
   }
 
   addStandaloneStatement(stmt: Statement): StandaloneStatement {
@@ -1918,7 +1976,7 @@ export function isBuiltInType(type: string): boolean {
 
 export function isValidType(type: string): boolean {
   if (isBuiltInType(type)) return true;
-  const path: Path = splitFqName(type);
+  const path: Path = nameToPath(type);
   let modName: string = '';
   if (path.hasModule()) modName = path.getModuleName();
   else modName = activeModule;
@@ -2286,7 +2344,7 @@ export function prePostWorkflowName(
   entityName: string,
   moduleName?: string
 ): string {
-  const parts = splitFqName(entityName);
+  const parts = nameToPath(entityName);
   const mname = parts.hasModule() ? parts.getModuleName() : moduleName;
   if (!mname) {
     throw new Error(`Cannot infer module name for ${entityName}`);
@@ -2312,7 +2370,7 @@ export function parsePrePostWorkflowName(name: string): ThinWfHeader {
 
 function getEntityDef(entityName: string, moduleName: string): Entity | undefined {
   try {
-    const parts = splitFqName(entityName);
+    const parts = nameToPath(entityName);
     const mname = parts.hasModule() ? parts.getModuleName() : moduleName;
     return getEntity(parts.getEntryName(), mname);
   } catch (reason: any) {
@@ -2327,7 +2385,7 @@ export function getWorkflow(eventInstance: Instance): Workflow {
 
 export function getWorkflowForEvent(eventName: string, moduleName?: string): Workflow {
   if (isFqName(eventName)) {
-    const parts = splitFqName(eventName);
+    const parts = nameToPath(eventName);
     eventName = parts.getEntryName();
     moduleName = parts.getModuleName();
   }
@@ -2351,7 +2409,7 @@ export function getEntity(name: string, moduleName: string): Entity | undefined 
 }
 
 function isEntryOfType(t: RecordType, fqName: string): boolean {
-  const path = splitFqName(fqName);
+  const path = nameToPath(fqName);
   const mod = fetchModule(path.getModuleName());
   return mod.isEntryOfType(t, path.getEntryName());
 }
@@ -3177,7 +3235,7 @@ export function instanceToObject<Type>(inst: Instance, obj: any): Type {
 }
 
 export function getEntityRbacRules(entityFqName: string): RbacSpecification[] | undefined {
-  const p = splitFqName(entityFqName);
+  const p = nameToPath(entityFqName);
   const mn = p.getModuleName();
   const en = p.getEntryName();
   const m = isModule(mn) && fetchModule(mn);
@@ -3191,7 +3249,7 @@ export function getEntityRbacRules(entityFqName: string): RbacSpecification[] | 
 }
 
 export function asJSONSchema(fqName: string): string {
-  const parts = splitFqName(fqName);
+  const parts = nameToPath(fqName);
   if (parts.hasModule()) {
     const mod = fetchModule(parts.getModuleName());
     const record = mod.getRecord(parts.getEntryName());
@@ -3208,4 +3266,14 @@ export function asJSONSchema(fqName: string): string {
   } else {
     throw new Error(`Failed to find module for ${fqName}`);
   }
+}
+
+export function getDecision(name: string, moduleName: string): Decision | undefined {
+  if (isFqName(name)) {
+    const parts = splitFqName(name);
+    name = parts[1];
+    moduleName = parts[0];
+  }
+  const m = fetchModule(moduleName);
+  return m.getDecision(name);
 }

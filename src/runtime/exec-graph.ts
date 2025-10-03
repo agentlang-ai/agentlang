@@ -39,7 +39,7 @@ import {
   RecordType,
 } from './module.js';
 import { isOpenApiEventInstance, isOpenApiModule } from './openapi.js';
-import { escapeQueryName, makeFqName, splitFqName } from './util.js';
+import { escapeQueryName, makeFqName, nameToPath } from './util.js';
 
 const GraphCache = new Map<string, ExecGraph>();
 
@@ -47,7 +47,7 @@ export async function generateExecutionGraph(eventName: string): Promise<ExecGra
   const cg = GraphCache.get(eventName);
   if (cg) return cg;
   const wf = getWorkflowForEvent(eventName);
-  const parts = splitFqName(eventName);
+  const parts = nameToPath(eventName);
   const moduleName = parts.hasModule() ? parts.getModuleName() : undefined;
   if (!isEmptyWorkflow(wf)) {
     const g = await graphFromStatements(wf.statements, moduleName);
@@ -69,7 +69,7 @@ class GraphGenerator extends PatternHandler {
   }
 
   override async handleCrudMap(crudMap: CrudMap, env: Environment) {
-    const parts = splitFqName(crudMap.name);
+    const parts = nameToPath(crudMap.name);
     const moduleName = parts.hasModule() ? parts.getModuleName() : env.getActiveModuleName();
     const crudName = makeFqName(moduleName, parts.getEntryName());
     if (crudName == DocEventName) {

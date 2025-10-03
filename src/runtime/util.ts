@@ -141,12 +141,16 @@ export function isFqName(s: string): boolean {
   return s.indexOf('/') > 0;
 }
 
-export function splitFqName(s: string): Path {
+export function nameToPath(s: string): Path {
   if (s.indexOf('/') > 0) {
     const parts: string[] = s.split('/');
     return new Path(parts[0], parts[1]);
   }
   return new Path(undefined, s);
+}
+
+export function splitFqName(s: string): string[] {
+  return s.split('/');
 }
 
 export function splitRefs(s: string): string[] {

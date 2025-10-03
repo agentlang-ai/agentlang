@@ -63,8 +63,10 @@ export type AgentlangKeywordNames =
     | "and"
     | "await"
     | "between"
+    | "case"
     | "contains"
     | "create"
+    | "decision"
     | "delete"
     | "else"
     | "entity"
@@ -122,7 +124,7 @@ export function isDecimal(item: unknown): item is Decimal {
     return typeof item === 'number';
 }
 
-export type Definition = AgentDefinition | FlowDefinition | RelationshipDefinition | ResolverDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
+export type Definition = AgentDefinition | DecisionDefinition | FlowDefinition | RelationshipDefinition | ResolverDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = 'Definition';
 
@@ -303,7 +305,7 @@ export function isBeforeTriggerDefinition(item: unknown): item is BeforeTriggerD
 }
 
 export interface BinExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'BinExpr';
     e1: Expr | PrimExpr;
     e2: Expr | PrimExpr;
@@ -314,6 +316,19 @@ export const BinExpr = 'BinExpr';
 
 export function isBinExpr(item: unknown): item is BinExpr {
     return reflection.isInstance(item, BinExpr);
+}
+
+export interface CaseEntry extends langium.AstNode {
+    readonly $container: DecisionDefBody;
+    readonly $type: 'CaseEntry';
+    cond: Expr;
+    statements: Array<Statement>;
+}
+
+export const CaseEntry = 'CaseEntry';
+
+export function isCaseEntry(item: unknown): item is CaseEntry {
+    return reflection.isInstance(item, CaseEntry);
 }
 
 export interface CatchSpec extends langium.AstNode {
@@ -382,6 +397,31 @@ export const CrudMapBody = 'CrudMapBody';
 
 export function isCrudMapBody(item: unknown): item is CrudMapBody {
     return reflection.isInstance(item, CrudMapBody);
+}
+
+export interface DecisionDefBody extends langium.AstNode {
+    readonly $container: DecisionDefinition;
+    readonly $type: 'DecisionDefBody';
+    cases: Array<CaseEntry>;
+}
+
+export const DecisionDefBody = 'DecisionDefBody';
+
+export function isDecisionDefBody(item: unknown): item is DecisionDefBody {
+    return reflection.isInstance(item, DecisionDefBody);
+}
+
+export interface DecisionDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'DecisionDefinition';
+    body?: DecisionDefBody;
+    name: GenericName;
+}
+
+export const DecisionDefinition = 'DecisionDefinition';
+
+export function isDecisionDefinition(item: unknown): item is DecisionDefinition {
+    return reflection.isInstance(item, DecisionDefinition);
 }
 
 export interface Delete extends langium.AstNode {
@@ -578,7 +618,7 @@ export function isGenericPropertyDef(item: unknown): item is GenericPropertyDef 
 }
 
 export interface Group extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'Group';
     ge: Expr;
 }
@@ -655,7 +695,7 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | CrudMap | FnCall | FullTextSearch | GenericPropertyDef | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | CrudMap | FnCall | FullTextSearch | GenericPropertyDef | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
@@ -739,7 +779,7 @@ export function isModuleDefinition(item: unknown): item is ModuleDefinition {
 }
 
 export interface NegExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'NegExpr';
     ne: Expr;
 }
@@ -764,7 +804,7 @@ export function isNodeDefinition(item: unknown): item is NodeDefinition {
 }
 
 export interface NotExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'NotExpr';
     ne: Expr;
 }
@@ -1157,7 +1197,7 @@ export function isStandaloneStatement(item: unknown): item is StandaloneStatemen
 }
 
 export interface Statement extends langium.AstNode {
-    readonly $container: ArrayLiteral | Else | ForEach | Handler | If | StandaloneStatement | ThenSpec | WorkflowDefinition;
+    readonly $container: ArrayLiteral | CaseEntry | Else | ForEach | Handler | If | StandaloneStatement | ThenSpec | WorkflowDefinition;
     readonly $type: 'Statement';
     hints: Array<RuntimeHint>;
     pattern: Pattern;
@@ -1246,11 +1286,14 @@ export type AgentlangAstType = {
     AttributeValueExpression: AttributeValueExpression
     BeforeTriggerDefinition: BeforeTriggerDefinition
     BinExpr: BinExpr
+    CaseEntry: CaseEntry
     CatchSpec: CatchSpec
     CompositeUniqueDefinition: CompositeUniqueDefinition
     ConditionalFlowStep: ConditionalFlowStep
     CrudMap: CrudMap
     CrudMapBody: CrudMapBody
+    DecisionDefBody: DecisionDefBody
+    DecisionDefinition: DecisionDefinition
     Definition: Definition
     Delete: Delete
     Else: Else
@@ -1325,12 +1368,13 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
         switch (subtype) {
             case AgentDefinition:
+            case DecisionDefinition:
             case FlowDefinition:
             case RelationshipDefinition:
             case ResolverDefinition:
@@ -1458,6 +1502,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case CaseEntry: {
+                return {
+                    name: CaseEntry,
+                    properties: [
+                        { name: 'cond' },
+                        { name: 'statements', defaultValue: [] }
+                    ]
+                };
+            }
             case CatchSpec: {
                 return {
                     name: CatchSpec,
@@ -1503,6 +1556,23 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'attributes', defaultValue: [] },
                         { name: 'properties', defaultValue: [] }
+                    ]
+                };
+            }
+            case DecisionDefBody: {
+                return {
+                    name: DecisionDefBody,
+                    properties: [
+                        { name: 'cases', defaultValue: [] }
+                    ]
+                };
+            }
+            case DecisionDefinition: {
+                return {
+                    name: DecisionDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'name' }
                     ]
                 };
             }

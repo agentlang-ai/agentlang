@@ -473,6 +473,126 @@ if (process.env.AL_TEST === 'true') {
       assert(r4[0].lookup('requestedBy').toLowerCase() == 'mat')
     })
   })
+
+  describe('Agent-DecisionTable', () => {
+    test('Decision tables in flows', async () => {
+      await doInternModule(
+        'CarCompany',
+        `record BaseEV {
+          bodyColor String,
+          batteryPack @enum("59kwh", "79kwh"),
+          charger @enum("11.2kw", "7.2kw")
+        }
+
+        entity EV extends BaseEV{
+          id UUID @id @default(uuid()),
+          segment @enum("economy", "luxury")
+        }
+
+        event orderEconomyEV extends BaseEV{
+        }
+        
+        workflow orderEconomyEV {
+          {EV {bodyColor orderEconomyEV.bodyColor,
+              batteryPack orderEconomyEV.batteryPack,
+              charger orderEconomyEV.charger,
+              segment "economy"}}
+        }
+
+        event orderLuxuryEV extends BaseEV {
+        }
+
+        workflow orderLuxuryEV {
+          {EV {bodyColor orderLuxuryEV.bodyColor,
+              batteryPack orderLuxuryEV.batteryPack,
+              charger orderLuxuryEV.charger,
+              segment "luxury"}}
+        }
+
+        record BaseSUV {
+          bodyColor String,
+          transmission @enum("manual", "automatic"),
+          fuel @enum("diesel", "petrol"),
+          torque @enum("330nm", "380nm")
+        }
+
+        entity SUV extends BaseSUV {
+          id UUID @id @default(uuid()),
+          segment @enum("economy", "luxury")
+        }
+        
+        event orderEconomySUV extends BaseSUV {
+        }
+
+        workflow orderEconomySUV {
+          {SUV {bodyColor orderEconomySUV.bodyColor,
+                transmission orderEconomySUV.transmission,
+                fuel orderEconomySUV.fuel,
+                torque orderEconomySUV.torque
+                segment "economy"}}
+        }
+        
+        event orderLuxurySUV extends BaseSUV {
+        }
+
+         workflow orderLuxurySUV {
+          {SUV {bodyColor orderLuxurySUV.bodyColor,
+                transmission orderLuxurySUV.transmission,
+                fuel orderLuxurySUV.fuel,
+                torque orderLuxurySUV.torque
+                segment "luxury"}}
+        }
+        
+        record CarOrderRequest {
+          carType @enum("EV", "SUV"),
+          bodyColor String,
+          batteryPack String @optional,
+          charger String @optional,
+          transmission String @optional,
+          fuel String @optional,
+          torque String @optional,
+          segment @enum("economy", "luxury")
+        }
+        
+        agent analyseCarOrderRequest {
+          instruction "Analyse the customer request for ordering a car and return the relevant information you are able to figure out",
+          responseSchema CarOrderRequest
+        }
+        
+        decision makeOrder {
+          case (carType = "EV" and segment = "economy") {
+            orderEconomyEV
+          }
+
+          case (carType = "EV" and segment = "luxury") {
+            orderLuxuryEV
+          }
+
+          case (carType = "SUV" and segment = "economy") {
+            orderEconomySUV
+          }
+
+          case (carType = "SUV" and segment = "luxury") {
+            orderLuxurySUV
+          }
+        }
+        
+        flow carOrderRequestManager {
+          analyseCarOrderRequest --> makeOrder
+        }
+
+        agent carOrderRequestManager {
+          instruction "You are an agent who analyses customer order requests for new cars and make appropriate orders"
+        }
+        `)
+      const k = async (ins: string) => {
+        return await parseAndEvaluateStatement(`{CarCompany/carOrderRequestManager {message "${ins}"}}`);
+      };
+      await k(
+        `I want a red EV with 59kwh battery pack and 7.2kw charger`
+      );
+    })
+  })
 } else {
   describe('Skipping agent tests', () => {
     test('test01', async () => { });

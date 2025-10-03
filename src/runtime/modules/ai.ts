@@ -1,4 +1,4 @@
-import { isFqName, makeCoreModuleName, makeFqName, splitFqName } from '../util.js';
+import { isFqName, makeCoreModuleName, makeFqName, nameToPath } from '../util.js';
 import {
   Environment,
   GlobalEnvironment,
@@ -7,12 +7,15 @@ import {
 } from '../interpreter.js';
 import {
   asJSONSchema,
+  Decision,
   fetchModule,
+  getDecision,
   Instance,
   instanceToObject,
   isModule,
   makeInstance,
   newInstanceAttributes,
+  Record,
 } from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
@@ -27,6 +30,7 @@ import {
   AgentCondition,
   AgentGlossaryEntry,
   AgentScenario,
+  DecisionAgentInstructions,
   FlowExecInstructions,
   getAgentDirectives,
   getAgentGlossary,
@@ -113,6 +117,7 @@ export class AgentInstance {
   private hasModuleTools = false;
   private withSession = true;
   private fqName: string | undefined;
+  private decisionExecutor = false;
 
   private constructor() {}
 
@@ -137,7 +142,7 @@ export class AgentInstance {
       for (let i = 0; i < agent.toolsArray.length; ++i) {
         const n = agent.toolsArray[i];
         if (isFqName(n)) {
-          const parts = splitFqName(n);
+          const parts = nameToPath(n);
           agent.hasModuleTools = isModule(parts.getModuleName());
         } else {
           agent.hasModuleTools = isModule(n);
@@ -148,7 +153,11 @@ export class AgentInstance {
     return agent;
   }
 
-  static FromFlowStep(step: FlowStep, flowAgent: AgentInstance): AgentInstance {
+  static FromFlowStep(step: FlowStep, flowAgent: AgentInstance, context: string): AgentInstance {
+    const desc = getDecision(step, flowAgent.moduleName);
+    if (desc) {
+      return AgentInstance.FromDecision(desc, flowAgent, context);
+    }
     const fqs = isFqName(step) ? step : `${flowAgent.moduleName}/${step}`;
     const instruction = `Analyse the context and generate the pattern required to invoke ${fqs}.
     Never include references in the pattern. All attribute values must be literals derived from the context.`;
@@ -164,6 +173,20 @@ export class AgentInstance {
         .set('type', 'planner')
     );
     return AgentInstance.FromInstance(inst).disableSession();
+  }
+
+  static FromDecision(desc: Decision, flowAgent: AgentInstance, context: string): AgentInstance {
+    const instruction = `${DecisionAgentInstructions}\n${context}\n\n${desc.joinedCases()}`;
+    const inst = makeInstance(
+      CoreAIModuleName,
+      AgentEntityName,
+      newInstanceAttributes()
+        .set('llm', flowAgent.llm)
+        .set('name', `${desc.name}_agent`)
+        .set('moduleName', flowAgent.moduleName)
+        .set('instruction', instruction)
+    );
+    return AgentInstance.FromInstance(inst).disableSession().markAsDecisionExecutor();
   }
 
   disableSession(): AgentInstance {
@@ -186,6 +209,15 @@ export class AgentInstance {
 
   isFlowExecutor(): boolean {
     return this.type == 'flow-exec';
+  }
+
+  markAsDecisionExecutor(): AgentInstance {
+    this.decisionExecutor = true;
+    return this;
+  }
+
+  isDecisionExecutor(): boolean {
+    return this.decisionExecutor;
   }
 
   private directivesAsString(fqName: string): string {
@@ -248,7 +280,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       const responseSchema = getAgentResponseSchema(this.getFqName());
       if (responseSchema) {
         const attrs = JSON.parse(response);
-        const parts = splitFqName(responseSchema);
+        const parts = nameToPath(responseSchema);
         const moduleName = parts.getModuleName();
         const entryName = parts.getEntryName();
         const attrsMap = new Map(Object.entries(attrs));
@@ -427,7 +459,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         let moduleName: string | undefined;
         let entryName: string | undefined;
         if (isFqName(n)) {
-          const parts = splitFqName(n);
+          const parts = nameToPath(n);
           moduleName = parts.getModuleName();
           entryName = parts.getEntryName();
         } else {
@@ -438,7 +470,10 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           if (entryName) {
             const hasmod = slimModules.has(moduleName);
             const defs = hasmod ? slimModules.get(moduleName) : new Array<string>();
-            defs?.push(m.getEntry(entryName).toString());
+            const entry = m.getEntry(entryName);
+            const s =
+              entry instanceof Record ? (entry as Record).toString_(true) : entry.toString();
+            defs?.push(s);
             if (!hasmod && defs) {
               slimModules.set(moduleName, defs);
             }

@@ -313,6 +313,47 @@ If you detect that you have reached the end of the chart, return 'DONE'. Otherwi
 any additional description, direction or comments.
 `;
 
+export const DecisionAgentInstructions = `Analyse a decision table with multiple cases along with the context to return one or more values.
+A decision table will be a sequence of case-conditions as in,
+
+case (condition1) {
+  value1
+}
+
+case (condition2) {
+  value2
+}
+
+The context will be some additional instructions and JSON-like data based on which you can evaluate the conditions and decide which values to return.
+Let's consider an example:
+
+
+analyseSalesReport --> {"Acme/salesReport": {"employeeId": 101, "employeeGrade": "A", "totalSalesAmount": 14000}}
+
+case (totalSalesAmount > 10000) {
+  giveIncrementToEmployee
+}
+
+case (totalSalesAmount > 15000) {
+  promoteEmployee
+}
+
+case (totalSalesAmount < 10000 and employeeGrade = "A") {
+  demoteEmployee
+}
+
+
+Given the above context and cases, you must return giveIncrementToEmployee - because the data in the context satisfies only the first case.
+If the context is,
+
+analyseSalesReport --> {"Acme/salesReport": {"employeeId": 101, "employeeGrade": "A", "totalSalesAmount": 16000}}
+
+you must return giveIncrementToEmployee,promoteEmployee because the data satisfies the first two cases. You must return only the value of the 
+case or cases you selected and no additional text or comments. If you decide to select more than one case, return the values separated by commas.
+Also select the case that is the best match for the given context, no need to look for a perfect match for all values specified in the context.
+Now apply the same analysis to the following context and cases provided by the user.
+`;
+
 export type AgentCondition = {
   cond: string;
   then: string;

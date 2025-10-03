@@ -65,7 +65,7 @@ import {
   Path,
   QuerySuffix,
   restoreSpecialChars,
-  splitFqName,
+  nameToPath,
   splitRefs,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
@@ -276,7 +276,7 @@ export class Environment extends Instance {
       this.scratchPad = {};
     }
     if (isFqName(k)) {
-      const parts = splitFqName(k);
+      const parts = nameToPath(k);
       this.scratchPad[parts.getEntryName()] = data;
     }
     this.scratchPad[k] = data;
@@ -1064,7 +1064,7 @@ async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Pr
       throw new Error(`Fully qualified name required for full-text-search in ${n}`);
     }
   }
-  const path = splitFqName(n);
+  const path = nameToPath(n);
   const entryName = path.getEntryName();
   const moduleName = path.getModuleName();
   const resolver = await getResolverForPath(entryName, moduleName, env);
@@ -1171,7 +1171,7 @@ async function patternToInstance(
   }
   let moduleName = env.getActiveModuleName();
   if (isFqName(entryName)) {
-    const p: Path = splitFqName(entryName);
+    const p: Path = nameToPath(entryName);
     if (p.hasModule()) moduleName = p.getModuleName();
     if (p.hasEntry()) entryName = p.getEntryName();
   }
@@ -1184,7 +1184,7 @@ async function instanceFromSource(crud: CrudMap, env: Environment): Promise<Inst
     const attrsSrc = env.getLastResult();
     if (attrsSrc && attrsSrc instanceof Object) {
       const attrs: InstanceAttributes = new Map(Object.entries(attrsSrc));
-      const nparts = splitFqName(crud.name);
+      const nparts = nameToPath(crud.name);
       const n = nparts.getEntryName();
       const m = nparts.hasModule() ? nparts.getModuleName() : env.getActiveModuleName();
       return makeInstance(m, n, attrs);
@@ -1462,7 +1462,7 @@ function triggerTimer(timerInst: Instance): Instance {
       break;
     }
   }
-  const eventName = splitFqName(timerInst.lookup('trigger'));
+  const eventName = nameToPath(timerInst.lookup('trigger'));
   const m = eventName.hasModule() ? eventName.getModuleName() : timerInst.moduleName;
   const n = eventName.getEntryName();
   const inst = makeInstance(m, n, newInstanceAttributes());
@@ -1743,12 +1743,14 @@ async function iterateOnFlow(
     }
     executedSteps.add(step);
     ++stepc;
-    const agent = AgentInstance.FromFlowStep(step, rootAgent);
+    const agent = AgentInstance.FromFlowStep(step, rootAgent, context);
     console.debug(`\n---------------------------------------------------\n`);
     console.debug(
       `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
     );
-    env.setFlowContext(initContext);
+    const isSubFlow = agent.isDecisionExecutor() || agent.isFlowExecutor();
+    if (isSubFlow) env.setFlowContext(context);
+    else env.setFlowContext(initContext);
     await agentInvoke(agent, '', env);
     if (env.isSuspended()) {
       console.debug(`${iterId} suspending iteration on step ${step}`);
@@ -1762,9 +1764,13 @@ async function iterateOnFlow(
       `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
     );
     context = `${context}\n${step} --> ${rs}\n`;
-    env.setFlowContext(context);
-    await agentInvoke(rootAgent, `${s}\n${context}`, env);
-    step = env.getLastResult().trim();
+    if (isSubFlow) {
+      step = rs.trim();
+    } else {
+      env.setFlowContext(context);
+      await agentInvoke(rootAgent, `${s}\n${context}`, env);
+      step = env.getLastResult().trim();
+    }
   }
   console.debug(`No more flow steps, completed iteration ${iterId} on flow:\n${flow}`);
 }
@@ -2060,7 +2066,7 @@ async function runPrePostEvents(
     ? inst.record.getPreTriggerInfo(crudType)
     : inst.record.getPostTriggerInfo(crudType);
   if (trigInfo) {
-    const p = splitFqName(trigInfo.eventName);
+    const p = nameToPath(trigInfo.eventName);
     const moduleName = p.hasModule() ? p.getModuleName() : inst.record.moduleName;
     const eventInst: Instance = makeInstance(
       moduleName,

@@ -14,7 +14,7 @@ import {
 } from '../../src/language/syntax.js';
 import { introspect } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
-import { addBeforeDeleteWorkflow, fetchModule, flowGraphNext, isModule, removeModule } from '../../src/runtime/module.js';
+import { addBeforeDeleteWorkflow, fetchModule, flowGraphNext, isModule, Record, removeModule } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
 
 describe('Pattern generation using the syntax API', () => {
@@ -528,8 +528,44 @@ agent xaaAgent
 workflow chat {
     {xaaAgent {message chat.msg}}
 }`)
-const i = s.indexOf('record')
-await doInternModule(`${mname}2`, s.substring(i))
-assert(fetchModule(`${mname}2`))
-    })
+    const i = s.indexOf('record')
+    await doInternModule(`${mname}2`, s.substring(i))
+    assert(fetchModule(`${mname}2`))
   })
+})
+
+describe('toString with extends', () => {
+  test('toString should not emit parent attributes', async () => {
+    await doInternModule(`ExtendsToS`,
+      `record A {
+        id Int,
+        name String
+      }
+      entity B extends A {
+        email Email
+      }`)
+      const m = fetchModule('ExtendsToS')
+      const s = m.toString()
+      assert(s == `module ExtendsToS
+
+record A
+{
+    id Int,
+    name String
+}
+
+entity B extends A
+{
+    email Email
+}
+`)
+const es = (m.getEntry('B') as Record).toString_(true)
+assert(es == `entity B
+{
+    id Int,
+    name String,
+    email Email
+}
+`)
+  })
+})
