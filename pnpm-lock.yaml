@@ -38,6 +38,9 @@ importers:
       '@types/express':
         specifier: ^5.0.1
         version: 5.0.3
+      '@types/handlebars':
+        specifier: ^4.1.0
+        version: 4.1.0
       amazon-cognito-identity-js:
         specifier: ^6.3.15
         version: 6.3.15(encoding@0.1.13)
@@ -68,6 +71,9 @@ importers:
       generator-langium:
         specifier: ^3.0.0
         version: 3.5.0(@yeoman/types@1.6.0(@types/node@18.19.115)(mem-fs-editor@11.1.4(mem-fs@4.1.2))(mem-fs@4.1.2))(encoding@0.1.13)(mem-fs@4.1.2)
+      handlebars:
+        specifier: ^4.7.8
+        version: 4.7.8
       jsonwebtoken:
         specifier: ^9.0.2
         version: 9.0.2
@@ -76,7 +82,7 @@ importers:
         version: 2.0.7
       langchain:
         specifier: ^0.3.28
-        version: 0.3.29(@langchain/anthropic@0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73))))(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))(axios@1.11.0)(openai@5.8.2(zod@3.25.73))(typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7))
+        version: 0.3.29(@langchain/anthropic@0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73))))(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))(axios@1.11.0)(handlebars@4.7.8)(openai@5.8.2(zod@3.25.73))(typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7))
       langium:
         specifier: ^3.5.0
         version: 3.5.0
@@ -1716,6 +1722,10 @@ packages:
   '@types/express@5.0.3':
     resolution: {integrity: sha512-wGA0NX93b19/dZC1J18tKWVIYWyyF2ZjT9vin/NRu0qzzvfVzWjs04iq2rQ3H65vCTQYlRqs3YHfY7zjdV+9Kw==}
 
+  '@types/handlebars@4.1.0':
+    resolution: {integrity: sha512-gq9YweFKNNB1uFK71eRqsd4niVkXrxHugqWFQkeLRJvGjnxsLr16bYtcsG4tOFwmYi0Bax+wCkbf1reUfdl4kA==}
+    deprecated: This is a stub types definition. handlebars provides its own type definitions, so you do not need this installed.
+
   '@types/http-cache-semantics@4.0.4':
     resolution: {integrity: sha512-1m0bIFVc7eJWyve9S0RnuRgcQqF/Xd5QsUZAZeQFr1Q3/p9JWoQQEqmVy+DPTNpGXwhgIetAoYF8JSc33q29QA==}
 
@@ -2853,6 +2863,11 @@ packages:
   graphemer@1.4.0:
     resolution: {integrity: sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag==}
 
+  handlebars@4.7.8:
+    resolution: {integrity: sha512-vafaFqs8MZkRrSX7sFVUdo3ap/eNiLnb4IakshzvP56X5Nr1iGKAIqdX6tMlm6HcNRIkr6AxO5jFEoJzzpT8aQ==}
+    engines: {node: '>=0.4.7'}
+    hasBin: true
+
   has-flag@3.0.0:
     resolution: {integrity: sha512-sKJf1+ceQBr4SMkvQnBDNDtf4TXpVhVGateu0t918bl30FnbE2m4vNLX+VWe/dpjlb+HugGYzW7uQXH98HPEYw==}
     engines: {node: '>=4'}
@@ -3529,6 +3544,9 @@ packages:
     resolution: {integrity: sha512-8Ofs/AUQh8MaEcrlq5xOX0CQ9ypTF5dl78mjlMNfOK08fzpgTHQRQPBxcPlEtIw0yRpws+Zo/3r+5WRby7u3Gg==}
     engines: {node: '>= 0.6'}
 
+  neo-async@2.6.2:
+    resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
+
   node-abi@3.75.0:
     resolution: {integrity: sha512-OhYaY5sDsIka7H7AtijtI9jwGYLyl29eQn/W623DiN/MIv5sUqc4g7BIDThX+gb7di9f6xK02nkp8sdfFWZLTg==}
     engines: {node: '>=10'}
@@ -4168,6 +4186,10 @@ packages:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
 
+  source-map@0.6.1:
+    resolution: {integrity: sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==}
+    engines: {node: '>=0.10.0'}
+
   spawn-command@0.0.2:
     resolution: {integrity: sha512-zC8zGoGkmc8J9ndvml8Xksr1Amk9qBujgbF0JAIWO7kXr43w0h/0GJNM/Vustixu+YE8N/MTrQ7N31FvHUACxQ==}
 
@@ -4479,6 +4501,11 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  uglify-js@3.19.3:
+    resolution: {integrity: sha512-v3Xu+yuwBXisp6QYTcH4UbH+xYJXqnq2m/LtQVWKWzYc1iehYnLixoQDN9FH6/j9/oybfd6W9Ghwkl8+UMKTKQ==}
+    engines: {node: '>=0.8.0'}
+    hasBin: true
+
   undefsafe@2.0.5:
     resolution: {integrity: sha512-WxONCrssBM8TSPRqN5EmsjVrsv4A8X12J4ArBiiayv3DyyG3ZlIg6yysuuSYdZsVz3TKcTg2fd//Ujd4CHV1iA==}
 
@@ -4735,6 +4762,9 @@ packages:
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
+
+  wordwrap@1.0.0:
+    resolution: {integrity: sha512-gvVzJFlPycKc5dZN4yPkP8w7Dc37BtP1yczEneOb4uq34pXZcvrtRTmWV8W+Ume+XCxKgbjM+nevkyFPMybd4Q==}
 
   wrap-ansi@7.0.0:
     resolution: {integrity: sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==}
@@ -7480,6 +7510,10 @@ snapshots:
       '@types/express-serve-static-core': 5.0.6
       '@types/serve-static': 1.15.8
 
+  '@types/handlebars@4.1.0':
+    dependencies:
+      handlebars: 4.7.8
+
   '@types/http-cache-semantics@4.0.4': {}
 
   '@types/http-errors@2.0.5': {}
@@ -8867,6 +8901,15 @@ snapshots:
 
   graphemer@1.4.0: {}
 
+  handlebars@4.7.8:
+    dependencies:
+      minimist: 1.2.8
+      neo-async: 2.6.2
+      source-map: 0.6.1
+      wordwrap: 1.0.0
+    optionalDependencies:
+      uglify-js: 3.19.3
+
   has-flag@3.0.0: {}
 
   has-flag@4.0.0: {}
@@ -9216,7 +9259,7 @@ snapshots:
 
   kuler@2.0.0: {}
 
-  langchain@0.3.29(@langchain/anthropic@0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73))))(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))(axios@1.11.0)(openai@5.8.2(zod@3.25.73))(typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7)):
+  langchain@0.3.29(@langchain/anthropic@0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73))))(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))(axios@1.11.0)(handlebars@4.7.8)(openai@5.8.2(zod@3.25.73))(typeorm@0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7)):
     dependencies:
       '@langchain/core': 0.3.62(openai@5.8.2(zod@3.25.73))
       '@langchain/openai': 0.5.18(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))
@@ -9233,6 +9276,7 @@ snapshots:
     optionalDependencies:
       '@langchain/anthropic': 0.3.25(@langchain/core@0.3.62(openai@5.8.2(zod@3.25.73)))
       axios: 1.11.0
+      handlebars: 4.7.8
       typeorm: 0.3.25(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7)
     transitivePeerDependencies:
       - '@opentelemetry/api'
@@ -9563,6 +9607,8 @@ snapshots:
     optional: true
 
   negotiator@1.0.0: {}
+
+  neo-async@2.6.2: {}
 
   node-abi@3.75.0:
     dependencies:
@@ -10290,6 +10336,8 @@ snapshots:
 
   source-map-js@1.2.1: {}
 
+  source-map@0.6.1: {}
+
   spawn-command@0.0.2: {}
 
   spdx-correct@3.2.0:
@@ -10572,6 +10620,9 @@ snapshots:
 
   typescript@5.8.3: {}
 
+  uglify-js@3.19.3:
+    optional: true
+
   undefsafe@2.0.5: {}
 
   undici-types@5.26.5: {}
@@ -10841,6 +10892,8 @@ snapshots:
       winston-transport: 4.9.0
 
   word-wrap@1.2.5: {}
+
+  wordwrap@1.0.0: {}
 
   wrap-ansi@7.0.0:
     dependencies:

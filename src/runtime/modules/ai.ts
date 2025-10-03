@@ -38,6 +38,7 @@ import {
 import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
+import * as Handlebars from 'handlebars';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -162,7 +163,7 @@ export class AgentInstance {
         .set('tools', fqs)
         .set('type', 'planner')
     );
-    return AgentInstance.FromInstance(inst);
+    return AgentInstance.FromInstance(inst).disableSession();
   }
 
   disableSession(): AgentInstance {
@@ -202,14 +203,9 @@ export class AgentInstance {
     return '';
   }
 
-  private cachedInstruction: string | undefined = undefined;
-
-  private getFullInstructions(): string {
-    if (this.cachedInstruction) {
-      return this.cachedInstruction;
-    }
+  private getFullInstructions(env: Environment): string {
     const fqName = this.getFqName();
-    this.cachedInstruction = `${this.instruction || ''} ${this.directivesAsString(fqName)}`;
+    let finalInstruction = `${this.instruction || ''} ${this.directivesAsString(fqName)}`;
     const gls = getAgentGlossary(fqName);
     if (gls) {
       const glss = new Array<string>();
@@ -218,7 +214,7 @@ export class AgentInstance {
           `${age.name}: ${age.meaning}. ${age.synonyms ? `These words are synonyms for ${age.name}: ${age.synonyms}` : ''}`
         );
       });
-      this.cachedInstruction = `${this.cachedInstruction}\nThe following glossary will be helpful for understanding user requests.
+      finalInstruction = `${finalInstruction}\nThe following glossary will be helpful for understanding user requests.
       ${glss.join('\n')}\n`;
     }
     const scenarios = getAgentScenarios(fqName);
@@ -227,14 +223,24 @@ export class AgentInstance {
       scenarios.forEach((sc: AgentScenario) => {
         scs.push(`User: ${sc.user}\nAI: ${sc.ai}\n`);
       });
-      this.cachedInstruction = `${this.cachedInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
+      finalInstruction = `${finalInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
     }
     const responseSchema = getAgentResponseSchema(fqName);
     if (responseSchema) {
-      this.cachedInstruction = `${this.cachedInstruction}\nReturn your response in the following JSON schema:\n${asJSONSchema(responseSchema)}
+      finalInstruction = `${finalInstruction}\nReturn your response in the following JSON schema:\n${asJSONSchema(responseSchema)}
 Only return a pure JSON object with no extra text, annotations etc.`;
     }
-    return this.cachedInstruction;
+    const spad = env.getScratchPad();
+    if (spad != undefined && finalInstruction.indexOf('{{') > 0) {
+      return AgentInstance.maybeRewriteTemplatePatterns(spad, finalInstruction);
+    } else {
+      return finalInstruction;
+    }
+  }
+
+  private static maybeRewriteTemplatePatterns(scratchPad: any, instruction: string): string {
+    const templ = Handlebars.compile(instruction);
+    return templ(scratchPad);
   }
 
   maybeValidateJsonResponse(response: string | undefined): object | undefined {
@@ -317,23 +323,32 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     }
     const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
     let msgs: BaseMessage[] | undefined;
+    let cachedMsg: string | undefined = undefined;
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      msgs = [systemMessage(this.getFullInstructions() || '')];
+      cachedMsg = this.getFullInstructions(env);
+      msgs = [systemMessage(cachedMsg || '')];
     }
     if (msgs) {
       try {
         const sysMsg = msgs[0];
         if (isplnr || isflow) {
           const s = isplnr ? PlannerInstructions : FlowExecInstructions;
-          const newSysMsg = systemMessage(
-            `${s}\n${this.toolsAsString()}\n${this.getFullInstructions()}`
-          );
+          const ts = this.toolsAsString();
+          const msg = `${s}\n${ts}\n${cachedMsg || this.getFullInstructions(env)}`;
+          const newSysMsg = systemMessage(msg);
           msgs[0] = newSysMsg;
         }
         msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
         const externalToolSpecs = this.getExternalToolSpecs();
+        logger.debug(
+          `Invoking LLM ${this.llm} via agent ${this.fqName} with messages:\n${msgs
+            .map((bm: BaseMessage) => {
+              return bm.content;
+            })
+            .join('\n')}`
+        );
         const response: AIResponse = await p.invoke(msgs, externalToolSpecs);
         msgs.push(assistantMessage(response.content));
         if (isplnr) {
