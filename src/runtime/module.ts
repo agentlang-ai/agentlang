@@ -53,6 +53,7 @@ import {
   AgentCondition,
   AgentGlossaryEntry,
   AgentScenario,
+  getAgentDirectives,
   getAgentDirectivesJson,
   getAgentGlossary,
   getAgentResponseSchema,
@@ -923,24 +924,44 @@ export class Agent extends Record {
     return this.getStrings('flows');
   }
 
+  getAgentFqName(): string {
+    return makeFqName(this.moduleName, this.getName());
+  }
+
   setDirectives(conds: AgentCondition[]): Agent {
-    registerAgentDirectives(this.getFqName(), conds);
+    registerAgentDirectives(this.getAgentFqName(), conds);
     return this;
+  }
+
+  getDirectives(): AgentCondition[] | undefined {
+    return getAgentDirectives(this.getAgentFqName());
   }
 
   setScenarios(scenarios: AgentScenario[]): Agent {
-    registerAgentScenarios(this.getFqName(), scenarios);
+    registerAgentScenarios(this.getAgentFqName(), scenarios);
     return this;
+  }
+
+  getScenarios(): AgentScenario[] | undefined {
+    return getAgentScenarios(this.getAgentFqName());
   }
 
   setGlossary(glossary: AgentGlossaryEntry[]): Agent {
-    registerAgentGlossary(this.getFqName(), glossary);
+    registerAgentGlossary(this.getAgentFqName(), glossary);
     return this;
   }
 
+  getGlossary(): AgentGlossaryEntry[] | undefined {
+    return getAgentGlossary(this.getAgentFqName());
+  }
+
   setResponseSchema(entryName: string): Agent {
-    registerAgentResponseSchema(this.getFqName(), entryName);
+    registerAgentResponseSchema(this.getAgentFqName(), entryName);
     return this;
+  }
+
+  getResponseSchema(): string | undefined {
+    return getAgentResponseSchema(this.getAgentFqName());
   }
 
   override toString(): string {

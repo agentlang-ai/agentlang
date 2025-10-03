@@ -16,6 +16,7 @@ import { introspect } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
 import { addBeforeDeleteWorkflow, fetchModule, flowGraphNext, isModule, Record, removeModule } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
+import { AgentCondition } from '../../src/runtime/agents/common.js';
 
 describe('Pattern generation using the syntax API', () => {
   test('test01', async () => {
@@ -501,12 +502,31 @@ describe('Extra agent attributes', () => {
        agent xaaAgent
           {instruction "Create appropriate patterns for managing Employee information",
            tools "GA",
-           directives [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
-                       {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
            scenarios  [{"user": "Jake hit a jackpot!", "ai": "[{GA/Employee {name? &quote;Jake&quote;}} @as [employee]; {GA/Employee {id? employee.id, salary employee.salary + employee.salary * .5}}]"}],
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
          workflow chat {{xaaAgent {message chat.msg}}}`)
     const m = fetchModule(mname)
+    const agent = m.getAgent('xaaAgent')
+    const conds = new Array<AgentCondition>()
+    conds.push({
+      cond: "Employee sales exceeded 5000",
+      then: "Give a salary hike of 5 percent"
+    })
+    conds.push({
+      cond: "sales is more than 2000 but less than 5000",
+      then: "hike salary by 2 percent"
+    })
+    agent?.setDirectives(conds)
+    const scns = agent?.getScenarios()
+    scns?.push({
+      user: "hello", ai: "unknown request"
+    })
+    agent?.setResponseSchema('acme/response')
+    agent?.getGlossary()?.push({
+      name: "hit",
+      meaning: "sales above 400",
+      synonyms: "block-buster"
+    })
     const s = m.toString();
     assert(s == `module XtraAgentAttrs
 
@@ -521,8 +541,9 @@ agent xaaAgent
     instruction "Create appropriate patterns for managing Employee information",
     tools "GA",
     directives [{"if":"Employee sales exceeded 5000","then":"Give a salary hike of 5 percent"},{"if":"sales is more than 2000 but less than 5000","then":"hike salary by 2 percent"}],
-    scenarios [{"user":"Jake hit a jackpot!","ai":"[{GA/Employee {name? &quote;Jake&quote;}} @as [employee]; {GA/Employee {id? employee.id, salary employee.salary + employee.salary * .5}}]"}],
-    glossary [{"name":"jackpot","meaning":"sales of 5000 or above","synonyms":"high sales, block-buster"}]
+    scenarios [{"user":"Jake hit a jackpot!","ai":"[{GA/Employee {name? &quote;Jake&quote;}} @as [employee]; {GA/Employee {id? employee.id, salary employee.salary + employee.salary * .5}}]"},{"user":"hello","ai":"unknown request"}],
+    glossary [{"name":"jackpot","meaning":"sales of 5000 or above","synonyms":"high sales, block-buster"},{"name":"hit","meaning":"sales above 400","synonyms":"block-buster"}],
+   responseSchema acme/response
 }
 
 workflow chat {
