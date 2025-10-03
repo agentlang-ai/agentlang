@@ -589,8 +589,21 @@ if (process.env.AL_TEST === 'true') {
         return await parseAndEvaluateStatement(`{CarCompany/carOrderRequestManager {message "${ins}"}}`);
       };
       await k(
-        `I want a red EV with 59kwh battery pack and 7.2kw charger`
+        `I want an economic red EV with 59kwh battery pack and 7.2kw charger`
       );
+      let rs: Instance[] = await parseAndEvaluateStatement(`{CarCompany/EV? {}}`)
+      assert(rs.length == 1)
+      assert(rs[0].lookup('bodyColor').toLowerCase() == 'red')
+      assert(rs[0].lookup('batteryPack') == '59kwh')
+      await k(
+        `White diesel luxury SUV with manual transmission and 330nm torque`
+      );
+      rs = await parseAndEvaluateStatement(`{CarCompany/SUV? {}}`)
+      assert(rs.length == 1)
+      assert(rs[0].lookup('bodyColor').toLowerCase() == 'white')
+      assert(rs[0].lookup('transmission') == 'manual')
+      assert(rs[0].lookup('torque') == '330nm')
+      assert(rs[0].lookup('segment') == 'luxury')
     })
   })
 } else {
