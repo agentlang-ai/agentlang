@@ -48,7 +48,8 @@ export default `module ${CoreAIModuleName}
 entity ${LlmEntityName} {
     name String @id,
     service String @default("openai"),
-    config Map @optional
+    config Map @optional,
+    @rbac [(roles: [admin], allow: [create, read, update, delete])]
 }
 
 entity ${AgentEntityName} {
@@ -62,12 +63,14 @@ entity ${AgentEntityName} {
     channels String @optional, // comma-separated list of channel names
     role String @optional,
     flows String @optional,
-    llm String
+    llm String,
+    @rbac [(roles: [admin], allow: [create, read, update, delete])]
 }
 
 entity agentChatSession {
     id String @id,
-    messages String
+    messages String,
+    @rbac [(roles: [admin], allow: [create, read, update, delete])]
 }
 
 workflow findAgentChatSession {
@@ -82,12 +85,14 @@ workflow saveAgentChatSession {
 entity Document {
   title String @id,
   content String,
-  @meta {"fullTextSearch": "*"}
+  @meta {"fullTextSearch": "*"},
+  @rbac [(roles: [admin], allow: [create, read, update, delete])]
 }
 
 event doc {
   title String,
-  url String
+  url String,
+  @rbac [(roles: [admin], allow: [create, read, update, delete])]
 }
 `;
 

@@ -36,7 +36,8 @@ entity User {
     email Email @unique @indexed,
     firstName String,
     lastName String,
-    @rbac [(allow: [read, delete, update, create], where: auth.user = this.id)],
+    @rbac [(allow: [read, delete, update, create], where: auth.user = this.id),
+           (roles: [admin], allow: [create, read, update, delete])],
     @after {delete AfterDeleteUser}
 }
 
@@ -68,7 +69,8 @@ workflow FindUserByEmail {
 }
 
 entity Role {
-    name String @id
+    name String @id,
+    @rbac [(roles: [admin], allow: [create, read, update, delete])]
 }
 
 relationship UserRole between (User, Role)
@@ -79,7 +81,8 @@ entity Permission {
     c Boolean,
     r Boolean,
     u Boolean,
-    d Boolean
+    d Boolean,
+    @rbac [(roles: [admin], allow: [create, read, update, delete])]
 }
 
 relationship RolePermission between(Role, Permission)
@@ -177,7 +180,8 @@ entity Session {
   accessToken String @optional,
   refreshToken String @optional,
   isActive Boolean,
-  @rbac [(allow: [read, delete, update, create], where: auth.user = this.userId)]
+  @rbac [(allow: [read, delete, update, create], where: auth.user = this.userId),
+         (allow: [create, read, update, delete])]
 }
 
 

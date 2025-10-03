@@ -24,7 +24,8 @@ entity timer {
   duration Int,
   unit @enum("millisecond", "second", "minute", "hour") @default("second"),
   trigger String,
-  status @enum("I", "C", "R") @default("I") // Inited, Cancelled, Running
+  status @enum("I", "C", "R") @default("I"), // Inited, Cancelled, Running
+  @rbac [(roles: [admin], allow: [create, read, update, delete])]
 }
 
 entity auditlog {
@@ -34,7 +35,8 @@ entity auditlog {
   timestamp DateTime @default(now()),
   previous_value Any @optional,
   user String,
-  token String @optional
+  token String @optional,
+  @rbac [(roles: [admin], allow: [create, read, update, delete])]
 }
 
 entity suspension {
@@ -42,11 +44,13 @@ entity suspension {
   continuation String[], // rest of the patterns to execute
   env Any, // serialized environment-object
   createdOn DateTime @default(now()),
-  createdBy String
+  createdBy String,
+  @rbac [(roles: [admin], allow: [create, read, update, delete])]
 }
 
 entity activeSuspension {
-  id UUID @id
+  id UUID @id,
+  @rbac [(roles: [admin], allow: [create, read, update, delete])]
 }
 
 resolver suspensionResolver ["${DefaultModuleName}/activeSuspension"] {
