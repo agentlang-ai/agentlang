@@ -43,6 +43,7 @@ import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
 import * as Handlebars from 'handlebars';
+import { Statement } from '../../language/generated/ast.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -253,7 +254,8 @@ export class AgentInstance {
     if (scenarios) {
       const scs = new Array<string>();
       scenarios.forEach((sc: AgentScenario) => {
-        scs.push(`User: ${sc.user}\nAI: ${sc.ai}\n`);
+        const aiResp = processScenarioResponse(sc.ai);
+        scs.push(`User: ${sc.user}\nAI: ${aiResp}\n`);
       });
       finalInstruction = `${finalInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
     }
@@ -611,4 +613,21 @@ export async function saveAgentChatSession(chatId: string, messages: any[], env:
 
 export function agentName(agentInstance: Instance): string {
   return agentInstance.lookup('name');
+}
+
+function processScenarioResponse(resp: string): string {
+  const r = resp.trimStart();
+  if (r.startsWith('[') || r.startsWith('{')) {
+    return resp;
+  }
+  if (isFqName(r)) {
+    const parts = splitFqName(r);
+    const m = fetchModule(parts.getModuleName());
+    const wf = m.getWorkflowForEvent(parts.getEntryName());
+    const ss = wf.statements.map((stmt: Statement) => {
+      return stmt.$cstNode?.text;
+    });
+    return `[${ss.join(';\n')}]`;
+  }
+  return resp;
 }
