@@ -1748,8 +1748,8 @@ async function iterateOnFlow(
     console.debug(
       `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
     );
-    const isSubFlow = agent.isDecisionExecutor() || agent.isFlowExecutor();
-    if (isSubFlow) env.setFlowContext(context);
+    const isfxc = agent.isFlowExecutor();
+    if (isfxc || agent.isDecisionExecutor()) env.setFlowContext(context);
     else env.setFlowContext(initContext);
     await agentInvoke(agent, '', env);
     if (env.isSuspended()) {
@@ -1764,7 +1764,7 @@ async function iterateOnFlow(
       `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
     );
     context = `${context}\n${step} --> ${rs}\n`;
-    if (isSubFlow) {
+    if (isfxc) {
       step = rs.trim();
     } else {
       env.setFlowContext(context);

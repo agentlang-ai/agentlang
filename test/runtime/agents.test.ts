@@ -473,7 +473,7 @@ if (process.env.AL_TEST === 'true') {
       assert(r4[0].lookup('requestedBy').toLowerCase() == 'mat')
     })
   })
-/*
+
   describe('Agent-DecisionTable', () => {
     test('Decision tables in flows', async () => {
       await doInternModule(
@@ -609,7 +609,7 @@ if (process.env.AL_TEST === 'true') {
       assert(rs[0].lookup('torque') == '330nm')
       assert(rs[0].lookup('segment') == 'luxury')
     })
-  })*/
+  })
 } else {
   describe('Skipping agent tests', () => {
     test('test01', async () => { });
