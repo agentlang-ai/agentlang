@@ -2081,20 +2081,22 @@ async function runPrePostEvents(
       }
     };
     if (trigInfo.async) {
-      const newEnv = new Environment('async.prepost.env');
-      evaluate(eventInst, callback, bindAliasesForPrePost(newEnv, inst)).catch(catchHandler);
+      evaluate(eventInst, callback, bindAliasesForPrePost(env, inst, prefix)).catch(catchHandler);
     } else {
-      env.bind('this', inst);
-      await evaluate(eventInst, callback, bindAliasesForPrePost(env, inst)).catch(catchHandler);
+      await evaluate(eventInst, callback, bindAliasesForPrePost(env, inst, prefix)).catch(
+        catchHandler
+      );
     }
   }
 }
 
-function bindAliasesForPrePost(env: Environment, inst: Instance): Environment {
+function bindAliasesForPrePost(env: Environment, inst: Instance, prefix: string): Environment {
+  const newEnv = new Environment(`${prefix}.env`, env);
   const fullAlias = inst.getFqName();
-  env.bind('this', inst);
-  env.bind(fullAlias, inst);
-  return env;
+  newEnv.bind('this', inst);
+  newEnv.bind(fullAlias, inst);
+  newEnv.bind(inst.name, inst);
+  return newEnv;
 }
 
 async function runPreCreateEvents(inst: Instance, env: Environment) {
