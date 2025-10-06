@@ -616,7 +616,7 @@ describe('Issue-339', () => {
             }
             workflow EF {
                 EF.e @as e;
-                if (EF.mode = 1) {
+                if (EF.mode == 1) {
                     100 @as e
                     {E {id 1, x e}}
                 } else {

@@ -27,7 +27,7 @@ describe('Basic exec-graph evaluation', () => {
           }
           workflow createRs {
             for e in {E? {}} {
-              if (e.x = 100) {
+              if (e.x == 100) {
                 {R {y e.x * 10}}
               } else {
                 {R {y e.x * 4}}

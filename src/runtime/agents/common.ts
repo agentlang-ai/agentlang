@@ -62,11 +62,10 @@ Other than the create-pattern for entities and events, some of the most useful p
    instance, if the instance does not already exist.
 4. Delete - e.g: 'delete {Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"}}'
 
-The default query operator is '=' (equals). So an expression like 'employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"' means,
+The default query operator is equals. So an expression like 'employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"' means,
 'where employeeId equals "56392e13-0d9a-42f7-b556-0d7cd9468a24"'. Other comparison operators has to be specified explicitly, as in
 '{age?< 50}' - which means 'where age less-than 50'. The comparison operators supported by a query pattern are:
 
-=         - equals
 !=        - not-equals
 <         - less-than
 <=        - less-than or equals
@@ -95,7 +94,7 @@ Another example of the 'if' pattern:
 
 workflow validateLicense {
     {checkLicenseNumber {number validateLicense.number}} @as response;
-    if (response = "ok") {
+    if (response == "ok") {
         {license {number? validateLicense.number, status "active"}}
     } else {
         {license {number? validateLicense.number, status "canceled"}}
@@ -338,7 +337,7 @@ case (totalSalesAmount > 15000) {
   promoteEmployee
 }
 
-case (totalSalesAmount < 10000 and employeeGrade = "A") {
+case (totalSalesAmount < 10000 and employeeGrade == "A") {
   demoteEmployee
 }
 

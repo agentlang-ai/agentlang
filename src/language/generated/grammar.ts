@@ -5256,7 +5256,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                   "elements": [
                     {
                       "$type": "Keyword",
-                      "value": "="
+                      "value": "=="
                     },
                     {
                       "$type": "Keyword",

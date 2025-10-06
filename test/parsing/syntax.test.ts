@@ -216,13 +216,13 @@ describe('Pattern introspection', () => {
 
     const e1 = await ExpressionPattern.Validated('(x < 4)')
     assert(e1.toString() == '(x < 4)')
-    const e2 = await ExpressionPattern.Validated('((X - 2) + (2 / 5)) = 1')
-    assert(e2.toString() == '((X - 2) + (2 / 5)) = 1')
+    const e2 = await ExpressionPattern.Validated('((X - 2) + (2 / 5)) == 1')
+    assert(e2.toString() == '((X - 2) + (2 / 5)) == 1')
     let exprErr = false
     await ExpressionPattern.Validated('(X > 5').catch(() => exprErr = true)
     assert(exprErr, 'Failed to validate expression')
-    const e3 = await ExpressionPattern.Validated('(X < 5 and (y = 10 or y < 3))')
-    assert(e3.toString() == '(X < 5 and (y = 10 or y < 3))')
+    const e3 = await ExpressionPattern.Validated('(X < 5 and (y == 10 or y < 3))')
+    assert(e3.toString() == '(X < 5 and (y == 10 or y < 3))')
     const e4 = await ExpressionPattern.Validated('(X + 6) or (Y > 5)')
     assert(e4.toString() == '(X + 6) or (Y > 5)')
     const e5 = await ExpressionPattern.Validated('((X + 6) or (Y > 5))')

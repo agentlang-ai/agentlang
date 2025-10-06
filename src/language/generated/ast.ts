@@ -3,7 +3,7 @@
  * DO NOT EDIT MANUALLY!
  ******************************************************************************/
 
- 
+/* eslint-disable */
 import * as langium from 'langium';
 
 export const AgentlangTerminals = {
@@ -34,6 +34,7 @@ export type AgentlangKeywordNames =
     | "<="
     | "<>"
     | "="
+    | "=="
     | ">"
     | ">="
     | "?"
@@ -309,7 +310,7 @@ export interface BinExpr extends langium.AstNode {
     readonly $type: 'BinExpr';
     e1: Expr | PrimExpr;
     e2: Expr | PrimExpr;
-    op: '!=' | '*' | '+' | '-' | '/' | '<' | '<=' | '<>' | '=' | '>' | '>=' | 'and' | 'in' | 'like' | 'or';
+    op: '!=' | '*' | '+' | '-' | '/' | '<' | '<=' | '<>' | '==' | '>' | '>=' | 'and' | 'in' | 'like' | 'or';
 }
 
 export const BinExpr = 'BinExpr';

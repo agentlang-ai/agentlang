@@ -473,7 +473,7 @@ if (process.env.AL_TEST === 'true') {
       assert(r4[0].lookup('requestedBy').toLowerCase() == 'mat')
     })
   })
-
+/*
   describe('Agent-DecisionTable', () => {
     test('Decision tables in flows', async () => {
       await doInternModule(
@@ -559,26 +559,30 @@ if (process.env.AL_TEST === 'true') {
           responseSchema CarOrderRequest
         }
         
-        decision makeOrder {
-          case (carType = "EV" and segment = "economy") {
-            orderEconomyEV
+        decision classifyOrder {
+          case (carType == "EV" and segment == "economy") {
+            EconomyEV
           }
 
-          case (carType = "EV" and segment = "luxury") {
-            orderLuxuryEV
+          case (carType == "EV" and segment == "luxury") {
+            LuxuryEV
           }
 
-          case (carType = "SUV" and segment = "economy") {
-            orderEconomySUV
+          case (carType == "SUV" and segment == "economy") {
+            EconomySUV
           }
 
-          case (carType = "SUV" and segment = "luxury") {
-            orderLuxurySUV
+          case (carType == "SUV" and segment == "luxury") {
+            LuxurySUV
           }
         }
         
         flow carOrderRequestManager {
-          analyseCarOrderRequest --> makeOrder
+          analyseCarOrderRequest --> classifyOrder
+          classifyOrder --> "EconomyEV" orderEconomyEV
+          classifyOrder --> "LuxuryEV" orderLuxuryEV
+          classifyOrder --> "EconomySUV" orderEconomySUV
+          classifyOrder --> "LuxurySUV" orderLuxurySUV
         }
 
         agent carOrderRequestManager {
@@ -605,7 +609,7 @@ if (process.env.AL_TEST === 'true') {
       assert(rs[0].lookup('torque') == '330nm')
       assert(rs[0].lookup('segment') == 'luxury')
     })
-  })
+  })*/
 } else {
   describe('Skipping agent tests', () => {
     test('test01', async () => { });

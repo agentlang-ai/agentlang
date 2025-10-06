@@ -4,9 +4,9 @@ export default {
         '@actions','@after','@as','@async','@before','@catch','@distinct','@enum','@expr','@from','@into','@meta','@oneof','@rbac','@ref','@then','@upsert','@with_unique','agent','allow','and','await','between','case','contains','create','decision','delete','else','entity','error','event','extends','false','flow','for','if','import','in','like','module','not','not_found','onSubscription','or','purge','query','read','record','relationship','resolver','return','roles','subscribe','true','update','upsert','where','workflow'
     ],
     operators: [
-        '!=','*','+',',','-','-->','.','/',':',';','<','<=','<>','=','>','>=','?','@'
+        '!=','*','+',',','-','-->','.','/',':',';','<','<=','<>','=','==','>','>=','?','@'
     ],
-    symbols: /!=|\(|\)|\*|\+|,|-|-->|\.|\/|:|;|<|<=|<>|=|>|>=|\?|@|\[|\]|\{|\}/,
+    symbols: /!=|\(|\)|\*|\+|,|-|-->|\.|\/|:|;|<|<=|<>|=|==|>|>=|\?|@|\[|\]|\{|\}/,
 
     tokenizer: {
         initial: [

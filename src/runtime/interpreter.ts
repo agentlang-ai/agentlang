@@ -1918,7 +1918,7 @@ export async function evaluateExpression(expr: Expr, env: Environment): Promise<
         result = v1 / v2;
         break;
       // comparison operators
-      case '=':
+      case '==':
         result = v1 == v2;
         break;
       case '<':
