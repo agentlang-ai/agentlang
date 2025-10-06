@@ -1,4 +1,4 @@
-import { isFqName, makeCoreModuleName, makeFqName, nameToPath } from '../util.js';
+import { isFqName, makeCoreModuleName, makeFqName, nameToPath, splitFqName } from '../util.js';
 import {
   Environment,
   GlobalEnvironment,
@@ -265,8 +265,13 @@ export class AgentInstance {
 Only return a pure JSON object with no extra text, annotations etc.`;
     }
     const spad = env.getScratchPad();
-    if (spad != undefined && finalInstruction.indexOf('{{') > 0) {
-      return AgentInstance.maybeRewriteTemplatePatterns(spad, finalInstruction);
+    if (spad != undefined) {
+      if (finalInstruction.indexOf('{{') > 0) {
+        return AgentInstance.maybeRewriteTemplatePatterns(spad, finalInstruction);
+      } else {
+        const ctx = JSON.stringify(spad);
+        return `${finalInstruction}\nSome additional context:\n${ctx}`;
+      }
     } else {
       return finalInstruction;
     }
@@ -622,8 +627,8 @@ function processScenarioResponse(resp: string): string {
   }
   if (isFqName(r)) {
     const parts = splitFqName(r);
-    const m = fetchModule(parts.getModuleName());
-    const wf = m.getWorkflowForEvent(parts.getEntryName());
+    const m = fetchModule(parts[0]);
+    const wf = m.getWorkflowForEvent(parts[1]);
     const ss = wf.statements.map((stmt: Statement) => {
       return stmt.$cstNode?.text;
     });
