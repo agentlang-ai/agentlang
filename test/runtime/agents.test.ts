@@ -298,12 +298,16 @@ if (process.env.AL_TEST === 'true') {
       await doInternModule('GA', `entity Employee {id Int @id, name String, salary Number}`);
       await doInternModule(
         'GuidedAgent',
-        `agent ga
+        `workflow scenario01 {
+             {GA/Employee {name? "Jake"}} @as [employee];
+             {GA/Employee {id? employee.id, salary employee.salary + employee.salary * 0.5}}
+         }
+         agent ga
           {instruction "Create appropriate patterns for managing Employee information",
            tools "GA",
            directives [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
                        {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
-           scenarios  [{"user": "Jake hit a jackpot!", "ai": "[{GA/Employee {name? &quote;Jake&quote;}} @as [employee]; {GA/Employee {id? employee.id, salary employee.salary + employee.salary * .5}}]"}],
+           scenarios  [{"user": "Jake hit a jackpot!", "ai": "GuidedAgent/scenario01"}],
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
          workflow chat {{ga {message chat.msg}}}
           `
