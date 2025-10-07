@@ -5,7 +5,7 @@ entry ModuleDefinition: 'module' name=QualifiedName (imports+=Import)* (defs+=De
 Import: 'import' path=STRING '@as' name=ID;
 
 Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
-| AgentDefinition | ResolverDefinition | FlowDefinition;
+| AgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition;
 
 StandaloneStatement: stmt=Statement;
 
@@ -144,6 +144,12 @@ FlowEntry: root=GenericName '-->' (cond=ConditionalFlowStep | next=GenericName);
 
 ConditionalFlowStep: expr=STRING next=GenericName;
 
+DecisionDefinition: 'decision' name=GenericName (body=DecisionDefBody? | '{''}');
+
+DecisionDefBody: '{' (cases+=CaseEntry (cases+=CaseEntry)*)+ '}';
+
+CaseEntry: 'case' '(' cond=Expr ')' Body;
+
 ResolverDefinition: 'resolver' name=GenericName '[' (paths+=GenericName (',' paths+=GenericName)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
 
@@ -185,7 +191,7 @@ Logical infers Expr:
     Comparison ({infer BinExpr.e1=current} op=('or'|'and') e2=Comparison)*;
 
 Comparison infers Expr:
-    PrimExpr ({infer BinExpr.e1=current} op=('=' | '!=' | '<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=PrimExpr)*;
+    PrimExpr ({infer BinExpr.e1=current} op=('==' | '!=' | '<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=PrimExpr)*;
 
 PrimExpr: Literal | Group | NegExpr | NotExpr;
 

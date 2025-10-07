@@ -27,7 +27,7 @@ import {
   isStringNumeric,
   makeFqName,
   restoreFqName,
-  splitFqName,
+  nameToPath,
   walkDownInstancePath,
 } from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
@@ -297,7 +297,7 @@ function queryPatternFromPath(path: string, req: Request): string {
     const relName: string | undefined = restoreFqName(parts[parts.length - 2]);
     if (relName && isBetweenRelationship(relName, moduleName)) {
       const n = restoreFqName(parts[0]);
-      const ns = splitFqName(n);
+      const ns = nameToPath(n);
       const pe = ns.getEntryName();
       const pm = ns.hasModule() ? ns.getModuleName() : moduleName;
       const p = parts.slice(0, parts.length - 2).join('/');
@@ -382,7 +382,7 @@ function createChildPattern(moduleName: string, entityName: string, req: Request
     const relName = forceAsFqName(pinfo[2], moduleName);
     const parentPath = parts.slice(0, parts.length - 2).join('/');
     const childFqName = forceAsFqName(pinfo[3], moduleName);
-    const cparts = splitFqName(childFqName);
+    const cparts = nameToPath(childFqName);
     const childModuleName = cparts.getModuleName();
     const childName = cparts.getEntryName();
     const cp = patternFromAttributes(

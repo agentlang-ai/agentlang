@@ -14,7 +14,7 @@ import {
 } from '../../src/language/syntax.js';
 import { introspect } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
-import { addBeforeDeleteWorkflow, fetchModule, flowGraphNext, isModule, removeModule } from '../../src/runtime/module.js';
+import { addBeforeDeleteWorkflow, fetchModule, flowGraphNext, isModule, Record, removeModule } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
 import { AgentCondition } from '../../src/runtime/agents/common.js';
 
@@ -216,13 +216,13 @@ describe('Pattern introspection', () => {
 
     const e1 = await ExpressionPattern.Validated('(x < 4)')
     assert(e1.toString() == '(x < 4)')
-    const e2 = await ExpressionPattern.Validated('((X - 2) + (2 / 5)) = 1')
-    assert(e2.toString() == '((X - 2) + (2 / 5)) = 1')
+    const e2 = await ExpressionPattern.Validated('((X - 2) + (2 / 5)) == 1')
+    assert(e2.toString() == '((X - 2) + (2 / 5)) == 1')
     let exprErr = false
     await ExpressionPattern.Validated('(X > 5').catch(() => exprErr = true)
     assert(exprErr, 'Failed to validate expression')
-    const e3 = await ExpressionPattern.Validated('(X < 5 and (y = 10 or y < 3))')
-    assert(e3.toString() == '(X < 5 and (y = 10 or y < 3))')
+    const e3 = await ExpressionPattern.Validated('(X < 5 and (y == 10 or y < 3))')
+    assert(e3.toString() == '(X < 5 and (y == 10 or y < 3))')
     const e4 = await ExpressionPattern.Validated('(X + 6) or (Y > 5)')
     assert(e4.toString() == '(X + 6) or (Y > 5)')
     const e5 = await ExpressionPattern.Validated('((X + 6) or (Y > 5))')
@@ -552,5 +552,41 @@ workflow chat {
     const i = s.indexOf('record')
     await doInternModule(`${mname}2`, s.substring(i))
     assert(fetchModule(`${mname}2`))
+  })
+})
+
+describe('toString with extends', () => {
+  test('toString should not emit parent attributes', async () => {
+    await doInternModule(`ExtendsToS`,
+      `record A {
+        id Int,
+        name String
+      }
+      entity B extends A {
+        email Email
+      }`)
+      const m = fetchModule('ExtendsToS')
+      const s = m.toString()
+      assert(s == `module ExtendsToS
+
+record A
+{
+    id Int,
+    name String
+}
+
+entity B extends A
+{
+    email Email
+}
+`)
+const es = (m.getEntry('B') as Record).toString_(true)
+assert(es == `entity B
+{
+    id Int,
+    name String,
+    email Email
+}
+`)
   })
 })

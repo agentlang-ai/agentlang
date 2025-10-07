@@ -810,7 +810,7 @@ describe('Return from Workflow', () => {
        record Y {y Int}
        entity Z {z Int}
        workflow T {
-        if (T.v = 1) {
+        if (T.v == 1) {
           return {X {x 10}}
         } else {
           {Z {z T.z}}

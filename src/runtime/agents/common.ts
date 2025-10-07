@@ -62,11 +62,10 @@ Other than the create-pattern for entities and events, some of the most useful p
    instance, if the instance does not already exist.
 4. Delete - e.g: 'delete {Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"}}'
 
-The default query operator is '=' (equals). So an expression like 'employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"' means,
+The default query operator is equals. So an expression like 'employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"' means,
 'where employeeId equals "56392e13-0d9a-42f7-b556-0d7cd9468a24"'. Other comparison operators has to be specified explicitly, as in
 '{age?< 50}' - which means 'where age less-than 50'. The comparison operators supported by a query pattern are:
 
-=         - equals
 !=        - not-equals
 <         - less-than
 <=        - less-than or equals
@@ -95,7 +94,7 @@ Another example of the 'if' pattern:
 
 workflow validateLicense {
     {checkLicenseNumber {number validateLicense.number}} @as response;
-    if (response = "ok") {
+    if (response == "ok") {
         {license {number? validateLicense.number, status "active"}}
     } else {
         {license {number? validateLicense.number, status "canceled"}}
@@ -311,6 +310,47 @@ Generally a flowchart has the following two types of entries:
   2. a --> "x" b - this means if 'a' returns the string "x", then do step 'b'.
 If you detect that you have reached the end of the chart, return 'DONE'. Otherwise, return only the name of the next step. Never return
 any additional description, direction or comments.
+`;
+
+export const DecisionAgentInstructions = `Analyse a decision table with multiple cases along with the context to return one or more values.
+A decision table will be a sequence of case-conditions as in,
+
+case (condition1) {
+  value1
+}
+
+case (condition2) {
+  value2
+}
+
+The context will be some additional instructions and JSON-like data based on which you can evaluate the conditions and decide which values to return.
+Let's consider an example:
+
+
+analyseSalesReport --> {"Acme/salesReport": {"employeeId": 101, "employeeGrade": "A", "totalSalesAmount": 14000}}
+
+case (totalSalesAmount > 10000) {
+  giveIncrementToEmployee
+}
+
+case (totalSalesAmount > 15000) {
+  promoteEmployee
+}
+
+case (totalSalesAmount < 10000 and employeeGrade == "A") {
+  demoteEmployee
+}
+
+
+Given the above context and cases, you must return giveIncrementToEmployee - because the data in the context satisfies only the first case.
+If the context is,
+
+analyseSalesReport --> {"Acme/salesReport": {"employeeId": 101, "employeeGrade": "A", "totalSalesAmount": 16000}}
+
+you must return giveIncrementToEmployee,promoteEmployee because the data satisfies the first two cases. You must return only the value of the 
+case or cases you selected and no additional text or comments. If you decide to select more than one case, return the values separated by commas.
+Also select the case that is the best match for the given context, no need to look for a perfect match for all values specified in the context.
+Now apply the same analysis to the following context and cases provided by the user.
 `;
 
 export type AgentCondition = {

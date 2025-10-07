@@ -13,7 +13,7 @@ import {
   newInstanceAttributes,
   Relationship,
 } from '../../module.js';
-import { escapeFqName, makeFqName, splitFqName } from '../../util.js';
+import { escapeFqName, makeFqName, nameToPath } from '../../util.js';
 import { JoinInfo, Resolver } from '../interface.js';
 import { asTableReference } from './dbutil.js';
 import {
@@ -259,7 +259,7 @@ export class SqlDbResolver extends Resolver {
     const joinClauses: JoinClause[] = [];
     this.processJoinInfo(tableName, inst, joinsSpec, joinClauses);
     intoSpec.forEach((v: string, k: string) => {
-      const p = splitFqName(v);
+      const p = nameToPath(v);
       const mn = p.hasModule() ? p.getModuleName() : inst.moduleName;
       intoSpec.set(k, asTableReference(mn, p.getEntryName()));
     });

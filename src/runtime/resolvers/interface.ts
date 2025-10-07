@@ -13,7 +13,7 @@ import {
   newInstanceAttributes,
   Relationship,
 } from '../module.js';
-import { CrudType, splitFqName } from '../util.js';
+import { CrudType, nameToPath } from '../util.js';
 import { DefaultAuthInfo, ResolverAuthInfo } from './authinfo.js';
 
 export type JoinInfo = {
@@ -223,7 +223,7 @@ export class Resolver {
         } else {
           const eventName = getSubscriptionEvent(this.name);
           if (eventName) {
-            const path = splitFqName(eventName);
+            const path = nameToPath(eventName);
             const inst = makeInstance(
               path.getModuleName(),
               path.getEntryName(),
