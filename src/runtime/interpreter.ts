@@ -1524,7 +1524,31 @@ async function evaluateJoinQuery(
   }
   const resolver = await getResolverForPath(inst.name, moduleName, env);
   const result: Result = await resolver.queryByJoin(inst, joinsSpec, normIntoSpec, distinct);
-  env.setLastResult(result);
+
+  const transformedResult = transformDateFieldsInJoinResult(result);
+
+  env.setLastResult(transformedResult);
+}
+
+function transformDateFieldsInJoinResult(result: any): any {
+  if (!result || !Array.isArray(result)) {
+    return result;
+  }
+  return result.map((row: any) => {
+    if (typeof row !== 'object' || row === null) {
+      return row;
+    }
+
+    for (const [key, value] of Object.entries(row)) {
+      if (value && value instanceof Date) {
+        if (value instanceof Date) {
+          row[key] = value.toLocaleDateString('en-CA');
+        }
+      }
+    }
+
+    return row;
+  });
 }
 
 async function walkJoinQueryPattern(
