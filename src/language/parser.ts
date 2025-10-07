@@ -132,7 +132,25 @@ export function maybeGetValidationErrors(document: LangiumDocument): string[] | 
   }
 }
 
-function maybeRaiseParserErrors(document: LangiumDocument) {
+export function maybeRaiseParserErrors(document: LangiumDocument) {
+  if (document.parseResult.lexerErrors.length > 0) {
+    throw new Error(
+      `Lexer errors: ${document.parseResult.lexerErrors
+        .map((err: any) => {
+          return err.message;
+        })
+        .join('\n')}`
+    );
+  }
+  if (document.parseResult.parserErrors.length > 0) {
+    throw new Error(
+      `Parser errors: ${document.parseResult.parserErrors
+        .map((err: any) => {
+          return err.message;
+        })
+        .join('\n')}`
+    );
+  }
   const errs = maybeGetValidationErrors(document);
   if (errs) {
     throw new Error(errs.join('\n'));
@@ -142,24 +160,7 @@ function maybeRaiseParserErrors(document: LangiumDocument) {
 export async function introspect(s: string): Promise<BasePattern[]> {
   let result: BasePattern[] = [];
   const v: LangiumDocument<ModuleDefinition> = await parse(`module Temp workflow Test {${s}}`);
-  if (v.parseResult.lexerErrors.length > 0) {
-    throw new Error(
-      `Lexer errors: ${v.parseResult.lexerErrors
-        .map((err: any) => {
-          return err.message;
-        })
-        .join('\n')}`
-    );
-  }
-  if (v.parseResult.parserErrors.length > 0) {
-    throw new Error(
-      `Parser errors: ${v.parseResult.parserErrors
-        .map((err: any) => {
-          return err.message;
-        })
-        .join('\n')}`
-    );
-  }
+  maybeRaiseParserErrors(v);
   if (isWorkflowDefinition(v.parseResult.value.defs[0])) {
     result = introspectHelper(v.parseResult.value.defs[0].statements);
   } else {

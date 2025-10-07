@@ -38,7 +38,9 @@ export class AgentlangValidator {
             property: 'name',
           });
         }
-        reported.add(d.name);
+        if (d.$type != 'FlowDefinition') {
+          reported.add(d.name);
+        }
       }
     });
   }

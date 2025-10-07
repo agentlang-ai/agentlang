@@ -42,7 +42,7 @@ import {
 import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
-import * as Handlebars from 'handlebars';
+import Handlebars from 'handlebars';
 import { Statement } from '../../language/generated/ast.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');

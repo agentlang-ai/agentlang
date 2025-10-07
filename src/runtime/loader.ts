@@ -68,7 +68,13 @@ import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules, registerCoreModules } from './modules/core.js';
-import { maybeGetValidationErrors, parse, parseModule, parseWorkflow } from '../language/parser.js';
+import {
+  maybeGetValidationErrors,
+  maybeRaiseParserErrors,
+  parse,
+  parseModule,
+  parseWorkflow,
+} from '../language/parser.js';
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
@@ -835,12 +841,7 @@ export async function parseAndIntern(code: string, moduleName?: string) {
     throw new Error(`Module not found - ${moduleName}`);
   }
   const r = await parse(moduleName ? `module ${moduleName} ${code}` : code);
-  if (r.parseResult.lexerErrors.length > 0) {
-    throw new Error(`Lexer errors: ${r.parseResult.lexerErrors.join('\n')}`);
-  }
-  if (r.parseResult.parserErrors.length > 0) {
-    throw new Error(`Parser errors: ${r.parseResult.parserErrors.join('\n')}`);
-  }
+  maybeRaiseParserErrors(r);
   await internModule(r.parseResult.value);
 }
 
