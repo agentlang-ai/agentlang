@@ -381,14 +381,21 @@ export async function executeEventHelper(eventInstance: Instance, env?: Environm
     env = new Environment(`${fqn}-env`);
     isLocalEnv = true;
   }
-  const g = await generateExecutionGraph(fqn);
-  if (!g) {
-    throw new Error(`Failed to generate graph for event ${fqn}`);
+  let g: ExecGraph | undefined;
+  if (!isAgentEventInstance(eventInstance)) {
+    g = await generateExecutionGraph(fqn);
+    if (!g) {
+      throw new Error(`Failed to generate graph for event ${fqn}`);
+    }
   }
   const oldModuleName = env.switchActiveModuleName(eventInstance.moduleName);
   env.bind(eventInstance.name, eventInstance);
   try {
-    await executeGraph(g, env);
+    if (g) {
+      await executeGraph(g, env);
+    } else {
+      await handleAgentInvocation(eventInstance, env);
+    }
     if (isLocalEnv) {
       await env.commitAllTransactions();
     }
