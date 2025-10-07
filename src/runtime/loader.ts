@@ -624,7 +624,7 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     } else if (apdef.name == 'glossary') {
       glossary = processAgentGlossary(name, apdef.value);
     } else if (apdef.name == 'responseSchema') {
-      const s = apdef.value.id || apdef.value.str || apdef.value.id;
+      const s = apdef.value.id || apdef.value.ref || apdef.value.str;
       if (s) {
         if (isFqName(s)) {
           responseSchema = s;
