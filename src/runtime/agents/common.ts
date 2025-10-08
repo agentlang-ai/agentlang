@@ -380,7 +380,7 @@ export function getAgentDirectivesJson(agentFqName: string): string | undefined 
 }
 
 export function removeAgentDirectives(agentFqName: string) {
-  AgentDirectives.delete(agentFqName)
+  AgentDirectives.delete(agentFqName);
 }
 
 export type AgentScenario = {
@@ -399,7 +399,7 @@ export function getAgentScenarios(agentFqName: string): AgentScenario[] | undefi
 }
 
 export function removeAgentScenarios(agentFqName: string) {
-  AgentScenarios.delete(agentFqName)
+  AgentScenarios.delete(agentFqName);
 }
 
 export type AgentGlossaryEntry = {
@@ -419,7 +419,7 @@ export function getAgentGlossary(agentFqName: string): AgentGlossaryEntry[] | un
 }
 
 export function removeAgentGlossary(agentFqName: string) {
-  AgentGlossary.delete(agentFqName)
+  AgentGlossary.delete(agentFqName);
 }
 
 const AgentResponseSchema = new Map<string, string>();
@@ -433,7 +433,7 @@ export function getAgentResponseSchema(agentFqName: string): string | undefined 
 }
 
 export function removeAgentResponseSchema(agentFqName: string) {
-  AgentResponseSchema.delete(agentFqName)
+  AgentResponseSchema.delete(agentFqName);
 }
 
 const AgentScratchNames = new Map<string, Set<string>>();
@@ -447,5 +447,5 @@ export function getAgentScratchNames(agentFqName: string): Set<string> | undefin
 }
 
 export function removeAgentScratchNames(agentFqName: string) {
-  AgentScratchNames.delete(agentFqName)
+  AgentScratchNames.delete(agentFqName);
 }
