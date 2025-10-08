@@ -1,7 +1,7 @@
 import { assert, describe, test } from "vitest"
 import { doInternModule } from "../util.js"
 import { fetchModule, Instance, isInstanceOfType, isModule } from "../../src/runtime/module.js"
-import { parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
+import { lookupAllInstances, parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
 import { isUsingSqlite } from "../../src/runtime/resolvers/sqldb/database.js"
 
 describe('Issue 92', () => {
@@ -645,5 +645,32 @@ describe('Issue-339', () => {
         })
         assert(ids == (1 + 11 + 2 + 10))
         assert(xs == (100 + 10 + 10 + 10))
+    })
+})
+
+describe('Float type', () => {
+    test('Float numeric type', async () => {
+        await doInternModule('FType',
+            `entity E {
+                id Int @id,
+                x Float,
+                y Decimal
+            }`)
+        await parseAndEvaluateStatement("{FType/E {id 1, x 100.9, y 19838.435565}}")
+        const rs: Instance[] = await parseAndEvaluateStatement("{FType/E? {}}")
+        assert(rs[0].lookup('x') === 100.9)
+        assert(rs[0].lookup('y') === 19838.435565)
+        const rs2 = await lookupAllInstances('FType/E')
+        assert(rs2[0].lookup('id') == rs[0].lookup('id'))
+        const s = fetchModule('FType').toString()
+        assert(s == `module FType
+
+entity E
+{
+    id Int @id,
+    x Float,
+    y Decimal
+}
+`)// no @object tags added to Float and Decimal
     })
 })

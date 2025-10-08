@@ -1967,6 +1967,8 @@ const builtInChecks = new Map([
   ['String', isString],
   ['Int', Number.isSafeInteger],
   ['Number', isNumber],
+  ['Float', isNumber],
+  ['Decimal', isNumber],
   ['Email', isString],
   ['Date', isString],
   ['Time', isString],

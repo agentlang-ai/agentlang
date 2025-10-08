@@ -993,6 +993,10 @@ export function setParseAndEvaluateStatementFn(f: any): Function {
   return oldf;
 }
 
+export async function lookupAllInstances(entityFqName: string): Promise<Instance[]> {
+  return await parseAndEvaluateStatement(`{${entityFqName}? {}}`);
+}
+
 export class PatternHandler {
   async handleExpression(expr: Expr, env: Environment) {
     await evaluateExpression(expr, env);
