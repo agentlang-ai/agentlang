@@ -62,6 +62,10 @@ import {
   registerAgentGlossary,
   registerAgentResponseSchema,
   registerAgentScenarios,
+  removeAgentDirectives,
+  removeAgentGlossary,
+  removeAgentResponseSchema,
+  removeAgentScenarios,
 } from './agents/common.js';
 
 export class ModuleEntry {
@@ -933,6 +937,11 @@ export class Agent extends Record {
     return this;
   }
 
+  removeDirectives(): Agent {
+    removeAgentDirectives(this.getAgentFqName());
+    return this;
+  }
+
   getDirectives(): AgentCondition[] | undefined {
     return getAgentDirectives(this.getAgentFqName());
   }
@@ -946,6 +955,11 @@ export class Agent extends Record {
     return getAgentScenarios(this.getAgentFqName());
   }
 
+  removeScenarios(): Agent {
+    removeAgentScenarios(this.getAgentFqName());
+    return this;
+  }
+
   setGlossary(glossary: AgentGlossaryEntry[]): Agent {
     registerAgentGlossary(this.getAgentFqName(), glossary);
     return this;
@@ -955,6 +969,11 @@ export class Agent extends Record {
     return getAgentGlossary(this.getAgentFqName());
   }
 
+  removeGlossary(): Agent {
+    removeAgentGlossary(this.getAgentFqName());
+    return this;
+  }
+
   setResponseSchema(entryName: string): Agent {
     registerAgentResponseSchema(this.getAgentFqName(), entryName);
     return this;
@@ -962,6 +981,11 @@ export class Agent extends Record {
 
   getResponseSchema(): string | undefined {
     return getAgentResponseSchema(this.getAgentFqName());
+  }
+
+  removeResponseSchema(): Agent {
+    removeAgentResponseSchema(this.getAgentFqName());
+    return this;
   }
 
   override toString(): string {
