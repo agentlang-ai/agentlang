@@ -379,6 +379,10 @@ export function getAgentDirectivesJson(agentFqName: string): string | undefined 
   return undefined;
 }
 
+export function removeAgentDirectives(agentFqName: string) {
+  AgentDirectives.delete(agentFqName);
+}
+
 export type AgentScenario = {
   user: string;
   ai: string;
@@ -392,6 +396,10 @@ export function registerAgentScenarios(agentFqName: string, scenarios: AgentScen
 
 export function getAgentScenarios(agentFqName: string): AgentScenario[] | undefined {
   return AgentScenarios.get(agentFqName);
+}
+
+export function removeAgentScenarios(agentFqName: string) {
+  AgentScenarios.delete(agentFqName);
 }
 
 export type AgentGlossaryEntry = {
@@ -410,6 +418,10 @@ export function getAgentGlossary(agentFqName: string): AgentGlossaryEntry[] | un
   return AgentGlossary.get(agentFqName);
 }
 
+export function removeAgentGlossary(agentFqName: string) {
+  AgentGlossary.delete(agentFqName);
+}
+
 const AgentResponseSchema = new Map<string, string>();
 
 export function registerAgentResponseSchema(agentFqName: string, responseSchema: string) {
@@ -420,6 +432,10 @@ export function getAgentResponseSchema(agentFqName: string): string | undefined 
   return AgentResponseSchema.get(agentFqName);
 }
 
+export function removeAgentResponseSchema(agentFqName: string) {
+  AgentResponseSchema.delete(agentFqName);
+}
+
 const AgentScratchNames = new Map<string, Set<string>>();
 
 export function registerAgentScratchNames(agentFqName: string, scratch: string[]) {
@@ -428,4 +444,8 @@ export function registerAgentScratchNames(agentFqName: string, scratch: string[]
 
 export function getAgentScratchNames(agentFqName: string): Set<string> | undefined {
   return AgentScratchNames.get(agentFqName);
+}
+
+export function removeAgentScratchNames(agentFqName: string) {
+  AgentScratchNames.delete(agentFqName);
 }
