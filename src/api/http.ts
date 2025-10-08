@@ -110,6 +110,12 @@ export function startServer(appSpec: ApplicationSpec, port: number, host?: strin
 
 function ok(res: Response) {
   return (value: Result) => {
+    // return buffer as a stream
+    if (value instanceof Buffer) {
+      res.contentType('application/octet-stream');
+      res.send(value);
+      return;
+    }
     const result: Result = normalizedResult(value);
     res.contentType('application/json');
     res.send(JSON.stringify(result));
