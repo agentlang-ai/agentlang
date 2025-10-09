@@ -34,10 +34,8 @@
 		"registry": "https://registry.npmjs.org/"
 	},
 	"scripts": {
-		"install:pnpm": "pnpm install --prefer-offline",
 		"build": "tsc -b tsconfig.src.json && tsc -b tsconfig.declarations.json && node esbuild.mjs",
 		"build:ts": "tsc -b tsconfig.src.json",
-		"build:vite": "vite build --emptyOutDir",
 		"watch": "concurrently -n tsc,esbuild -c blue,yellow \"tsc -b tsconfig.src.json --watch\" \"node esbuild.mjs --watch\"",
 		"lint": "eslint . --ext .ts",
 		"lint:fix": "eslint . --ext .ts --fix",
@@ -47,15 +45,9 @@
 		"langium:generate:production": "langium generate --mode=production",
 		"langium:watch": "langium generate --watch",
 		"vscode:prepublish": "npm run build && npm run lint",
-		"build:web": "npm run build",
-		"bundle": "vite build",
-		"bundle:serve": "http-server ./dist --port 5175",
 		"dev": "vite",
-		"dev:debug": "vite --debug --force",
-		"serve": "npm run dev",
 		"test": "vitest run",
-		"test:verbose": "VITEST_VERBOSE=true vitest run",
-		"test:debug": "DEBUG=true vitest run"
+		"test:verbose": "VITEST_VERBOSE=true vitest run"
 	},
 	"dependencies": {
 		"@aws-sdk/client-cognito-identity": "^3.828.0",
