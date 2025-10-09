@@ -293,6 +293,7 @@ function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
       cp.addRelationship(rp.name, introspectPattern(rp.pattern) as CrudPattern | CrudPattern[]);
     });
     cp.isCreate = false;
+    cp.isQueryUpdate = false;
     cp.isQuery = true;
     return cp;
   }
@@ -303,15 +304,18 @@ function introspectCreatePattern(crudMap: CrudMap): CrudPattern {
   if (crudMap) {
     const cp: CrudPattern = new CrudPattern(crudMap.name);
     cp.isCreate = false;
+    cp.isQuery = false;
+    let qup = false;
     crudMap.body?.attributes.forEach((sa: SetAttribute) => {
       if (!cp.isQueryUpdate && sa.name.endsWith(QuerySuffix)) {
-        cp.isQueryUpdate = true;
+        qup = true;
       }
       cp.addAttribute(sa.name, introspectExpression(sa.value), sa.op);
     });
     crudMap.relationships.forEach((rp: RelationshipPattern) => {
       cp.addRelationship(rp.name, introspectPattern(rp.pattern) as CrudPattern | CrudPattern[]);
     });
+    cp.isQueryUpdate = qup;
     if (!cp.isQueryUpdate) {
       cp.isCreate = true;
     }
