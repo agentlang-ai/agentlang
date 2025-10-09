@@ -3,7 +3,7 @@
  * DO NOT EDIT MANUALLY!
  ******************************************************************************/
 
- 
+/* eslint-disable */
 import * as langium from 'langium';
 
 export const AgentlangTerminals = {
@@ -65,6 +65,7 @@ export type AgentlangKeywordNames =
     | "await"
     | "between"
     | "case"
+    | "commitTransaction"
     | "contains"
     | "create"
     | "decision"
@@ -94,6 +95,8 @@ export type AgentlangKeywordNames =
     | "resolver"
     | "return"
     | "roles"
+    | "rollbackTransaction"
+    | "startTransaction"
     | "subscribe"
     | "true"
     | "update"
@@ -1098,7 +1101,7 @@ export function isResolverFnName(item: unknown): item is ResolverFnName {
 export interface ResolverMethodName extends langium.AstNode {
     readonly $container: ResolverMethodSpec;
     readonly $type: 'ResolverMethodName';
-    name: 'create' | 'delete' | 'onSubscription' | 'query' | 'subscribe' | 'update' | 'upsert';
+    name: 'commitTransaction' | 'create' | 'delete' | 'onSubscription' | 'query' | 'rollbackTransaction' | 'startTransaction' | 'subscribe' | 'update' | 'upsert';
 }
 
 export const ResolverMethodName = 'ResolverMethodName';

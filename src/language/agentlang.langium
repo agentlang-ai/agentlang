@@ -157,7 +157,7 @@ ResolverMethodSpec: key=ResolverMethodName fn=ResolverFnName;
 
 ResolverFnName: name=(ID | Ref | STRING);
 
-ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe' | 'onSubscription');
+ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe' | 'onSubscription' | 'startTransaction' | 'commitTransaction' | 'rollbackTransaction');
 
 RelationshipPattern: name=QualifiedName pattern=Pattern;
 

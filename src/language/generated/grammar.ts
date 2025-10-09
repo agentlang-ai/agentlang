@@ -4545,6 +4545,18 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             {
               "$type": "Keyword",
               "value": "onSubscription"
+            },
+            {
+              "$type": "Keyword",
+              "value": "startTransaction"
+            },
+            {
+              "$type": "Keyword",
+              "value": "commitTransaction"
+            },
+            {
+              "$type": "Keyword",
+              "value": "rollbackTransaction"
             }
           ]
         }
