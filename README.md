@@ -83,15 +83,6 @@ Model the data model, workflows and access control constructs of your applicatio
 
 ```
 
-## Runtime Support
-
-AgentLang runs on Node.js for development and execution.
-
-### Prerequisites
-
-- Node.js 20+ (CI runs on 20.x, local development often uses 24.x)
-  - Note: Some functions may behave differently between versions (e.g., array methods on iterators)
-
 ## Quick Start
 
 ```shell
