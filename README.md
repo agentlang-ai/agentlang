@@ -1,32 +1,26 @@
 <div align="center">
 
 # AgentLang - Reliable Enterprise AI Agents
+Build AI Agents that actually work with Agentic Reliability Modeling
 
-## Build AI Agents that actually work with Agentic Reliability Modeling
+### **Open | Enterprise-grade | Production-ready**
 
 |             |                                                              |
 | ----------- | ------------------------------------------------------------ |
 | CI/CD       | [![AgentLang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml) |
-| Docs        | [![Documentation](https://img.shields.io/badge/docs-available-brightgreen)](https://github.com/agentlang-ai/agentlang#readme) [![Language Spec](https://img.shields.io/badge/language-spec-blue)](https://github.com/agentlang-ai/agentlang/blob/main/langium-quickstart.md) [![Examples](https://img.shields.io/badge/examples-available-yellow)](https://github.com/agentlang-ai/agentlang/tree/main/example) |
-| Environment | [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![pnpm](https://img.shields.io/badge/pnpm-10.13.1-blue?logo=pnpm)](https://pnpm.io)  [![LLM Support](https://img.shields.io/badge/database-multiple-blueviolet)][![Database Support](https://img.shields.io/badge/database-multiple-blueviolet)](https://github.com/agentlang-ai/agentlang#runtime-support) [![Vector DB](https://img.shields.io/badge/vector%20db-supported-green)](https://github.com/agentlang-ai/agentlang#runtime-support) [![Auth](https://img.shields.io/badge/auth-multiple-orange)](https://aws.amazon.com/cognito/) |
-| Meta        | [![GitHub Stars](https://img.shields.io/github/stars/agentlang-ai/agentlang?style=social)](https://github.com/agentlang-ai/agentlang) ![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg)[![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang) |
+| Quick Start | [![Documentation](https://img.shields.io/badge/docs-available-brightgreen)](https://github.com/agentlang-ai/agentlang#readme) [![Examples](https://img.shields.io/badge/examples-available-yellow)](https://github.com/agentlang-ai/agentlang/tree/main/example) |
+| Environment | [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![pnpm](https://img.shields.io/badge/pnpm-10.13.1-blue?logo=pnpm)](https://pnpm.io) |
+| Meta        | [![GitHub Stars](https://img.shields.io/github/stars/agentlang-ai/agentlang?style=social)](https://github.com/agentlang-ai/agentlang) ![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang) |
 
 </div>
 
 Build **teams of reliable AI Agents** that follow your organization's processes closely, while adapting to new scenarios, with AgentLang. Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
 
-<div align="center">
+* **Agentic:** AgentLang is a programming language specifically designed for building anything involving agents. AgentLang is highly declarative - allowing you to focus on the business logic of your solution.
 
+* **Ecosystem:** AgentLang runtime has native integration with multitude of LLMs, databases, vector databases, auth providers, etc. AgentLang has a novel connector architecture, with prebuilt connectors for many Enterprise tools. In addition, AgentLang programs run on nodeJS (and, soon, in the browser!) and can make use of any existing JavaScript library.
 
-### **Open | Enterprise-grade | Production-ready**
-
-</div>
-
-AgentLang is a programming language specifically designed for building anything involving agents. AgentLang is highly declarative - allowing you to focus on the business logic of your solution.
-
-AgentLang runtime has native integration with multitude of LLMs, databases, vector databases, auth providers, etc. AgentLang has novel connector architecture, with prebuilt connectors for many Enterprise tools. In addition, AgentLang programs run on nodeJS (and, soon, in the browser!) and can make use of any of the existing JavaScript libraries.
-
-AgentLang is built on top of TypeScript and uses all the modern JS/TS tooling needed to build production-grade agents and apps.
+* **Production-grade**: AgentLang is built on top of TypeScript and uses all the modern JS/TS tooling needed to build production-grade agents and apps.
 
 </div>
 
@@ -85,6 +79,9 @@ Depending only on instructions to let the agent is a recipe for failure.
 ## AgentLang Ontology
 
 Model the data model, workflows and access control constructs of your application in AgentLang
+```
+
+```
 
 ## Runtime Support
 
