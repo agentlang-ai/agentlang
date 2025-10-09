@@ -445,10 +445,16 @@ export class CrudPattern extends BasePattern {
     }
     if (hasq && hasc) {
       this.isQueryUpdate = true;
+      this.isQuery = false;
+      this.isCreate = false;
     } else if (hasc) {
       this.isCreate = true;
+      this.isQuery = false;
+      this.isQueryUpdate = false;
     } else {
       this.isQuery = hasq;
+      this.isCreate = false;
+      this.isQueryUpdate = false;
     }
   }
 

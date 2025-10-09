@@ -23,12 +23,18 @@ describe('Pattern generation using the syntax API', () => {
     const crud0: CrudPattern = new CrudPattern('User?');
     assert(crud0.toString() == '{User? {}}')
     assert(isQueryPattern(crud0))
+    assert(!isCreatePattern(crud0))
+    assert(!isQueryUpdatePattern(crud0))
     crud0.addAttribute('email', LiteralPattern.String("joe@acme.com"))
     assert(crud0.toString() == '{User {email "joe@acme.com"}}')
     assert(isCreatePattern(crud0))
+    assert(!isQueryPattern(crud0))
+    assert(!isQueryUpdatePattern(crud0))
     crud0.addAttribute('age?', LiteralPattern.Number(18), '>')
     assert(crud0.toString() == '{User {email "joe@acme.com", age?> 18}}')
     assert(isQueryUpdatePattern(crud0))
+    assert(!isQueryPattern(crud0))
+    assert(!isCreatePattern(crud0))
     const crud1: CrudPattern = new CrudPattern('Acme/Employee');
     crud1
       .addAttribute('firstName', new ReferencePattern('CreateEmployee', 'firstName'))
@@ -565,9 +571,9 @@ describe('toString with extends', () => {
       entity B extends A {
         email Email
       }`)
-      const m = fetchModule('ExtendsToS')
-      const s = m.toString()
-      assert(s == `module ExtendsToS
+    const m = fetchModule('ExtendsToS')
+    const s = m.toString()
+    assert(s == `module ExtendsToS
 
 record A
 {
@@ -580,8 +586,8 @@ entity B extends A
     email Email
 }
 `)
-const es = (m.getEntry('B') as Record).toString_(true)
-assert(es == `entity B
+    const es = (m.getEntry('B') as Record).toString_(true)
+    assert(es == `entity B
 {
     id Int,
     name String,
