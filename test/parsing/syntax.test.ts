@@ -138,6 +138,8 @@ describe('Pattern introspection', () => {
     pats = await introspect('{Blog/User {email? "joe@acme.com", name "Sam"}} @as [user]');
     cp = pats[0] as CrudPattern;
     assert(cp.isQueryUpdate, 'Failed to detect query-update pattern');
+    assert(!cp.isCreate)
+    assert(!cp.isQuery)
     assert(
       cp.aliases && cp.aliases.length == 1 && cp.aliases[0] == 'user',
       'Failed to parse aliases'
