@@ -254,8 +254,12 @@ export class AgentInstance {
     if (scenarios) {
       const scs = new Array<string>();
       scenarios.forEach((sc: AgentScenario) => {
-        const aiResp = processScenarioResponse(sc.ai);
-        scs.push(`User: ${sc.user}\nAI: ${aiResp}\n`);
+        try {
+          const aiResp = processScenarioResponse(sc.ai);
+          scs.push(`User: ${sc.user}\nAI: ${aiResp}\n`);
+        } catch (error: any) {
+          logger.error(`Unable to process scenario ${fqName}: ${error.message}`);
+        }
       });
       finalInstruction = `${finalInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
     }
