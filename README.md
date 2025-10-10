@@ -60,6 +60,16 @@ Flows are central to AgentLang's reliability modeling. Define your business proc
 
 Each step in the flow can be an agent or a tool (workflow).
 
+```
+flow networkProvisioningRequestManager {
+    classifyProvisioningRequest --> "type is DNS" provisionDNS
+    classifyProvisioningRequest --> "type is WLAN" provisionWLAN
+    classifyProvisioningRequest --> "type is Other" reportFailure
+    provisionDNS --> ticketUpdater
+    provisionWLAN --> ticketUpdater
+}
+```
+
 ### Decisions
 
 An agent that takes a decision for branching in a flow can be expressed as a **decision table** of `case` expressions. Each `case` specifies a condition as pure text or a logical expression. The consequence of a `case` will be a tag that tells the flow-evaluator which node to branch to.
