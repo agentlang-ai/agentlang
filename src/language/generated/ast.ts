@@ -447,7 +447,7 @@ export interface DirectiveDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'DirectiveDefinition';
     body?: MapLiteral;
-    name: GenericName;
+    name: Ref;
 }
 
 export const DirectiveDefinition = 'DirectiveDefinition';
@@ -641,7 +641,7 @@ export interface GlossaryEntryDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'GlossaryEntryDefinition';
     body?: MapLiteral;
-    name: GenericName;
+    name: Ref;
 }
 
 export const GlossaryEntryDefinition = 'GlossaryEntryDefinition';
@@ -1182,7 +1182,7 @@ export interface ScenarioDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'ScenarioDefinition';
     body?: MapLiteral;
-    name: GenericName;
+    name: Ref;
 }
 
 export const ScenarioDefinition = 'ScenarioDefinition';

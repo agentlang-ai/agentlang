@@ -69,6 +69,7 @@ import {
   makeFqName,
   maybeExtends,
   registerInitFunction,
+  rootRef,
 } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
@@ -786,7 +787,7 @@ function addDecisionDefinition(def: DecisionDefinition, moduleName: string) {
 
 function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
   if (def.body) {
-    let n = def.name;
+    let n = rootRef(def.name);
     if (!isFqName(n)) {
       n = makeFqName(moduleName, n);
     }
@@ -800,7 +801,7 @@ function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
 
 function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
   if (def.body) {
-    let n = def.name;
+    let n = rootRef(def.name);
     if (!isFqName(n)) {
       n = makeFqName(moduleName, n);
     }
@@ -814,7 +815,7 @@ function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
 
 function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: string) {
   if (def.body) {
-    let n = def.name;
+    let n = rootRef(def.name);
     if (!isFqName(n)) {
       n = makeFqName(moduleName, n);
     }

@@ -151,11 +151,11 @@ DecisionDefBody: '{' (cases+=CaseEntry (cases+=CaseEntry)*)+ '}';
 
 CaseEntry: 'case' '(' cond=Expr ')' Body;
 
-ScenarioDefinition: 'scenario' name=GenericName (body=MapLiteral? | '{''}');
+ScenarioDefinition: 'scenario' name=Ref (body=MapLiteral? | '{''}');
 
-DirectiveDefinition: 'directive' name=GenericName (body=MapLiteral? | '{''}');
+DirectiveDefinition: 'directive' name=Ref (body=MapLiteral? | '{''}');
 
-GlossaryEntryDefinition: 'glossaryEntry' name=GenericName (body=MapLiteral? | '{''}');
+GlossaryEntryDefinition: 'glossaryEntry' name=Ref (body=MapLiteral? | '{''}');
 
 ResolverDefinition: 'resolver' name=GenericName '[' (paths+=GenericName (',' paths+=GenericName)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';

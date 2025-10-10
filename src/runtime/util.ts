@@ -164,6 +164,10 @@ export function splitRefs(s: string): string[] {
   }
 }
 
+export function rootRef(s: string): string {
+  return splitRefs(s)[0];
+}
+
 export function runShellCommand(cmd: string, options?: any, continuation?: Function) {
   if (!isNodeEnv) {
     console.warn('Shell commands cannot be executed in non-Node.js environments');
