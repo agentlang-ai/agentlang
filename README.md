@@ -1,5 +1,4 @@
 <div align="center">
-
 <p>
   <a href="https://zdoc.app/ja/agentlang-ai/agentlang">日本語</a> |
   <a href="https://zdoc.app/es/agentlang-ai/agentlang">Español</a> |
@@ -31,22 +30,26 @@ Build **teams of reliable AI Agents** that follow your organization's processes 
 
 * **Production-ready**: AgentLang is built on top of TypeScript and uses all the modern JS/TS tooling needed to build production-grade agents and apps.
 
-</div>
-
 Coming soon! Fractl Studio is a no-code environment for building and operating AI Agents.
 
 ## Agentic Reliability Modeling
 
-Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking. AgentLang offers a robust set of tools to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable:
+<div align="center">
+<img width="500" height="600" alt="image" src="https://github.com/user-attachments/assets/b240a235-3804-4423-a639-cdfb90f07282" />
+</div>
 
+Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking. AgentLang offers a robust set of tools to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
+
+Key concepts:
 1. [First-class AI Agents](#first-class-ai-agents)
 2. [Flows](#flows)
 3. [Decisions](#decisions)
 4. [Directives](#directives)
 5. [Scenarios](#scenarios)
 6. [Glossary](#glossary)
-7. [Response schema and scratchpad](#response-schema-and-scratchpad)
-8. [Templatized instructions](#templatized-instructions)
+7. [Structured output and scratchpad](#response-schema-and-scratchpad)
+8. [Input Template](#templatized-instructions)
+
 
 ## First-class AI Agents
 
