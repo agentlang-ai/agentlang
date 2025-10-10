@@ -93,8 +93,7 @@ pnpm install
 # Or use npm
 npm install
 
-# Generate parser and build
-npm run langium:generate
+# Build
 npm run build
 
 # Run test
