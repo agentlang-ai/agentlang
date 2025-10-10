@@ -1,11 +1,22 @@
 <div align="center">
 
+<p>
+  <a href="https://zdoc.app/ja/agentlang-ai/agentlang">日本語</a> |
+  <a href="https://zdoc.app/es/agentlang-ai/agentlang">Español</a> |
+  <a href="https://zdoc.app/fr/agentlang-ai/agentlang">français</a> |
+  <a href="https://zdoc.app/de/agentlang-ai/agentlang">Deutsch</a> |
+  <a href="https://zdoc.app/pt/agentlang-ai/agentlang">Português</a> |
+  <a href="https://zdoc.app/ru/agentlang-ai/agentlang">Русский</a> |
+  <a href="https://zdoc.app/ko/agentlang-ai/agentlang">한국어</a> |
+  <a href="https://zdoc.app/zh/agentlang-ai/agentlang">中文</a>
+</p>
+
 # AgentLang - Reliable Enterprise AI Agents
 Agentic Reliability Modeling - Build AI Agents that actually work!
 
 |             |                                                              |
 | ----------- | ------------------------------------------------------------ |
-| CI/CD       | [![AgentLang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml) |
+| Tests       | [![AgentLang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml) |
 | Quick Start | [![Documentation](https://img.shields.io/badge/docs-available-brightgreen)](https://github.com/agentlang-ai/agentlang#readme) [![Examples](https://img.shields.io/badge/examples-available-yellow)](https://github.com/agentlang-ai/agentlang/tree/main/example) |
 | Environment | [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![pnpm](https://img.shields.io/badge/pnpm-10.13.1-blue?logo=pnpm)](https://pnpm.io) |
 | Meta        | [![GitHub Stars](https://img.shields.io/github/stars/agentlang-ai/agentlang?style=social)](https://github.com/agentlang-ai/agentlang) ![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang) |
@@ -24,11 +35,24 @@ Build **teams of reliable AI Agents** that follow your organization's processes 
 
 Coming soon! Fractl Studio is a no-code environment for building and operating AI Agents.
 
+## Agentic Reliability Modeling
+
+Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking. AgentLang offers a robust set of tools to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable:
+
+1. [First-class AI Agents](#first-class-ai-agents)
+2. [Flows](#flows)
+3. [Decisions](#decisions)
+4. [Directives](#directives)
+5. [Scenarios](#scenarios)
+6. [Glossary](#glossary)
+7. [Response schema and scratchpad](#response-schema-and-scratchpad)
+8. [Templatized instructions](#templatized-instructions)
+
 ## First-class AI Agents
 
 Agents and many concepts agents use are built-in language constructs.
 
-```
+```typescript
 // flows are business process definitions that "guide" (not enforce) the agent's behavior
 flow triageFlow {
     ticketTriager --> "DNS" ticketInProgress
@@ -44,23 +68,12 @@ agent TicketFlow {
 
 ```
 
-## Agentic Reliability Modeling
-
-Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - we don't want to be stuck in an endless prompt-tweaking cycle to make our agents work. AgentLang offers a robust set of tools to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable:
-1. [Flows](#flows)
-2. [Decisions](#decisions)
-3. [Directives](#directives)
-4. [Scenarios](#scenarios)
-5. [Glossary](#glossary)
-6. [Response schema and scratchpad](#response-schema-and-scratchpad)
-7. [Templatized instructions](#templatized-instructions)
-
 ### Flows
-Flows are central to AgentLang's reliability modeling. Define your business processes using an intuitive flow syntax. AgentLang's adaptive runtime will execute them, dynamically adapting to handle new scenarios as needed.
+Flows are central to AgentLang's reliability modeling. Define your business processes using an intuitive flow syntax - flows guide (not enforce) an agent's behavior closely. AgentLang's adaptive runtime will execute them, dynamically adapting the execution flow as needed.
 
 Each step in the flow can be an agent or a tool (workflow).
 
-```
+```typescript
 flow networkProvisioningRequestManager {
     classifyProvisioningRequest --> "type is DNS" provisionDNS
     classifyProvisioningRequest --> "type is WLAN" provisionWLAN
@@ -74,7 +87,7 @@ flow networkProvisioningRequestManager {
 
 An agent that takes a decision for branching in a flow can be expressed as a **decision table** of `case` expressions. Each `case` specifies a condition as pure text or a logical expression. The consequence of a `case` will be a tag that tells the flow-evaluator which node to branch to.
 
-```
+```typescript
 decision classifyOrder {
    case (carType == "SUV" and segment == "economy") {
       EconomySUV
@@ -94,7 +107,7 @@ flow carOrderRequestManager {
 
 The `case` conditions may also be written in plain text as:
 
-```
+```typescript
 case ("if carType is SUV and segment is economy") {
    EconomySUV
 }
@@ -106,7 +119,7 @@ As the flow executes an agent that specializes in evaluating decision tables wil
 
 **Directives** enhance the decision making capability of agents by providing precise actions to be taken under specific conditions.
 
-```
+```typescript
 agent salaryHikeAgent {
     instruction "Give an employee a salary-hike based on his/her sales performance",
     tools acme/employee,
@@ -121,7 +134,7 @@ As the `salaryHikeAgent` tries to compute the salary-increment for a particular 
 
 **Scenarios** provide agents with concrete examples of user-requests and their corresponding LLM-responses.
 
-```
+```typescript
 agent salaryHikeAgent {
     instruction "Give an employee a salary-hike based on his/her sales performance",
     tools acme/employee,
@@ -146,7 +159,7 @@ Here, the provided scenario helps the agent to take a well-specified action in t
 
 **Glossaries** help the agent understand the meaning of domain-specific vocabulary that the user may use while interacting with the agent.
 
-```
+```typescript
 agent campaignAnalyzer {
     instruction "Evaluate and optimize marketing campaign performance based on key performance indicators (KPIs) and assign a performance rating",
     tools acme/campaign_eval,
@@ -163,7 +176,7 @@ agent campaignAnalyzer {
 
 In certain scenarios, agents perform better with structured data than plain text. You can configure an agent to output responses in a specific format, enabling another agent to efficiently parse and utilize the relevant information as input.
 
-```
+```typescript
 module NetOps
 
 record NetworkProvisioningRequest {
@@ -182,9 +195,9 @@ This kind of structured data (as entity or record instances) returned by an agen
 
 ### Templatized Instructions
 
-An agent further down the flow can access the scratchpad using template parameters embedded in its instructions, denoted by `{{ }}`. For instance, the `ticketUpdater` agent makes reference to the scratchpad via the parameters `{{classifyProvisioningRequest.type}}` and `{{classifyProvisioningRequest.requestedBy}}`. (The references need not include the agent name and simply be `{{type}}` and `{{requestedBy}}`). This means, the actual instruction the `ticketUpdater` agent will see in this context will be `""Use type=DNS, requestedBy=joe@acme.com and provisioningId={{provisioningId}} to mark the request as completed"` - obviously enhancing its focus on the current context for more deterministic actions.
+An agent further down the flow can access the scratchpad using template parameters (denoted by `{{}}`) embedded in its instructions/directives. For instance, the `ticketUpdater` agent makes reference to the scratchpad via the parameters `{{classifyProvisioningRequest.type}}` and `{{classifyProvisioningRequest.requestedBy}}`. (The references need not include the agent name and simply be `{{type}}` and `{{requestedBy}}`). The actual instruction the `ticketUpdater` agent will see in this context will be `""Use type=DNS, requestedBy=joe@acme.com and provisioningId={{provisioningId}} to mark the request as completed"` - obviously enhancing its focus on the current context for more deterministic actions.
 
-```
+```typescript
 agent ticketUpdater {
     instruction "Use type={{classifyProvisioningRequest.type}}, requestedBy={{classifyProvisioningRequest.requestedBy}} and provisioningId={{provisioningId}} to mark the request as completed",
     tools [Networking/markRequestCompleted]
@@ -203,10 +216,9 @@ flow networkProvisioningRequestManager {
 
 The agent `classifyProvisioningRequest` has its `responseSchema` attribute set to the record `NetworkProvisioningRequest`. This means for a request like `"Provision DNS joe.acme.com for 192.3.4.1 as requested by joe@acme.com"` this agent will return:
 
-```
+```typescript
 {type "DNS", requestedBy "joe@acme.com", CNAME "joe.acme.com", IPAddress "192.3.4.1"}
 ```
-
 
 ## AgentLang Ontology
 
