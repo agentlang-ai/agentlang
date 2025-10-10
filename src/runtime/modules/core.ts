@@ -1,5 +1,6 @@
 import { default as ai } from './ai.js';
 import { default as auth } from './auth.js';
+import { default as files } from './files.js';
 import { DefaultModuleName, DefaultModules, escapeSpecialChars } from '../util.js';
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../module.js';
 import {
@@ -71,7 +72,7 @@ export const CoreModules: string[] = [];
 export function registerCoreModules() {
   DefaultModules.add(DefaultModuleName);
   CoreModules.push(CoreModuleDefinition);
-  [auth, ai].forEach((mdef: string) => {
+  [auth, ai, files].forEach((mdef: string) => {
     CoreModules.push(mdef);
     DefaultModules.add(mdef);
   });
