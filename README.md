@@ -1,9 +1,7 @@
 <div align="center">
 
 # AgentLang - Reliable Enterprise AI Agents
-Build AI Agents that actually work with Agentic Reliability Modeling
-
-### **Open | Enterprise-grade | Production-ready**
+Agentic Reliability Modeling - Build AI Agents that actually work!
 
 |             |                                                              |
 | ----------- | ------------------------------------------------------------ |
@@ -16,11 +14,11 @@ Build AI Agents that actually work with Agentic Reliability Modeling
 
 Build **teams of reliable AI Agents** that follow your organization's processes closely, while adapting to new scenarios, with AgentLang. Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
 
-* **Agentic:** AgentLang is a programming language specifically designed for building anything involving agents. AgentLang is highly declarative - allowing you to focus on the business logic of your solution.
+* **Agentic:** AgentLang is a programming language specifically designed for building anything involving agents. AgentLang is highly declarative - enabling you to focus on the business logic getting bogged down in implementation details.
 
-* **Ecosystem:** AgentLang runtime has native integration with multitude of LLMs, databases, vector databases, auth providers, etc. AgentLang has a novel connector architecture, with prebuilt connectors for many Enterprise tools. In addition, AgentLang programs run on nodeJS (and, soon, in the browser!) and can make use of any existing JavaScript library.
+* **Robust Integrations:** The AgentLang runtime integrates natively with a wide range of LLMs, databases, vector databases, and auth providers. AgentLang has a novel connector architecture, with a rapidly growing collection of prebuilt connectors for Enterprise tools. Plus, AgentLang programs run on NodeJS (and, soon, in the browser!) and can leverage any existing JavaScript library.
 
-* **Production-grade**: AgentLang is built on top of TypeScript and uses all the modern JS/TS tooling needed to build production-grade agents and apps.
+* **Production-ready**: AgentLang is built on top of TypeScript and uses all the modern JS/TS tooling needed to build production-grade agents and apps.
 
 </div>
 
@@ -38,9 +36,9 @@ flow triageFlow {
     ticketTriager --> "NotEnoughInfo" ticketPending
 }
 
-agent ticketflow {
+agent NetOps {
     llm "ticketflow_llm",
-    role "You are a ticket management application. Your job is to triage any ticket passed to you and update the ticket with appropriate assigned_to, status and triaging comments.",
+    role "You are a network ticket management application. Your job is to triage any ticket passed to you and update the ticket with appropriate assigned_to, status and triaging comments.",
     flows [triageFlow]
 }
 
@@ -48,7 +46,15 @@ agent ticketflow {
 
 ## Agentic Reliability Modeling
 
-Depending only on instructions to let the agent is a recipe for failure.
+Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - we don't want to be stuck in an endless prompt-tweaking cycle to make our agents work. AgentLang offers a robust set of tools to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable:
+1. [Flows](#flows)
+2. [Decisions](#decisions)
+3. [Directives](#directives)
+4. [Scenarios](#scenarios)
+5. [Glossary](#glossary)
+6. [Response schema and scratchpad](#response-schema-and-scratchpad)
+
+### Flows
 
 ### Directives
 
@@ -91,11 +97,15 @@ Here, the provided scenario helps the agent to take a well-specified action in t
 **Glossaries** help the agent understand the meaning of domain-specific vocabulary that the user may use while interacting with the agent.
 
 ```
-agent salaryHikeAgent {
-    instruction "Give an employee a salary-hike based on his/her sales performance",
-    tools acme/employee,
+agent campaignAnalyzer {
+    instruction "Evaluate and optimize marketing campaign performance based on key performance indicators (KPIs) and assign a performance rating",
+    tools acme/campaign_eval,
     // ...
-    glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "on-high, block-buster"}]
+    glossary [
+        {"name": "outstanding", "meaning": "CTR ≥ 5%, Conversion Rate ≥ 10%, ROI ≥ 50%", "synonyms": "exceptional, high-impact"},
+        {"name": "satisfactory", "meaning": "CTR 2-4.9%, Conversion Rate 5-9.9%, ROI 20-49%", "synonyms": "solid, effective"},
+        {"name": "underperforming", "meaning": "CTR < 2%, Conversion Rate < 5%, ROI < 20%", "synonyms": "needs improvement, low-impact"}
+    ]
 }
 ```
 
@@ -177,7 +187,7 @@ These kind of structured data (as entity or record instances) returned by an age
 
 ## AgentLang Ontology
 
-Agentlang's sophisticated modelling capabilities allow you to design the data-schema, workflows and access control constructs of your application in a declarative way. Agents can work directly with this ontology and dynamically generate business workflows, making your application into a living system that constantly adapts to new requirements and demands.
+Agentlang's sophisticated modeling capabilities allow you to design the data-schema, workflows and access control constructs of your application in a declarative way. Agents can work directly with this ontology and dynamically generate business workflows, making your application into a living system that constantly adapts to new requirements and demands.
 
 To get started with Agentlang Ontology, please see the [quick start](link-to-doc) guide or explore the following example applications:
 
