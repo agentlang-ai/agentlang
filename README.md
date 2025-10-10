@@ -36,7 +36,7 @@ flow triageFlow {
     ticketTriager --> "NotEnoughInfo" ticketPending
 }
 
-agent NetOps {
+agent TicketFlow {
     llm "ticketflow_llm",
     role "You are a network ticket management application. Your job is to triage any ticket passed to you and update the ticket with appropriate assigned_to, status and triaging comments.",
     flows [triageFlow]
