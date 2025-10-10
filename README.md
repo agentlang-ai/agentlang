@@ -1,4 +1,4 @@
-<div align="center">
+<div>
 <p>
   <a href="https://zdoc.app/ja/agentlang-ai/agentlang">日本語</a> |
   <a href="https://zdoc.app/es/agentlang-ai/agentlang">Español</a> |
@@ -13,11 +13,10 @@
 # AgentLang - Reliable Enterprise AI Agents
 Agentic Reliability Modeling - Build AI Agents that actually work!
 
-|             |                                                              |
-| ----------- | ------------------------------------------------------------ |
-| Tests       | [![AgentLang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml) |
+|         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Quick Start | [![Documentation](https://img.shields.io/badge/docs-available-brightgreen)](https://github.com/agentlang-ai/agentlang#readme) [![Examples](https://img.shields.io/badge/examples-available-yellow)](https://github.com/agentlang-ai/agentlang/tree/main/example) |
-| Environment | [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![pnpm](https://img.shields.io/badge/pnpm-10.13.1-blue?logo=pnpm)](https://pnpm.io) |
+| Environment | [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![pnpm](https://img.shields.io/badge/pnpm-10.13.1-blue?logo=pnpm)](https://pnpm.io) [![AgentLang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml) |
 | Meta        | [![GitHub Stars](https://img.shields.io/github/stars/agentlang-ai/agentlang?style=social)](https://github.com/agentlang-ai/agentlang) ![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang) |
 
 </div>
@@ -34,21 +33,35 @@ Coming soon! Fractl Studio is a no-code environment for building and operating A
 
 ## Agentic Reliability Modeling
 
-<div align="center">
-<img width="500" height="600" alt="image" src="https://github.com/user-attachments/assets/b240a235-3804-4423-a639-cdfb90f07282" />
-</div>
+
 
 Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking. AgentLang offers a robust set of tools to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
 
-Key concepts:
-1. [First-class AI Agents](#first-class-ai-agents)
-2. [Flows](#flows)
-3. [Decisions](#decisions)
-4. [Directives](#directives)
-5. [Scenarios](#scenarios)
-6. [Glossary](#glossary)
-7. [Structured output and scratchpad](#response-schema-and-scratchpad)
-8. [Input Template](#templatized-instructions)
+<table>
+    <tr>
+        <td valign="top">
+          <div>
+          <b>Key concepts:</b>
+          <ul>
+<li> <b>First-class AI Agents</b> </li>
+<li> <b>Flows</b> </li>
+<li> <b>Decisions</b> </li>
+<li> <b>Directives</b> </li>
+<li> <b>Scenarios</b> </li>
+<li> <b>Glossary</b> </li>
+<li> <b>Structured output and scratchpad</b> </li>
+<li> <b>Input Template</b> </li>
+          </ul>
+          </div>
+        </td>
+        <td>
+          <div align="center">
+          <img width="350" height="420" alt="image" src="https://github.com/user-attachments/assets/b240a235-3804-4423-a639-cdfb90f07282" />
+          </div>
+        </td>
+    </tr>
+</table>
+
 
 
 ## First-class AI Agents
