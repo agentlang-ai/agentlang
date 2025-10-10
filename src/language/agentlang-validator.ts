@@ -38,7 +38,12 @@ export class AgentlangValidator {
             property: 'name',
           });
         }
-        if (d.$type != 'FlowDefinition') {
+        if (
+          d.$type != 'FlowDefinition' &&
+          d.$type != 'ScenarioDefinition' &&
+          d.$type != 'DirectiveDefinition' &&
+          d.$type != 'GlossaryEntryDefinition'
+        ) {
           reported.add(d.name);
         }
       }

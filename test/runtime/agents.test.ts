@@ -309,6 +309,8 @@ if (process.env.AL_TEST === 'true') {
                        {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
            scenarios  [{"user": "Jake hit a jackpot!", "ai": "GuidedAgent/scenario01"}],
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
+         scenario ga {"user": "Kiran had a block-buster", "ai": "GuidedAgent/scenario01"}
+         directive ga {"if": "sales is less than 2000", "then": "hike salary by 0.5 percent"}
          workflow chat {{ga {message chat.msg}}}
           `
       );

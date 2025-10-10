@@ -61,6 +61,7 @@ import {
   fetchModule,
 } from './module.js';
 import {
+  asStringLiteralsMap,
   escapeSpecialChars,
   findRbacSchema,
   isFqName,
@@ -789,7 +790,11 @@ function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
     if (!isFqName(n)) {
       n = makeFqName(moduleName, n);
     }
-    addAgentScenario(n, { user: def.body.user, ai: def.body.ai });
+    const m = asStringLiteralsMap(def.body);
+    const user = m.get('user');
+    const ai = m.get('ai');
+    if (user && ai) addAgentScenario(n, { user: user, ai: ai });
+    else throw new Error(`scenario ${def.name} requires both user and ai entries`);
   }
 }
 
@@ -799,7 +804,11 @@ function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
     if (!isFqName(n)) {
       n = makeFqName(moduleName, n);
     }
-    addAgentDirective(n, { cond: def.body.cond, then: def.body.then });
+    const m = asStringLiteralsMap(def.body);
+    const cond = m.get('if');
+    const then = m.get('then');
+    if (cond && then) addAgentDirective(n, { cond: cond, then: then });
+    else throw new Error(`directive ${def.name} requires both if and then entries`);
   }
 }
 
@@ -809,11 +818,17 @@ function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: str
     if (!isFqName(n)) {
       n = makeFqName(moduleName, n);
     }
-    addAgentGlossaryEntry(n, {
-      name: def.body.name,
-      meaning: def.body.meaning,
-      synonyms: def.body.synonyms,
-    });
+    const m = asStringLiteralsMap(def.body);
+    const name = m.get('name');
+    const meaning = m.get('meaning');
+    const syn = m.get('synonyms');
+    if (name && meaning)
+      addAgentGlossaryEntry(n, {
+        name: name,
+        meaning: meaning,
+        synonyms: syn,
+      });
+    else throw new Error(`glossaryEntry ${def.name} requires both name and meaning keys`);
   }
 }
 
