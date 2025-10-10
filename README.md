@@ -21,6 +21,12 @@ Agentic Reliability Modeling - Build AI Agents that actually work!
 
 </div>
 
+## tl;dr
+
+AgentLang is a declarative programming language (built on JS/TS) with innovative constructs to help you build **reliable** agents and agentic apps that just work. Build application in 100s of lines of code, instead of 10k+ lines of code.
+
+## AgentLang
+
 Build **teams of reliable AI Agents** that follow your organization's processes closely, while adapting to new scenarios, with AgentLang. Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
 
 * **Agentic:** AgentLang is a programming language specifically designed for building anything involving agents. AgentLang is highly declarative - enabling you to focus on the business logic getting bogged down in implementation details.
@@ -29,7 +35,7 @@ Build **teams of reliable AI Agents** that follow your organization's processes 
 
 * **Production-ready**: AgentLang is built on top of TypeScript and uses all the modern JS/TS tooling needed to build production-grade agents and apps.
 
-Coming soon! Fractl Studio is a no-code environment for building and operating AI Agents.
+> Coming soon! Fractl Studio is a no-code environment for building and operating AI Agents.
 
 ## Agentic Reliability Modeling
 
