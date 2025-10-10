@@ -33,6 +33,12 @@ import {
   isDecisionDefinition,
   DecisionDefinition,
   CaseEntry,
+  isScenarioDefinition,
+  ScenarioDefinition,
+  DirectiveDefinition,
+  GlossaryEntryDefinition,
+  isDirectiveDefinition,
+  isGlossaryEntryDefinition,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -89,6 +95,9 @@ import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
 import z from 'zod';
 import { registerAgentFlow, registerFlow } from './agents/flows.js';
 import {
+  addAgentDirective,
+  addAgentGlossaryEntry,
+  addAgentScenario,
   AgentCondition,
   AgentGlossaryEntry,
   AgentScenario,
@@ -774,6 +783,40 @@ function addDecisionDefinition(def: DecisionDefinition, moduleName: string) {
   }
 }
 
+function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
+  if (def.body) {
+    let n = def.name;
+    if (!isFqName(n)) {
+      n = makeFqName(moduleName, n);
+    }
+    addAgentScenario(n, { user: def.body.user, ai: def.body.ai });
+  }
+}
+
+function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
+  if (def.body) {
+    let n = def.name;
+    if (!isFqName(n)) {
+      n = makeFqName(moduleName, n);
+    }
+    addAgentDirective(n, { cond: def.body.cond, then: def.body.then });
+  }
+}
+
+function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: string) {
+  if (def.body) {
+    let n = def.name;
+    if (!isFqName(n)) {
+      n = makeFqName(moduleName, n);
+    }
+    addAgentGlossaryEntry(n, {
+      name: def.body.name,
+      meaning: def.body.meaning,
+      synonyms: def.body.synonyms,
+    });
+  }
+}
+
 function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
   const resolverName = `${moduleName}/${def.name}`;
   const paths = def.paths;
@@ -834,6 +877,9 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);
   else if (isFlowDefinition(def)) addFlowDefinition(def, moduleName);
   else if (isDecisionDefinition(def)) addDecisionDefinition(def, moduleName);
+  else if (isScenarioDefinition(def)) addScenarioDefintion(def, moduleName);
+  else if (isDirectiveDefinition(def)) addDirectiveDefintion(def, moduleName);
+  else if (isGlossaryEntryDefinition(def)) addGlossaryEntryDefintion(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {

@@ -383,6 +383,12 @@ export function removeAgentDirectives(agentFqName: string) {
   AgentDirectives.delete(agentFqName);
 }
 
+export function addAgentDirective(agentFqName: string, newDirective: AgentCondition) {
+  const dirs = getAgentDirectives(agentFqName) || new Array<AgentCondition>();
+  dirs.push(newDirective);
+  registerAgentDirectives(agentFqName, dirs);
+}
+
 export type AgentScenario = {
   user: string;
   ai: string;
@@ -400,6 +406,12 @@ export function getAgentScenarios(agentFqName: string): AgentScenario[] | undefi
 
 export function removeAgentScenarios(agentFqName: string) {
   AgentScenarios.delete(agentFqName);
+}
+
+export function addAgentScenario(agentFqName: string, newScn: AgentScenario) {
+  const scns = getAgentScenarios(agentFqName) || new Array<AgentScenario>();
+  scns.push(newScn);
+  registerAgentScenarios(agentFqName, scns);
 }
 
 export type AgentGlossaryEntry = {
@@ -420,6 +432,12 @@ export function getAgentGlossary(agentFqName: string): AgentGlossaryEntry[] | un
 
 export function removeAgentGlossary(agentFqName: string) {
   AgentGlossary.delete(agentFqName);
+}
+
+export function addAgentGlossaryEntry(agentFqName: string, newEntry: AgentGlossaryEntry) {
+  const entries = getAgentGlossary(agentFqName) || new Array<AgentGlossaryEntry>();
+  entries.push(newEntry);
+  registerAgentGlossary(agentFqName, entries);
 }
 
 const AgentResponseSchema = new Map<string, string>();

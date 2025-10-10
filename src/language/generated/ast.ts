@@ -3,7 +3,7 @@
  * DO NOT EDIT MANUALLY!
  ******************************************************************************/
 
-/* eslint-disable */
+ 
 import * as langium from 'langium';
 
 export const AgentlangTerminals = {
@@ -60,6 +60,7 @@ export type AgentlangKeywordNames =
     | "["
     | "]"
     | "agent"
+    | "ai"
     | "allow"
     | "and"
     | "await"
@@ -70,6 +71,7 @@ export type AgentlangKeywordNames =
     | "create"
     | "decision"
     | "delete"
+    | "directive"
     | "else"
     | "entity"
     | "error"
@@ -78,11 +80,14 @@ export type AgentlangKeywordNames =
     | "false"
     | "flow"
     | "for"
+    | "glossary"
     | "if"
     | "import"
     | "in"
     | "like"
+    | "meaning"
     | "module"
+    | "name"
     | "not"
     | "not_found"
     | "onSubscription"
@@ -96,11 +101,15 @@ export type AgentlangKeywordNames =
     | "return"
     | "roles"
     | "rollbackTransaction"
+    | "scenario"
     | "startTransaction"
     | "subscribe"
+    | "synonyms"
+    | "then"
     | "true"
     | "update"
     | "upsert"
+    | "user"
     | "where"
     | "workflow"
     | "{"
@@ -128,7 +137,7 @@ export function isDecimal(item: unknown): item is Decimal {
     return typeof item === 'number';
 }
 
-export type Definition = AgentDefinition | DecisionDefinition | FlowDefinition | RelationshipDefinition | ResolverDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
+export type Definition = AgentDefinition | DecisionDefinition | DirectiveDefinition | FlowDefinition | GlossaryEntryDefinition | RelationshipDefinition | ResolverDefinition | ScenarioDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = 'Definition';
 
@@ -440,6 +449,32 @@ export function isDelete(item: unknown): item is Delete {
     return reflection.isInstance(item, Delete);
 }
 
+export interface DirectiveDefBody extends langium.AstNode {
+    readonly $container: DirectiveDefinition;
+    readonly $type: 'DirectiveDefBody';
+    cond: string;
+    then: string;
+}
+
+export const DirectiveDefBody = 'DirectiveDefBody';
+
+export function isDirectiveDefBody(item: unknown): item is DirectiveDefBody {
+    return reflection.isInstance(item, DirectiveDefBody);
+}
+
+export interface DirectiveDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'DirectiveDefinition';
+    body?: DirectiveDefBody;
+    name: GenericName;
+}
+
+export const DirectiveDefinition = 'DirectiveDefinition';
+
+export function isDirectiveDefinition(item: unknown): item is DirectiveDefinition {
+    return reflection.isInstance(item, DirectiveDefinition);
+}
+
 export interface Else extends langium.AstNode {
     readonly $container: If;
     readonly $type: 'Else';
@@ -619,6 +654,33 @@ export const GenericPropertyDef = 'GenericPropertyDef';
 
 export function isGenericPropertyDef(item: unknown): item is GenericPropertyDef {
     return reflection.isInstance(item, GenericPropertyDef);
+}
+
+export interface GlossaryEntryDefBody extends langium.AstNode {
+    readonly $container: GlossaryEntryDefinition;
+    readonly $type: 'GlossaryEntryDefBody';
+    meaning: string;
+    name: string;
+    synonyms: string;
+}
+
+export const GlossaryEntryDefBody = 'GlossaryEntryDefBody';
+
+export function isGlossaryEntryDefBody(item: unknown): item is GlossaryEntryDefBody {
+    return reflection.isInstance(item, GlossaryEntryDefBody);
+}
+
+export interface GlossaryEntryDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'GlossaryEntryDefinition';
+    body?: GlossaryEntryDefBody;
+    name: GenericName;
+}
+
+export const GlossaryEntryDefinition = 'GlossaryEntryDefinition';
+
+export function isGlossaryEntryDefinition(item: unknown): item is GlossaryEntryDefinition {
+    return reflection.isInstance(item, GlossaryEntryDefinition);
 }
 
 export interface Group extends langium.AstNode {
@@ -1149,6 +1211,32 @@ export function isRuntimeHint(item: unknown): item is RuntimeHint {
     return reflection.isInstance(item, RuntimeHint);
 }
 
+export interface ScenarioDefBody extends langium.AstNode {
+    readonly $container: ScenarioDefinition;
+    readonly $type: 'ScenarioDefBody';
+    ai: GenericName;
+    user: string;
+}
+
+export const ScenarioDefBody = 'ScenarioDefBody';
+
+export function isScenarioDefBody(item: unknown): item is ScenarioDefBody {
+    return reflection.isInstance(item, ScenarioDefBody);
+}
+
+export interface ScenarioDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'ScenarioDefinition';
+    body?: ScenarioDefBody;
+    name: GenericName;
+}
+
+export const ScenarioDefinition = 'ScenarioDefinition';
+
+export function isScenarioDefinition(item: unknown): item is ScenarioDefinition {
+    return reflection.isInstance(item, ScenarioDefinition);
+}
+
 export interface SelectIntoEntry extends langium.AstNode {
     readonly $container: SelectIntoSpec;
     readonly $type: 'SelectIntoEntry';
@@ -1300,6 +1388,8 @@ export type AgentlangAstType = {
     DecisionDefinition: DecisionDefinition
     Definition: Definition
     Delete: Delete
+    DirectiveDefBody: DirectiveDefBody
+    DirectiveDefinition: DirectiveDefinition
     Else: Else
     EntityActionsDefinitions: EntityActionsDefinitions
     EntityDefinition: EntityDefinition
@@ -1315,6 +1405,8 @@ export type AgentlangAstType = {
     FullTextSearch: FullTextSearch
     GenericDefBody: GenericDefBody
     GenericPropertyDef: GenericPropertyDef
+    GlossaryEntryDefBody: GlossaryEntryDefBody
+    GlossaryEntryDefinition: GlossaryEntryDefinition
     Group: Group
     Handler: Handler
     If: If
@@ -1356,6 +1448,8 @@ export type AgentlangAstType = {
     ResolverMethodSpec: ResolverMethodSpec
     Return: Return
     RuntimeHint: RuntimeHint
+    ScenarioDefBody: ScenarioDefBody
+    ScenarioDefinition: ScenarioDefinition
     SchemaDefinition: SchemaDefinition
     SelectIntoEntry: SelectIntoEntry
     SelectIntoSpec: SelectIntoSpec
@@ -1372,16 +1466,19 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefBody, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefBody, GlossaryEntryDefinition, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, ScenarioDefBody, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
         switch (subtype) {
             case AgentDefinition:
             case DecisionDefinition:
+            case DirectiveDefinition:
             case FlowDefinition:
+            case GlossaryEntryDefinition:
             case RelationshipDefinition:
             case ResolverDefinition:
+            case ScenarioDefinition:
             case SchemaDefinition:
             case StandaloneStatement:
             case WorkflowDefinition: {
@@ -1588,6 +1685,24 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case DirectiveDefBody: {
+                return {
+                    name: DirectiveDefBody,
+                    properties: [
+                        { name: 'cond' },
+                        { name: 'then' }
+                    ]
+                };
+            }
+            case DirectiveDefinition: {
+                return {
+                    name: DirectiveDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'name' }
+                    ]
+                };
+            }
             case Else: {
                 return {
                     name: Else,
@@ -1710,6 +1825,25 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'name' },
                         { name: 'value' }
+                    ]
+                };
+            }
+            case GlossaryEntryDefBody: {
+                return {
+                    name: GlossaryEntryDefBody,
+                    properties: [
+                        { name: 'meaning' },
+                        { name: 'name' },
+                        { name: 'synonyms' }
+                    ]
+                };
+            }
+            case GlossaryEntryDefinition: {
+                return {
+                    name: GlossaryEntryDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'name' }
                     ]
                 };
             }
@@ -2079,6 +2213,24 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'aliasSpec' },
                         { name: 'catchSpec' },
                         { name: 'thenSpec' }
+                    ]
+                };
+            }
+            case ScenarioDefBody: {
+                return {
+                    name: ScenarioDefBody,
+                    properties: [
+                        { name: 'ai' },
+                        { name: 'user' }
+                    ]
+                };
+            }
+            case ScenarioDefinition: {
+                return {
+                    name: ScenarioDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'name' }
                     ]
                 };
             }

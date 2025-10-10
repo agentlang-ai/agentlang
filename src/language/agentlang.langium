@@ -5,7 +5,8 @@ entry ModuleDefinition: 'module' name=QualifiedName (imports+=Import)* (defs+=De
 Import: 'import' path=STRING '@as' name=ID;
 
 Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
-| AgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition;
+| AgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition | ScenarioDefinition 
+| DirectiveDefinition | GlossaryEntryDefinition;
 
 StandaloneStatement: stmt=Statement;
 
@@ -149,6 +150,18 @@ DecisionDefinition: 'decision' name=GenericName (body=DecisionDefBody? | '{''}')
 DecisionDefBody: '{' (cases+=CaseEntry (cases+=CaseEntry)*)+ '}';
 
 CaseEntry: 'case' '(' cond=Expr ')' Body;
+
+ScenarioDefinition: 'scenario' name=GenericName (body=ScenarioDefBody? | '{''}');
+
+ScenarioDefBody: '{' 'user' user=STRING ','  'ai' ai=GenericName '}';
+
+DirectiveDefinition: 'directive' name=GenericName (body=DirectiveDefBody? | '{''}');
+
+DirectiveDefBody: '{' 'if' cond=STRING ','  'then' then=STRING '}';
+
+GlossaryEntryDefinition: 'glossary' name=GenericName (body=GlossaryEntryDefBody? | '{''}');
+
+GlossaryEntryDefBody: '{' 'name' name=STRING ','  'meaning' meaning=STRING ',' 'synonyms' synonyms=STRING '}';
 
 ResolverDefinition: 'resolver' name=GenericName '[' (paths+=GenericName (',' paths+=GenericName)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
