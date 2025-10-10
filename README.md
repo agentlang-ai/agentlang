@@ -23,7 +23,7 @@ Agentic Reliability Modeling - Build AI Agents that actually work!
 
 ## tl;dr
 
-AgentLang is a declarative programming language (built on JS/TS) with innovative constructs to help you build **reliable** agents and agentic apps that just work. Build application in 100s of lines of code, instead of 10k+ lines of code.
+AgentLang is a declarative programming language (built on JS/TS) with innovative constructs to help you build **reliable** agents and agentic apps that just work. Build agentic apps in 10s to 100s of lines of code, instead of thousands lines of code.
 
 ## AgentLang
 
