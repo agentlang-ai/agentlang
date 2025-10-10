@@ -127,21 +127,20 @@ agent salaryHikeAgent {
     tools acme/employee,
     directives [{"if": "employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
                 {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
-    scenarios  [{"user": "Jake hit a jackpot!", "ai": "acme/scenario01"}]
 }
 
-scenario salaryHikeAgent.jackpot {
-    user "Jake hit a jackpot!"
+scenario salaryHikeAgent.outperform {
+    user "Jake's sale exceeded 5000"
 }
 
-workflow salaryHikeAgent.jackpot {
-  {acme/employee {name? "Jake"}} @as [employee];
+workflow salaryHikeAgent.outperform {
+  {acme/employee {email? "jake@acme.com"}} @as [employee];
   {acme/employee {id? employee.id,
                   salary employee.salary + employee.salary * 0.5}}
 }
 ```
 
-Here, the provided scenario helps the agent to take a well-specified action in the case an employee is said to have hit a "jackpot".
+Here, the provided scenario helps the agent to take a well-specified action in the case an employee is said to have "outperformed".
 
 ### Glossary
 
