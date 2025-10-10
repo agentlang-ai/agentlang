@@ -33,6 +33,12 @@ import {
   isDecisionDefinition,
   DecisionDefinition,
   CaseEntry,
+  isScenarioDefinition,
+  ScenarioDefinition,
+  DirectiveDefinition,
+  GlossaryEntryDefinition,
+  isDirectiveDefinition,
+  isGlossaryEntryDefinition,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -55,6 +61,7 @@ import {
   fetchModule,
 } from './module.js';
 import {
+  asStringLiteralsMap,
   escapeSpecialChars,
   findRbacSchema,
   isFqName,
@@ -62,6 +69,7 @@ import {
   makeFqName,
   maybeExtends,
   registerInitFunction,
+  rootRef,
 } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
@@ -89,6 +97,9 @@ import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
 import z from 'zod';
 import { registerAgentFlow, registerFlow } from './agents/flows.js';
 import {
+  addAgentDirective,
+  addAgentGlossaryEntry,
+  addAgentScenario,
   AgentCondition,
   AgentGlossaryEntry,
   AgentScenario,
@@ -774,6 +785,54 @@ function addDecisionDefinition(def: DecisionDefinition, moduleName: string) {
   }
 }
 
+function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
+  if (def.body) {
+    let n = rootRef(def.name);
+    if (!isFqName(n)) {
+      n = makeFqName(moduleName, n);
+    }
+    const m = asStringLiteralsMap(def.body);
+    const user = m.get('user');
+    const ai = m.get('ai');
+    if (user && ai) addAgentScenario(n, { user: user, ai: ai });
+    else throw new Error(`scenario ${def.name} requires both user and ai entries`);
+  }
+}
+
+function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
+  if (def.body) {
+    let n = rootRef(def.name);
+    if (!isFqName(n)) {
+      n = makeFqName(moduleName, n);
+    }
+    const m = asStringLiteralsMap(def.body);
+    const cond = m.get('if');
+    const then = m.get('then');
+    if (cond && then) addAgentDirective(n, { cond: cond, then: then });
+    else throw new Error(`directive ${def.name} requires both if and then entries`);
+  }
+}
+
+function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: string) {
+  if (def.body) {
+    let n = rootRef(def.name);
+    if (!isFqName(n)) {
+      n = makeFqName(moduleName, n);
+    }
+    const m = asStringLiteralsMap(def.body);
+    const name = m.get('name');
+    const meaning = m.get('meaning');
+    const syn = m.get('synonyms');
+    if (name && meaning)
+      addAgentGlossaryEntry(n, {
+        name: name,
+        meaning: meaning,
+        synonyms: syn,
+      });
+    else throw new Error(`glossaryEntry ${def.name} requires both name and meaning keys`);
+  }
+}
+
 function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
   const resolverName = `${moduleName}/${def.name}`;
   const paths = def.paths;
@@ -834,6 +893,9 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);
   else if (isFlowDefinition(def)) addFlowDefinition(def, moduleName);
   else if (isDecisionDefinition(def)) addDecisionDefinition(def, moduleName);
+  else if (isScenarioDefinition(def)) addScenarioDefintion(def, moduleName);
+  else if (isDirectiveDefinition(def)) addDirectiveDefintion(def, moduleName);
+  else if (isGlossaryEntryDefinition(def)) addGlossaryEntryDefintion(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {

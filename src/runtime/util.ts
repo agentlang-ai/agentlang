@@ -3,6 +3,9 @@ import {
   AliasSpec,
   CatchSpec,
   ExtendsClause,
+  isLiteral,
+  MapEntry,
+  MapLiteral,
   MetaDefinition,
   PrePostTriggerDefinition,
   RbacSpecDefinition,
@@ -159,6 +162,10 @@ export function splitRefs(s: string): string[] {
   } else {
     return [s];
   }
+}
+
+export function rootRef(s: string): string {
+  return splitRefs(s)[0];
 }
 
 export function runShellCommand(cmd: string, options?: any, continuation?: Function) {
@@ -534,4 +541,16 @@ export function trimQuotes(s: string): string {
     return ss.substring(0, ss.length - 1);
   }
   return ss;
+}
+
+export function asStringLiteralsMap(mapLit: MapLiteral): Map<string, string> {
+  const result = new Map<string, string>();
+  mapLit.entries.forEach((me: MapEntry) => {
+    const k = me.key.str;
+    if (k && isLiteral(me.value)) {
+      const v = me.value.str || me.value.id || me.value.ref;
+      if (v) result.set(k, v);
+    }
+  });
+  return result;
 }

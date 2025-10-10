@@ -33,8 +33,6 @@ Coming soon! Fractl Studio is a no-code environment for building and operating A
 
 ## Agentic Reliability Modeling
 
-
-
 Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking. AgentLang offers a robust set of tools to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
 
 <table>
@@ -246,22 +244,38 @@ To get started with Agentlang Ontology, please see the [quick start](link-to-doc
 
 ## Build Agentlang from Source
 
-```shell
-# Install dependencies with pnpm (recommended over npm - 90% faster)
-# Get pnpm: https://pnpm.io/installation
-pnpm install
+### Installation
 
-# Or use npm
+#### ⚡ Use npm or pnpm
+
+```shell
 npm install
 
-# Build
-npm run build
+OR
 
-# Run test
-npm test
+# Install pnpm: https://pnpm.io/installation
+# Use pnpm
+pnpm install
+```
+**Note**: If pnpm shows build script warnings, run `pnpm approve-builds` and approve esbuild and sqlite3.
+
+### Build
+
+```shell
+# Generate parser and build
+npm run langium:generate
+npm run build
 ```
 
-> **Note**: If pnpm shows build script warnings, run `pnpm approve-builds` and approve esbuild and sqlite3.
+### Test
+
+```shell
+# Run all tests
+npm test
+
+# Run tests with verbose output
+npm run test:verbose
+```
 
 ## Run an Agentlang Script or Application
 
@@ -275,9 +289,25 @@ node ./bin/cli.js run example/blog
 
 ## Development
 
+### Code Quality
+
 ```shell
-# Linting and formatting
+# Lint code
 npm run lint
-npm run lint -- --fix
+
+# Lint and auto-fix issues
+npm run lint:fix
+
+# Format code
 npm run format
+
+# Check formatting without changes
+npm run format:check
+```
+
+### Watch Mode
+
+```shell
+# Watch for changes and rebuild
+npm run watch
 ```

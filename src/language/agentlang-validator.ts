@@ -32,13 +32,24 @@ export class AgentlangValidator {
     const reported = new Set();
     module.defs.forEach(d => {
       if (!isStandaloneStatement(d)) {
-        if (d.$type != 'WorkflowDefinition' && reported.has(d.name)) {
+        if (
+          d.$type != 'WorkflowDefinition' &&
+          d.$type != 'ScenarioDefinition' &&
+          d.$type != 'DirectiveDefinition' &&
+          d.$type != 'GlossaryEntryDefinition' &&
+          reported.has(d.name)
+        ) {
           accept('error', `Definition has non-unique name '${d.name}'.`, {
             node: d,
             property: 'name',
           });
         }
-        if (d.$type != 'FlowDefinition') {
+        if (
+          d.$type != 'FlowDefinition' &&
+          d.$type != 'ScenarioDefinition' &&
+          d.$type != 'DirectiveDefinition' &&
+          d.$type != 'GlossaryEntryDefinition'
+        ) {
           reported.add(d.name);
         }
       }

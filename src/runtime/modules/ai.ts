@@ -238,7 +238,8 @@ export class AgentInstance {
 
   private getFullInstructions(env: Environment): string {
     const fqName = this.getFqName();
-    let finalInstruction = `${this.instruction || ''} ${this.directivesAsString(fqName)}`;
+    const ins = this.role ? `${this.role}\n${this.instruction || ''}` : this.instruction || '';
+    let finalInstruction = `${ins} ${this.directivesAsString(fqName)}`;
     const gls = getAgentGlossary(fqName);
     if (gls) {
       const glss = new Array<string>();
@@ -254,8 +255,12 @@ export class AgentInstance {
     if (scenarios) {
       const scs = new Array<string>();
       scenarios.forEach((sc: AgentScenario) => {
-        const aiResp = processScenarioResponse(sc.ai);
-        scs.push(`User: ${sc.user}\nAI: ${aiResp}\n`);
+        try {
+          const aiResp = processScenarioResponse(sc.ai);
+          scs.push(`User: ${sc.user}\nAI: ${aiResp}\n`);
+        } catch (error: any) {
+          logger.error(`Unable to process scenario ${fqName}: ${error.message}`);
+        }
       });
       finalInstruction = `${finalInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
     }

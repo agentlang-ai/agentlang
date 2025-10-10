@@ -65,10 +65,12 @@ export type AgentlangKeywordNames =
     | "await"
     | "between"
     | "case"
+    | "commitTransaction"
     | "contains"
     | "create"
     | "decision"
     | "delete"
+    | "directive"
     | "else"
     | "entity"
     | "error"
@@ -77,6 +79,7 @@ export type AgentlangKeywordNames =
     | "false"
     | "flow"
     | "for"
+    | "glossaryEntry"
     | "if"
     | "import"
     | "in"
@@ -94,6 +97,9 @@ export type AgentlangKeywordNames =
     | "resolver"
     | "return"
     | "roles"
+    | "rollbackTransaction"
+    | "scenario"
+    | "startTransaction"
     | "subscribe"
     | "true"
     | "update"
@@ -125,7 +131,7 @@ export function isDecimal(item: unknown): item is Decimal {
     return typeof item === 'number';
 }
 
-export type Definition = AgentDefinition | DecisionDefinition | FlowDefinition | RelationshipDefinition | ResolverDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
+export type Definition = AgentDefinition | DecisionDefinition | DirectiveDefinition | FlowDefinition | GlossaryEntryDefinition | RelationshipDefinition | ResolverDefinition | ScenarioDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = 'Definition';
 
@@ -437,6 +443,19 @@ export function isDelete(item: unknown): item is Delete {
     return reflection.isInstance(item, Delete);
 }
 
+export interface DirectiveDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'DirectiveDefinition';
+    body?: MapLiteral;
+    name: Ref;
+}
+
+export const DirectiveDefinition = 'DirectiveDefinition';
+
+export function isDirectiveDefinition(item: unknown): item is DirectiveDefinition {
+    return reflection.isInstance(item, DirectiveDefinition);
+}
+
 export interface Else extends langium.AstNode {
     readonly $container: If;
     readonly $type: 'Else';
@@ -618,6 +637,19 @@ export function isGenericPropertyDef(item: unknown): item is GenericPropertyDef 
     return reflection.isInstance(item, GenericPropertyDef);
 }
 
+export interface GlossaryEntryDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'GlossaryEntryDefinition';
+    body?: MapLiteral;
+    name: Ref;
+}
+
+export const GlossaryEntryDefinition = 'GlossaryEntryDefinition';
+
+export function isGlossaryEntryDefinition(item: unknown): item is GlossaryEntryDefinition {
+    return reflection.isInstance(item, GlossaryEntryDefinition);
+}
+
 export interface Group extends langium.AstNode {
     readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'Group';
@@ -743,7 +775,7 @@ export function isMapKey(item: unknown): item is MapKey {
 }
 
 export interface MapLiteral extends langium.AstNode {
-    readonly $container: FullTextSearch | Literal | MetaDefinition;
+    readonly $container: DirectiveDefinition | FullTextSearch | GlossaryEntryDefinition | Literal | MetaDefinition | ScenarioDefinition;
     readonly $type: 'MapLiteral';
     entries: Array<MapEntry>;
 }
@@ -1098,7 +1130,7 @@ export function isResolverFnName(item: unknown): item is ResolverFnName {
 export interface ResolverMethodName extends langium.AstNode {
     readonly $container: ResolverMethodSpec;
     readonly $type: 'ResolverMethodName';
-    name: 'create' | 'delete' | 'onSubscription' | 'query' | 'subscribe' | 'update' | 'upsert';
+    name: 'commitTransaction' | 'create' | 'delete' | 'onSubscription' | 'query' | 'rollbackTransaction' | 'startTransaction' | 'subscribe' | 'update' | 'upsert';
 }
 
 export const ResolverMethodName = 'ResolverMethodName';
@@ -1144,6 +1176,19 @@ export const RuntimeHint = 'RuntimeHint';
 
 export function isRuntimeHint(item: unknown): item is RuntimeHint {
     return reflection.isInstance(item, RuntimeHint);
+}
+
+export interface ScenarioDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'ScenarioDefinition';
+    body?: MapLiteral;
+    name: Ref;
+}
+
+export const ScenarioDefinition = 'ScenarioDefinition';
+
+export function isScenarioDefinition(item: unknown): item is ScenarioDefinition {
+    return reflection.isInstance(item, ScenarioDefinition);
 }
 
 export interface SelectIntoEntry extends langium.AstNode {
@@ -1297,6 +1342,7 @@ export type AgentlangAstType = {
     DecisionDefinition: DecisionDefinition
     Definition: Definition
     Delete: Delete
+    DirectiveDefinition: DirectiveDefinition
     Else: Else
     EntityActionsDefinitions: EntityActionsDefinitions
     EntityDefinition: EntityDefinition
@@ -1312,6 +1358,7 @@ export type AgentlangAstType = {
     FullTextSearch: FullTextSearch
     GenericDefBody: GenericDefBody
     GenericPropertyDef: GenericPropertyDef
+    GlossaryEntryDefinition: GlossaryEntryDefinition
     Group: Group
     Handler: Handler
     If: If
@@ -1353,6 +1400,7 @@ export type AgentlangAstType = {
     ResolverMethodSpec: ResolverMethodSpec
     Return: Return
     RuntimeHint: RuntimeHint
+    ScenarioDefinition: ScenarioDefinition
     SchemaDefinition: SchemaDefinition
     SelectIntoEntry: SelectIntoEntry
     SelectIntoSpec: SelectIntoSpec
@@ -1369,16 +1417,19 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
         switch (subtype) {
             case AgentDefinition:
             case DecisionDefinition:
+            case DirectiveDefinition:
             case FlowDefinition:
+            case GlossaryEntryDefinition:
             case RelationshipDefinition:
             case ResolverDefinition:
+            case ScenarioDefinition:
             case SchemaDefinition:
             case StandaloneStatement:
             case WorkflowDefinition: {
@@ -1585,6 +1636,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case DirectiveDefinition: {
+                return {
+                    name: DirectiveDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'name' }
+                    ]
+                };
+            }
             case Else: {
                 return {
                     name: Else,
@@ -1707,6 +1767,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'name' },
                         { name: 'value' }
+                    ]
+                };
+            }
+            case GlossaryEntryDefinition: {
+                return {
+                    name: GlossaryEntryDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'name' }
                     ]
                 };
             }
@@ -2076,6 +2145,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'aliasSpec' },
                         { name: 'catchSpec' },
                         { name: 'thenSpec' }
+                    ]
+                };
+            }
+            case ScenarioDefinition: {
+                return {
+                    name: ScenarioDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'name' }
                     ]
                 };
             }

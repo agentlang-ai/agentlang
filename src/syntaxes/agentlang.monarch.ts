@@ -1,7 +1,7 @@
 // Monarch syntax highlighting for the agentlang language.
 export default {
     keywords: [
-        '@actions','@after','@as','@async','@before','@catch','@distinct','@enum','@expr','@from','@into','@meta','@oneof','@rbac','@ref','@then','@upsert','@with_unique','agent','allow','and','await','between','case','contains','create','decision','delete','else','entity','error','event','extends','false','flow','for','if','import','in','like','module','not','not_found','onSubscription','or','purge','query','read','record','relationship','resolver','return','roles','subscribe','true','update','upsert','where','workflow'
+        '@actions','@after','@as','@async','@before','@catch','@distinct','@enum','@expr','@from','@into','@meta','@oneof','@rbac','@ref','@then','@upsert','@with_unique','agent','allow','and','await','between','case','commitTransaction','contains','create','decision','delete','directive','else','entity','error','event','extends','false','flow','for','glossaryEntry','if','import','in','like','module','not','not_found','onSubscription','or','purge','query','read','record','relationship','resolver','return','roles','rollbackTransaction','scenario','startTransaction','subscribe','true','update','upsert','where','workflow'
     ],
     operators: [
         '!=','*','+',',','-','-->','.','/',':',';','<','<=','<>','=','==','>','>=','?','@'

@@ -5,7 +5,8 @@ entry ModuleDefinition: 'module' name=QualifiedName (imports+=Import)* (defs+=De
 Import: 'import' path=STRING '@as' name=ID;
 
 Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
-| AgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition;
+| AgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition | ScenarioDefinition 
+| DirectiveDefinition | GlossaryEntryDefinition;
 
 StandaloneStatement: stmt=Statement;
 
@@ -150,6 +151,12 @@ DecisionDefBody: '{' (cases+=CaseEntry (cases+=CaseEntry)*)+ '}';
 
 CaseEntry: 'case' '(' cond=Expr ')' Body;
 
+ScenarioDefinition: 'scenario' name=Ref (body=MapLiteral? | '{''}');
+
+DirectiveDefinition: 'directive' name=Ref (body=MapLiteral? | '{''}');
+
+GlossaryEntryDefinition: 'glossaryEntry' name=Ref (body=MapLiteral? | '{''}');
+
 ResolverDefinition: 'resolver' name=GenericName '[' (paths+=GenericName (',' paths+=GenericName)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
 
@@ -157,7 +164,7 @@ ResolverMethodSpec: key=ResolverMethodName fn=ResolverFnName;
 
 ResolverFnName: name=(ID | Ref | STRING);
 
-ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe' | 'onSubscription');
+ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe' | 'onSubscription' | 'startTransaction' | 'commitTransaction' | 'rollbackTransaction');
 
 RelationshipPattern: name=QualifiedName pattern=Pattern;
 
