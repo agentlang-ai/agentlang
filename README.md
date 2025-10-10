@@ -37,6 +37,8 @@ Build **teams of reliable AI Agents** that follow your organization's processes 
 
 > Coming soon! Fractl Studio is a no-code environment for building and operating AI Agents.
 
+The two key innovations in AgentLang are: [Agentic Reliability Modeling](#agentic-reliabillity-modeling) and [AgentLang Ontology](#agentlang-ontology)
+
 ## Agentic Reliability Modeling
 
 Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking. AgentLang offers a robust set of tools to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
