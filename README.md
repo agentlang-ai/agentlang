@@ -4,13 +4,13 @@
 
 ## Build AI Agents that actually work!
 
-|         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CI/CD   | [![AgentLang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml) [![Integration Tests](https://github.com/agentlang-ai/agentlang/actions/workflows/integration.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/integration.yml) [![Tests](https://img.shields.io/badge/tests-vitest-green)](https://vitest.dev/) [![Linting](https://img.shields.io/badge/linting-ESLint-4B32C3)](https://eslint.org/) [![Code Style](https://img.shields.io/badge/code%20style-prettier-ff69b4)](https://prettier.io/) |
-| Docs    | [![Documentation](https://img.shields.io/badge/docs-available-brightgreen)](https://github.com/agentlang-ai/agentlang#readme) [![Language Spec](https://img.shields.io/badge/language-spec-blue)](https://github.com/agentlang-ai/agentlang/blob/main/langium-quickstart.md) [![Examples](https://img.shields.io/badge/examples-available-yellow)](https://github.com/agentlang-ai/agentlang/tree/main/example)                                                                                                                                                                                                                        |
-| Package | [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![pnpm](https://img.shields.io/badge/pnpm-10.13.1-blue?logo=pnpm)](https://pnpm.io) [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)](https://www.typescriptlang.org/) [![Langium](https://img.shields.io/badge/Langium-DSL-orange)](https://langium.org/) [![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg)](LICENSE) [![npm version](https://badge.fury.io/js/agentlang.svg)](https://www.npmjs.com/package/agentlang) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang)                                                                                                                               |
-| Runtime | [![Runtime](https://img.shields.io/badge/runtime-Node.js-green?logo=node.js)](https://nodejs.org) [![Database Support](https://img.shields.io/badge/database-multiple-blueviolet)](https://github.com/agentlang-ai/agentlang#runtime-support) [![Vector DB](https://img.shields.io/badge/vector%20db-supported-purple)](https://github.com/agentlang-ai/agentlang#runtime-support) [![Auth](https://img.shields.io/badge/auth-Cognito-orange?logo=amazon-aws)](https://aws.amazon.com/cognito/)                                                                                                                                        |
-| Meta    | [![GitHub Stars](https://img.shields.io/github/stars/agentlang-ai/agentlang?style=social)](https://github.com/agentlang-ai/agentlang) [![GitHub Issues](https://img.shields.io/github/issues/agentlang-ai/agentlang)](https://github.com/agentlang-ai/agentlang/issues) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/agentlang-ai/agentlang/pulls) [![Contributors](https://img.shields.io/github/contributors/agentlang-ai/agentlang)](https://github.com/agentlang-ai/agentlang/graphs/contributors)                                                                                |
+|         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CI/CD   | [![AgentLang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml) [![Integration Tests](https://github.com/agentlang-ai/agentlang/actions/workflows/integration.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/integration.yml) [![Tests](https://img.shields.io/badge/tests-vitest-green)](https://vitest.dev/) [![Linting](https://img.shields.io/badge/linting-ESLint-4B32C3)](https://eslint.org/) [![Code Style](https://img.shields.io/badge/code%20style-prettier-ff69b4)](https://prettier.io/)                                                                              |
+| Docs    | [![Documentation](https://img.shields.io/badge/docs-available-brightgreen)](https://github.com/agentlang-ai/agentlang#readme) [![Language Spec](https://img.shields.io/badge/language-spec-blue)](https://github.com/agentlang-ai/agentlang/blob/main/langium-quickstart.md) [![Examples](https://img.shields.io/badge/examples-available-yellow)](https://github.com/agentlang-ai/agentlang/tree/main/example)                                                                                                                                                                                                                                                                                                     |
+| Package | [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![pnpm](https://img.shields.io/badge/pnpm-10.13.1-blue?logo=pnpm)](https://pnpm.io) [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)](https://www.typescriptlang.org/) [![Langium](https://img.shields.io/badge/Langium-DSL-orange)](https://langium.org/) [![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg)](LICENSE) [![npm version](https://img.shields.io/npm/v/agentlang.svg)](https://www.npmjs.com/package/agentlang) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang) |
+| Runtime | [![Runtime](https://img.shields.io/badge/runtime-Node.js-green?logo=node.js)](https://nodejs.org) [![Database Support](https://img.shields.io/badge/database-multiple-blueviolet)](https://github.com/agentlang-ai/agentlang#runtime-support) [![Vector DB](https://img.shields.io/badge/vector%20db-supported-purple)](https://github.com/agentlang-ai/agentlang#runtime-support) [![Auth](https://img.shields.io/badge/auth-Cognito-orange?logo=amazon-aws)](https://aws.amazon.com/cognito/)                                                                                                                                                                                                                     |
+| Meta    | [![GitHub Stars](https://img.shields.io/github/stars/agentlang-ai/agentlang?style=social)](https://github.com/agentlang-ai/agentlang) [![GitHub Issues](https://img.shields.io/github/issues/agentlang-ai/agentlang)](https://github.com/agentlang-ai/agentlang/issues) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/agentlang-ai/agentlang/pulls) [![Contributors](https://img.shields.io/github/contributors/agentlang-ai/agentlang)](https://github.com/agentlang-ai/agentlang/graphs/contributors)                                                                                                                                                             |
 
 </div>
 
@@ -47,23 +47,37 @@ AgentLang runs on Node.js for development and execution.
 
 ## Quick Start
 
-```shell
-# Install dependencies (recommended - 90% faster)
-# Get pnpm: https://pnpm.io/installation
-pnpm install
+### Installation
 
-# Or use npm
+#### ⚡ Use npm or pnpm
+
+```shell
 npm install
 
+OR
+
+# Install pnpm: https://pnpm.io/installation
+pnpm install
+```
+**Note**: If pnpm shows build script warnings, run `pnpm approve-builds` and approve esbuild and sqlite3.
+
+### Build
+
+```shell
 # Generate parser and build
 npm run langium:generate
 npm run build
-
-# Run test
-npm test
 ```
 
-> **Note**: If pnpm shows build script warnings, run `pnpm approve-builds` and approve esbuild and sqlite3.
+### Test
+
+```shell
+# Run all tests
+npm test
+
+# Run tests with verbose output
+npm run test:verbose
+```
 
 ## CLI Usage
 
@@ -77,9 +91,25 @@ node ./bin/cli.js run example/blog
 
 ## Development
 
+### Code Quality
+
 ```shell
-# Linting and formatting
+# Lint code
 npm run lint
-npm run lint -- --fix
+
+# Lint and auto-fix issues
+npm run lint:fix
+
+# Format code
 npm run format
+
+# Check formatting without changes
+npm run format:check
+```
+
+### Watch Mode
+
+```shell
+# Watch for changes and rebuild
+npm run watch
 ```
