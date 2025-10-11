@@ -36,11 +36,7 @@ import {
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
 import { Config } from '../runtime/state.js';
-import {
-  findFileByFilename,
-  createFileRecord,
-  deleteFileRecord,
-} from '../runtime/modules/files.js';
+import { findFileByFilename, createFileRecord } from '../runtime/modules/files.js';
 
 export function startServer(
   appSpec: ApplicationSpec,
@@ -107,14 +103,6 @@ export function startServer(
 
   app.get('/downloadFile/:filename', (req: Request, res: Response) => {
     handleFileDownload(req, res, uploadDir, config);
-  });
-
-  app.get('/listFiles', (req: Request, res: Response) => {
-    handleListFiles(req, res, uploadDir, config);
-  });
-
-  app.delete('/deleteFile/:filename', (req: Request, res: Response) => {
-    handleDeleteFile(req, res, uploadDir, config);
   });
 
   getAllEventNames().forEach((eventNames: string[], moduleName: string) => {
@@ -871,129 +859,5 @@ async function handleFileDownload(
     if (!res.headersSent) {
       res.status(500).send({ error: err.message || 'File download failed' });
     }
-  }
-}
-
-async function handleListFiles(
-  req: Request,
-  res: Response,
-  uploadDir: string,
-  config?: Config
-): Promise<void> {
-  try {
-    if (!config?.service?.httpFileHandling) {
-      res
-        .status(403)
-        .send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
-      return;
-    }
-
-    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
-    if (isNoSession(sessionInfo)) {
-      res.status(401).send('Authorization required');
-      return;
-    }
-
-    if (!fs.existsSync(uploadDir)) {
-      res.contentType('application/json');
-      res.send({ files: [], count: 0 });
-      return;
-    }
-
-    const files = fs.readdirSync(uploadDir);
-
-    const fileDetails = files
-      .map(filename => {
-        const filePath = path.join(uploadDir, filename);
-        const stats = fs.statSync(filePath);
-
-        if (stats.isFile()) {
-          return {
-            filename: filename,
-            size: stats.size,
-            createdAt: stats.birthtime.toISOString(),
-            modifiedAt: stats.mtime.toISOString(),
-            extension: path.extname(filename).toLowerCase(),
-          };
-        }
-        return null;
-      })
-      .filter(file => file !== null);
-
-    logger.info(`Listed ${fileDetails.length} files`);
-
-    res.contentType('application/json');
-    res.send({
-      files: fileDetails,
-      count: fileDetails.length,
-      uploadDir: uploadDir,
-    });
-  } catch (err: any) {
-    logger.error(`List files error: ${err}`);
-    res.status(500).send({ error: err.message || 'Failed to list files' });
-  }
-}
-
-async function handleDeleteFile(
-  req: Request,
-  res: Response,
-  uploadDir: string,
-  config?: Config
-): Promise<void> {
-  try {
-    if (!config?.service?.httpFileHandling) {
-      res
-        .status(403)
-        .send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
-      return;
-    }
-
-    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
-    if (isNoSession(sessionInfo)) {
-      res.status(401).send('Authorization required');
-      return;
-    }
-
-    const filename = req.params.filename;
-
-    if (!filename) {
-      res.status(400).send({ error: 'Filename is required' });
-      return;
-    }
-
-    const sanitizedFilename = path.basename(filename);
-    const filePath = path.join(uploadDir, sanitizedFilename);
-
-    if (!fs.existsSync(filePath)) {
-      res.status(404).send({ error: 'File not found' });
-      return;
-    }
-
-    const realPath = fs.realpathSync(filePath);
-    const realUploadDir = fs.realpathSync(uploadDir);
-    if (!realPath.startsWith(realUploadDir)) {
-      res.status(403).send({ error: 'Access denied' });
-      return;
-    }
-
-    try {
-      await deleteFileRecord(sanitizedFilename, sessionInfo);
-    } catch (dbErr: any) {
-      logger.error(`Failed to delete file record from database: ${dbErr.message}`);
-    }
-
-    fs.unlinkSync(filePath);
-
-    logger.info(`File deleted successfully: ${sanitizedFilename}`);
-
-    res.contentType('application/json');
-    res.send({
-      success: true,
-      message: 'File deleted successfully',
-      filename: sanitizedFilename,
-    });
-  } catch (err: any) {
-    logger.error(`File delete error: ${err}`);
-    res.status(500).send({ error: err.message || 'File deletion failed' });
   }
 }
