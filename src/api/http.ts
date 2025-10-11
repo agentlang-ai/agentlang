@@ -34,11 +34,20 @@ import {
   walkDownInstancePath,
 } from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
-import { Environment, evaluate } from '../runtime/interpreter.js';
+import { evaluate } from '../runtime/interpreter.js';
 import { Config } from '../runtime/state.js';
-import { createFileRecord, deleteFileRecord } from '../runtime/modules/files.js';
+import {
+  findFileByFilename,
+  createFileRecord,
+  deleteFileRecord,
+} from '../runtime/modules/files.js';
 
-export function startServer(appSpec: ApplicationSpec, port: number, host?: string, config?: Config) {
+export function startServer(
+  appSpec: ApplicationSpec,
+  port: number,
+  host?: string,
+  config?: Config
+) {
   const app = express();
   app.use(express.json());
 
@@ -67,18 +76,18 @@ export function startServer(appSpec: ApplicationSpec, port: number, host?: strin
       cb(null, uploadDir);
     },
     filename: (req: any, file: any, cb: any) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
       const ext = path.extname(file.originalname);
       const basename = path.basename(file.originalname, ext);
       cb(null, `${basename}-${uniqueSuffix}${ext}`);
-    }
+    },
   });
 
-  const upload = multer({ 
+  const upload = multer({
     storage: storage,
     limits: {
-      fileSize: 50 * 1024 * 1024 // 50MB limit
-    }
+      fileSize: 50 * 1024 * 1024, // 50MB limit
+    },
   });
 
   const appName: string = appSpec.name;
@@ -706,17 +715,23 @@ async function handleMetaGet(req: Request, res: Response): Promise<void> {
   }
 }
 
-async function handleFileUpload(req: Request & { file?: Express.Multer.File }, res: Response, config?: Config): Promise<void> {
+async function handleFileUpload(
+  req: Request & { file?: Express.Multer.File },
+  res: Response,
+  config?: Config
+): Promise<void> {
   try {
     if (!config?.service?.httpFileHandling) {
-      res.status(403).send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
+      res
+        .status(403)
+        .send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
       return;
     }
 
     const sessionInfo = await verifyAuth('', '', req.headers.authorization);
 
     if (isNoSession(sessionInfo)) {
-      res.status(401).send('Authorization required'); 
+      res.status(401).send('Authorization required');
       return;
     }
 
@@ -726,23 +741,23 @@ async function handleFileUpload(req: Request & { file?: Express.Multer.File }, r
     }
 
     const file = req.file;
-    
-    const env = new Environment('file-upload').setInKernelMode(true);
-    env.setActiveUser(sessionInfo.userId);
-    
+
     try {
-      await createFileRecord({
-        filename: file.filename,
-        originalName: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        path: file.path,
-        uploadedBy: sessionInfo.userId
-      }, env);
+      await createFileRecord(
+        {
+          filename: file.filename,
+          originalName: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          path: file.path,
+          uploadedBy: sessionInfo.userId,
+        },
+        sessionInfo
+      );
     } catch (dbErr: any) {
       logger.error(`Failed to create file record in database: ${dbErr.message}`);
     }
-    
+
     const fileInfo = {
       success: true,
       filename: file.filename,
@@ -751,11 +766,11 @@ async function handleFileUpload(req: Request & { file?: Express.Multer.File }, r
       size: file.size,
       path: file.path,
       uploadedAt: new Date().toISOString(),
-      uploadedBy: sessionInfo.userId
+      uploadedBy: sessionInfo.userId,
     };
 
     logger.info(`File uploaded successfully: ${file.originalname} -> ${file.filename}`);
-    
+
     res.contentType('application/json');
     res.send(fileInfo);
   } catch (err: any) {
@@ -764,10 +779,17 @@ async function handleFileUpload(req: Request & { file?: Express.Multer.File }, r
   }
 }
 
-async function handleFileDownload(req: Request, res: Response, uploadDir: string, config?: Config): Promise<void> {
+async function handleFileDownload(
+  req: Request,
+  res: Response,
+  uploadDir: string,
+  config?: Config
+): Promise<void> {
   try {
     if (!config?.service?.httpFileHandling) {
-      res.status(403).send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
+      res
+        .status(403)
+        .send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
       return;
     }
 
@@ -778,9 +800,16 @@ async function handleFileDownload(req: Request, res: Response, uploadDir: string
     }
 
     const filename = req.params.filename;
-    
+
     if (!filename) {
       res.status(400).send({ error: 'Filename is required' });
+      return;
+    }
+
+    const file = await findFileByFilename(filename, sessionInfo);
+
+    if (!file) {
+      res.status(404).send({ error: 'File not found' });
       return;
     }
 
@@ -845,10 +874,17 @@ async function handleFileDownload(req: Request, res: Response, uploadDir: string
   }
 }
 
-async function handleListFiles(req: Request, res: Response, uploadDir: string, config?: Config): Promise<void> {
+async function handleListFiles(
+  req: Request,
+  res: Response,
+  uploadDir: string,
+  config?: Config
+): Promise<void> {
   try {
     if (!config?.service?.httpFileHandling) {
-      res.status(403).send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
+      res
+        .status(403)
+        .send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
       return;
     }
 
@@ -865,22 +901,24 @@ async function handleListFiles(req: Request, res: Response, uploadDir: string, c
     }
 
     const files = fs.readdirSync(uploadDir);
-    
-    const fileDetails = files.map(filename => {
-      const filePath = path.join(uploadDir, filename);
-      const stats = fs.statSync(filePath);
-      
-      if (stats.isFile()) {
-        return {
-          filename: filename,
-          size: stats.size,
-          createdAt: stats.birthtime.toISOString(),
-          modifiedAt: stats.mtime.toISOString(),
-          extension: path.extname(filename).toLowerCase()
-        };
-      }
-      return null;
-    }).filter(file => file !== null);
+
+    const fileDetails = files
+      .map(filename => {
+        const filePath = path.join(uploadDir, filename);
+        const stats = fs.statSync(filePath);
+
+        if (stats.isFile()) {
+          return {
+            filename: filename,
+            size: stats.size,
+            createdAt: stats.birthtime.toISOString(),
+            modifiedAt: stats.mtime.toISOString(),
+            extension: path.extname(filename).toLowerCase(),
+          };
+        }
+        return null;
+      })
+      .filter(file => file !== null);
 
     logger.info(`Listed ${fileDetails.length} files`);
 
@@ -888,7 +926,7 @@ async function handleListFiles(req: Request, res: Response, uploadDir: string, c
     res.send({
       files: fileDetails,
       count: fileDetails.length,
-      uploadDir: uploadDir
+      uploadDir: uploadDir,
     });
   } catch (err: any) {
     logger.error(`List files error: ${err}`);
@@ -896,10 +934,17 @@ async function handleListFiles(req: Request, res: Response, uploadDir: string, c
   }
 }
 
-async function handleDeleteFile(req: Request, res: Response, uploadDir: string, config?: Config): Promise<void> {
+async function handleDeleteFile(
+  req: Request,
+  res: Response,
+  uploadDir: string,
+  config?: Config
+): Promise<void> {
   try {
     if (!config?.service?.httpFileHandling) {
-      res.status(403).send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
+      res
+        .status(403)
+        .send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
       return;
     }
 
@@ -910,7 +955,7 @@ async function handleDeleteFile(req: Request, res: Response, uploadDir: string, 
     }
 
     const filename = req.params.filename;
-    
+
     if (!filename) {
       res.status(400).send({ error: 'Filename is required' });
       return;
@@ -931,11 +976,8 @@ async function handleDeleteFile(req: Request, res: Response, uploadDir: string, 
       return;
     }
 
-    const env = new Environment('file-delete').setInKernelMode(true);
-    env.setActiveUser(sessionInfo.userId);
-    
     try {
-      await deleteFileRecord(sanitizedFilename, env);
+      await deleteFileRecord(sanitizedFilename, sessionInfo);
     } catch (dbErr: any) {
       logger.error(`Failed to delete file record from database: ${dbErr.message}`);
     }
@@ -943,12 +985,12 @@ async function handleDeleteFile(req: Request, res: Response, uploadDir: string, 
     fs.unlinkSync(filePath);
 
     logger.info(`File deleted successfully: ${sanitizedFilename}`);
-    
+
     res.contentType('application/json');
     res.send({
       success: true,
       message: 'File deleted successfully',
-      filename: sanitizedFilename
+      filename: sanitizedFilename,
     });
   } catch (err: any) {
     logger.error(`File delete error: ${err}`);

@@ -1,6 +1,8 @@
-import { Result, Environment, makeEventEvaluator } from '../interpreter.js';
+import { Result, Environment, evaluate } from '../interpreter.js';
 import { makeCoreModuleName } from '../util.js';
+import { Instance, makeInstance, objectAsInstanceAttributes } from '../module.js';
 import crypto from 'crypto';
+import { ActiveSessionInfo } from '../auth/defs.js';
 
 export const CoreFilesModuleName = makeCoreModuleName('files');
 
@@ -64,8 +66,6 @@ workflow UpdateFile {
 }
 `;
 
-const evalEvent = makeEventEvaluator(CoreFilesModuleName);
-
 export async function createFileRecord(
   fileInfo: {
     filename: string;
@@ -75,11 +75,14 @@ export async function createFileRecord(
     path: string;
     uploadedBy?: string;
   },
-  env: Environment
+  sessionInfo: ActiveSessionInfo,
+  callback?: (result: Result) => void,
+  env?: Environment
 ): Promise<Result> {
-  return await evalEvent(
+  const inst: Instance = makeInstance(
+    CoreFilesModuleName,
     'CreateFile',
-    {
+    objectAsInstanceAttributes({
       id: crypto.randomUUID(),
       filename: fileInfo.filename,
       originalName: fileInfo.originalName,
@@ -88,51 +91,74 @@ export async function createFileRecord(
       path: fileInfo.path,
       uploadedBy: fileInfo.uploadedBy || '',
       uploadedAt: new Date().toISOString(),
-    },
-    env
-  );
+    })
+  ).setAuthContext(sessionInfo);
+
+  return await evaluate(inst, callback, env);
 }
 
 export async function findFileByFilename(
   filename: string,
-  env: Environment
+  sessionInfo: ActiveSessionInfo,
+  callback?: (result: Result) => void,
+  env?: Environment
 ): Promise<Result> {
-  return await evalEvent(
+  console.log('findFileByFilename, filename', filename);
+  const inst: Instance = makeInstance(
+    CoreFilesModuleName,
     'FindFileByFilename',
-    {
+    objectAsInstanceAttributes({
       filename: filename,
-    },
-    env
-  );
+    })
+  ).setAuthContext(sessionInfo);
+
+  return await evaluate(inst, callback, env);
 }
 
 export async function deleteFileRecord(
   filename: string,
-  env: Environment
+  sessionInfo: ActiveSessionInfo,
+  callback?: (result: Result) => void,
+  env?: Environment
 ): Promise<Result> {
-  return await evalEvent(
+  const inst: Instance = makeInstance(
+    CoreFilesModuleName,
     'DeleteFileByFilename',
-    {
+    objectAsInstanceAttributes({
       filename: filename,
-    },
-    env
-  );
+    })
+  ).setAuthContext(sessionInfo);
+
+  return await evaluate(inst, callback, env);
 }
 
-export async function listAllFiles(env: Environment): Promise<Result> {
-  return await evalEvent('ListFiles', {}, env);
+export async function listAllFiles(
+  sessionInfo: ActiveSessionInfo,
+  callback?: (result: Result) => void,
+  env?: Environment
+): Promise<Result> {
+  const inst: Instance = makeInstance(
+    CoreFilesModuleName,
+    'ListFiles',
+    objectAsInstanceAttributes({})
+  ).setAuthContext(sessionInfo);
+
+  return await evaluate(inst, callback, env);
 }
 
 export async function listUserFiles(
   userId: string,
-  env: Environment
+  sessionInfo: ActiveSessionInfo,
+  callback?: (result: Result) => void,
+  env?: Environment
 ): Promise<Result> {
-  return await evalEvent(
+  const inst: Instance = makeInstance(
+    CoreFilesModuleName,
     'ListUserFiles',
-    {
+    objectAsInstanceAttributes({
       userId: userId,
-    },
-    env
-  );
-}
+    })
+  ).setAuthContext(sessionInfo);
 
+  return await evaluate(inst, callback, env);
+}
