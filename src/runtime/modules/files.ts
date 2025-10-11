@@ -75,11 +75,11 @@ export async function createFileRecord(
     path: string;
     uploadedBy?: string;
   },
-  sessionInfo: ActiveSessionInfo,
+  sessionInfo?: ActiveSessionInfo,
   callback?: (result: Result) => void,
   env?: Environment
 ): Promise<Result> {
-  const inst: Instance = makeInstance(
+  let inst: Instance = makeInstance(
     CoreFilesModuleName,
     'CreateFile',
     objectAsInstanceAttributes({
@@ -92,73 +92,93 @@ export async function createFileRecord(
       uploadedBy: fileInfo.uploadedBy || '',
       uploadedAt: new Date().toISOString(),
     })
-  ).setAuthContext(sessionInfo);
+  );
+
+  if (sessionInfo) {
+    inst = inst.setAuthContext(sessionInfo);
+  }
 
   return await evaluate(inst, callback, env);
 }
 
 export async function findFileByFilename(
   filename: string,
-  sessionInfo: ActiveSessionInfo,
+  sessionInfo?: ActiveSessionInfo,
   callback?: (result: Result) => void,
   env?: Environment
 ): Promise<Result> {
   console.log('findFileByFilename, filename', filename);
-  const inst: Instance = makeInstance(
+  let inst: Instance = makeInstance(
     CoreFilesModuleName,
     'FindFileByFilename',
     objectAsInstanceAttributes({
       filename: filename,
     })
-  ).setAuthContext(sessionInfo);
+  );
+
+  if (sessionInfo) {
+    inst = inst.setAuthContext(sessionInfo);
+  }
 
   return await evaluate(inst, callback, env);
 }
 
 export async function deleteFileRecord(
   filename: string,
-  sessionInfo: ActiveSessionInfo,
+  sessionInfo?: ActiveSessionInfo,
   callback?: (result: Result) => void,
   env?: Environment
 ): Promise<Result> {
-  const inst: Instance = makeInstance(
+  let inst: Instance = makeInstance(
     CoreFilesModuleName,
     'DeleteFileByFilename',
     objectAsInstanceAttributes({
       filename: filename,
     })
-  ).setAuthContext(sessionInfo);
+  );
+
+  if (sessionInfo) {
+    inst = inst.setAuthContext(sessionInfo);
+  }
 
   return await evaluate(inst, callback, env);
 }
 
 export async function listAllFiles(
-  sessionInfo: ActiveSessionInfo,
+  sessionInfo?: ActiveSessionInfo,
   callback?: (result: Result) => void,
   env?: Environment
 ): Promise<Result> {
-  const inst: Instance = makeInstance(
+  let inst: Instance = makeInstance(
     CoreFilesModuleName,
     'ListFiles',
     objectAsInstanceAttributes({})
-  ).setAuthContext(sessionInfo);
+  );
+
+  if (sessionInfo) {
+    inst = inst.setAuthContext(sessionInfo);
+  }
 
   return await evaluate(inst, callback, env);
 }
 
 export async function listUserFiles(
   userId: string,
-  sessionInfo: ActiveSessionInfo,
+  sessionInfo?: ActiveSessionInfo,
   callback?: (result: Result) => void,
   env?: Environment
 ): Promise<Result> {
-  const inst: Instance = makeInstance(
+  let inst: Instance = makeInstance(
     CoreFilesModuleName,
     'ListUserFiles',
     objectAsInstanceAttributes({
       userId: userId,
     })
-  ).setAuthContext(sessionInfo);
+  );
+
+  if (sessionInfo) {
+    inst = inst.setAuthContext(sessionInfo);
+  }
 
   return await evaluate(inst, callback, env);
 }
