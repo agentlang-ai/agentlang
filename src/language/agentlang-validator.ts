@@ -31,12 +31,12 @@ export class AgentlangValidator {
     // and report an error when we see one we've already seen
     const reported = new Set();
     module.defs.forEach(d => {
-      let n: string | undefined
+      let n: string | undefined;
       if (!isStandaloneStatement(d)) {
         if (d.$type === 'PublicWorkflowDefinition') {
-          n = d.def.name
+          n = d.def.name;
         } else {
-          n = d.name
+          n = d.name;
         }
         if (
           d.$type != 'WorkflowDefinition' &&

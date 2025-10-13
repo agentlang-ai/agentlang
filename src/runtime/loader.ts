@@ -454,7 +454,11 @@ export function addRelationshipFromDef(
   return addRelationship(def.name, def.type, def.nodes, moduleName, def.schema, def.properties);
 }
 
-export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string, ispub: boolean = false): Workflow {
+export function addWorkflowFromDef(
+  def: WorkflowDefinition,
+  moduleName: string,
+  ispub: boolean = false
+): Workflow {
   return addWorkflow(def.name || '', moduleName, def.statements, def.header, ispub);
 }
 

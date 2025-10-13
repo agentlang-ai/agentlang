@@ -120,7 +120,7 @@ export class AgentInstance {
   private fqName: string | undefined;
   private decisionExecutor = false;
 
-  private constructor() { }
+  private constructor() {}
 
   static FromInstance(agentInstance: Instance): AgentInstance {
     const agent: AgentInstance = instanceToObject<AgentInstance>(
@@ -642,7 +642,7 @@ function processScenarioResponse(resp: string): string {
       });
       return `[${ss.join(';\n')}]`;
     } else {
-      return resp
+      return resp;
     }
   }
   return resp;

@@ -1324,7 +1324,7 @@ export class Relationship extends Record {
 export class Workflow extends ModuleEntry {
   statements: Statement[];
   generatedName: boolean;
-  private publicFlag: boolean
+  private publicFlag: boolean;
 
   constructor(
     name: string,
@@ -1336,7 +1336,7 @@ export class Workflow extends ModuleEntry {
     super(name, moduleName);
     this.statements = patterns;
     this.generatedName = generatedName;
-    this.publicFlag = publicFlag
+    this.publicFlag = publicFlag;
   }
 
   async addStatement(stmtCode: string): Promise<Workflow> {
@@ -1450,7 +1450,7 @@ export class Workflow extends ModuleEntry {
   }
 
   isPublic(): boolean {
-    return this.publicFlag
+    return this.publicFlag;
   }
 
   statementsToStrings(): string[] {
@@ -1459,9 +1459,9 @@ export class Workflow extends ModuleEntry {
 
   override toString() {
     const n = this.generatedName ? untangleWorkflowName(this.name) : this.name;
-    let s: string = `workflow ${normalizeWorkflowName(n)} {\n`
+    let s: string = `workflow ${normalizeWorkflowName(n)} {\n`;
     if (this.publicFlag) {
-      s = `@public ${s}`
+      s = `@public ${s}`;
     }
     const ss = this.statementsToStringsHelper(this.statements);
     s = s.concat(joinStatements(ss));
@@ -1751,7 +1751,7 @@ export class Module {
 
   getEntrySafe(entryName: string): ModuleEntry | undefined {
     const idx: number = this.getEntryIndex(entryName);
-    if (idx < 0) return undefined
+    if (idx < 0) return undefined;
     return this.entries[idx];
   }
 
@@ -1827,21 +1827,21 @@ export class Module {
   }
 
   getWorkflowForEvent(eventName: string): Workflow | undefined {
-    const entry = this.getEntrySafe(asWorkflowName(eventName))
+    const entry = this.getEntrySafe(asWorkflowName(eventName));
     if (entry) return entry as Workflow;
-    else return undefined
+    else return undefined;
   }
 
   eventHasPublicWorkflow(eventName: string): boolean {
-    const wf = this.getWorkflowForEvent(eventName)
-    if (wf) return wf.isPublic()
-    return false
+    const wf = this.getWorkflowForEvent(eventName);
+    if (wf) return wf.isPublic();
+    return false;
   }
 
   isPrePostEvent(eventName: string): boolean {
-    const wf = this.getWorkflowForEvent(eventName)
-    if (wf) return wf.generatedName
-    return false
+    const wf = this.getWorkflowForEvent(eventName);
+    if (wf) return wf.generatedName;
+    return false;
   }
 
   isEntryOfType(t: RecordType, name: string): boolean {

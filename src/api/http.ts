@@ -64,7 +64,7 @@ export function startServer(appSpec: ApplicationSpec, port: number, host?: strin
   });
 
   getAllEventNames().forEach((eventNames: string[], moduleName: string) => {
-    const m = fetchModule(moduleName)
+    const m = fetchModule(moduleName);
     eventNames.forEach((n: string) => {
       if (m.eventHasPublicWorkflow(n))
         app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
