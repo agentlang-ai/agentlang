@@ -132,7 +132,7 @@ export function isDecimal(item: unknown): item is Decimal {
     return typeof item === 'number';
 }
 
-export type Definition = AgentDefinition | DecisionDefinition | DirectiveDefinition | FlowDefinition | GlossaryEntryDefinition | PublicWorkflowDefinition | RelationshipDefinition | ResolverDefinition | ScenarioDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
+export type Definition = AgentDefinition | DecisionDefinition | DirectiveDefinition | FlowDefinition | GlossaryEntryDefinition | PublicAgentDefinition | PublicWorkflowDefinition | RelationshipDefinition | ResolverDefinition | ScenarioDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = 'Definition';
 
@@ -232,7 +232,7 @@ export function isAfterTriggerDefinition(item: unknown): item is AfterTriggerDef
 }
 
 export interface AgentDefinition extends langium.AstNode {
-    readonly $container: ModuleDefinition;
+    readonly $container: ModuleDefinition | PublicAgentDefinition;
     readonly $type: 'AgentDefinition';
     body?: GenericDefBody;
     name: GenericName;
@@ -906,6 +906,18 @@ export function isPropertyDefinition(item: unknown): item is PropertyDefinition 
     return reflection.isInstance(item, PropertyDefinition);
 }
 
+export interface PublicAgentDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'PublicAgentDefinition';
+    def: AgentDefinition;
+}
+
+export const PublicAgentDefinition = 'PublicAgentDefinition';
+
+export function isPublicAgentDefinition(item: unknown): item is PublicAgentDefinition {
+    return reflection.isInstance(item, PublicAgentDefinition);
+}
+
 export interface PublicWorkflowDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'PublicWorkflowDefinition';
@@ -1392,6 +1404,7 @@ export type AgentlangAstType = {
     PrePostTriggerDefinition: PrePostTriggerDefinition
     PrimExpr: PrimExpr
     PropertyDefinition: PropertyDefinition
+    PublicAgentDefinition: PublicAgentDefinition
     PublicWorkflowDefinition: PublicWorkflowDefinition
     Purge: Purge
     RbacAllowSpec: RbacAllowSpec
@@ -1431,7 +1444,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicAgentDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1441,6 +1454,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case DirectiveDefinition:
             case FlowDefinition:
             case GlossaryEntryDefinition:
+            case PublicAgentDefinition:
             case PublicWorkflowDefinition:
             case RelationshipDefinition:
             case ResolverDefinition:
@@ -1971,6 +1985,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'name' },
                         { name: 'value' }
+                    ]
+                };
+            }
+            case PublicAgentDefinition: {
+                return {
+                    name: PublicAgentDefinition,
+                    properties: [
+                        { name: 'def' }
                     ]
                 };
             }

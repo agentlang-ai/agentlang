@@ -1279,7 +1279,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         r = await res.createInstance(inst);
         await runPostCreateEvents(inst, env);
       }
-      if (r && entryName == AgentEntityName) {
+      if (r && entryName == AgentEntityName && inst.moduleName == CoreAIModuleName) {
         defineAgentEvent(env.getActiveModuleName(), r.lookup('name'), r.lookup('instruction'));
       }
       env.setLastResult(r);

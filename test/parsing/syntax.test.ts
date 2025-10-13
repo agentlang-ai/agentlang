@@ -414,7 +414,7 @@ in the incident's description."
         incidentProvisioner --> incidentStatusUpdater
     }
 
-    agent orchestratorAgent {
+    @public agent orchestratorAgent {
         llm "ticketflow_llm",
         role "You are an incident manager.",
         flows [orchestrator]
@@ -486,7 +486,7 @@ managerRequestHandler --> "approve" incidentProvisioner
 managerRequestHandler --> "reject" incidentStatusUpdater
 incidentProvisioner --> incidentStatusUpdater
     }
-agent orchestratorAgent
+@public agent orchestratorAgent
 {
     llm "ticketflow_llm",
     role "You are an incident manager.",

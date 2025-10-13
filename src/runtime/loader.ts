@@ -40,6 +40,7 @@ import {
   isDirectiveDefinition,
   isGlossaryEntryDefinition,
   isPublicWorkflowDefinition,
+  isPublicAgentDefinition,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -109,6 +110,7 @@ import {
   registerAgentResponseSchema,
   registerAgentScenarios,
   registerAgentScratchNames,
+  registerAsPublicAgent,
 } from './agents/common.js';
 
 export async function extractDocument(
@@ -605,7 +607,11 @@ function processAgentScratchNames(agentName: string, value: Literal): string[] |
   return undefined;
 }
 
-async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
+async function addAgentDefinition(
+  def: AgentDefinition,
+  moduleName: string,
+  ispub: boolean = false
+) {
   let llmName: string | undefined = undefined;
   const name = def.name;
   const attrsStrs = new Array<string>();
@@ -726,6 +732,9 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
   }
   if (scratchNames) {
     registerAgentScratchNames(agentFqName, scratchNames);
+  }
+  if (ispub) {
+    registerAsPublicAgent(agentFqName);
   }
   // Don't add llm to module attrs if it wasn't originally specified
   addAgent(def.name, attrs, moduleName);
@@ -895,6 +904,7 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
   else if (isPublicWorkflowDefinition(def)) addWorkflowFromDef(def.def, moduleName, true);
   else if (isAgentDefinition(def)) await addAgentDefinition(def, moduleName);
+  else if (isPublicAgentDefinition(def)) await addAgentDefinition(def.def, moduleName, true);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
   else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);
   else if (isFlowDefinition(def)) addFlowDefinition(def, moduleName);

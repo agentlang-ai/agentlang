@@ -5,7 +5,7 @@ entry ModuleDefinition: 'module' name=QualifiedName (imports+=Import)* (defs+=De
 Import: 'import' path=STRING '@as' name=ID;
 
 Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | PublicWorkflowDefinition | StandaloneStatement 
-| AgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition | ScenarioDefinition 
+| AgentDefinition | PublicAgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition | ScenarioDefinition 
 | DirectiveDefinition | GlossaryEntryDefinition;
 
 StandaloneStatement: stmt=Statement;
@@ -134,6 +134,8 @@ FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 Return: 'return' pattern=Pattern;
 
 AgentDefinition: 'agent' name=GenericName (body=GenericDefBody? | '{''}');
+
+PublicAgentDefinition: '@public' def=AgentDefinition;
 
 GenericDefBody: '{' (attributes+=GenericPropertyDef (',' attributes+=GenericPropertyDef)*)+ '}';
 

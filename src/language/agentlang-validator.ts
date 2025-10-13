@@ -33,7 +33,7 @@ export class AgentlangValidator {
     module.defs.forEach(d => {
       let n: string | undefined;
       if (!isStandaloneStatement(d)) {
-        if (d.$type === 'PublicWorkflowDefinition') {
+        if (d.$type === 'PublicWorkflowDefinition' || d.$type === 'PublicAgentDefinition') {
           n = d.def.name;
         } else {
           n = d.name;

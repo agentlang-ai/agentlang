@@ -58,14 +58,17 @@ import {
   getAgentGlossary,
   getAgentResponseSchema,
   getAgentScenarios,
+  isPublicAgent,
   registerAgentDirectives,
   registerAgentGlossary,
   registerAgentResponseSchema,
   registerAgentScenarios,
+  registerAsPublicAgent,
   removeAgentDirectives,
   removeAgentGlossary,
   removeAgentResponseSchema,
   removeAgentScenarios,
+  unregisterAsPublicAgent,
 } from './agents/common.js';
 
 export class ModuleEntry {
@@ -988,6 +991,17 @@ export class Agent extends Record {
     return this;
   }
 
+  setPublic(flag: boolean): Agent {
+    const fqName = makeFqName(this.moduleName, this.getName());
+    if (flag) registerAsPublicAgent(fqName);
+    else unregisterAsPublicAgent(fqName);
+    return this;
+  }
+
+  isPublic(): boolean {
+    return isPublicAgent(makeFqName(this.moduleName, this.getName()));
+  }
+
   override toString(): string {
     const attrs = new Array<string>();
     this.attributes.forEach((value: any, key: string) => {
@@ -1019,10 +1033,15 @@ export class Agent extends Record {
     if (rscm) {
       attrs.push(`   responseSchema ${rscm}`);
     }
-    return `agent ${Agent.NormalizeName(this.name)}
+    const s = `agent ${Agent.NormalizeName(this.name)}
 {
 ${attrs.join(',\n')}
 }`;
+    if (isPublicAgent(fqName)) {
+      return `@public ${s}`;
+    } else {
+      return s;
+    }
   }
 
   static Suffix = '__agent';
@@ -1449,6 +1468,11 @@ export class Workflow extends ModuleEntry {
     return ss;
   }
 
+  setPublic(flag: boolean): Workflow {
+    this.publicFlag = flag;
+    return this;
+  }
+
   isPublic(): boolean {
     return this.publicFlag;
   }
@@ -1833,6 +1857,9 @@ export class Module {
   }
 
   eventHasPublicWorkflow(eventName: string): boolean {
+    if (isPublicAgent(makeFqName(this.name, eventName))) {
+      return true;
+    }
     const wf = this.getWorkflowForEvent(eventName);
     if (wf) return wf.isPublic();
     return false;
