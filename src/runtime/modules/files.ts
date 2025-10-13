@@ -9,14 +9,14 @@ export const CoreFilesModuleName = makeCoreModuleName('files');
 export default `module ${CoreFilesModuleName}
 
 entity File {
-    id UUID @id @default(uuid()),
+    id String @id,
     filename String @unique @indexed,
-    originalName String,
-    mimetype String,
-    size Int,
+    originalName String @optional,
+    mimetype String @default("application/octet-stream"),
+    size Int @optional,
     uploadedBy String @optional,
     uploadedAt DateTime @default(now()),
-    path String,
+    path String @optional,
     @rbac [(roles: [*], allow: [create])
            (allow: [read, delete], where: auth.user = this.uploadedBy)]
 }
@@ -29,7 +29,8 @@ workflow CreateFile {
          size CreateFile.size,
          uploadedBy CreateFile.uploadedBy,
          uploadedAt CreateFile.uploadedAt,
-         path CreateFile.path}}
+         path CreateFile.path},
+  @upsert}
 }
 
 workflow FindFile {
@@ -107,7 +108,6 @@ export async function findFileByFilename(
   callback?: (result: Result) => void,
   env?: Environment
 ): Promise<Result> {
-  console.log('findFileByFilename, filename', filename);
   let inst: Instance = makeInstance(
     CoreFilesModuleName,
     'FindFileByFilename',

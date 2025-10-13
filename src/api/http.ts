@@ -31,11 +31,12 @@ import {
   restoreFqName,
   nameToPath,
   walkDownInstancePath,
+  DefaultFileHandlingDirectory,
 } from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
 import { Config } from '../runtime/state.js';
-import { findFileByFilename, createFileRecord } from '../runtime/modules/files.js';
+import { findFileByFilename, createFileRecord, deleteFileRecord } from '../runtime/modules/files.js';
 
 export async function startServer(
   appSpec: ApplicationSpec,
@@ -68,7 +69,7 @@ export async function startServer(
     const multer = (await import('multer')).default;
     const fs = await import('fs');
 
-    uploadDir = path.join(process.cwd(), 'uploads');
+    uploadDir = path.join(process.cwd(), DefaultFileHandlingDirectory);
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -112,6 +113,10 @@ export async function startServer(
     app.get('/downloadFile/:filename', (req: Request, res: Response) => {
       handleFileDownload(req, res, uploadDir!, config);
     });
+
+    app.post('/deleteFile/:filename', (req: Request, res: Response) => {
+      handleFileDelete(req, res, uploadDir!, config);
+    });
   } else {
     app.post('/uploadFile', (req: Request, res: Response) => {
       res.status(501).send({ error: 'File upload is only supported in Node.js environment' });
@@ -119,6 +124,10 @@ export async function startServer(
 
     app.get('/downloadFile/:filename', (req: Request, res: Response) => {
       res.status(501).send({ error: 'File download is only supported in Node.js environment' });
+    });
+
+    app.post('/deleteFile/:filename', (req: Request, res: Response) => {
+      res.status(501).send({ error: 'File delete is only supported in Node.js environment' });
     });
   }
 
@@ -888,6 +897,81 @@ async function handleFileDownload(
     logger.error(`File download error: ${err}`);
     if (!res.headersSent) {
       res.status(500).send({ error: err.message || 'File download failed' });
+    }
+  }
+}
+
+async function handleFileDelete(
+  req: Request,
+  res: Response,
+  uploadDir: string,
+  config?: Config
+): Promise<void> {
+  try {
+    if (!isNodeEnv) {
+      res.status(501).send({ error: 'File delete is only supported in Node.js environment' });
+      return;
+    }
+
+    if (!config?.service?.httpFileHandling) {
+      res
+        .status(403)
+        .send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
+      return;
+    }
+
+    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+
+    const filename = req.params.filename;
+
+    if (!filename) {
+      res.status(400).send({ error: 'Filename is required' });
+      return;
+    }
+
+    const file = await findFileByFilename(filename, sessionInfo);
+
+    if (!file) {
+      res.status(404).send({ error: 'File not found' });
+      return;
+    }
+
+    const sanitizedFilename = path.basename(filename);
+
+    const fs = await import('fs');
+
+    const filePath = path.join(uploadDir, sanitizedFilename);
+
+    if (!fs.existsSync(filePath)) {
+      res.status(404).send({ error: 'File not found' });
+      return;
+    }
+
+    const realPath = fs.realpathSync(filePath);
+    const realUploadDir = fs.realpathSync(uploadDir);
+    if (!realPath.startsWith(realUploadDir)) {
+      res.status(403).send({ error: 'Access denied' });
+      return;
+    }
+
+    await deleteFileRecord(filename, sessionInfo);
+
+    fs.unlinkSync(filePath);
+
+    logger.info(`File deleted: ${sanitizedFilename}`);
+
+    res.status(200).send({ 
+      message: 'File deleted successfully',
+      filename: sanitizedFilename
+    });
+  } catch (err: any) {
+    logger.error(`File delete error: ${err}`);
+    if (!res.headersSent) {
+      res.status(500).send({ error: err.message || 'File delete failed' });
     }
   }
 }
