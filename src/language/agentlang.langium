@@ -4,7 +4,7 @@ entry ModuleDefinition: 'module' name=QualifiedName (imports+=Import)* (defs+=De
 
 Import: 'import' path=STRING '@as' name=ID;
 
-Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
+Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | PublicWorkflowDefinition | StandaloneStatement 
 | AgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition | ScenarioDefinition 
 | DirectiveDefinition | GlossaryEntryDefinition;
 
@@ -100,6 +100,8 @@ WorkflowHeader: tag=WorkflowHeaderTag prefix=WorkflowHeaderPrefix ':' name=Quali
 WorkflowHeaderTag returns string: '@after' | '@before';
 
 WorkflowHeaderPrefix returns string: 'create' | 'update' | 'delete';
+
+PublicWorkflowDefinition: '@public' def=WorkflowDefinition;
 
 Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
 | fullTextSearch=FullTextSearch | return=Return;

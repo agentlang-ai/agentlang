@@ -40,50 +40,50 @@ event CreateUser extends Profile {
     name String
 }
 
-workflow CreateUser {
+@public workflow CreateUser {
     {User {name CreateUser.name},
      UserProfile {Profile {email CreateUser.email}},
      UserPost {Post {title "hello, world"}}}
 }
 
-workflow FindUsersByName {
+@public workflow FindUsersByName {
     {User {name? FindUsersByName.name}}
 }
 
-workflow CreateUserWithPosts {
+@public workflow CreateUserWithPosts {
     {User {name CreateUserWithPosts.name},
      UserPost [{Post {title CreateUserWithPosts.post1}},
                  {Post {title CreateUserWithPosts.post2}}],
      UserProfile {Profile {email CreateUserWithPosts.email}}}
 }
 
-workflow AddPost {
+@public workflow AddPost {
     {User {id? AddPost.userId},
      UserPost {Post {title AddPost.title},
                PostCategory {Category {description AddPost.category}}}}
 }
 
-workflow AddCategory {
+@public workflow AddCategory {
     {Category {description AddCategory.description}}
 }
 
-workflow AddCategoryToPost {
+@public workflow AddCategoryToPost {
     {Post {id? AddCategoryToPost.postId}} @as [post];
     {Category {id? AddCategoryToPost.catId}} @as [cat];
     {PostCategory {Post post, Category cat}}
 }
 
-workflow GetUserPosts {
+@public workflow GetUserPosts {
     {User {id? GetUserPosts.userId},
      UserPost {Post? {}, PostCategory {Category? {}}}}
 }
 
-workflow FindUserProfile {
+@public workflow FindUserProfile {
     {User {id? FindUserProfile.userId},
      UserProfile {Profile? {}}}
 }
 
-workflow FindUserProfileAndPosts {
+@public workflow FindUserProfileAndPosts {
     {User {id? FindUserProfileAndPosts.userId},
      UserProfile {Profile? {}},
      UserPost {Post? {}},
@@ -92,11 +92,11 @@ workflow FindUserProfileAndPosts {
             postTitle Blog.Core/Post.title}}
 }
 
-workflow UpdateUserName {
+@public workflow UpdateUserName {
     {User {id? UpdateUserName.userId, name UpdateUserName.newName}}
 }
 
-workflow SearchUser {
+@public workflow SearchUser {
     {User? SearchUser.q}
 }
 

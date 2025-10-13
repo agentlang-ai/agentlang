@@ -1324,16 +1324,19 @@ export class Relationship extends Record {
 export class Workflow extends ModuleEntry {
   statements: Statement[];
   generatedName: boolean;
+  private publicFlag: boolean
 
   constructor(
     name: string,
     patterns: Statement[],
     moduleName: string,
-    generatedName: boolean = false
+    generatedName: boolean = false,
+    publicFlag: boolean = false
   ) {
     super(name, moduleName);
     this.statements = patterns;
     this.generatedName = generatedName;
+    this.publicFlag = publicFlag
   }
 
   async addStatement(stmtCode: string): Promise<Workflow> {
@@ -1446,13 +1449,21 @@ export class Workflow extends ModuleEntry {
     return ss;
   }
 
+  isPublic(): boolean {
+    return this.publicFlag
+  }
+
   statementsToStrings(): string[] {
     return this.statementsToStringsHelper(this.statements);
   }
 
   override toString() {
     const n = this.generatedName ? untangleWorkflowName(this.name) : this.name;
-    let s: string = `workflow ${normalizeWorkflowName(n)} {\n`;
+    let s: string = `workflow ${normalizeWorkflowName(n)}`
+    if (this.publicFlag) {
+      s = `${s} @public`
+    }
+    s = `${s} {\n`;
     const ss = this.statementsToStringsHelper(this.statements);
     s = s.concat(joinStatements(ss));
     return s.concat('\n}');
@@ -1739,6 +1750,12 @@ export class Module {
     return this.entries[idx];
   }
 
+  getEntrySafe(entryName: string): ModuleEntry | undefined {
+    const idx: number = this.getEntryIndex(entryName);
+    if (idx < 0) return undefined
+    return this.entries[idx];
+  }
+
   getRecord(recordName: string): Record {
     const e: ModuleEntry = this.getEntry(recordName);
     if (e instanceof Record) {
@@ -1810,12 +1827,22 @@ export class Module {
     });
   }
 
-  getWorkflowForEvent(eventName: string): Workflow {
-    return this.getEntry(asWorkflowName(eventName)) as Workflow;
+  getWorkflowForEvent(eventName: string): Workflow | undefined {
+    const entry = this.getEntrySafe(asWorkflowName(eventName))
+    if (entry) return entry as Workflow;
+    else return undefined
+  }
+
+  eventHasPublicWorkflow(eventName: string): boolean {
+    const wf = this.getWorkflowForEvent(eventName)
+    if (wf) return wf.isPublic()
+    return false
   }
 
   isPrePostEvent(eventName: string): boolean {
-    return this.getWorkflowForEvent(eventName).generatedName;
+    const wf = this.getWorkflowForEvent(eventName)
+    if (wf) return wf.generatedName
+    return false
   }
 
   isEntryOfType(t: RecordType, name: string): boolean {
@@ -2284,7 +2311,8 @@ export function addWorkflow(
   name: string,
   moduleName = activeModule,
   statements?: Statement[],
-  hdr?: WorkflowHeader | ThinWfHeader
+  hdr?: WorkflowHeader | ThinWfHeader,
+  ispub: boolean = false
 ): Workflow {
   if (hdr) {
     name = prePostWorkflowName(hdr.tag, hdr.prefix, hdr.name, moduleName);
@@ -2318,7 +2346,7 @@ export function addWorkflow(
     }
   }
   return module.addEntry(
-    new Workflow(asWorkflowName(name), statements, moduleName, hdr ? true : false)
+    new Workflow(asWorkflowName(name), statements, moduleName, hdr ? true : false, ispub)
   ) as Workflow;
 }
 

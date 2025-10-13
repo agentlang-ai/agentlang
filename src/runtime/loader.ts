@@ -39,6 +39,7 @@ import {
   GlossaryEntryDefinition,
   isDirectiveDefinition,
   isGlossaryEntryDefinition,
+  isPublicWorkflowDefinition,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -453,8 +454,8 @@ export function addRelationshipFromDef(
   return addRelationship(def.name, def.type, def.nodes, moduleName, def.schema, def.properties);
 }
 
-export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string): Workflow {
-  return addWorkflow(def.name || '', moduleName, def.statements, def.header);
+export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string, ispub: boolean = false): Workflow {
+  return addWorkflow(def.name || '', moduleName, def.statements, def.header, ispub);
 }
 
 const StandaloneStatements = new Map<string, Statement[]>();
@@ -888,6 +889,7 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isRecordDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isRelationshipDefinition(def)) addRelationshipFromDef(def, moduleName);
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
+  else if (isPublicWorkflowDefinition(def)) addWorkflowFromDef(def.def, moduleName, true);
   else if (isAgentDefinition(def)) await addAgentDefinition(def, moduleName);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
   else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);

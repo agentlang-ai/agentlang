@@ -61,7 +61,7 @@ workflow createSuspension {
      createdBy createSuspension.createdBy}}
 }
 
-workflow restartSuspension {
+@public workflow restartSuspension {
   await Core.restartSuspension(restartSuspension.id, restartSuspension.data)
 }
 `;
