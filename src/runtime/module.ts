@@ -1103,7 +1103,7 @@ export function newRelNodeEntry(nodeFqName: string, alias?: string): Relationshi
 function relNodeEntryToString(node: RelationshipNode): string {
   let n = `${node.origName}`;
   if (node.origAlias) {
-    n = n.concat(` as ${node.origAlias}`);
+    n = n.concat(` @as ${node.origAlias}`);
   }
   return n;
 }
