@@ -1,7 +1,5 @@
 import chalk from 'chalk';
 import express, { Request, Response } from 'express';
-import multer, { StorageEngine } from 'multer';
-import * as fs from 'fs';
 import * as path from 'path';
 import {
   getAllChildRelationships,
@@ -17,6 +15,7 @@ import {
   getModuleNames,
   Record,
 } from '../runtime/module.js';
+import { isNodeEnv } from '../utils/runtime.js';
 import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
@@ -38,7 +37,7 @@ import { evaluate } from '../runtime/interpreter.js';
 import { Config } from '../runtime/state.js';
 import { findFileByFilename, createFileRecord } from '../runtime/modules/files.js';
 
-export function startServer(
+export async function startServer(
   appSpec: ApplicationSpec,
   port: number,
   host?: string,
@@ -62,29 +61,37 @@ export function startServer(
     next();
   });
 
-  const uploadDir = path.join(process.cwd(), 'uploads');
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+  let uploadDir: string | null = null;
+  let upload: any = null;
+
+  if (isNodeEnv) {
+    const multer = (await import('multer')).default;
+    const fs = await import('fs');
+
+    uploadDir = path.join(process.cwd(), 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const storage = multer.diskStorage({
+      destination: (req: any, file: any, cb: any) => {
+        cb(null, uploadDir!);
+      },
+      filename: (req: any, file: any, cb: any) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = path.extname(file.originalname);
+        const basename = path.basename(file.originalname, ext);
+        cb(null, `${basename}-${uniqueSuffix}${ext}`);
+      },
+    });
+
+    upload = multer({
+      storage: storage,
+      limits: {
+        fileSize: 1024 * 1024 * 1024,
+      },
+    });
   }
-
-  const storage: StorageEngine = multer.diskStorage({
-    destination: (req: any, file: any, cb: any) => {
-      cb(null, uploadDir);
-    },
-    filename: (req: any, file: any, cb: any) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      const ext = path.extname(file.originalname);
-      const basename = path.basename(file.originalname, ext);
-      cb(null, `${basename}-${uniqueSuffix}${ext}`);
-    },
-  });
-
-  const upload = multer({
-    storage: storage,
-    limits: {
-      fileSize: 50 * 1024 * 1024, // 50MB limit
-    },
-  });
 
   const appName: string = appSpec.name;
   const appVersion: string = appSpec.version;
@@ -97,13 +104,23 @@ export function startServer(
     handleMetaGet(req, res);
   });
 
-  app.post('/uploadFile', upload.single('file'), (req: Request, res: Response) => {
-    handleFileUpload(req, res, config);
-  });
+  if (isNodeEnv && upload && uploadDir) {
+    app.post('/uploadFile', upload.single('file'), (req: Request, res: Response) => {
+      handleFileUpload(req, res, config);
+    });
 
-  app.get('/downloadFile/:filename', (req: Request, res: Response) => {
-    handleFileDownload(req, res, uploadDir, config);
-  });
+    app.get('/downloadFile/:filename', (req: Request, res: Response) => {
+      handleFileDownload(req, res, uploadDir!, config);
+    });
+  } else {
+    app.post('/uploadFile', (req: Request, res: Response) => {
+      res.status(501).send({ error: 'File upload is only supported in Node.js environment' });
+    });
+
+    app.get('/downloadFile/:filename', (req: Request, res: Response) => {
+      res.status(501).send({ error: 'File download is only supported in Node.js environment' });
+    });
+  }
 
   getAllEventNames().forEach((eventNames: string[], moduleName: string) => {
     eventNames.forEach((n: string) => {
@@ -709,6 +726,11 @@ async function handleFileUpload(
   config?: Config
 ): Promise<void> {
   try {
+    if (!isNodeEnv) {
+      res.status(501).send({ error: 'File upload is only supported in Node.js environment' });
+      return;
+    }
+
     if (!config?.service?.httpFileHandling) {
       res
         .status(403)
@@ -774,6 +796,11 @@ async function handleFileDownload(
   config?: Config
 ): Promise<void> {
   try {
+    if (!isNodeEnv) {
+      res.status(501).send({ error: 'File download is only supported in Node.js environment' });
+      return;
+    }
+
     if (!config?.service?.httpFileHandling) {
       res
         .status(403)
@@ -802,6 +829,9 @@ async function handleFileDownload(
     }
 
     const sanitizedFilename = path.basename(filename);
+
+    const fs = await import('fs');
+
     const filePath = path.join(uploadDir, sanitizedFilename);
 
     if (!fs.existsSync(filePath)) {
