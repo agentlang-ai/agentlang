@@ -1103,7 +1103,7 @@ export function newRelNodeEntry(nodeFqName: string, alias?: string): Relationshi
 function relNodeEntryToString(node: RelationshipNode): string {
   let n = `${node.origName}`;
   if (node.origAlias) {
-    n = n.concat(` as ${node.origAlias}`);
+    n = n.concat(` @as ${node.origAlias}`);
   }
   return n;
 }
@@ -3128,7 +3128,7 @@ export function makeInstance(
   if (schema.size > 0) {
     attributes.forEach((value: any, key: string) => {
       if (!schema.has(key)) {
-        throw new Error(`Invalid attribute ${key} specified for ${moduleName}/${entryName}`);
+        throw new Error(`Invalid attribute '${key}' specified for ${moduleName}/${entryName}`);
       }
       const spec: AttributeSpec = getAttributeSpec(schema, key);
       if (value != null && value != undefined) validateType(key, value, spec);
