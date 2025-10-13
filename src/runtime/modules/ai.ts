@@ -328,6 +328,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
 
   maybeAddScratchData(env: Environment): AgentInstance {
     const obj: any = env.getLastResult();
+    if (obj === null || obj == undefined) return this;
     let r: Instance | Instance[] | undefined = undefined;
     if (
       obj instanceof Instance ||
@@ -335,6 +336,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     ) {
       r = obj;
     } else {
+      env.addToScratchPad(this.name, obj);
       return this;
     }
     const scratchNames = this.getScratchNames();
