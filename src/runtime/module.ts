@@ -1459,11 +1459,10 @@ export class Workflow extends ModuleEntry {
 
   override toString() {
     const n = this.generatedName ? untangleWorkflowName(this.name) : this.name;
-    let s: string = `workflow ${normalizeWorkflowName(n)}`
+    let s: string = `workflow ${normalizeWorkflowName(n)} {\n`
     if (this.publicFlag) {
-      s = `${s} @public`
+      s = `@public ${s}`
     }
-    s = `${s} {\n`;
     const ss = this.statementsToStringsHelper(this.statements);
     s = s.concat(joinStatements(ss));
     return s.concat('\n}');

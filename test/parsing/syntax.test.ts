@@ -311,7 +311,7 @@ describe('Pre/Post workflow syntax', () => {
       workflow @after create:incident {
         {orchestratorAgent {message this}}
       }
-      workflow onIncident {
+      @public workflow onIncident {
         {orchestratorAgent {message onIncident.incident}}
       }`
     )
@@ -332,7 +332,7 @@ workflow @after create:WfSyntaxGen/incident {
     {orchestratorAgent {message this}}
 }
 
-workflow onIncident {
+@public workflow onIncident {
     {orchestratorAgent {message onIncident.incident}}
 }`)
     removeModule(mname)
@@ -357,7 +357,7 @@ workflow @after create:WfSyntaxGen/incident {
     {orchestratorAgent {message this}}
 }
 
-workflow onIncident {
+@public workflow onIncident {
     {orchestratorAgent {message onIncident.incident}}
 }
 
