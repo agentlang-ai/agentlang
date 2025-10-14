@@ -33,17 +33,17 @@ Coming soon! Fractl Studio is a no-code environment for building and operating A
 
 ## Agentic Reliability Modeling
 
-Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking. Agentlang offers a robust set of tools to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
+Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking. Agentlang offers just enough structure to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
 
 ```typescript
 decision ticketTriager {
    case ("Ticket is related to DNS provisioning. If the request is to point one host/DNS name to an IP address") {
       DNS
    }
-   case ("Ticket is related to DNS provisioning. If the request is to point one host/DNS name to an IP address") {
-      DNS
+   case ("Ticket is related to WLAN provisioning. If the request is to add/whitelist a MAC address on the wireless network") {
+      WLAN
    }
-   case ("There is not enough information in the ticket about what the category is" {
+   case ("There is not enough information in the ticket about what the category is") {
       NotEnoughInfo
    }
    default {
@@ -57,15 +57,27 @@ flow triageFlow {
     ticketTriager --> "NotEnoughInfo" ticketPending
 }
 
+glossary TicketFlow [
+    {"name": "incident", "meaning": "a problem report", "synonyms": "ticket"},
+    {"name": "task", "meaning": "a record that captures some work that needs to be done", "synonyms": "ticket"},
+    {"name": "DNS", "meaning": "Domain Name Service - is used to translate human-readable domain names to IP addresses", "synonyms": "DNS name, CNAME, DNS HOST record"}
+    {"name": "WLAN", "meaning": "Wireless LAN - wireless network to connect devices to each other and the internet", "synonyms": "Office network"}
+]
+
 agent TicketFlow {
-    llm "ticketflow_llm",
-    role "You are a network ticket management application. Your job is to triage any ticket passed to you and update the ticket with appropriate assigned_to, status and triaging comments.",
+    llm "gpt4o",
+    role "You are a network ticket management application. Your job is to triage any ticket passed to you
+          and update the ticket with appropriate assigned_to, status and triaging comments.",
     flows [triageFlow]
 }
 
+workflow ticketInProgress {
+    // workflow body is developer-written declarative code (not handled by LLM)
+    ...
+}
 ```
 
-### Features
+### Reliability Modeling Features
 
 <table>
     <tr>
@@ -92,8 +104,6 @@ agent TicketFlow {
     </tr>
 </table>
 
-
-
 ## First-class AI Agents
 
 Agents and many concepts agents use are built-in language constructs.
@@ -107,22 +117,24 @@ flow triageFlow {
 
 agent TicketFlow {
     llm "ticketflow_llm",
-    role "You are a network ticket management application. Your job is to triage any ticket passed to you and update the ticket with appropriate assigned_to, status and triaging comments.",
+    role "You are a network ticket management agent. Your job is to triage any ticket passed to you and
+          update the ticket with appropriate assigned_to, status and triaging comments.",
     flows [triageFlow]
 }
 
 ```
 
 ### Flows
+
 Flows are central to Agentlang's reliability modeling. Define your business processes using an intuitive flow syntax - flows guide (not enforce) an agent's behavior closely. Agentlang's adaptive runtime will execute them, dynamically adapting the execution flow as needed.
 
 Each step in the flow can be an agent or a tool (workflow).
 
 ```typescript
 flow networkProvisioningRequestManager {
-    classifyProvisioningRequest --> "type is DNS" provisionDNS
-    classifyProvisioningRequest --> "type is WLAN" provisionWLAN
-    classifyProvisioningRequest --> "type is Other" reportFailure
+    classifyProvisioningRequest --> "DNS" provisionDNS
+    classifyProvisioningRequest --> "WLAN" provisionWLAN
+    classifyProvisioningRequest --> "Other" reportFailure
     provisionDNS --> ticketUpdater
     provisionWLAN --> ticketUpdater
 }
@@ -248,12 +260,12 @@ agent ticketUpdater {
     tools [Networking/markRequestCompleted]
 }
 
-// agent/workflow definitions for provisionDNS, reportFailure etc
+// insert agent/workflow definitions for provisionDNS, reportFailure etc
 
 flow networkProvisioningRequestManager {
-    classifyProvisioningRequest --> "type is DNS" provisionDNS
-    classifyProvisioningRequest --> "type is WLAN" provisionWLAN
-    classifyProvisioningRequest --> "type is Other" reportFailure
+    classifyProvisioningRequest --> "DNS" provisionDNS
+    classifyProvisioningRequest --> "WLAN" provisionWLAN
+    classifyProvisioningRequest --> "Other" reportFailure
     provisionDNS --> ticketUpdater
     provisionWLAN --> ticketUpdater
 }
