@@ -23,17 +23,49 @@ Agentic Reliability Modeling - Build AI Agents that actually work!
 
 Build **teams of reliable AI Agents** that follow your organization's processes closely, while adapting to new scenarios, with Agentlang. Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
 
-* **Agentic:** Agentlang is a programming language specifically designed for building anything involving agents. Agentlang is highly declarative - enabling you to focus on the business logic getting bogged down in implementation details.
+* **Agentic:** Agentlang is a programming abstraction specifically designed for building anything involving agents. Agentlang is highly declarative - enabling you to focus on the business logic getting bogged down in implementation details.
 
 * **Robust Integrations:** The Agentlang runtime integrates natively with a wide range of LLMs, databases, vector databases, and auth providers. Agentlang has a novel connector architecture, with a rapidly growing collection of prebuilt connectors for Enterprise tools. Plus, Agentlang programs run on NodeJS (and, soon, in the browser!) and can leverage any existing JavaScript library.
 
-* **Production-ready**: Agentlang is built on top of TypeScript and uses all the modern JS/TS tooling needed to build production-grade agents and apps.
+* **Production-grade**: Agentlang is built on top of TypeScript and uses all the modern JS/TS tooling needed to build enterprise-class agents and apps.
 
 Coming soon! Fractl Studio is a no-code environment for building and operating AI Agents.
 
 ## Agentic Reliability Modeling
 
 Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking. Agentlang offers a robust set of tools to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
+
+```typescript
+decision ticketTriager {
+   case ("Ticket is related to DNS provisioning. If the request is to point one host/DNS name to an IP address") {
+      DNS
+   }
+   case ("Ticket is related to DNS provisioning. If the request is to point one host/DNS name to an IP address") {
+      DNS
+   }
+   case ("There is not enough information in the ticket about what the category is" {
+      NotEnoughInfo
+   }
+   default {
+      Other
+   }
+}
+
+flow triageFlow {
+    ticketTriager --> "DNS" ticketInProgress
+    ticketTriager --> "WLAN" ticketInProgress
+    ticketTriager --> "NotEnoughInfo" ticketPending
+}
+
+agent TicketFlow {
+    llm "ticketflow_llm",
+    role "You are a network ticket management application. Your job is to triage any ticket passed to you and update the ticket with appropriate assigned_to, status and triaging comments.",
+    flows [triageFlow]
+}
+
+```
+
+### Features
 
 <table>
     <tr>
@@ -67,7 +99,6 @@ Depending solely only on instructions for agents is a recipe for failure. Natura
 Agents and many concepts agents use are built-in language constructs.
 
 ```typescript
-// flows are business process definitions that "guide" (not enforce) the agent's behavior
 flow triageFlow {
     ticketTriager --> "DNS" ticketInProgress
     ticketTriager --> "WLAN" ticketInProgress
