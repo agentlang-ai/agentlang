@@ -570,6 +570,9 @@ export class Record extends ModuleEntry {
       const ms = `@meta ${JSON.stringify(metaObj)}`;
       scms = `${scms},\n    ${ms}`;
     }
+    if (this.isPublic()) {
+      s = `@public ${s}`;
+    }
     return s.concat('\n{', scms, '\n}\n');
   }
 
@@ -1091,6 +1094,10 @@ export class Entity extends Record {
 
 export class Event extends Record {
   override type: RecordType = RecordType.EVENT;
+
+  isSystemDefined(): boolean {
+    return this.meta?.get(SystemDefinedEvent) === 'true';
+  }
 }
 
 enum RelType {
@@ -1338,17 +1345,12 @@ export class Relationship extends Record {
 
 export class Workflow extends ModuleEntry {
   statements: Statement[];
-  generatedName: boolean;
+  isPrePost: boolean;
 
-  constructor(
-    name: string,
-    patterns: Statement[],
-    moduleName: string,
-    generatedName: boolean = false
-  ) {
+  constructor(name: string, patterns: Statement[], moduleName: string, isPrePost: boolean = false) {
     super(name, moduleName);
     this.statements = patterns;
-    this.generatedName = generatedName;
+    this.isPrePost = isPrePost;
   }
 
   async addStatement(stmtCode: string): Promise<Workflow> {
@@ -1465,11 +1467,30 @@ export class Workflow extends ModuleEntry {
     return this.statementsToStringsHelper(this.statements);
   }
 
+  override setPublic(flag: boolean): ModuleEntry {
+    super.setPublic(flag);
+    if (!this.isPrePost) {
+      const n = normalizeWorkflowName(this.name);
+      const event = getEvent(n, this.moduleName);
+      event.setPublic(flag);
+    }
+    return this;
+  }
+
   override toString() {
-    const n = this.generatedName ? untangleWorkflowName(this.name) : this.name;
-    let s: string = `workflow ${normalizeWorkflowName(n)} {\n`;
+    const n = this.isPrePost ? untangleWorkflowName(this.name) : this.name;
+    const nn = normalizeWorkflowName(n);
+    let s: string = `workflow ${nn} {\n`;
     const ss = this.statementsToStringsHelper(this.statements);
     s = s.concat(joinStatements(ss));
+    if (!this.isPrePost) {
+      const event = getEvent(nn, this.moduleName);
+      if ((event.isPublic() && event.isSystemDefined()) || this.isPublic()) {
+        s = `@public ${s}`;
+      }
+    } else if (this.isPublic()) {
+      s = `@public ${s}`;
+    }
     return s.concat('\n}');
   }
 }
@@ -1847,7 +1868,7 @@ export class Module {
 
   isPrePostEvent(eventName: string): boolean {
     const wf = this.getWorkflowForEvent(eventName);
-    if (wf) return wf.generatedName;
+    if (wf) return wf.isPrePost;
     return false;
   }
 

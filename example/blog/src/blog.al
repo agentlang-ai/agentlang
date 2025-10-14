@@ -57,7 +57,13 @@ event CreateUser extends Profile {
      UserProfile {Profile {email CreateUserWithPosts.email}}}
 }
 
-@public workflow AddPost {
+@public event AddPost {
+    userId String,
+    title String,
+    category String
+}
+
+workflow AddPost {
     {User {id? AddPost.userId},
      UserPost {Post {title AddPost.title},
                PostCategory {Category {description AddPost.category}}}}
