@@ -356,6 +356,7 @@ Now apply the same analysis to the following context and cases provided by the u
 export type AgentCondition = {
   cond: string;
   then: string;
+  internal: boolean;
 };
 
 const AgentDirectives = new Map<string, AgentCondition[]>();
@@ -368,8 +369,14 @@ export function getAgentDirectives(agentFqName: string): AgentCondition[] | unde
   return AgentDirectives.get(agentFqName);
 }
 
+export function getAgentDirectivesInternal(agentFqName: string): AgentCondition[] | undefined {
+  return AgentDirectives.get(agentFqName)?.filter((ac: AgentCondition) => {
+    return ac.internal;
+  });
+}
+
 export function getAgentDirectivesJson(agentFqName: string): string | undefined {
-  const conds = AgentDirectives.get(agentFqName);
+  const conds = getAgentDirectivesInternal(agentFqName);
   if (conds) {
     const fmted = conds.map((c: AgentCondition) => {
       return { if: c.cond, then: c.then };
@@ -392,6 +399,7 @@ export function addAgentDirective(agentFqName: string, newDirective: AgentCondit
 export type AgentScenario = {
   user: string;
   ai: string;
+  internal: boolean;
 };
 
 const AgentScenarios = new Map<string, AgentScenario[]>();
@@ -402,6 +410,26 @@ export function registerAgentScenarios(agentFqName: string, scenarios: AgentScen
 
 export function getAgentScenarios(agentFqName: string): AgentScenario[] | undefined {
   return AgentScenarios.get(agentFqName);
+}
+
+export function getAgentScenariosJson(agentFqName: string): string | undefined {
+  const scns = getAgentScenariosInternal(agentFqName);
+  if (scns) {
+    const fmtd = scns.map((scn: AgentScenario) => {
+      return {
+        user: scn.user,
+        ai: scn.ai,
+      };
+    });
+    return JSON.stringify(fmtd);
+  }
+  return undefined;
+}
+
+export function getAgentScenariosInternal(agentFqName: string): AgentScenario[] | undefined {
+  return AgentScenarios.get(agentFqName)?.filter((asc: AgentScenario) => {
+    return asc.internal;
+  });
 }
 
 export function removeAgentScenarios(agentFqName: string) {
@@ -418,6 +446,7 @@ export type AgentGlossaryEntry = {
   name: string;
   meaning: string;
   synonyms: string | undefined;
+  internal: boolean;
 };
 
 const AgentGlossary = new Map<string, AgentGlossaryEntry[]>();
@@ -428,6 +457,27 @@ export function registerAgentGlossary(agentFqName: string, glossary: AgentGlossa
 
 export function getAgentGlossary(agentFqName: string): AgentGlossaryEntry[] | undefined {
   return AgentGlossary.get(agentFqName);
+}
+
+export function getAgentGlossaryInternal(agentFqName: string): AgentGlossaryEntry[] | undefined {
+  return AgentGlossary.get(agentFqName)?.filter((age: AgentGlossaryEntry) => {
+    return age.internal;
+  });
+}
+
+export function getAgentGlossaryJson(agentFqName: string): string | undefined {
+  const gls = getAgentGlossaryInternal(agentFqName);
+  if (gls) {
+    const fmtd = gls.map((ge: AgentGlossaryEntry) => {
+      return {
+        name: ge.name,
+        meaning: ge.meaning,
+        synonyms: ge.synonyms,
+      };
+    });
+    return JSON.stringify(fmtd);
+  }
+  return undefined;
 }
 
 export function removeAgentGlossary(agentFqName: string) {

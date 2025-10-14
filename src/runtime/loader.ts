@@ -528,7 +528,8 @@ function processAgentDirectives(agentName: string, value: Literal): AgentConditi
           }
         });
         if (cond && then) {
-          conds?.push({ cond, then });
+          const internal = true;
+          conds?.push({ cond, then, internal });
         } else {
           throw new Error(`Invalid condition spec in agent ${agentName}`);
         }
@@ -558,7 +559,8 @@ function processAgentScenarios(agentName: string, value: Literal): AgentScenario
           }
         });
         if (user && ai) {
-          scenarios.push({ user, ai });
+          const internal = true;
+          scenarios.push({ user, ai, internal });
         } else {
           throw new Error(`Invalid glossary spec in agent ${agentName}`);
         }
@@ -591,7 +593,8 @@ function processAgentGlossary(agentName: string, value: Literal): AgentGlossaryE
           }
         });
         if (name && meaning) {
-          gls.push({ name, meaning, synonyms });
+          const internal = true;
+          gls.push({ name, meaning, synonyms, internal });
         } else {
           throw new Error(`Invalid glossary spec in agent ${agentName}`);
         }
@@ -818,8 +821,9 @@ function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
     const m = asStringLiteralsMap(def.body);
     const user = m.get('user');
     const ai = m.get('ai');
-    if (user && ai) addAgentScenario(n, { user: user, ai: ai });
+    if (user && ai) addAgentScenario(n, { user: user, ai: ai, internal: false });
     else throw new Error(`scenario ${def.name} requires both user and ai entries`);
+    fetchModule(moduleName).addScenario(def);
   }
 }
 
@@ -832,8 +836,9 @@ function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
     const m = asStringLiteralsMap(def.body);
     const cond = m.get('if');
     const then = m.get('then');
-    if (cond && then) addAgentDirective(n, { cond: cond, then: then });
+    if (cond && then) addAgentDirective(n, { cond: cond, then: then, internal: false });
     else throw new Error(`directive ${def.name} requires both if and then entries`);
+    fetchModule(moduleName).addDirective(def);
   }
 }
 
@@ -852,8 +857,10 @@ function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: str
         name: name,
         meaning: meaning,
         synonyms: syn,
+        internal: false,
       });
     else throw new Error(`glossaryEntry ${def.name} requires both name and meaning keys`);
+    fetchModule(moduleName).addGlossaryEntry(def);
   }
 }
 
