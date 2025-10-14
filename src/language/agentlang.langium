@@ -10,7 +10,7 @@ Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | Pub
 
 StandaloneStatement: stmt=Statement;
 
-SchemaDefinition: EntityDefinition | EventDefinition | RecordDefinition;
+SchemaDefinition: EntityDefinition | EventDefinition | PublicEventDefinition | RecordDefinition;
 
 PropertyDefinition: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 
@@ -27,6 +27,7 @@ fragment RecDef: name=QualifiedName extends=ExtendsClause? schema=RecordSchemaDe
 
 EntityDefinition: 'entity' RecDef;
 EventDefinition: 'event' RecDef;
+PublicEventDefinition: '@public' def=EventDefinition;
 RecordDefinition: 'record' RecDef;
 
 ExtendsClause: 'extends' parentName=QualifiedName;

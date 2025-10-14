@@ -467,17 +467,3 @@ export function getAgentScratchNames(agentFqName: string): Set<string> | undefin
 export function removeAgentScratchNames(agentFqName: string) {
   AgentScratchNames.delete(agentFqName);
 }
-
-const publicAgents = new Set<string>();
-
-export function registerAsPublicAgent(agentFqName: string) {
-  publicAgents.add(agentFqName);
-}
-
-export function isPublicAgent(agentFqName: string): boolean {
-  return publicAgents.has(agentFqName);
-}
-
-export function unregisterAsPublicAgent(agentFqName: string) {
-  publicAgents.delete(agentFqName);
-}

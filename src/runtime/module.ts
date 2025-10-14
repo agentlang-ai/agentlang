@@ -58,22 +58,20 @@ import {
   getAgentGlossary,
   getAgentResponseSchema,
   getAgentScenarios,
-  isPublicAgent,
   registerAgentDirectives,
   registerAgentGlossary,
   registerAgentResponseSchema,
   registerAgentScenarios,
-  registerAsPublicAgent,
   removeAgentDirectives,
   removeAgentGlossary,
   removeAgentResponseSchema,
   removeAgentScenarios,
-  unregisterAsPublicAgent,
 } from './agents/common.js';
 
 export class ModuleEntry {
   name: string;
   moduleName: string;
+  private taggedAsPublic: boolean = false;
 
   constructor(name: string, moduleName: string) {
     this.name = name;
@@ -82,6 +80,15 @@ export class ModuleEntry {
 
   getFqName(): string {
     return makeFqName(this.moduleName, this.name);
+  }
+
+  setPublic(flag: boolean): ModuleEntry {
+    this.taggedAsPublic = flag;
+    return this;
+  }
+
+  isPublic(): boolean {
+    return this.taggedAsPublic;
   }
 }
 
@@ -991,17 +998,6 @@ export class Agent extends Record {
     return this;
   }
 
-  setPublic(flag: boolean): Agent {
-    const fqName = makeFqName(this.moduleName, this.getName());
-    if (flag) registerAsPublicAgent(fqName);
-    else unregisterAsPublicAgent(fqName);
-    return this;
-  }
-
-  isPublic(): boolean {
-    return isPublicAgent(makeFqName(this.moduleName, this.getName()));
-  }
-
   override toString(): string {
     const attrs = new Array<string>();
     this.attributes.forEach((value: any, key: string) => {
@@ -1037,7 +1033,7 @@ export class Agent extends Record {
 {
 ${attrs.join(',\n')}
 }`;
-    if (isPublicAgent(fqName)) {
+    if (this.isPublic()) {
       return `@public ${s}`;
     } else {
       return s;
@@ -1343,19 +1339,16 @@ export class Relationship extends Record {
 export class Workflow extends ModuleEntry {
   statements: Statement[];
   generatedName: boolean;
-  private publicFlag: boolean;
 
   constructor(
     name: string,
     patterns: Statement[],
     moduleName: string,
-    generatedName: boolean = false,
-    publicFlag: boolean = false
+    generatedName: boolean = false
   ) {
     super(name, moduleName);
     this.statements = patterns;
     this.generatedName = generatedName;
-    this.publicFlag = publicFlag;
   }
 
   async addStatement(stmtCode: string): Promise<Workflow> {
@@ -1468,15 +1461,6 @@ export class Workflow extends ModuleEntry {
     return ss;
   }
 
-  setPublic(flag: boolean): Workflow {
-    this.publicFlag = flag;
-    return this;
-  }
-
-  isPublic(): boolean {
-    return this.publicFlag;
-  }
-
   statementsToStrings(): string[] {
     return this.statementsToStringsHelper(this.statements);
   }
@@ -1484,9 +1468,6 @@ export class Workflow extends ModuleEntry {
   override toString() {
     const n = this.generatedName ? untangleWorkflowName(this.name) : this.name;
     let s: string = `workflow ${normalizeWorkflowName(n)} {\n`;
-    if (this.publicFlag) {
-      s = `@public ${s}`;
-    }
     const ss = this.statementsToStringsHelper(this.statements);
     s = s.concat(joinStatements(ss));
     return s.concat('\n}');
@@ -1856,12 +1837,11 @@ export class Module {
     else return undefined;
   }
 
-  eventHasPublicWorkflow(eventName: string): boolean {
-    if (isPublicAgent(makeFqName(this.name, eventName))) {
-      return true;
+  eventIsPublic(eventName: string): boolean {
+    const entry = this.getEntry(eventName);
+    if (entry instanceof Event) {
+      return entry.isPublic();
     }
-    const wf = this.getWorkflowForEvent(eventName);
-    if (wf) return wf.isPublic();
     return false;
   }
 
@@ -2349,9 +2329,11 @@ export function addWorkflow(
     if (!(entry instanceof Event))
       throw new Error(`Not an event, cannot attach workflow to ${entry.name}`);
   } else {
-    addEvent(name, moduleName);
-    const event: Record = module.getEntry(name) as Record;
+    const event = addEvent(name, moduleName);
     event.addMeta(SystemDefinedEvent, 'true');
+    if (ispub) {
+      event.setPublic(true);
+    }
   }
   if (!statements) statements = new Array<Statement>();
   if (hdr) {
@@ -2372,7 +2354,7 @@ export function addWorkflow(
     }
   }
   return module.addEntry(
-    new Workflow(asWorkflowName(name), statements, moduleName, hdr ? true : false, ispub)
+    new Workflow(asWorkflowName(name), statements, moduleName, hdr ? true : false)
   ) as Workflow;
 }
 

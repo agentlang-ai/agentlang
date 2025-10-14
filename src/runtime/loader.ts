@@ -41,6 +41,7 @@ import {
   isGlossaryEntryDefinition,
   isPublicWorkflowDefinition,
   isPublicAgentDefinition,
+  isPublicEventDefinition,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -110,7 +111,6 @@ import {
   registerAgentResponseSchema,
   registerAgentScenarios,
   registerAgentScratchNames,
-  registerAsPublicAgent,
 } from './agents/common.js';
 
 export async function extractDocument(
@@ -437,14 +437,23 @@ function addEntityFromDef(def: EntityDefinition, moduleName: string): Entity {
   return entity;
 }
 
-export function addSchemaFromDef(def: SchemaDefinition, moduleName: string): Record {
+function addSchemaFromDef(
+  def: SchemaDefinition,
+  moduleName: string,
+  ispub: boolean = false
+): Record {
   let result: Record | undefined;
   if (isEntityDefinition(def)) {
     result = addEntityFromDef(def, moduleName);
   } else if (isEventDefinition(def)) {
     result = addEvent(def.name, moduleName, def.schema, maybeExtends(def.extends));
-  } else {
+  } else if (isRecordDefinition(def)) {
     result = addRecord(def.name, moduleName, def.schema, maybeExtends(def.extends));
+  } else {
+    throw new Error(`Cannot add schema defintiion in module ${moduleName} for ${def}`);
+  }
+  if (ispub) {
+    result.setPublic(true);
   }
   return result;
 }
@@ -733,11 +742,12 @@ async function addAgentDefinition(
   if (scratchNames) {
     registerAgentScratchNames(agentFqName, scratchNames);
   }
-  if (ispub) {
-    registerAsPublicAgent(agentFqName);
-  }
   // Don't add llm to module attrs if it wasn't originally specified
-  addAgent(def.name, attrs, moduleName);
+  const agent = addAgent(def.name, attrs, moduleName);
+  if (ispub) {
+    agent.setPublic(true);
+  }
+  return agent;
 }
 
 function processAgentArray(array: ArrayLiteral, attrName: string): string {
@@ -899,6 +909,7 @@ function asResolverFn(fname: string): Function {
 export async function addFromDef(def: Definition, moduleName: string) {
   if (isEntityDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isEventDefinition(def)) addSchemaFromDef(def, moduleName);
+  else if (isPublicEventDefinition(def)) addSchemaFromDef(def.def, moduleName, true);
   else if (isRecordDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isRelationshipDefinition(def)) addRelationshipFromDef(def, moduleName);
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
