@@ -4,13 +4,13 @@ entry ModuleDefinition: 'module' name=QualifiedName (imports+=Import)* (defs+=De
 
 Import: 'import' path=STRING '@as' name=ID;
 
-Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
-| AgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition | ScenarioDefinition 
+Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | PublicWorkflowDefinition | StandaloneStatement 
+| AgentDefinition | PublicAgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition | ScenarioDefinition 
 | DirectiveDefinition | GlossaryEntryDefinition;
 
 StandaloneStatement: stmt=Statement;
 
-SchemaDefinition: EntityDefinition | EventDefinition | RecordDefinition;
+SchemaDefinition: EntityDefinition | EventDefinition | PublicEventDefinition | RecordDefinition;
 
 PropertyDefinition: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 
@@ -27,6 +27,7 @@ fragment RecDef: name=QualifiedName extends=ExtendsClause? schema=RecordSchemaDe
 
 EntityDefinition: 'entity' RecDef;
 EventDefinition: 'event' RecDef;
+PublicEventDefinition: '@public' def=EventDefinition;
 RecordDefinition: 'record' RecDef;
 
 ExtendsClause: 'extends' parentName=QualifiedName;
@@ -101,6 +102,8 @@ WorkflowHeaderTag returns string: '@after' | '@before';
 
 WorkflowHeaderPrefix returns string: 'create' | 'update' | 'delete';
 
+PublicWorkflowDefinition: '@public' def=WorkflowDefinition;
+
 Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
 | fullTextSearch=FullTextSearch | return=Return;
 
@@ -132,6 +135,8 @@ FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 Return: 'return' pattern=Pattern;
 
 AgentDefinition: 'agent' name=GenericName (body=GenericDefBody? | '{''}');
+
+PublicAgentDefinition: '@public' def=AgentDefinition;
 
 GenericDefBody: '{' (attributes+=GenericPropertyDef (',' attributes+=GenericPropertyDef)*)+ '}';
 

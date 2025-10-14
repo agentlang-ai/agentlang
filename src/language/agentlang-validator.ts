@@ -31,15 +31,26 @@ export class AgentlangValidator {
     // and report an error when we see one we've already seen
     const reported = new Set();
     module.defs.forEach(d => {
+      let n: string | undefined;
       if (!isStandaloneStatement(d)) {
         if (
+          d.$type === 'PublicWorkflowDefinition' ||
+          d.$type === 'PublicAgentDefinition' ||
+          d.$type === 'PublicEventDefinition'
+        ) {
+          n = d.def.name;
+        } else {
+          n = d.name;
+        }
+        if (
           d.$type != 'WorkflowDefinition' &&
+          d.$type != 'PublicWorkflowDefinition' &&
           d.$type != 'ScenarioDefinition' &&
           d.$type != 'DirectiveDefinition' &&
           d.$type != 'GlossaryEntryDefinition' &&
-          reported.has(d.name)
+          reported.has(n)
         ) {
-          accept('error', `Definition has non-unique name '${d.name}'.`, {
+          accept('error', `Definition has non-unique name '${n}'.`, {
             node: d,
             property: 'name',
           });
@@ -50,7 +61,7 @@ export class AgentlangValidator {
           d.$type != 'DirectiveDefinition' &&
           d.$type != 'GlossaryEntryDefinition'
         ) {
-          reported.add(d.name);
+          reported.add(n);
         }
       }
     });
@@ -60,6 +71,9 @@ export class AgentlangValidator {
     // create a set of visited functions
     // and report an error when we see one we've already seen
     const reported = new Set();
+    if (def.$type === 'PublicEventDefinition') {
+      def = def.def;
+    }
     def.schema.attributes.forEach((a: AttributeDefinition) => {
       if (reported.has(a.name)) {
         accept('error', `'${def.name} " - attribute has non-unique name '${a.name}'.`, {

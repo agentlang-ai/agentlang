@@ -71,6 +71,7 @@ import {
 export class ModuleEntry {
   name: string;
   moduleName: string;
+  private taggedAsPublic: boolean = false;
 
   constructor(name: string, moduleName: string) {
     this.name = name;
@@ -79,6 +80,15 @@ export class ModuleEntry {
 
   getFqName(): string {
     return makeFqName(this.moduleName, this.name);
+  }
+
+  setPublic(flag: boolean): ModuleEntry {
+    this.taggedAsPublic = flag;
+    return this;
+  }
+
+  isPublic(): boolean {
+    return this.taggedAsPublic;
   }
 }
 
@@ -560,6 +570,9 @@ export class Record extends ModuleEntry {
       const ms = `@meta ${JSON.stringify(metaObj)}`;
       scms = `${scms},\n    ${ms}`;
     }
+    if (this.isPublic()) {
+      s = `@public ${s}`;
+    }
     return s.concat('\n{', scms, '\n}\n');
   }
 
@@ -1019,10 +1032,15 @@ export class Agent extends Record {
     if (rscm) {
       attrs.push(`   responseSchema ${rscm}`);
     }
-    return `agent ${Agent.NormalizeName(this.name)}
+    const s = `agent ${Agent.NormalizeName(this.name)}
 {
 ${attrs.join(',\n')}
 }`;
+    if (this.isPublic()) {
+      return `@public ${s}`;
+    } else {
+      return s;
+    }
   }
 
   static Suffix = '__agent';
@@ -1076,6 +1094,10 @@ export class Entity extends Record {
 
 export class Event extends Record {
   override type: RecordType = RecordType.EVENT;
+
+  isSystemDefined(): boolean {
+    return this.meta?.get(SystemDefinedEvent) === 'true';
+  }
 }
 
 enum RelType {
@@ -1323,17 +1345,12 @@ export class Relationship extends Record {
 
 export class Workflow extends ModuleEntry {
   statements: Statement[];
-  generatedName: boolean;
+  isPrePost: boolean;
 
-  constructor(
-    name: string,
-    patterns: Statement[],
-    moduleName: string,
-    generatedName: boolean = false
-  ) {
+  constructor(name: string, patterns: Statement[], moduleName: string, isPrePost: boolean = false) {
     super(name, moduleName);
     this.statements = patterns;
-    this.generatedName = generatedName;
+    this.isPrePost = isPrePost;
   }
 
   async addStatement(stmtCode: string): Promise<Workflow> {
@@ -1450,11 +1467,30 @@ export class Workflow extends ModuleEntry {
     return this.statementsToStringsHelper(this.statements);
   }
 
+  override setPublic(flag: boolean): ModuleEntry {
+    super.setPublic(flag);
+    if (!this.isPrePost) {
+      const n = normalizeWorkflowName(this.name);
+      const event = getEvent(n, this.moduleName);
+      event.setPublic(flag);
+    }
+    return this;
+  }
+
   override toString() {
-    const n = this.generatedName ? untangleWorkflowName(this.name) : this.name;
-    let s: string = `workflow ${normalizeWorkflowName(n)} {\n`;
+    const n = this.isPrePost ? untangleWorkflowName(this.name) : this.name;
+    const nn = normalizeWorkflowName(n);
+    let s: string = `workflow ${nn} {\n`;
     const ss = this.statementsToStringsHelper(this.statements);
     s = s.concat(joinStatements(ss));
+    if (!this.isPrePost) {
+      const event = getEvent(nn, this.moduleName);
+      if ((event.isPublic() && event.isSystemDefined()) || this.isPublic()) {
+        s = `@public ${s}`;
+      }
+    } else if (this.isPublic()) {
+      s = `@public ${s}`;
+    }
     return s.concat('\n}');
   }
 }
@@ -1739,6 +1775,12 @@ export class Module {
     return this.entries[idx];
   }
 
+  getEntrySafe(entryName: string): ModuleEntry | undefined {
+    const idx: number = this.getEntryIndex(entryName);
+    if (idx < 0) return undefined;
+    return this.entries[idx];
+  }
+
   getRecord(recordName: string): Record {
     const e: ModuleEntry = this.getEntry(recordName);
     if (e instanceof Record) {
@@ -1810,12 +1852,24 @@ export class Module {
     });
   }
 
-  getWorkflowForEvent(eventName: string): Workflow {
-    return this.getEntry(asWorkflowName(eventName)) as Workflow;
+  getWorkflowForEvent(eventName: string): Workflow | undefined {
+    const entry = this.getEntrySafe(asWorkflowName(eventName));
+    if (entry) return entry as Workflow;
+    else return undefined;
+  }
+
+  eventIsPublic(eventName: string): boolean {
+    const entry = this.getEntry(eventName);
+    if (entry instanceof Event) {
+      return entry.isPublic();
+    }
+    return false;
   }
 
   isPrePostEvent(eventName: string): boolean {
-    return this.getWorkflowForEvent(eventName).generatedName;
+    const wf = this.getWorkflowForEvent(eventName);
+    if (wf) return wf.isPrePost;
+    return false;
   }
 
   isEntryOfType(t: RecordType, name: string): boolean {
@@ -2284,7 +2338,8 @@ export function addWorkflow(
   name: string,
   moduleName = activeModule,
   statements?: Statement[],
-  hdr?: WorkflowHeader | ThinWfHeader
+  hdr?: WorkflowHeader | ThinWfHeader,
+  ispub: boolean = false
 ): Workflow {
   if (hdr) {
     name = prePostWorkflowName(hdr.tag, hdr.prefix, hdr.name, moduleName);
@@ -2295,9 +2350,11 @@ export function addWorkflow(
     if (!(entry instanceof Event))
       throw new Error(`Not an event, cannot attach workflow to ${entry.name}`);
   } else {
-    addEvent(name, moduleName);
-    const event: Record = module.getEntry(name) as Record;
+    const event = addEvent(name, moduleName);
     event.addMeta(SystemDefinedEvent, 'true');
+    if (ispub) {
+      event.setPublic(true);
+    }
   }
   if (!statements) statements = new Array<Statement>();
   if (hdr) {

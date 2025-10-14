@@ -39,6 +39,9 @@ import {
   GlossaryEntryDefinition,
   isDirectiveDefinition,
   isGlossaryEntryDefinition,
+  isPublicWorkflowDefinition,
+  isPublicAgentDefinition,
+  isPublicEventDefinition,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -434,14 +437,23 @@ function addEntityFromDef(def: EntityDefinition, moduleName: string): Entity {
   return entity;
 }
 
-export function addSchemaFromDef(def: SchemaDefinition, moduleName: string): Record {
+function addSchemaFromDef(
+  def: SchemaDefinition,
+  moduleName: string,
+  ispub: boolean = false
+): Record {
   let result: Record | undefined;
   if (isEntityDefinition(def)) {
     result = addEntityFromDef(def, moduleName);
   } else if (isEventDefinition(def)) {
     result = addEvent(def.name, moduleName, def.schema, maybeExtends(def.extends));
-  } else {
+  } else if (isRecordDefinition(def)) {
     result = addRecord(def.name, moduleName, def.schema, maybeExtends(def.extends));
+  } else {
+    throw new Error(`Cannot add schema defintiion in module ${moduleName} for ${def}`);
+  }
+  if (ispub) {
+    result.setPublic(true);
   }
   return result;
 }
@@ -453,8 +465,12 @@ export function addRelationshipFromDef(
   return addRelationship(def.name, def.type, def.nodes, moduleName, def.schema, def.properties);
 }
 
-export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string): Workflow {
-  return addWorkflow(def.name || '', moduleName, def.statements, def.header);
+export function addWorkflowFromDef(
+  def: WorkflowDefinition,
+  moduleName: string,
+  ispub: boolean = false
+): Workflow {
+  return addWorkflow(def.name || '', moduleName, def.statements, def.header, ispub);
 }
 
 const StandaloneStatements = new Map<string, Statement[]>();
@@ -600,7 +616,11 @@ function processAgentScratchNames(agentName: string, value: Literal): string[] |
   return undefined;
 }
 
-async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
+async function addAgentDefinition(
+  def: AgentDefinition,
+  moduleName: string,
+  ispub: boolean = false
+) {
   let llmName: string | undefined = undefined;
   const name = def.name;
   const attrsStrs = new Array<string>();
@@ -723,7 +743,11 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     registerAgentScratchNames(agentFqName, scratchNames);
   }
   // Don't add llm to module attrs if it wasn't originally specified
-  addAgent(def.name, attrs, moduleName);
+  const agent = addAgent(def.name, attrs, moduleName);
+  if (ispub) {
+    agent.setPublic(true);
+  }
+  return agent;
 }
 
 function processAgentArray(array: ArrayLiteral, attrName: string): string {
@@ -885,10 +909,13 @@ function asResolverFn(fname: string): Function {
 export async function addFromDef(def: Definition, moduleName: string) {
   if (isEntityDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isEventDefinition(def)) addSchemaFromDef(def, moduleName);
+  else if (isPublicEventDefinition(def)) addSchemaFromDef(def.def, moduleName, true);
   else if (isRecordDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isRelationshipDefinition(def)) addRelationshipFromDef(def, moduleName);
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
+  else if (isPublicWorkflowDefinition(def)) addWorkflowFromDef(def.def, moduleName, true);
   else if (isAgentDefinition(def)) await addAgentDefinition(def, moduleName);
+  else if (isPublicAgentDefinition(def)) await addAgentDefinition(def.def, moduleName, true);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
   else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);
   else if (isFlowDefinition(def)) addFlowDefinition(def, moduleName);

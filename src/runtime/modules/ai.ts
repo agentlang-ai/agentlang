@@ -636,10 +636,14 @@ function processScenarioResponse(resp: string): string {
     const parts = splitFqName(r);
     const m = fetchModule(parts[0]);
     const wf = m.getWorkflowForEvent(parts[1]);
-    const ss = wf.statements.map((stmt: Statement) => {
-      return stmt.$cstNode?.text;
-    });
-    return `[${ss.join(';\n')}]`;
+    if (wf) {
+      const ss = wf.statements.map((stmt: Statement) => {
+        return stmt.$cstNode?.text;
+      });
+      return `[${ss.join(';\n')}]`;
+    } else {
+      return resp;
+    }
   }
   return resp;
 }

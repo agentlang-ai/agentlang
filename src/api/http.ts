@@ -64,10 +64,12 @@ export function startServer(appSpec: ApplicationSpec, port: number, host?: strin
   });
 
   getAllEventNames().forEach((eventNames: string[], moduleName: string) => {
+    const m = fetchModule(moduleName);
     eventNames.forEach((n: string) => {
-      app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
-        handleEventPost(moduleName, n, req, res);
-      });
+      if (m.eventIsPublic(n))
+        app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+          handleEventPost(moduleName, n, req, res);
+        });
     });
   });
 
