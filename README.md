@@ -10,30 +10,30 @@
   <a href="https://zdoc.app/zh/agentlang-ai/agentlang">中文</a>
 </p>
 
-# AgentLang - Reliable Enterprise AI Agents
+# Agentlang - Reliable Enterprise AI Agents
 Agentic Reliability Modeling - Build AI Agents that actually work!
 
 |         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Quick Start | [![Documentation](https://img.shields.io/badge/docs-available-brightgreen)](https://github.com/agentlang-ai/agentlang#readme) [![Examples](https://img.shields.io/badge/examples-available-yellow)](https://github.com/agentlang-ai/agentlang/tree/main/example) |
-| Environment | [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![pnpm](https://img.shields.io/badge/pnpm-10.13.1-blue?logo=pnpm)](https://pnpm.io) [![AgentLang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml) |
+| Environment | [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![pnpm](https://img.shields.io/badge/pnpm-10.13.1-blue?logo=pnpm)](https://pnpm.io) [![Agentlang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml) |
 | Meta        | [![GitHub Stars](https://img.shields.io/github/stars/agentlang-ai/agentlang?style=social)](https://github.com/agentlang-ai/agentlang) ![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang) |
 
 </div>
 
-Build **teams of reliable AI Agents** that follow your organization's processes closely, while adapting to new scenarios, with AgentLang. Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
+Build **teams of reliable AI Agents** that follow your organization's processes closely, while adapting to new scenarios, with Agentlang. Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
 
-* **Agentic:** AgentLang is a programming language specifically designed for building anything involving agents. AgentLang is highly declarative - enabling you to focus on the business logic getting bogged down in implementation details.
+* **Agentic:** Agentlang is a programming language specifically designed for building anything involving agents. Agentlang is highly declarative - enabling you to focus on the business logic getting bogged down in implementation details.
 
-* **Robust Integrations:** The AgentLang runtime integrates natively with a wide range of LLMs, databases, vector databases, and auth providers. AgentLang has a novel connector architecture, with a rapidly growing collection of prebuilt connectors for Enterprise tools. Plus, AgentLang programs run on NodeJS (and, soon, in the browser!) and can leverage any existing JavaScript library.
+* **Robust Integrations:** The Agentlang runtime integrates natively with a wide range of LLMs, databases, vector databases, and auth providers. Agentlang has a novel connector architecture, with a rapidly growing collection of prebuilt connectors for Enterprise tools. Plus, Agentlang programs run on NodeJS (and, soon, in the browser!) and can leverage any existing JavaScript library.
 
-* **Production-ready**: AgentLang is built on top of TypeScript and uses all the modern JS/TS tooling needed to build production-grade agents and apps.
+* **Production-ready**: Agentlang is built on top of TypeScript and uses all the modern JS/TS tooling needed to build production-grade agents and apps.
 
 Coming soon! Fractl Studio is a no-code environment for building and operating AI Agents.
 
 ## Agentic Reliability Modeling
 
-Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking. AgentLang offers a robust set of tools to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
+Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking. Agentlang offers a robust set of tools to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
 
 <table>
     <tr>
@@ -83,7 +83,7 @@ agent TicketFlow {
 ```
 
 ### Flows
-Flows are central to AgentLang's reliability modeling. Define your business processes using an intuitive flow syntax - flows guide (not enforce) an agent's behavior closely. AgentLang's adaptive runtime will execute them, dynamically adapting the execution flow as needed.
+Flows are central to Agentlang's reliability modeling. Define your business processes using an intuitive flow syntax - flows guide (not enforce) an agent's behavior closely. Agentlang's adaptive runtime will execute them, dynamically adapting the execution flow as needed.
 
 Each step in the flow can be an agent or a tool (workflow).
 
@@ -234,7 +234,7 @@ The agent `classifyProvisioningRequest` has its `responseSchema` attribute set t
 {type "DNS", requestedBy "joe@acme.com", CNAME "joe.acme.com", IPAddress "192.3.4.1"}
 ```
 
-## AgentLang Ontology
+## Agentlang Ontology
 
 Agentlang's sophisticated modeling capabilities allow you to design the data-schema, workflows and access control constructs of your application in a declarative way. Agents can work directly with this ontology and dynamically generate business workflows, making your application into a living system that constantly adapts to new requirements and demands.
 
@@ -280,7 +280,7 @@ npm run test:verbose
 ## Run an Agentlang Script or Application
 
 ```shell
-# Parse and validate an AgentLang file
+# Parse and validate an Agentlang file
 node ./bin/cli.js parseAndValidate example/blog/blog.al
 
 # Run a specific app
