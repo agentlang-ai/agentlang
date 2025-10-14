@@ -20,6 +20,9 @@ import {
   RbacSpecEntries,
   RbacOpr,
   WorkflowHeader,
+  ScenarioDefinition,
+  DirectiveDefinition,
+  GlossaryEntryDefinition,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -56,8 +59,10 @@ import {
   getAgentDirectives,
   getAgentDirectivesJson,
   getAgentGlossary,
+  getAgentGlossaryJson,
   getAgentResponseSchema,
   getAgentScenarios,
+  getAgentScenariosJson,
   registerAgentDirectives,
   registerAgentGlossary,
   registerAgentResponseSchema,
@@ -1020,13 +1025,13 @@ export class Agent extends Record {
     if (conds) {
       attrs.push(`    directives ${conds}`);
     }
-    const scns = getAgentScenarios(fqName);
+    const scns = getAgentScenariosJson(fqName);
     if (scns) {
-      attrs.push(`    scenarios ${JSON.stringify(scns)}`);
+      attrs.push(`    scenarios ${scns}`);
     }
-    const gls = getAgentGlossary(fqName);
+    const gls = getAgentGlossaryJson(fqName);
     if (gls) {
-      attrs.push(`    glossary ${JSON.stringify(gls)}`);
+      attrs.push(`    glossary ${gls}`);
     }
     const rscm = getAgentResponseSchema(fqName);
     if (rscm) {
@@ -1591,6 +1596,57 @@ export class Flow extends ModuleEntry {
   }
 }
 
+class Scenario extends ModuleEntry {
+  private def: ScenarioDefinition;
+
+  constructor(def: ScenarioDefinition, moduleName: string) {
+    super(def.name, moduleName);
+    this.def = def;
+  }
+
+  override toString(): string {
+    const s = this.def.$cstNode?.text;
+    if (s) {
+      return s;
+    }
+    throw new Error(`failed to generate code for scenario ${this.moduleName}/${this.name}`);
+  }
+}
+
+class Directive extends ModuleEntry {
+  private def: DirectiveDefinition;
+
+  constructor(def: DirectiveDefinition, moduleName: string) {
+    super(def.name, moduleName);
+    this.def = def;
+  }
+
+  override toString(): string {
+    const s = this.def.$cstNode?.text;
+    if (s) {
+      return s;
+    }
+    throw new Error(`failed to generate code for directive ${this.moduleName}/${this.name}`);
+  }
+}
+
+class GlossaryEntry extends ModuleEntry {
+  private def: GlossaryEntryDefinition;
+
+  constructor(def: GlossaryEntryDefinition, moduleName: string) {
+    super(def.name, moduleName);
+    this.def = def;
+  }
+
+  override toString(): string {
+    const s = this.def.$cstNode?.text;
+    if (s) {
+      return s;
+    }
+    throw new Error(`failed to generate code for glossaryEntry ${this.moduleName}/${this.name}`);
+  }
+}
+
 export function flowGraphNext(
   graph: FlowGraphNode[],
   currentNode?: FlowGraphNode,
@@ -1744,6 +1800,69 @@ export class Module {
       }
     }
     return undefined;
+  }
+
+  addScenario(scn: ScenarioDefinition): Scenario {
+    const entry = new Scenario(scn, this.name);
+    this.addEntry(entry);
+    return entry;
+  }
+
+  removeScenario(name: string): Module {
+    let idx = -1;
+    for (let i = 0; i < this.entries.length; ++i) {
+      const entry = this.entries[i];
+      if (entry.name === name && entry instanceof Scenario) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx >= 0) {
+      this.entries.splice(idx, 1);
+    }
+    return this;
+  }
+
+  addDirective(dd: DirectiveDefinition): Directive {
+    const entry = new Directive(dd, this.name);
+    this.addEntry(entry);
+    return entry;
+  }
+
+  removeDirective(name: string): Module {
+    let idx = -1;
+    for (let i = 0; i < this.entries.length; ++i) {
+      const entry = this.entries[i];
+      if (entry.name === name && entry instanceof Directive) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx >= 0) {
+      this.entries.splice(idx, 1);
+    }
+    return this;
+  }
+
+  addGlossaryEntry(ge: GlossaryEntryDefinition): GlossaryEntry {
+    const entry = new GlossaryEntry(ge, this.name);
+    this.addEntry(entry);
+    return entry;
+  }
+
+  removeGlossaryEntry(name: string): Module {
+    let idx = -1;
+    for (let i = 0; i < this.entries.length; ++i) {
+      const entry = this.entries[i];
+      if (entry.name === name && entry instanceof GlossaryEntry) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx >= 0) {
+      this.entries.splice(idx, 1);
+    }
+    return this;
   }
 
   addStandaloneStatement(stmt: Statement): StandaloneStatement {

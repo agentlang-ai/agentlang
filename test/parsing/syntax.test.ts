@@ -529,22 +529,25 @@ describe('Extra agent attributes', () => {
     const conds = new Array<AgentCondition>()
     conds.push({
       cond: "Employee sales exceeded 5000",
-      then: "Give a salary hike of 5 percent"
+      then: "Give a salary hike of 5 percent",
+      internal: true
     })
     conds.push({
       cond: "sales is more than 2000 but less than 5000",
-      then: "hike salary by 2 percent"
+      then: "hike salary by 2 percent",
+      internal: true
     })
     agent?.setDirectives(conds)
     const scns = agent?.getScenarios()
     scns?.push({
-      user: "hello", ai: "unknown request"
+      user: "hello", ai: "unknown request", internal: true
     })
     agent?.setResponseSchema('acme/response')
     agent?.getGlossary()?.push({
       name: "hit",
       meaning: "sales above 400",
-      synonyms: "block-buster"
+      synonyms: "block-buster",
+      internal: true
     })
     const s = m.toString();
     assert(s == `module XtraAgentAttrs
@@ -607,5 +610,61 @@ entity B extends A
     email Email
 }
 `)
+  })
+})
+
+describe('agent-xtras-to-string', () => {
+  test('standalone scenarios, directives', async () => {
+    const mname = 'StdAloneAgentXtras'
+await doInternModule(mname,
+  `workflow scenario01 {
+             {GA/Employee {name? "Jake"}} @as [employee];
+             {GA/Employee {id? employee.id, salary employee.salary + employee.salary * 0.5}}
+         }
+         agent ga
+          {instruction "Create appropriate patterns for managing Employee information",
+           tools "GA",
+           directives [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
+                       {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
+           scenarios  [{"user": "Jake hit a jackpot!", "ai": "GuidedAgent/scenario01"}],
+           glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
+         scenario ga.scn01 {"user": "Kiran had a block-buster", "ai": "GuidedAgent/scenario01"}
+         directive GuidedAgent/ga.dir01 {"if": "sales is less than 2000", "then": "hike salary by 0.5 percent"}
+         glossarytEntry ga.ge {"meaning": "low-sales", "name": "down", "synonyms": "bad"}
+         workflow chat {{ga {message chat.msg}}}`
+)
+const m = fetchModule(mname)
+const s = m.toString()
+assert(s === `module StdAloneAgentXtras
+
+
+workflow scenario01 {
+    {GA/Employee {name? "Jake"}} @as [employee];
+    {GA/Employee {id? employee.id, salary employee.salary + employee.salary * 0.5}}
+}
+agent ga
+{
+    instruction "Create appropriate patterns for managing Employee information",
+    tools "GA",
+    directives [{"if":"Employee sales exceeded 5000","then":"Give a salary hike of 5 percent"},{"if":"sales is more than 2000 but less than 5000","then":"hike salary by 2 percent"}],
+    scenarios [{"user":"Jake hit a jackpot!","ai":"GuidedAgent/scenario01"}],
+    glossary [{"name":"jackpot","meaning":"sales of 5000 or above","synonyms":"high sales, block-buster"}]
+}
+scenario ga.scn01 {"user": "Kiran had a block-buster", "ai": "GuidedAgent/scenario01"}
+directive GuidedAgent/ga.dir01 {"if": "sales is less than 2000", "then": "hike salary by 0.5 percent"}
+glossarytEntry
+ga.ge
+{"meaning": "low-sales", "name": "down", "synonyms": "bad"}
+
+workflow chat {
+    {ga {message chat.msg}}
+}`)
+const mname2 = `${mname}2`
+const idx = s.indexOf('workflow')
+const s2 = s.substring(idx).trim()
+await doInternModule(mname2, s2)
+const m2 = fetchModule(mname2)
+const s3 = m2.toString().substring(idx).trim()
+assert(s2 === s3)
   })
 })
