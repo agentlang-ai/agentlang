@@ -36,11 +36,11 @@ entity Category {
 // many-many
 relationship PostCategory between (Post, Category)
 
-event CreateUser extends Profile {
+@public event CreateUser extends Profile {
     name String
 }
 
-@public workflow CreateUser {
+workflow CreateUser {
     {User {name CreateUser.name},
      UserProfile {Profile {email CreateUser.email}},
      UserPost {Post {title "hello, world"}}}
