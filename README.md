@@ -13,27 +13,27 @@
 # Agentlang - Reliable Enterprise AI Agents
 Agentic Reliability Modeling - Build AI Agents that actually work!
 
-|         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Quick Start | [![Documentation](https://img.shields.io/badge/docs-available-brightgreen)](https://github.com/agentlang-ai/agentlang#readme) [![Examples](https://img.shields.io/badge/examples-available-yellow)](https://github.com/agentlang-ai/agentlang/tree/main/example) |
 | Environment | [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![pnpm](https://img.shields.io/badge/pnpm-10.13.1-blue?logo=pnpm)](https://pnpm.io) [![Agentlang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml) |
 | Meta        | [![GitHub Stars](https://img.shields.io/github/stars/agentlang-ai/agentlang?style=social)](https://github.com/agentlang-ai/agentlang) ![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang) |
 
 </div>
 
-Build **teams of reliable AI Agents** that follow your organization's processes closely, while adapting to new scenarios, with Agentlang. Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
+Build **teams of reliable AI Agents** that follow your organization's processes closely, while adapting to new scenarios. Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
 
-* **Agentic:** Agentlang is a programming abstraction specifically designed for building anything involving agents. Agentlang is highly declarative - enabling you to focus on the business logic getting bogged down in implementation details.
+* **Agentic:** Agentlang is a programming abstraction specifically designed for building anything involving agents. Agentlang is highly declarative - enabling you to focus on the business logic without getting bogged down in implementation details.
 
-* **Robust Integrations:** The Agentlang runtime integrates natively with a wide range of LLMs, databases, vector databases, and auth providers. Agentlang has a novel connector architecture, with a rapidly growing collection of prebuilt connectors for Enterprise tools. Plus, Agentlang programs run on NodeJS (and, soon, in the browser!) and can leverage any existing JavaScript library.
+* **Robust Integrations:** The Agentlang runtime integrates natively with a wide range of LLMs, databases, vector databases, and auth providers. Agentlang has a novel connector architecture, with a rapidly growing collection of prebuilt connectors for Enterprise tools. Plus, Agentlang programs run on NodeJS (and in the browser) and can leverage any existing JavaScript library.
 
 * **Production-grade**: Agentlang is built on top of TypeScript and uses all the modern JS/TS tooling needed to build enterprise-class agents and apps.
 
-Coming soon! Fractl Studio is a no-code environment for building and operating AI Agents.
+> Coming soon! Fractl Studio is a no-code environment for building and operating AI Agents.
 
 ## Agentic Reliability Modeling
 
-Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking. Agentlang offers just enough structure to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
+Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking to achieve our goal. Agentlang offers just enough structure, to augment natural language instructions, to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
 
 ```typescript
 decision ticketTriager {
@@ -104,7 +104,7 @@ workflow ticketInProgress {
     </tr>
 </table>
 
-## First-class AI Agents
+### First-class AI Agents
 
 Agents and many concepts agents use are built-in language constructs.
 
@@ -116,7 +116,7 @@ flow triageFlow {
 }
 
 agent TicketFlow {
-    llm "ticketflow_llm",
+    llm "gpt4o",
     role "You are a network ticket management agent. Your job is to triage any ticket passed to you and
           update the ticket with appropriate assigned_to, status and triaging comments.",
     flows [triageFlow]
@@ -146,13 +146,13 @@ An agent that takes a decision for branching in a flow can be expressed as a **d
 
 ```typescript
 decision classifyOrder {
-   case (carType == "SUV" and segment == "economy") {
-      EconomySUV
-   }
-
-   case (carType == "SUV" and segment == "luxury") {
+    case ("if requested car type is SUV and customer tier is premier") {
       LuxurySUV
-   }
+    }
+
+    case ("if the requested car type is SUV and segment is economy") {
+      EconomySUV
+    }
 }
 
 flow carOrderRequestManager {
@@ -162,12 +162,17 @@ flow carOrderRequestManager {
 }
 ```
 
-The `case` conditions may also be written in plain text as:
+The `case` conditions may also be written as logical expressions:
 
 ```typescript
-case ("if carType is SUV and segment is economy") {
-   EconomySUV
-}
+   case (carType == "SUV" and segment == "luxury") {
+      LuxurySUV
+   }
+
+   case (carType == "SUV") {
+      EconomySUV
+   }
+
 ```
 
 As the flow executes an agent that specializes in evaluating decision tables will be invoked for the node `classifyOrder`. The tag returned by this agent will be used to select either the `orderEconomySUV` or `orderLuxurySUV` node of the flow.
