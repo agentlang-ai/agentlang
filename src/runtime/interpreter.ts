@@ -1268,7 +1268,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
       let r: Instance | undefined;
-      await computeExprAttributes(inst, env);
+      await computeExprAttributes(inst, undefined, undefined, env);
       if (env.isInUpsertMode()) {
         await runPreUpdateEvents(inst, env);
         r = await res.upsertInstance(inst);
@@ -1385,7 +1385,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             );
             const res: Array<Instance> = new Array<Instance>();
             for (let i = 0; i < lastRes.length; ++i) {
-              await computeExprAttributes(lastRes[i], env);
+              await computeExprAttributes(lastRes[i], crud.body?.attributes, attrs, env);
               await runPreUpdateEvents(lastRes[i], env);
               const finalInst: Instance = await resolver.updateInstance(lastRes[i], attrs);
               await runPostUpdateEvents(finalInst, lastRes[i], env);
@@ -1397,7 +1397,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           }
         } else {
           const res: Resolver = await getResolverForPath(lastRes.name, lastRes.moduleName, env);
-          await computeExprAttributes(lastRes, env);
+          await computeExprAttributes(lastRes, crud.body?.attributes, attrs, env);
           await runPreUpdateEvents(lastRes, env);
           const finalInst: Instance = await res.updateInstance(lastRes, attrs);
           await runPostUpdateEvents(finalInst, lastRes, env);
@@ -1489,22 +1489,45 @@ function triggerTimer(timerInst: Instance): Instance {
   return timerInst;
 }
 
-async function computeExprAttributes(inst: Instance, env: Environment) {
+async function computeExprAttributes(
+  inst: Instance,
+  origAttrs: SetAttribute[] | undefined,
+  updatedAttrs: InstanceAttributes | undefined,
+  env: Environment
+) {
   const exprAttrs = inst.getExprAttributes();
-  if (exprAttrs) {
+  if (exprAttrs || origAttrs) {
     const newEnv = new Environment('expr-env', env);
     inst.attributes.forEach((v: any, k: string) => {
-      newEnv.bind(k, v);
+      if (v != undefined) newEnv.bind(k, v);
     });
-    const ks = [...exprAttrs.keys()];
-    for (let i = 0; i < ks.length; ++i) {
-      const n = ks[i];
-      const expr: Expr | undefined = exprAttrs.get(n);
-      if (expr) {
-        await evaluateExpression(expr, newEnv);
-        const v: Result = newEnv.getLastResult();
-        newEnv.bind(n, v);
-        inst.attributes.set(n, v);
+    updatedAttrs?.forEach((v: any, k: string) => {
+      if (v != undefined) newEnv.bind(k, v);
+    });
+    if (exprAttrs) {
+      const ks = [...exprAttrs.keys()];
+      for (let i = 0; i < ks.length; ++i) {
+        const n = ks[i];
+        const expr: Expr | undefined = exprAttrs.get(n);
+        if (expr) {
+          await evaluateExpression(expr, newEnv);
+          const v: Result = newEnv.getLastResult();
+          newEnv.bind(n, v);
+          inst.attributes.set(n, v);
+          updatedAttrs?.set(n, v);
+        }
+      }
+    }
+    if (origAttrs && updatedAttrs) {
+      for (let i = 0; i < origAttrs.length; ++i) {
+        const a: SetAttribute = origAttrs[i];
+        const n = a.name;
+        if (!n.endsWith(QuerySuffix) && updatedAttrs.has(n)) {
+          await evaluateExpression(a.value, newEnv);
+          const v: Result = newEnv.getLastResult();
+          updatedAttrs.set(n, v);
+          newEnv.bind(n, v);
+        }
       }
     }
   }
@@ -1929,8 +1952,16 @@ export async function evaluateExpression(expr: Expr, env: Environment): Promise<
       await evaluateExpression(expr.e2, env);
       return;
     }
+    if (v1 == null || v1 == undefined) {
+      env.setLastResult(undefined);
+      return;
+    }
     await evaluateExpression(expr.e2, env);
     const v2 = env.getLastResult();
+    if (v2 == null || v2 == undefined) {
+      env.setLastResult(undefined);
+      return;
+    }
     switch (expr.op) {
       // arithmetic operators
       case '+':
