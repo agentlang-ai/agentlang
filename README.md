@@ -1,3 +1,4 @@
+
 <div align="center">
 
 <p>
@@ -20,9 +21,9 @@
 </div>
 
 
-<a href="https://agentlang-ai.github.io"><img src="https://img.shields.io/badge/Project-Home-blue?logo=homepage&logoColor=blue&style=for-the-badge"></a>
+<a href="https://agentlang-ai.fractl.io"><img src="https://img.shields.io/badge/Project-Home-blue?logo=homepage&logoColor=blue&style=for-the-badge"></a>
 <a href="https://discord.gg/abcdef"><img src="https://img.shields.io/badge/Discord-Join%20Us-purple?logo=discord&logoColor=red&style=for-the-badge"></a>
-<a href="https://agentlang-ai.github.io"><img src="https://img.shields.io/badge/Examples-Page-yellow?logo=homepage&logoColor=yellow&style=for-the-badge"></a>
+<a href="[https://agentlang-ai.github.io](https://github.com/agentlang-ai/agentlang/tree/main/example)"><img src="https://img.shields.io/badge/Examples-Page-yellow?logo=homepage&logoColor=yellow&style=for-the-badge"></a>
 
 [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml)![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang)
 <hr>
@@ -50,6 +51,35 @@ Build **teams of reliable AI Agents** that follow your organization's processes 
 ## Agentic Reliability Modeling
 
 Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking to achieve our goal. Agentlang offers **just enough structure**, to augment natural language instructions, to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
+
+<table>
+    <tr>
+        <td valign="top">
+          <div>
+          <b>Agentic Reliability Features:</b>
+          <ul>
+<li> First-class AI Agents </li>
+<li> Flows </li>
+<li> Decisions </li>
+<li> Directives </li>
+<li> Scenarios </li>
+<li> Glossary </li>
+<li> Structured output and scratchpad </li>
+<li> Input Template </li>
+          </ul>
+            <img width="441" height="1">
+          </div>
+        </td>
+        <td>
+          <div align="center">
+          <img width="350" height="420" alt="image" src="https://github.com/user-attachments/assets/b240a235-3804-4423-a639-cdfb90f07282" />
+          <img width="441" height="1">
+          </div>
+        </td>
+    </tr>
+</table>
+
+### An Example
 
 ```typescript
 decision ticketTriager {
@@ -93,32 +123,6 @@ workflow ticketInProgress {
 }
 ```
 
-### 🎯 Reliability Modeling Features
-
-<table>
-    <tr>
-        <td valign="top">
-          <div>
-          <b>Key concepts:</b>
-          <ul>
-<li> First-class AI Agents </li>
-<li> Flows </li>
-<li> Decisions </li>
-<li> Directives </li>
-<li> Scenarios </li>
-<li> Glossary </li>
-<li> Structured output and scratchpad </li>
-<li> Input Template </li>
-          </ul>
-          </div>
-        </td>
-        <td>
-          <div align="center">
-          <img width="350" height="420" alt="image" src="https://github.com/user-attachments/assets/b240a235-3804-4423-a639-cdfb90f07282" />
-          </div>
-        </td>
-    </tr>
-</table>
 
 ### ✨ First-class AI Agents
 
