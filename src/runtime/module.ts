@@ -2190,6 +2190,12 @@ function isTextualType(type: string): boolean {
   return TextualTypes.has(type);
 }
 
+const NumericTypes = new Set(['Int', 'Number', 'Float', 'Decimal']);
+
+function isNumericType(type: string): boolean {
+  return NumericTypes.has(type);
+}
+
 export function isBuiltInType(type: string): boolean {
   return builtInTypes.has(type);
 }
@@ -2322,6 +2328,10 @@ export function isArrayAttribute(attrSpec: AttributeSpec): boolean {
 
 export function isObjectAttribute(attrSpec: AttributeSpec): boolean {
   return getBooleanProperty('object', attrSpec);
+}
+
+export function isNumericAttribute(attrSpec: AttributeSpec): boolean {
+  return isNumericType(attrSpec.type);
 }
 
 export function getAttributeExpr(attrSpec: AttributeSpec): Expr | undefined {
@@ -2955,7 +2965,10 @@ export class Instance {
     attrs.forEach((v: any, k: string) => {
       const attrSpec = this.record.schema.get(k);
       if (attrSpec) {
-        if ((isArrayAttribute(attrSpec) || isObjectAttribute(attrSpec)) && isString(v)) {
+        const isstr = isString(v);
+        if (isNumericAttribute(attrSpec) && isstr) {
+          attrs.set(k, Number(v));
+        } else if ((isArrayAttribute(attrSpec) || isObjectAttribute(attrSpec)) && isstr) {
           const obj: any = JSON.parse(v);
           attrs.set(k, obj);
         }
