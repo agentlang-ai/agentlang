@@ -1,4 +1,5 @@
-<div>
+<div align="center">
+
 <p>
   <a href="https://zdoc.app/ja/agentlang-ai/agentlang">日本語</a> |
   <a href="https://zdoc.app/es/agentlang-ai/agentlang">Español</a> |
@@ -10,14 +11,29 @@
   <a href="https://zdoc.app/zh/agentlang-ai/agentlang">中文</a>
 </p>
 
-# Agentlang - Reliable Enterprise AI Agents
-Agentic Reliability Modeling - Build AI Agents that actually work!
+<div id="toc"> <!-- both work, toc or user-content-toc -->
+  <ul style="list-style: none;">
+    <summary>
+      <h1>Agentlang - Reliable Enterprise AI Agents</h1>
+    </summary>
+  </ul>
+</div>
 
-|         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Quick Start | [![Documentation](https://img.shields.io/badge/docs-available-brightgreen)](https://github.com/agentlang-ai/agentlang#readme) [![Examples](https://img.shields.io/badge/examples-available-yellow)](https://github.com/agentlang-ai/agentlang/tree/main/example) [![npm version](https://img.shields.io/npm/v/agentlang.svg)](https://www.npmjs.com/package/agentlang) |
-| Environment | [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![Agentlang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml) |
-| Meta        | [![GitHub Stars](https://img.shields.io/github/stars/agentlang-ai/agentlang?style=social)](https://github.com/agentlang-ai/agentlang) ![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang) |
+
+<a href="https://agentlang-ai.github.io"><img src="https://img.shields.io/badge/Project-Home-blue?logo=homepage&logoColor=blue&style=for-the-badge"></a>
+<a href="https://discord.gg/abcdef"><img src="https://img.shields.io/badge/Discord-Join%20Us-purple?logo=discord&logoColor=red&style=for-the-badge"></a>
+<a href="https://agentlang-ai.github.io"><img src="https://img.shields.io/badge/Examples-Page-yellow?logo=homepage&logoColor=yellow&style=for-the-badge"></a>
+
+[![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml)![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang)
+<hr>
+
+<div id="toc"> <!-- both work, toc or user-content-toc -->
+  <ul style="list-style: none;">
+    <summary>
+      <h2>🎯 Agentic Reliability Modeling - Build AI Agents that actually work!</h2>
+    </summary>
+  </ul>
+</div>
 
 </div>
 
@@ -33,7 +49,7 @@ Build **teams of reliable AI Agents** that follow your organization's processes 
 
 ## Agentic Reliability Modeling
 
-Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking to achieve our goal. Agentlang offers just enough structure, to augment natural language instructions, to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
+Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking to achieve our goal. Agentlang offers **just enough structure**, to augment natural language instructions, to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
 
 ```typescript
 decision ticketTriager {
@@ -77,7 +93,7 @@ workflow ticketInProgress {
 }
 ```
 
-### Reliability Modeling Features
+### 🎯 Reliability Modeling Features
 
 <table>
     <tr>
@@ -85,14 +101,14 @@ workflow ticketInProgress {
           <div>
           <b>Key concepts:</b>
           <ul>
-<li> <b>First-class AI Agents</b> </li>
-<li> <b>Flows</b> </li>
-<li> <b>Decisions</b> </li>
-<li> <b>Directives</b> </li>
-<li> <b>Scenarios</b> </li>
-<li> <b>Glossary</b> </li>
-<li> <b>Structured output and scratchpad</b> </li>
-<li> <b>Input Template</b> </li>
+<li> First-class AI Agents </li>
+<li> Flows </li>
+<li> Decisions </li>
+<li> Directives </li>
+<li> Scenarios </li>
+<li> Glossary </li>
+<li> Structured output and scratchpad </li>
+<li> Input Template </li>
           </ul>
           </div>
         </td>
@@ -104,7 +120,7 @@ workflow ticketInProgress {
     </tr>
 </table>
 
-### First-class AI Agents
+### ✨ First-class AI Agents
 
 Agents and many concepts agents use are built-in language constructs.
 
@@ -290,9 +306,7 @@ To get started with Agentlang Ontology, please see the [quick start](link-to-doc
 
 // TODO: links to example apps
 
-## Build Agentlang from Source
-
-### Installation
+## 🚀 Getting Started
 
 #### ⚡ Use npm or pnpm
 
@@ -307,7 +321,7 @@ pnpm install
 ```
 **Note**: If pnpm shows build script warnings, run `pnpm approve-builds` and approve esbuild and sqlite3.
 
-### Build
+### ⚡ Build
 
 ```shell
 # Generate parser and build
@@ -315,7 +329,7 @@ npm run langium:generate
 npm run build
 ```
 
-### Test
+### ⚡ Test
 
 ```shell
 # Run all tests
