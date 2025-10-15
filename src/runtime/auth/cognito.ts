@@ -1165,4 +1165,115 @@ export class CognitoAuth implements AgentlangAuth {
       handleCognitoError(err, 'acceptInvitation');
     }
   }
+
+  async callback(
+    code: string,
+    env: Environment,
+    cb: LoginCallback
+  ): Promise<void> {
+    try {
+      if (!isNodeEnv) {
+        throw new Error('Callback authentication is only supported in Node.js environment');
+      }
+
+      const clientId = this.fetchConfig('ClientId');
+      const region = process.env.AWS_REGION || 'us-east-1';
+      const redirectUri = process.env.COGNITO_REDIRECT_URI || 'http://localhost:3000/auth/callback';
+      const hostedDomain = process.env.COGNITO_HOSTED_DOMAIN
+      const tokenEndpoint = `https://${hostedDomain}.auth.${region}.amazoncognito.com/oauth2/token`;
+      
+      const tokenRequestBody = new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        code: code,
+        redirect_uri: redirectUri,
+      });
+
+      logger.debug(`Exchanging authorization code for tokens via OAuth2 endpoint`);
+      
+      console.log("te", tokenEndpoint, tokenRequestBody.toString())
+      const response = await fetch(tokenEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: tokenRequestBody.toString(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Token exchange failed: ${response.status} ${errorText}`);
+      }
+
+      const tokenData = await response.json();
+      
+      if (!tokenData.access_token || !tokenData.id_token || !tokenData.refresh_token) {
+        throw new Error('Missing required tokens in response');
+      }
+
+      const { access_token: AccessToken, id_token: IdToken, refresh_token: RefreshToken } = tokenData;
+
+      const idTokenPayload = this.decodeJwtPayload(IdToken);
+      const userEmail = idTokenPayload.email;
+      const firstName = idTokenPayload['given_name'] || idTokenPayload['name'] || '';
+      const lastName = idTokenPayload['family_name'] || '';
+      const userGroups = idTokenPayload['cognito:groups'];
+
+      if (!userEmail) {
+        throw new Error('Email not found in ID attributes');
+      }
+
+      let localUser = await findUserByEmail(userEmail, env);
+      if (!localUser) {
+        localUser = await ensureUser(userEmail, firstName, lastName, env);
+      }
+      const userId = localUser.lookup('id');
+
+      if (userGroups) {
+        await ensureUserRoles(userId, userGroups, env);
+      }
+
+      const localSession = await ensureUserSession(
+        userId,
+        IdToken,
+        AccessToken,
+        RefreshToken,
+        env
+      );
+
+      const sessionInfo: SessionInfo = {
+        sessionId: localSession.lookup('id'),
+        userId: userId,
+        authToken: IdToken,
+        idToken: IdToken,
+        accessToken: AccessToken,
+        refreshToken: RefreshToken,
+        systemSesionInfo: tokenData,
+      };
+
+      logger.info(`Auth callback successful for user ${userEmail}`);
+      cb(sessionInfo);
+    } catch (err: any) {
+      console.log(err);
+      logger.error(`Auth callback failed: ${sanitizeErrorMessage(err.message)}`);
+      handleCognitoError(err, 'callback');
+    }
+  }
+
+  private decodeJwtPayload(token: string): any {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(jsonPayload);
+    } catch (err) {
+      logger.error(`Failed to decode JWT payload: ${err}`);
+      throw new Error('Invalid JWT token');
+    }
+  }
 }
