@@ -528,12 +528,12 @@ describe('Extra agent attributes', () => {
     const agent = m.getAgent('xaaAgent')
     const conds = new Array<AgentCondition>()
     conds.push({
-      cond: "Employee sales exceeded 5000",
+      if: "Employee sales exceeded 5000",
       then: "Give a salary hike of 5 percent",
       internal: true
     })
     conds.push({
-      cond: "sales is more than 2000 but less than 5000",
+      if: "sales is more than 2000 but less than 5000",
       then: "hike salary by 2 percent",
       internal: true
     })
@@ -659,7 +659,10 @@ glossaryEntry ga.ge {"name":"down","meaning":"low-sales","synonyms":"bad"}
 
 workflow chat {
     {ga {message chat.msg}}
-}`)
+}
+directive ga.dir02 {"if":"sales equals 500","then":"no hike"}
+scenario ga.scn02 {"user":"Sam hits jackpot","ai":"GuidedAgent/scenario01"}
+glossaryEntry ga.ge02 {"name":"up","meaning":"high-sales","synonyms":"ok"}`)
 const mname2 = `${mname}2`
 const idx = s.indexOf('workflow')
 const s2 = s.substring(idx).trim()
