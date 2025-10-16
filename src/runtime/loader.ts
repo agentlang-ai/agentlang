@@ -529,7 +529,7 @@ function processAgentDirectives(agentName: string, value: Literal): AgentConditi
         });
         if (cond && then) {
           const internal = true;
-          conds?.push({ cond, then, internal });
+          conds?.push({ if: cond, then, internal });
         } else {
           throw new Error(`Invalid condition spec in agent ${agentName}`);
         }
@@ -821,9 +821,11 @@ function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
     const m = asStringLiteralsMap(def.body);
     const user = m.get('user');
     const ai = m.get('ai');
-    if (user && ai) addAgentScenario(n, { user: user, ai: ai, internal: false });
-    else throw new Error(`scenario ${def.name} requires both user and ai entries`);
-    fetchModule(moduleName).addScenario(def);
+    if (user && ai) {
+      const scn = { user: user, ai: ai, internal: false };
+      addAgentScenario(n, scn);
+      fetchModule(moduleName).addScenario(def.name, scn);
+    } else throw new Error(`scenario ${def.name} requires both user and ai entries`);
   }
 }
 
@@ -836,9 +838,11 @@ function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
     const m = asStringLiteralsMap(def.body);
     const cond = m.get('if');
     const then = m.get('then');
-    if (cond && then) addAgentDirective(n, { cond: cond, then: then, internal: false });
-    else throw new Error(`directive ${def.name} requires both if and then entries`);
-    fetchModule(moduleName).addDirective(def);
+    if (cond && then) {
+      const dir = { if: cond, then: then, internal: false };
+      addAgentDirective(n, dir);
+      fetchModule(moduleName).addDirective(def.name, dir);
+    } else throw new Error(`directive ${def.name} requires both if and then entries`);
   }
 }
 
@@ -852,15 +856,16 @@ function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: str
     const name = m.get('name');
     const meaning = m.get('meaning');
     const syn = m.get('synonyms');
-    if (name && meaning)
-      addAgentGlossaryEntry(n, {
+    if (name && meaning) {
+      const ge = {
         name: name,
         meaning: meaning,
         synonyms: syn,
         internal: false,
-      });
-    else throw new Error(`glossaryEntry ${def.name} requires both name and meaning keys`);
-    fetchModule(moduleName).addGlossaryEntry(def);
+      };
+      addAgentGlossaryEntry(n, ge);
+      fetchModule(moduleName).addGlossaryEntry(def.name, ge);
+    } else throw new Error(`glossaryEntry ${def.name} requires both name and meaning keys`);
   }
 }
 
