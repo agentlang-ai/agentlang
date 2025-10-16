@@ -82,21 +82,6 @@ Depending solely only on instructions for agents is a recipe for failure. Natura
 ### An Example
 
 ```typescript
-decision ticketTriager {
-   case ("Ticket is related to DNS provisioning. If the request is to point one host/DNS name to an IP address") {
-      DNS
-   }
-   case ("Ticket is related to WLAN provisioning. If the request is to add/whitelist a MAC address on the wireless network") {
-      WLAN
-   }
-   case ("There is not enough information in the ticket about what the category is") {
-      NotEnoughInfo
-   }
-   default {
-      Other
-   }
-}
-
 flow triageFlow {
     ticketTriager --> "DNS" ticketInProgress
     ticketTriager --> "WLAN" ticketInProgress
@@ -115,6 +100,21 @@ agent TicketFlow {
     role "You are a network ticket management application. Your job is to triage any ticket passed to you
           and update the ticket with appropriate assigned_to, status and triaging comments.",
     flows [triageFlow]
+}
+
+decision ticketTriager {
+   case ("Ticket is related to DNS provisioning. If the request is to point one host/DNS name to an IP address") {
+      DNS
+   }
+   case ("Ticket is related to WLAN provisioning. If the request is to add/whitelist a MAC address on the wireless network") {
+      WLAN
+   }
+   case ("There is not enough information in the ticket about what the category is") {
+      NotEnoughInfo
+   }
+   default {
+      Other
+   }
 }
 
 workflow ticketInProgress {
