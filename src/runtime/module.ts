@@ -3441,6 +3441,10 @@ export function defineAgentEvent(moduleName: string, agentName: string, instruct
     So make sure to pass all relevant information in the 'message' attribute of this event.`
     );
   }
+  const agent = module.getAgent(agentName);
+  if (agent && agent.isPublic()) {
+    event.setPublic(true);
+  }
   module.addEntry(event);
 }
 

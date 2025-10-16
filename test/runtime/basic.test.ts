@@ -612,19 +612,19 @@ describe('Multiple module loading tests', () => {
         assert(blogModule.hasEntry('Post'), 'Blog module missing Post entity');
 
         // Load second module and verify if Blog is still accessible
-        await flushAllAndLoad('example/family/family.al').then(
-          async (erpAppSpec: ApplicationSpec) => {
-            assert(erpAppSpec.name, 'Invalid Family application spec');
-            const familyModule: Module = fetchModule('Family');
-            assert(familyModule.name == 'Family', 'Failed to load Family module');
-            assert(familyModule.hasEntry('Member'), 'Family module missing Member entity');
+        await flushAllAndLoad('example/pets/src/core.al').then(
+          async (appSpec: ApplicationSpec) => {
+            assert(appSpec.name, 'Invalid application spec');
+            const m: Module = fetchModule('pets.core');
+            assert(m.name == 'pets.core', 'Failed to load pets.core module');
+            assert(m.hasEntry('createPet'), 'pets.core module missing createPet');
 
             // Critical test: Blog module should not still be accessible after Family load
-            assert(!isModule('Blog.Core'), 'Blog.Core module not removed before ErpCore load');
-            assert(isModule('Family'), 'Family module not registered');
+            assert(!isModule('Blog.Core'), 'Blog.Core module not removed before pets.core load');
+            assert(isModule('pets.core'), 'pets.core module not registered');
 
-            removeModule('Family');
-            assert(!isModule('Family'), 'Family module not removed');
+            removeModule('pets.core');
+            assert(!isModule('pets.core'), 'pets.core module not removed');
           }
         );
       });
