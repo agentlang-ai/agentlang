@@ -17,7 +17,7 @@ agent supportAgent {
     documents ["price list", "g7x user manual", "eosr user manual"]
 }
 
-workflow help {
+@public workflow help {
     {supportAgent {message help.q}}
 }
 
