@@ -20,9 +20,6 @@ import {
   RbacSpecEntries,
   RbacOpr,
   WorkflowHeader,
-  ScenarioDefinition,
-  DirectiveDefinition,
-  GlossaryEntryDefinition,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -1596,54 +1593,55 @@ export class Flow extends ModuleEntry {
   }
 }
 
-class Scenario extends ModuleEntry {
-  private def: ScenarioDefinition;
+export class Scenario extends ModuleEntry {
+  def: AgentScenario;
 
-  constructor(def: ScenarioDefinition, moduleName: string) {
-    super(def.name, moduleName);
-    this.def = def;
+  constructor(name: string, moduleName: string, scn: AgentScenario) {
+    super(name, moduleName);
+    this.def = scn;
   }
 
   override toString(): string {
-    const s = this.def.$cstNode?.text;
-    if (s) {
-      return s;
-    }
-    throw new Error(`failed to generate code for scenario ${this.moduleName}/${this.name}`);
+    const obj: any = {
+      user: this.def.user,
+      ai: this.def.ai,
+    };
+    return `scenario ${this.name} ${JSON.stringify(obj)}`;
   }
 }
 
-class Directive extends ModuleEntry {
-  private def: DirectiveDefinition;
+export class Directive extends ModuleEntry {
+  private def: AgentCondition;
 
-  constructor(def: DirectiveDefinition, moduleName: string) {
-    super(def.name, moduleName);
+  constructor(name: string, moduleName: string, def: AgentCondition) {
+    super(name, moduleName);
     this.def = def;
   }
 
   override toString(): string {
-    const s = this.def.$cstNode?.text;
-    if (s) {
-      return s;
-    }
-    throw new Error(`failed to generate code for directive ${this.moduleName}/${this.name}`);
+    const obj: any = {
+      if: this.def.if,
+      then: this.def.then,
+    };
+    return `directive ${this.name} ${JSON.stringify(obj)}`;
   }
 }
 
-class GlossaryEntry extends ModuleEntry {
-  private def: GlossaryEntryDefinition;
+export class GlossaryEntry extends ModuleEntry {
+  private def: AgentGlossaryEntry;
 
-  constructor(def: GlossaryEntryDefinition, moduleName: string) {
-    super(def.name, moduleName);
+  constructor(name: string, moduleName: string, def: AgentGlossaryEntry) {
+    super(name, moduleName);
     this.def = def;
   }
 
   override toString(): string {
-    const s = this.def.$cstNode?.text;
-    if (s) {
-      return s;
-    }
-    throw new Error(`failed to generate code for glossaryEntry ${this.moduleName}/${this.name}`);
+    const obj: any = {
+      name: this.def.name,
+      meaning: this.def.meaning,
+      synonyms: this.def.synonyms,
+    };
+    return `glossaryEntry ${this.name} ${JSON.stringify(obj)}`;
   }
 }
 
@@ -1802,8 +1800,8 @@ export class Module {
     return undefined;
   }
 
-  addScenario(scn: ScenarioDefinition): Scenario {
-    const entry = new Scenario(scn, this.name);
+  addScenario(name: string, scn: AgentScenario): Scenario {
+    const entry = new Scenario(name, this.name, scn);
     this.addEntry(entry);
     return entry;
   }
@@ -1823,8 +1821,8 @@ export class Module {
     return this;
   }
 
-  addDirective(dd: DirectiveDefinition): Directive {
-    const entry = new Directive(dd, this.name);
+  addDirective(name: string, cond: AgentCondition): Directive {
+    const entry = new Directive(name, this.name, cond);
     this.addEntry(entry);
     return entry;
   }
@@ -1844,8 +1842,8 @@ export class Module {
     return this;
   }
 
-  addGlossaryEntry(ge: GlossaryEntryDefinition): GlossaryEntry {
-    const entry = new GlossaryEntry(ge, this.name);
+  addGlossaryEntry(name: string, ge: AgentGlossaryEntry): GlossaryEntry {
+    const entry = new GlossaryEntry(name, this.name, ge);
     this.addEntry(entry);
     return entry;
   }

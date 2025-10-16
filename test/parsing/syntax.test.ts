@@ -16,7 +16,7 @@ import { introspect } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
 import { addBeforeDeleteWorkflow, fetchModule, flowGraphNext, isModule, Record, removeModule } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
-import { AgentCondition } from '../../src/runtime/agents/common.js';
+import { AgentCondition, newAgentDirective, newAgentGlossaryEntry, newAgentScenario } from '../../src/runtime/agents/common.js';
 
 describe('Pattern generation using the syntax API', () => {
   test('test01', async () => {
@@ -630,10 +630,13 @@ await doInternModule(mname,
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
          scenario ga.scn01 {"user": "Kiran had a block-buster", "ai": "GuidedAgent/scenario01"}
          directive GuidedAgent/ga.dir01 {"if": "sales is less than 2000", "then": "hike salary by 0.5 percent"}
-         glossarytEntry ga.ge {"meaning": "low-sales", "name": "down", "synonyms": "bad"}
+         glossaryEntry ga.ge {"meaning": "low-sales", "name": "down", "synonyms": "bad"}
          workflow chat {{ga {message chat.msg}}}`
 )
 const m = fetchModule(mname)
+m.addDirective('ga.dir02', newAgentDirective("sales equals 500", "no hike"))
+m.addScenario('ga.scn02', newAgentScenario("Sam hits jackpot", "GuidedAgent/scenario01"))
+m.addGlossaryEntry('ga.ge02', newAgentGlossaryEntry("up", "high-sales", "ok"))
 const s = m.toString()
 assert(s === `module StdAloneAgentXtras
 
@@ -650,11 +653,9 @@ agent ga
     scenarios [{"user":"Jake hit a jackpot!","ai":"GuidedAgent/scenario01"}],
     glossary [{"name":"jackpot","meaning":"sales of 5000 or above","synonyms":"high sales, block-buster"}]
 }
-scenario ga.scn01 {"user": "Kiran had a block-buster", "ai": "GuidedAgent/scenario01"}
-directive GuidedAgent/ga.dir01 {"if": "sales is less than 2000", "then": "hike salary by 0.5 percent"}
-glossarytEntry
-ga.ge
-{"meaning": "low-sales", "name": "down", "synonyms": "bad"}
+scenario ga.scn01 {"user":"Kiran had a block-buster","ai":"GuidedAgent/scenario01"}
+directive GuidedAgent/ga.dir01 {"if":"sales is less than 2000","then":"hike salary by 0.5 percent"}
+glossaryEntry ga.ge {"name":"down","meaning":"low-sales","synonyms":"bad"}
 
 workflow chat {
     {ga {message chat.msg}}
