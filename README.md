@@ -82,7 +82,7 @@ Depending solely only on instructions for agents is a recipe for failure. Natura
 ### An Example
 
 ```typescript
-flow triageFlow {
+flow TicketFlow {
     ticketTriager --> "DNS" ticketInProgress
     ticketTriager --> "WLAN" ticketInProgress
     ticketTriager --> "NotEnoughInfo" ticketPending
@@ -99,7 +99,6 @@ agent TicketFlow {
     llm "gpt4o",
     role "You are a network ticket management application. Your job is to triage any ticket passed to you
           and update the ticket with appropriate assigned_to, status and triaging comments.",
-    flows [triageFlow]
 }
 
 decision ticketTriager {
@@ -129,7 +128,7 @@ workflow ticketInProgress {
 Agents and many concepts agents use are built-in language constructs.
 
 ```typescript
-flow triageFlow {
+flow TicketFlow {
     ticketTriager --> "DNS" ticketInProgress
     ticketTriager --> "WLAN" ticketInProgress
     ticketTriager --> "NotEnoughInfo" ticketPending
@@ -139,7 +138,6 @@ agent TicketFlow {
     llm "gpt4o",
     role "You are a network ticket management agent. Your job is to triage any ticket passed to you and
           update the ticket with appropriate assigned_to, status and triaging comments.",
-    flows [triageFlow]
 }
 
 ```
