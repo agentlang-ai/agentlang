@@ -1800,23 +1800,52 @@ export class Module {
     return undefined;
   }
 
+  getAllDecisions(): Decision[] {
+    return this.entries.filter((e: ModuleEntry) => {
+      return e instanceof Decision;
+    });
+  }
+
+  removeDecision(name: string): boolean {
+    for (let i = 0; i < this.entries.length; ++i) {
+      const entry = this.entries[i];
+      if (entry.name === name && entry instanceof Decision) {
+        this.entries.splice(i, 1);
+        return true;
+      }
+    }
+    return false;
+  }
+
   addScenario(name: string, scn: AgentScenario): Scenario {
     const entry = new Scenario(name, this.name, scn);
     this.addEntry(entry);
     return entry;
   }
 
+  getScenario(name: string): Scenario | undefined {
+    if (this.hasEntry(name)) {
+      const e = this.getEntry(name);
+      if (e instanceof Scenario) {
+        return e as Scenario;
+      }
+    }
+    return undefined;
+  }
+
+  getAllScenarios(): Scenario[] {
+    return this.entries.filter((e: ModuleEntry) => {
+      return e instanceof Scenario;
+    });
+  }
+
   removeScenario(name: string): Module {
-    let idx = -1;
     for (let i = 0; i < this.entries.length; ++i) {
       const entry = this.entries[i];
       if (entry.name === name && entry instanceof Scenario) {
-        idx = i;
+        this.entries.splice(i, 1);
         break;
       }
-    }
-    if (idx >= 0) {
-      this.entries.splice(idx, 1);
     }
     return this;
   }
@@ -1827,17 +1856,29 @@ export class Module {
     return entry;
   }
 
+  getDirective(name: string): Directive | undefined {
+    if (this.hasEntry(name)) {
+      const e = this.getEntry(name);
+      if (e instanceof Directive) {
+        return e as Directive;
+      }
+    }
+    return undefined;
+  }
+
+  getAllDirectives(): Directive[] {
+    return this.entries.filter((e: ModuleEntry) => {
+      return e instanceof Directive;
+    });
+  }
+
   removeDirective(name: string): Module {
-    let idx = -1;
     for (let i = 0; i < this.entries.length; ++i) {
       const entry = this.entries[i];
       if (entry.name === name && entry instanceof Directive) {
-        idx = i;
+        this.entries.splice(i, 1);
         break;
       }
-    }
-    if (idx >= 0) {
-      this.entries.splice(idx, 1);
     }
     return this;
   }
@@ -1848,17 +1889,29 @@ export class Module {
     return entry;
   }
 
+  getGlossaryEntry(name: string): GlossaryEntry | undefined {
+    if (this.hasEntry(name)) {
+      const e = this.getEntry(name);
+      if (e instanceof GlossaryEntry) {
+        return e as GlossaryEntry;
+      }
+    }
+    return undefined;
+  }
+
+  getAllGlossaryEntries(): GlossaryEntry[] {
+    return this.entries.filter((e: ModuleEntry) => {
+      return e instanceof GlossaryEntry;
+    });
+  }
+
   removeGlossaryEntry(name: string): Module {
-    let idx = -1;
     for (let i = 0; i < this.entries.length; ++i) {
       const entry = this.entries[i];
       if (entry.name === name && entry instanceof GlossaryEntry) {
-        idx = i;
+        this.entries.splice(i, 1);
         break;
       }
-    }
-    if (idx >= 0) {
-      this.entries.splice(idx, 1);
     }
     return this;
   }
