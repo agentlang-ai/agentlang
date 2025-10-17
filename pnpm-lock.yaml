@@ -21,14 +21,14 @@ importers:
         specifier: ^4.6.1
         version: 4.6.2
       '@langchain/anthropic':
-        specifier: ^0.3.25
-        version: 0.3.30(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(zod@3.25.76)
+        specifier: ^0.3.32
+        version: 0.3.32(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(zod@3.25.76)
       '@langchain/core':
-        specifier: ^0.3.59
+        specifier: ^0.3.78
         version: 0.3.78(openai@5.23.2(zod@3.25.76))
       '@langchain/openai':
-        specifier: ^0.5.18
-        version: 0.5.18(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))
+        specifier: ^0.6.16
+        version: 0.6.16(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))
       amazon-cognito-identity-js:
         specifier: ^6.3.15
         version: 6.3.15(encoding@0.1.13)
@@ -54,8 +54,8 @@ importers:
         specifier: ^4.7.8
         version: 4.7.8
       langchain:
-        specifier: ^0.3.28
-        version: 0.3.35(@langchain/anthropic@0.3.30(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(zod@3.25.76))(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(axios@1.12.2)(handlebars@4.7.8)(openai@5.23.2(zod@3.25.76))(typeorm@0.3.27(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7))
+        specifier: ^0.3.36
+        version: 0.3.36(@langchain/anthropic@0.3.32(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(zod@3.25.76))(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(axios@1.12.2)(handlebars@4.7.8)(openai@5.23.2(zod@3.25.76))(typeorm@0.3.27(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7))
       langium:
         specifier: ^3.5.0
         version: 3.5.0
@@ -168,13 +168,7 @@ importers:
 
   example/blog: {}
 
-  example/erp:
-    dependencies:
-      hello-world-npm:
-        specifier: ^1.1.1
-        version: 1.1.1
-
-  example/family: {}
+  example/car_dealership: {}
 
   example/mcpdemo: {}
 
@@ -608,8 +602,8 @@ packages:
   '@kwsites/promise-deferred@1.1.1':
     resolution: {integrity: sha512-GaHYm+c0O9MjZRu0ongGBRbinu8gVAMd2UZjji6jVmqKtZluZnptXGWhz1E8j8D2HJ3f/yMxKAUC0b+57wncIw==}
 
-  '@langchain/anthropic@0.3.30':
-    resolution: {integrity: sha512-ZO6b8G+6OxI/4drCSWIzMC67o7ZhWGlX6OXhO30X0BgtMYHwpYlU7ATPT/9+IvOcFSytC7GZsWb5zKknLku0vw==}
+  '@langchain/anthropic@0.3.32':
+    resolution: {integrity: sha512-XrrDq751dVxjRmUhvPMV8MzCiuli9GSx7771Y2JJynkrfP/m6zGbxRPP4potA0oLDJC4uJDf5nG7+427aXLgxw==}
     engines: {node: '>=18'}
     peerDependencies:
       '@langchain/core': '>=0.3.58 <0.4.0'
@@ -618,11 +612,11 @@ packages:
     resolution: {integrity: sha512-Nn0x9erQlK3zgtRU1Z8NUjLuyW0gzdclMsvLQ6wwLeDqV91pE+YKl6uQb+L2NUDs4F0N7c2Zncgz46HxrvPzuA==}
     engines: {node: '>=18'}
 
-  '@langchain/openai@0.5.18':
-    resolution: {integrity: sha512-CX1kOTbT5xVFNdtLjnM0GIYNf+P7oMSu+dGCFxxWRa3dZwWiuyuBXCm+dToUGxDLnsHuV1bKBtIzrY1mLq/A1Q==}
+  '@langchain/openai@0.6.16':
+    resolution: {integrity: sha512-v9INBOjE0w6ZrUE7kP9UkRyNsV7daH7aPeSOsPEJ35044UI3udPHwNduQ8VmaOUsD26OvSdg1b1GDhrqWLMaRw==}
     engines: {node: '>=18'}
     peerDependencies:
-      '@langchain/core': '>=0.3.58 <0.4.0'
+      '@langchain/core': '>=0.3.68 <0.4.0'
 
   '@langchain/textsplitters@0.1.0':
     resolution: {integrity: sha512-djI4uw9rlkAb5iMhtLED+xJebDdAG935AdP4eRTB02R7OB/act55Bj9wsskhZsvuyQRpO4O1wQOp85s6T6GWmw==}
@@ -2248,10 +2242,6 @@ packages:
     resolution: {integrity: sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==}
     hasBin: true
 
-  hello-world-npm@1.1.1:
-    resolution: {integrity: sha512-BlANCUuBixe7YT2IzCtNsSmVn6TY//X+bEUJWJpX+v8H4waUVaJ9qJiHhnu+YHqk2jrFsqQ4DioU2wD8+sNPLw==}
-    hasBin: true
-
   hmac-drbg@1.0.1:
     resolution: {integrity: sha512-Tti3gMqLdZfhOQY1Mzf/AanLiqh1WTiJgEj26ZuYQ9fbkLomzGchCws4FyrSd4VkpBfiNhaE1On+lOz894jvXg==}
 
@@ -2525,8 +2515,8 @@ packages:
   kuler@2.0.0:
     resolution: {integrity: sha512-Xq9nH7KlWZmXAtodXDDRE7vs6DU1gTU8zYDHDiWLSip45Egwq3plLHzPn27NgvzL2r1LMPC1vdqh98sQxtqj4A==}
 
-  langchain@0.3.35:
-    resolution: {integrity: sha512-OkPstP43L3rgaAk72UAVcXy4BzJSiyzXfJsHRBTx9xD3rRtgrAu/jsWpMcsbFAoNO3iGerK+ULzkTzaBJBz6kg==}
+  langchain@0.3.36:
+    resolution: {integrity: sha512-PqC19KChFF0QlTtYDFgfEbIg+SCnCXox29G8tY62QWfj9bOW7ew2kgWmPw5qoHLOTKOdQPvXET20/1Pdq8vAtQ==}
     engines: {node: '>=18'}
     peerDependencies:
       '@langchain/anthropic': '*'
@@ -2924,6 +2914,18 @@ packages:
   onetime@6.0.0:
     resolution: {integrity: sha512-1FlR+gjXK7X+AsAHso35MnyN5KqGwJRi/31ft6x0M194ht7S+rWAvd7PHss9xSKMzE0asv1pyIHaJYq+BbacAQ==}
     engines: {node: '>=12'}
+
+  openai@5.12.2:
+    resolution: {integrity: sha512-xqzHHQch5Tws5PcKR2xsZGX9xtch+JQFz5zb14dGqlshmmDAFBFEWmeIpf7wVqWV+w7Emj7jRgkNJakyKE0tYQ==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.23.8
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
 
   openai@5.23.2:
     resolution: {integrity: sha512-MQBzmTulj+MM5O8SKEk/gL8a7s5mktS9zUtAkU257WjvobGc9nKcBuVwjyEEcb9SI8a8Y2G/mzn3vm9n1Jlleg==}
@@ -4748,7 +4750,7 @@ snapshots:
 
   '@kwsites/promise-deferred@1.1.1': {}
 
-  '@langchain/anthropic@0.3.30(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(zod@3.25.76)':
+  '@langchain/anthropic@0.3.32(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(zod@3.25.76)':
     dependencies:
       '@anthropic-ai/sdk': 0.65.0(zod@3.25.76)
       '@langchain/core': 0.3.78(openai@5.23.2(zod@3.25.76))
@@ -4776,11 +4778,11 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - openai
 
-  '@langchain/openai@0.5.18(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))':
+  '@langchain/openai@0.6.16(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))':
     dependencies:
       '@langchain/core': 0.3.78(openai@5.23.2(zod@3.25.76))
       js-tiktoken: 1.0.21
-      openai: 5.23.2(zod@3.25.76)
+      openai: 5.12.2(zod@3.25.76)
       zod: 3.25.76
     transitivePeerDependencies:
       - ws
@@ -6746,8 +6748,6 @@ snapshots:
 
   he@1.2.0: {}
 
-  hello-world-npm@1.1.1: {}
-
   hmac-drbg@1.0.1:
     dependencies:
       hash.js: 1.1.7
@@ -7024,10 +7024,10 @@ snapshots:
 
   kuler@2.0.0: {}
 
-  langchain@0.3.35(@langchain/anthropic@0.3.30(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(zod@3.25.76))(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(axios@1.12.2)(handlebars@4.7.8)(openai@5.23.2(zod@3.25.76))(typeorm@0.3.27(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7)):
+  langchain@0.3.36(@langchain/anthropic@0.3.32(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(zod@3.25.76))(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(axios@1.12.2)(handlebars@4.7.8)(openai@5.23.2(zod@3.25.76))(typeorm@0.3.27(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7)):
     dependencies:
       '@langchain/core': 0.3.78(openai@5.23.2(zod@3.25.76))
-      '@langchain/openai': 0.5.18(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))
+      '@langchain/openai': 0.6.16(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))
       '@langchain/textsplitters': 0.1.0(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))
       js-tiktoken: 1.0.21
       js-yaml: 4.1.0
@@ -7039,7 +7039,7 @@ snapshots:
       yaml: 2.8.1
       zod: 3.25.76
     optionalDependencies:
-      '@langchain/anthropic': 0.3.30(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(zod@3.25.76)
+      '@langchain/anthropic': 0.3.32(@langchain/core@0.3.78(openai@5.23.2(zod@3.25.76)))(zod@3.25.76)
       axios: 1.12.2
       handlebars: 4.7.8
       typeorm: 0.3.27(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7)
@@ -7451,9 +7451,14 @@ snapshots:
     dependencies:
       mimic-fn: 4.0.0
 
+  openai@5.12.2(zod@3.25.76):
+    optionalDependencies:
+      zod: 3.25.76
+
   openai@5.23.2(zod@3.25.76):
     optionalDependencies:
       zod: 3.25.76
+    optional: true
 
   openapi-client-axios@7.7.0(axios@1.12.2)(js-yaml@4.1.0):
     dependencies:
