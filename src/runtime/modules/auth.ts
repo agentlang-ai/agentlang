@@ -882,10 +882,7 @@ export async function loginUser(
   }
 }
 
-export async function callbackUser(
-  code: string,
-  env: Environment
-): Promise<string | object> {
+export async function callbackUser(code: string, env: Environment): Promise<string | object> {
   let result: string | object = '';
   try {
     await fetchAuthImpl().callback(code, env, (r: SessionInfo) => {
@@ -910,7 +907,6 @@ export async function callbackUser(
     throw err;
   }
 }
-
 
 async function logoutSession(userId: string, sess: Instance, env: Environment): Promise<Result> {
   const sessId = sess.lookup('id');
@@ -1229,8 +1225,7 @@ export function requireAuth(moduleName: string, eventName: string): boolean {
         eventName == 'confirmForgotPassword' ||
         eventName == 'refreshToken' ||
         eventName == 'acceptInvitation' ||
-        eventName == 'callback'
-      );
+        eventName == 'callback');
     return !f;
   } else {
     return false;

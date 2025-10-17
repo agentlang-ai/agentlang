@@ -1166,11 +1166,7 @@ export class CognitoAuth implements AgentlangAuth {
     }
   }
 
-  async callback(
-    code: string,
-    env: Environment,
-    cb: LoginCallback
-  ): Promise<void> {
+  async callback(code: string, env: Environment, cb: LoginCallback): Promise<void> {
     try {
       if (!isNodeEnv) {
         throw new Error('Callback authentication is only supported in Node.js environment');
@@ -1179,9 +1175,9 @@ export class CognitoAuth implements AgentlangAuth {
       const clientId = this.fetchConfig('ClientId');
       const region = process.env.AWS_REGION || 'us-east-1';
       const redirectUri = process.env.COGNITO_REDIRECT_URI || 'http://localhost:3000/auth/callback';
-      const hostedDomain = process.env.COGNITO_HOSTED_DOMAIN
+      const hostedDomain = process.env.COGNITO_HOSTED_DOMAIN;
       const tokenEndpoint = `https://${hostedDomain}.auth.${region}.amazoncognito.com/oauth2/token`;
-      
+
       const tokenRequestBody = new URLSearchParams({
         grant_type: 'authorization_code',
         client_id: clientId,
@@ -1190,8 +1186,8 @@ export class CognitoAuth implements AgentlangAuth {
       });
 
       logger.debug(`Exchanging authorization code for tokens via OAuth2 endpoint`);
-      
-      console.log("te", tokenEndpoint, tokenRequestBody.toString())
+
+      console.log('te', tokenEndpoint, tokenRequestBody.toString());
       const response = await fetch(tokenEndpoint, {
         method: 'POST',
         headers: {
@@ -1206,12 +1202,16 @@ export class CognitoAuth implements AgentlangAuth {
       }
 
       const tokenData = await response.json();
-      
+
       if (!tokenData.access_token || !tokenData.id_token || !tokenData.refresh_token) {
         throw new Error('Missing required tokens in response');
       }
 
-      const { access_token: AccessToken, id_token: IdToken, refresh_token: RefreshToken } = tokenData;
+      const {
+        access_token: AccessToken,
+        id_token: IdToken,
+        refresh_token: RefreshToken,
+      } = tokenData;
 
       const idTokenPayload = this.decodeJwtPayload(IdToken);
       const userEmail = idTokenPayload.email;
@@ -1233,13 +1233,7 @@ export class CognitoAuth implements AgentlangAuth {
         await ensureUserRoles(userId, userGroups, env);
       }
 
-      const localSession = await ensureUserSession(
-        userId,
-        IdToken,
-        AccessToken,
-        RefreshToken,
-        env
-      );
+      const localSession = await ensureUserSession(userId, IdToken, AccessToken, RefreshToken, env);
 
       const sessionInfo: SessionInfo = {
         sessionId: localSession.lookup('id'),
@@ -1267,7 +1261,7 @@ export class CognitoAuth implements AgentlangAuth {
       const jsonPayload = decodeURIComponent(
         atob(base64)
           .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
           .join('')
       );
       return JSON.parse(jsonPayload);
