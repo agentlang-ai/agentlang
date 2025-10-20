@@ -139,6 +139,26 @@ flow ticketManager {
 
 The `ticketManager` agent runs this flow automatically whenever a new ticket is created.
 
+This `flow` can be visualized as:
+
+```mermaid
+flowchart TD
+    A[New Ticket Created] --> B[classifyTicket]
+    B --> |High| C[makeTicketHighPriority]
+    B --> |Medium| D[makeTicketMediumPriority]
+    B --> |Low| E[findSupportExecutive]
+    C --> F[findSupportExecutive]
+    D --> F
+    F --> G[ticketAssignment]
+    G --> |Match Found| H[ExecutiveTicketAssignment]
+    G --> |No Match| I[EscalationQueueEntry]
+```
+
+It ensures:
+
+* High and medium priority tickets are processed first.
+* Tickets are intelligently routed or escalated.
+
 ---
 
 ## Trigger: Automatic Processing
