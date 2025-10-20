@@ -3059,7 +3059,7 @@ export class Instance {
       const relsObj: any = {};
       this.relatedInstances.forEach((insts: Instance[], relName: string) => {
         relsObj[relName] = insts.map((inst: Instance) => {
-          return inst.asSerializableObject();
+          return maybeInstanceAsString(inst);
         });
       });
       obj.relatedInstances = relsObj;
@@ -3284,6 +3284,28 @@ export class Instance {
   get(k: string): any {
     return this.attributes.get(k);
   }
+}
+
+export function maybeInstanceAsString(result: any): string {
+  if (!isString(result)) {
+    try {
+      if (result instanceof Instance) {
+        const inst = result as Instance;
+        return JSON.stringify(inst.asSerializableObject());
+      } else if (result instanceof Array) {
+        return `[${(result as Array<any>)
+          .map((r: any) => {
+            return maybeInstanceAsString(r);
+          })
+          .join(',')}]`;
+      } else {
+        return JSON.stringify(result);
+      }
+    } catch (reason: any) {
+      logger.error(`Failed to serialize object to string - ${reason}`);
+      return `${result}`;
+    }
+  } else return result;
 }
 
 export function objectAsInstanceAttributes(obj: object | undefined): InstanceAttributes {
