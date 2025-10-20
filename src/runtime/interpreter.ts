@@ -28,6 +28,7 @@ import {
   Statement,
 } from '../language/generated/ast.js';
 import {
+  maybeInstanceAsString,
   defineAgentEvent,
   getOneOfRef,
   getRelationship,
@@ -1715,7 +1716,7 @@ export async function handleAgentInvocation(
 ): Promise<void> {
   const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
   const origMsg: any = agentEventInst.lookup('message');
-  const msg: string = isString(origMsg) ? origMsg : agentInputAsString(origMsg);
+  const msg: string = isString(origMsg) ? origMsg : maybeInstanceAsString(origMsg);
   const flow = getAgentFlow(agent.name, agent.moduleName);
   if (flow) {
     await handleAgentInvocationWithFlow(agent, flow, msg, env);
@@ -1810,7 +1811,7 @@ async function iterateOnFlow(
       return;
     }
     const r = env.getLastResult();
-    const rs = agentInputAsString(r);
+    const rs = maybeInstanceAsString(r);
     console.debug(
       `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
     );
@@ -1824,24 +1825,6 @@ async function iterateOnFlow(
     }
   }
   console.debug(`No more flow steps, completed iteration ${iterId} on flow:\n${flow}`);
-}
-
-function agentInputAsString(result: any): string {
-  if (!isString(result)) {
-    if (result instanceof Instance) {
-      const inst = result as Instance;
-      return JSON.stringify(inst.asSerializableObject());
-    } else if (result instanceof Array) {
-      return `[${(result as Array<any>)
-        .map((r: any) => {
-          return agentInputAsString(r);
-        })
-        .join(',')}]`;
-    } else {
-      return JSON.stringify(result);
-    }
-  }
-  return result;
 }
 
 export async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
