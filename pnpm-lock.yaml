@@ -168,13 +168,15 @@ importers:
 
   example/blog: {}
 
+  example/camera_info: {}
+
   example/car_dealership: {}
+
+  example/customer_support_system: {}
 
   example/mcpdemo: {}
 
   example/pets: {}
-
-  example/support_agent: {}
 
   example/suspension: {}
 
