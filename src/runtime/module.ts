@@ -1806,6 +1806,13 @@ export class Module {
     });
   }
 
+  getAllDecisionsForAgent(agentName: string): Decision[] {
+    const n = `${agentName}.`;
+    return this.getAllDecisions().filter((d: Decision) => {
+      return d.name.startsWith(n);
+    });
+  }
+
   removeDecision(name: string): boolean {
     for (let i = 0; i < this.entries.length; ++i) {
       const entry = this.entries[i];
@@ -1836,6 +1843,13 @@ export class Module {
   getAllScenarios(): Scenario[] {
     return this.entries.filter((e: ModuleEntry) => {
       return e instanceof Scenario;
+    });
+  }
+
+  getAllScenariosForAgent(agentName: string): Scenario[] {
+    const n = `${agentName}.`;
+    return this.getAllScenarios().filter((s: Scenario) => {
+      return s.name.startsWith(n);
     });
   }
 
@@ -1872,6 +1886,13 @@ export class Module {
     });
   }
 
+  getAllDirectivesForAgent(agentName: string): Directive[] {
+    const n = `${agentName}.`;
+    return this.getAllDirectives().filter((d: Directive) => {
+      return d.name.startsWith(n);
+    });
+  }
+
   removeDirective(name: string): Module {
     for (let i = 0; i < this.entries.length; ++i) {
       const entry = this.entries[i];
@@ -1902,6 +1923,13 @@ export class Module {
   getAllGlossaryEntries(): GlossaryEntry[] {
     return this.entries.filter((e: ModuleEntry) => {
       return e instanceof GlossaryEntry;
+    });
+  }
+
+  getAllGlossaryEntriesForAgent(agentName: string): GlossaryEntry[] {
+    const n = `${agentName}.`;
+    return this.getAllGlossaryEntries().filter((ge: GlossaryEntry) => {
+      return ge.name.startsWith(n);
     });
   }
 
