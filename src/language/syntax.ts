@@ -20,7 +20,7 @@ export class BasePattern {
   }
 
   addAlias(alias: string) {
-    if (this.aliases == undefined) {
+    if (this.aliases === undefined) {
       this.aliases = [];
     }
     this.aliases.push(alias);
@@ -31,7 +31,7 @@ export class BasePattern {
   }
 
   addHandler(k: 'not_found' | 'error', handler: BasePattern) {
-    if (this.handlers == undefined) {
+    if (this.handlers === undefined) {
       this.handlers = new Map();
     }
     this.handlers.set(k, handler);
@@ -150,12 +150,12 @@ export class LiteralPattern extends BasePattern {
         const arr = new Array<string>();
         m.forEach((v: BasePattern, key: any) => {
           let k: any = key.str;
-          if (k == undefined) {
+          if (k === undefined) {
             k = key.num;
           } else {
             k = `"${k}"`;
           }
-          if (k == undefined) {
+          if (k === undefined) {
             k = key.bool;
           }
           arr.push(`${k}: ${v.toString()}`);
@@ -407,7 +407,7 @@ export class CrudPattern extends BasePattern {
   }
 
   addInto(alias: string, attr: string): CrudPattern {
-    if (this.into == undefined) {
+    if (this.into === undefined) {
       this.into = new Map();
     }
     this.into.set(alias, attr);
@@ -459,7 +459,7 @@ export class CrudPattern extends BasePattern {
   }
 
   addRelationship(n: string, p: CrudPattern[] | CrudPattern) {
-    if (this.relationships == undefined) {
+    if (this.relationships === undefined) {
       this.relationships = new Map();
     }
     this.relationships.set(n, p);
@@ -483,7 +483,7 @@ export class CrudPattern extends BasePattern {
   }
 
   private relationshipsAsString(): string | undefined {
-    if (this.relationships != undefined) {
+    if (this.relationships !== undefined) {
       const result: Array<string> = [];
       this.relationships.forEach((p: CrudPattern | CrudPattern[], n: string) => {
         const ps = p instanceof Array ? `[${patternsToString(p, ',')}]` : p.toString();
@@ -587,7 +587,7 @@ export class ForEachPattern extends BasePattern {
   }
 
   override toString(): string {
-    if (this.source == undefined || this.variable == undefined) {
+    if (this.source === undefined || this.variable === undefined) {
       throw new Error('`for` requires variable and source-pattern');
     }
     let s = `for ${this.variable} in ${this.source.toString()}`;

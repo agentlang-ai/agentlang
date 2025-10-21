@@ -74,7 +74,7 @@ async function invokeBuiltInFn(fnName: string, args: Array<any> | null, isAsync:
   } else {
     const pf: Function | undefined = maybeEvalFunction(fnName);
     if (pf instanceof Function) {
-      if (args == null) {
+      if (args === null) {
         if (isAsync) return await pf();
         else return pf();
       } else {
@@ -103,10 +103,10 @@ export async function invokeModuleFn(
     }
     const mname = refs[0];
     const m = importedModules.get(mname);
-    if (m != undefined) {
+    if (m !== undefined) {
       const f = m[refs[1]];
-      if (f != undefined) {
-        if (args == null)
+      if (f !== undefined) {
+        if (args === null)
           if (isAsync) {
             return await f();
           } else return f();
@@ -118,7 +118,7 @@ export async function invokeModuleFn(
   } catch (reason: any) {
     const pf: Function | undefined = maybeEvalFunction(fqFnName);
     if (pf instanceof Function) {
-      if (args == null) {
+      if (args === null) {
         if (isAsync) return await pf();
         else return pf();
       } else {
@@ -134,7 +134,7 @@ export async function invokeModuleFn(
 export function getModuleFn(fqFnName: string): Function | undefined {
   const refs: string[] = splitRefs(fqFnName);
   const m = importedModules.get(refs[0]);
-  if (m != undefined) {
+  if (m !== undefined) {
     return m[refs[1]];
   } else return undefined;
 }

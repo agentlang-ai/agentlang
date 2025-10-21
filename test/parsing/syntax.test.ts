@@ -258,7 +258,7 @@ describe('Relationship and `into` introspection', () => {
     assert(p.isQuery)
     assert(!p.isCreate)
     assert(!p.isQueryUpdate)
-    assert(p.into != undefined)
+    assert(p.into !== undefined)
     assert(p.into.get('Project') == 'Allocation.Project')
     assert(p.into.get('AllocationEntered') == 'Allocation.AllocationEntered')
     assert(p.into.get('Duration') == 'Allocation.Duration')
@@ -275,10 +275,10 @@ AllocationEntered Allocation.AllocationEntered,
 ActualsEntered Allocation.ActualsEntered,
 Notes Allocation.Notes }}`)
     pats = await introspect(s)
-    assert(p.into != undefined)
+    assert(p.into !== undefined)
     assert(p.into.get('Project') == 'Allocation.Project')
     assert(p.into.get('AllocationEntered') == 'Allocation.AllocationEntered')
-    assert(p.into.get('Duration') == undefined)
+    assert(p.into.get('Duration') === undefined)
     pats = await introspect(` {Resource {id? CreateAllocation.id},
     ResAlloc {Allocation {name CreateAllocation.name}}}`)
     p = pats[0] as CrudPattern
@@ -448,7 +448,7 @@ in the incident's description."
     const n2 = flowGraphNext(fg, n0, 'Other')
     assert(n2?.label == 'incidentStatusUpdater')
     const n3 = flowGraphNext(fg, n2)
-    assert(n3 == undefined)
+    assert(n3 === undefined)
     const n4 = flowGraphNext(fg, n1)
     assert(n4?.label == 'managerRequestHandler')
     const s = mod.toString()
