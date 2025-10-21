@@ -215,7 +215,7 @@ export class Resolver {
   }
 
   public async onSubscription(result: any, callPostCrudEvent: boolean = false): Promise<any> {
-    if (result != undefined) {
+    if (result !== undefined) {
       try {
         if (callPostCrudEvent) {
           const inst = result as Instance;

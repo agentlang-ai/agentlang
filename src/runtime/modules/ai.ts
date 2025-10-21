@@ -270,7 +270,7 @@ export class AgentInstance {
 Only return a pure JSON object with no extra text, annotations etc.`;
     }
     const spad = env.getScratchPad();
-    if (spad != undefined) {
+    if (spad !== undefined) {
       if (finalInstruction.indexOf('{{') > 0) {
         return AgentInstance.maybeRewriteTemplatePatterns(spad, finalInstruction);
       } else {
@@ -311,7 +311,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   }
 
   getFqName(): string {
-    if (this.fqName == undefined) {
+    if (this.fqName === undefined) {
       this.fqName = makeFqName(this.moduleName, this.name);
     }
     return this.fqName;
@@ -328,7 +328,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
 
   maybeAddScratchData(env: Environment): AgentInstance {
     const obj: any = env.getLastResult();
-    if (obj === null || obj == undefined) return this;
+    if (obj === null || obj === undefined) return this;
     let r: Instance | Instance[] | undefined = undefined;
     if (
       obj instanceof Instance ||
@@ -419,7 +419,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       this.toolsArray.forEach((n: string) => {
         const v = GlobalEnvironment.lookup(n);
         if (v) {
-          if (result == undefined) {
+          if (result === undefined) {
             result = new Array<any>();
           }
           result.push(v);
@@ -542,7 +542,7 @@ export async function findProviderForLLM(
   env: Environment
 ): Promise<AgentServiceProvider> {
   let p: AgentServiceProvider | undefined = ProviderDb.get(llmName);
-  if (p == undefined) {
+  if (p === undefined) {
     const result: Instance[] = await parseAndEvaluateStatement(
       `{${CoreAIModuleName}/${LlmEntityName} {name? "${llmName}"}}`,
       undefined,

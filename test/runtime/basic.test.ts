@@ -65,8 +65,8 @@ function addTestRecords(mod: Module) {
 describe('Basic module operations', () => {
   test('check create module', async () => {
     const m: Module | undefined = createTestModule();
-    assert(m != undefined, 'Failed to create test module');
-    if (m != undefined) {
+    assert(m !== undefined, 'Failed to create test module');
+    if (m !== undefined) {
       assert(m.name == 'Acme', 'Not the expected module`');
       addTestRecords(m);
       assert(arrayEquals(m.getRecordNames(), ['A']), 'Mismatch in record names');
@@ -91,7 +91,7 @@ describe('Basic loader test', () => {
       try {
         assert(m.name == 'Blog.Core', 'Failed to load Blog module');
         let re: Record = m.getEntry('UserPost') as Record;
-        assert(re != undefined, 'UserPost entry not found');
+        assert(re !== undefined, 'UserPost entry not found');
         const attrs: Set<string> = new Set(['User', 'Post']);
         // Convert iterator to array for compatibility with Node.js 20.x
         Array.from(re.schema.keys()).forEach((k: string) => {
@@ -120,14 +120,14 @@ describe('Basic loader test', () => {
           'Blog.Core',
           node.edges
         );
-        assert(edge != undefined, 'Edge for UserProfile not found');
-        if (edge != undefined) {
+        assert(edge !== undefined, 'Edge for UserProfile not found');
+        if (edge !== undefined) {
           assert(edge.node.entity.getEntryName() == 'Profile', 'Profile not found in relationship');
           assert(edge.node.edges.length == 0, 'Profile does not have relationships');
         }
         edge = findEdgeForRelationship('UserPost', 'Blog.Core', node.edges);
-        assert(edge != undefined, 'Edge for UserPost not found');
-        if (edge != undefined) {
+        assert(edge !== undefined, 'Edge for UserPost not found');
+        if (edge !== undefined) {
           assert(edge.node.entity.getEntryName() == 'Post', 'Post not found in relationship');
           assert(edge.node.edges.length == 1, 'POst has exactly one relationships');
           assert(
@@ -884,7 +884,7 @@ describe('Config entity', () => {
         }
       });
     } else {
-      assert(e != undefined);
+      assert(e !== undefined);
     }
     const s = m.toString();
     assert(

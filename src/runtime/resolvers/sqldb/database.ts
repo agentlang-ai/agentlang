@@ -48,7 +48,7 @@ export class DbContext {
     this.authInfo = authInfo;
     this.activeEnv = activeEnv;
     this.txnId = txnId;
-    if (inKernelMode != undefined) {
+    if (inKernelMode !== undefined) {
       this.inKernelMode = inKernelMode;
     }
     this.rbacRules = rbacRules;
@@ -56,7 +56,7 @@ export class DbContext {
   private static GlobalDbContext: DbContext | undefined;
 
   static getGlobalContext(): DbContext {
-    if (DbContext.GlobalDbContext == undefined) {
+    if (DbContext.GlobalDbContext === undefined) {
       DbContext.GlobalDbContext = new DbContext(
         '',
         DefaultAuthInfo,
@@ -282,7 +282,7 @@ export function isVectorStoreSupported(): boolean {
 }
 
 export async function initDatabase(config: DatabaseConfig | undefined) {
-  if (defaultDataSource == undefined) {
+  if (defaultDataSource === undefined) {
     const mkds = getDsFunction(config);
     if (mkds) {
       const ormScm = modulesAsOrmSchema();
@@ -405,7 +405,7 @@ export async function vectorStoreSearchEntryExists(
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const vecTableName = tableName + VectorSuffix;
     const result: any[] = await qb.query(`select id from ${vecTableName} where id = $1`, [id]);
-    return result != null && result.length > 0;
+    return result !== null && result.length > 0;
   } catch (err: any) {
     logger.error(`Vector store search failed - ${err}`);
   }
@@ -448,7 +448,7 @@ async function checkUserPerm(
       default:
         f = undefined;
     }
-    if (f != undefined) {
+    if (f !== undefined) {
       hasPerm = await f(userId, ctx.resourceFqName, ctx.activeEnv);
     }
   }
@@ -642,7 +642,7 @@ async function isOwner(parentName: string, instPath: string, ctx: DbContext): Pr
   } catch (reason: any) {
     logger.error(`Failed to check ownership on parent ${parentName} - ${reason}`);
   }
-  if (result == undefined || result.length == 0) {
+  if (result === undefined || result.length === 0) {
     return false;
   }
   return true;
@@ -760,7 +760,7 @@ export async function getMany(
   const alias: string = tableName.toLowerCase();
   const queryStr: string = withNotDeletedClause(
     alias,
-    queryObj != undefined ? objectToWhereClause(queryObj, queryVals, alias) : ''
+    queryObj !== undefined ? objectToWhereClause(queryObj, queryVals, alias) : ''
   );
   let ownersJoinCond: string[] | undefined;
   let ot: string = '';
@@ -819,7 +819,7 @@ export async function getManyByJoin(
   const alias: string = tableName.toLowerCase();
   const queryStr: string = withNotDeletedClause(
     alias,
-    queryObj != undefined ? objectToRawWhereClause(queryObj, queryVals, alias) : ''
+    queryObj !== undefined ? objectToRawWhereClause(queryObj, queryVals, alias) : ''
   );
   let ot: string = '';
   let otAlias: string = '';
@@ -928,7 +928,7 @@ export async function getAllConnected(
 const transactionsDb: Map<string, QueryRunner> = new Map<string, QueryRunner>();
 
 export async function startDbTransaction(): Promise<string> {
-  if (defaultDataSource != undefined) {
+  if (defaultDataSource !== undefined) {
     const queryRunner = defaultDataSource.createQueryRunner();
     await queryRunner.startTransaction();
     const txnId: string = crypto.randomUUID();
@@ -942,13 +942,13 @@ export async function startDbTransaction(): Promise<string> {
 function getDatasourceForTransaction(txnId: string | undefined): DataSource | EntityManager {
   if (txnId) {
     const qr: QueryRunner | undefined = transactionsDb.get(txnId);
-    if (qr == undefined) {
+    if (qr === undefined) {
       throw new Error(`Transaction not found - ${txnId}`);
     } else {
       return qr.manager;
     }
   } else {
-    if (defaultDataSource != undefined) return defaultDataSource;
+    if (defaultDataSource !== undefined) return defaultDataSource;
     else throw new Error('No default datasource is initialized');
   }
 }

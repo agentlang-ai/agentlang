@@ -50,11 +50,11 @@ export function isStringNumeric(str: string): boolean {
 type MaybeString = string | undefined;
 
 export function isString(s: MaybeString): boolean {
-  return s != undefined && typeof s === 'string';
+  return s !== undefined && typeof s === 'string';
 }
 
 function asString(s: MaybeString): string {
-  if (s == undefined) return '';
+  if (s === undefined) return '';
   else return s;
 }
 
@@ -351,7 +351,7 @@ export function findAllPrePostTriggerSchema(
     for (let i = 0; i < scm.extras.length; ++i) {
       const rex: RecordExtraDefinition = scm.extras[i];
       if (rex.prePost) {
-        if (result == undefined) {
+        if (result === undefined) {
           result = new Array<PrePostTriggerDefinition>();
         }
         result.push(rex.prePost);
@@ -372,7 +372,7 @@ export enum CrudType {
 
 export function asCrudType(s: string): CrudType {
   const r: CrudType | undefined = CrudType[s.toUpperCase() as keyof typeof CrudType];
-  if (r == undefined) {
+  if (r === undefined) {
     throw new Error(`${s} does not represent a valid CrudType`);
   }
   return r;
@@ -440,7 +440,7 @@ function maybeExtractModuleName(n: string, moduleName?: string | undefined): str
   if (i > 0) {
     return n.substring(0, i);
   }
-  if (moduleName == undefined) {
+  if (moduleName === undefined) {
     throw new Error(`Failed to extract module-name from ${n}`);
   }
   return moduleName;

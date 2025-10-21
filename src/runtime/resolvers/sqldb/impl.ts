@@ -44,7 +44,7 @@ import { logger } from '../../logger.js';
 
 function maybeFindIdAttributeName(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
-  if (attrEntry != undefined) {
+  if (attrEntry !== undefined) {
     return attrEntry.name;
   }
   return undefined;
@@ -95,11 +95,11 @@ export class SqlDbResolver extends Resolver {
       ensureOneToOneAttributes(inst);
       const attrs: InstanceAttributes = inst.attributes;
       const idAttrVal: any = idAttrName ? attrs.get(idAttrName) : crypto.randomUUID();
-      if (idAttrVal != undefined) {
+      if (idAttrVal !== undefined) {
         const pp: string | undefined = attrs.get(PathAttributeName);
         const n: string = `${inst.moduleName}/${inst.name}`;
         let p: string = '';
-        if (pp != undefined) p = `${pp}/${escapeFqName(n)}/${idAttrVal}`;
+        if (pp !== undefined) p = `${pp}/${escapeFqName(n)}/${idAttrVal}`;
         else p = `${n.replace('/', '$')}/${idAttrVal}`;
         attrs.set(PathAttributeName, p);
       }
@@ -186,7 +186,7 @@ export class SqlDbResolver extends Resolver {
     target: Instance | Instance[],
     purge: boolean
   ): Promise<Instance[] | Instance> {
-    if (target != null) {
+    if (target !== null) {
       if (target instanceof Array) {
         for (let i = 0; i < target.length; ++i) {
           await this.deleteInstanceHelper(target[i], purge);

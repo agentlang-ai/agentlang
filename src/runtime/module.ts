@@ -232,7 +232,7 @@ function normalizeMetaValue(metaValue: any): any {
     return v.array.vals.map((value: Statement) => {
       return normalizeMetaValue(value.pattern.expr);
     });
-  } else if (v.bool != undefined) {
+  } else if (v.bool !== undefined) {
     return v.bool == 'true' ? true : false;
   } else if (v.id) {
     return v.id;
@@ -305,7 +305,7 @@ export class Record extends ModuleEntry {
       ? cloneParentSchema(parentEntryName, moduleName)
       : newRecordSchema();
     const attributes: AttributeDefinition[] | undefined = scm ? scm.attributes : undefined;
-    if (attributes != undefined) {
+    if (attributes !== undefined) {
       attributes.forEach((a: AttributeDefinition) => {
         verifyAttribute(a);
         let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
@@ -318,7 +318,7 @@ export class Record extends ModuleEntry {
             rp.setModuleName(this.moduleName);
             fp = rp.asFqName();
           }
-          if (props == undefined) {
+          if (props === undefined) {
             props = new Map();
           }
           props.set('ref', escapeFqName(fp));
@@ -334,14 +334,14 @@ export class Record extends ModuleEntry {
           }
         }
         if (a.expr) {
-          if (props == undefined) {
+          if (props === undefined) {
             props = new Map();
           }
           props.set('expr', a.expr).set('optional', true);
         }
         const isObjectType: boolean = t == 'Map' || !isBuiltInType(t);
         if (isArrayType || isObjectType || enumValues || oneOfRef) {
-          if (props == undefined) {
+          if (props === undefined) {
             props = new Map<string, any>();
           }
           if (isArrayType) props.set('array', true);
@@ -369,14 +369,14 @@ export class Record extends ModuleEntry {
     if (prepostTrigs) {
       prepostTrigs.forEach((ppt: PrePostTriggerDefinition) => {
         if (ppt.after) {
-          if (this.afterTriggers == undefined) {
+          if (this.afterTriggers === undefined) {
             this.afterTriggers = new Map();
           }
           ppt.after.triggers.entries.forEach((te: TriggerEntry) => {
             if (this.afterTriggers) this.afterTriggers.set(asCrudType(te.on), asTriggerInfo(te));
           });
         } else if (ppt.before) {
-          if (this.beforeTriggers == undefined) {
+          if (this.beforeTriggers === undefined) {
             this.beforeTriggers = new Map();
           }
           ppt.before.triggers.entries.forEach((te: TriggerEntry) => {
@@ -389,7 +389,7 @@ export class Record extends ModuleEntry {
   }
 
   private addOneOfRefAttribute(s: string): Record {
-    if (this.oneOfRefAttributes == undefined) {
+    if (this.oneOfRefAttributes === undefined) {
       this.oneOfRefAttributes = [];
     }
     this.oneOfRefAttributes.push(s);
@@ -397,7 +397,7 @@ export class Record extends ModuleEntry {
   }
 
   public addAfterTrigger(te: any): Record {
-    if (this.afterTriggers == undefined) {
+    if (this.afterTriggers === undefined) {
       this.afterTriggers = new Map();
     }
     this.afterTriggers?.set(asCrudType(te.on), asTriggerInfo(te));
@@ -405,7 +405,7 @@ export class Record extends ModuleEntry {
   }
 
   public addBeforeTrigger(te: any): Record {
-    if (this.beforeTriggers == undefined) {
+    if (this.beforeTriggers === undefined) {
       this.beforeTriggers = new Map();
     }
     this.beforeTriggers?.set(asCrudType(te.on), asTriggerInfo(te));
@@ -464,7 +464,7 @@ export class Record extends ModuleEntry {
     if (this.schema.has(n)) {
       throw new Error(`Attribute named ${n} already exists in ${this.moduleName}.${this.name}`);
     }
-    if (attrSpec.properties != undefined) {
+    if (attrSpec.properties !== undefined) {
       normalizePropertyNames(attrSpec.properties);
     }
     this.schema.set(n, attrSpec);
@@ -493,7 +493,7 @@ export class Record extends ModuleEntry {
   findAttribute(predic: Function): AttributeEntry | undefined {
     for (const k of this.schema.keys()) {
       const attrSpec: AttributeSpec | undefined = this.schema.get(k);
-      if (attrSpec != undefined) {
+      if (attrSpec !== undefined) {
         if (predic(attrSpec))
           return {
             name: k,
@@ -507,9 +507,9 @@ export class Record extends ModuleEntry {
   hasRefTo(modName: string, entryName: string): boolean {
     if (
       this.findAttribute((attrSpec: AttributeSpec) => {
-        if (attrSpec.properties != undefined) {
+        if (attrSpec.properties !== undefined) {
           const ref: Path | undefined = attrSpec.properties.get('ref');
-          if (ref != undefined) {
+          if (ref !== undefined) {
             if (ref.getModuleName() == modName && ref.getEntryName() == entryName) {
               return true;
             }
@@ -526,7 +526,7 @@ export class Record extends ModuleEntry {
     const e: AttributeEntry | undefined = this.findAttribute((attrSpec: AttributeSpec) => {
       return isIdAttribute(attrSpec);
     });
-    if (e != undefined) {
+    if (e !== undefined) {
       return e.name;
     }
     return undefined;
@@ -629,14 +629,14 @@ function cloneParentSchema(parentName: string, currentModuleName: string): Recor
 }
 
 function asPropertiesMap(props: PropertyDefinition[]): Map<string, any> | undefined {
-  if (props != undefined && props.length > 0) {
+  if (props !== undefined && props.length > 0) {
     const result: Map<string, any> = new Map<string, any>();
     props.forEach((p: PropertyDefinition) => {
       const n: string = p.name.substring(1);
-      if (p.value != undefined && p.value.pairs != undefined && p.value.pairs.length > 0) {
+      if (p.value !== undefined && p.value.pairs !== undefined && p.value.pairs.length > 0) {
         if (p.value.pairs.length == 1) {
           const kvp: KvPair = p.value.pairs[0];
-          if (kvp.key == undefined) {
+          if (kvp.key === undefined) {
             result.set(n, normalizeKvPairValue(kvp));
           } else {
             const v: Map<string, any> = new Map<string, any>();
@@ -647,7 +647,7 @@ function asPropertiesMap(props: PropertyDefinition[]): Map<string, any> | undefi
           const v: Map<string, any> = new Map<string, any>();
           p.value.pairs.forEach((kvp: KvPair) => {
             let k: string = 'null';
-            if (kvp.key != undefined) k = kvp.key;
+            if (kvp.key !== undefined) k = kvp.key;
             v.set(k, normalizeKvPairValue(kvp));
           });
           result.set(n, v);
@@ -663,7 +663,7 @@ function asPropertiesMap(props: PropertyDefinition[]): Map<string, any> | undefi
 
 function maybeProcessRefProperty(props: Map<string, any>): Map<string, any> {
   const v: string | undefined = props.get('ref');
-  if (v != undefined) {
+  if (v !== undefined) {
     const parts: Path = nameToPath(v);
     if (!parts.hasModule()) {
       parts.setModuleName(activeModule);
@@ -675,24 +675,24 @@ function maybeProcessRefProperty(props: Map<string, any>): Map<string, any> {
 
 function normalizeKvPairValue(kvp: KvPair): any | null {
   const v: Literal | undefined = kvp.value;
-  if (v == undefined) return true;
-  if (v.str != undefined) {
+  if (v === undefined) return true;
+  if (v.str !== undefined) {
     return v.str;
-  } else if (v.num != undefined) {
+  } else if (v.num !== undefined) {
     return v.num;
-  } else if (v.bool != undefined) {
-    return v.bool == 'true' ? true : false;
-  } else if (v.id != undefined) {
+  } else if (v.bool !== undefined) {
+    return v.bool === 'true' ? true : false;
+  } else if (v.id !== undefined) {
     return v.id;
-  } else if (v.ref != undefined) {
+  } else if (v.ref !== undefined) {
     return v.ref;
-  } else if (v.fnCall != undefined) {
+  } else if (v.fnCall !== undefined) {
     const fncall: FnCall = v.fnCall;
     if (fncall.args.length > 0) {
       throw new Error('Cannot allow arguments in properties function-call');
     }
     return fncall.name + '()';
-  } else if (v.array != undefined) {
+  } else if (v.array !== undefined) {
     return v.array;
   }
   return null;
@@ -755,7 +755,7 @@ export class RbacSpecification {
     perms.forEach((v: string) => {
       const idx: any = v.toUpperCase();
       const a: any = RbacPermissionFlag[idx];
-      if (a == undefined) {
+      if (a === undefined) {
         throw new Error(`Not a valid RBAC permission - ${v}`);
       }
       ps.add(a);
@@ -1140,7 +1140,7 @@ function asRelNodeEntry(n: NodeDefinition): RelationshipNode {
     modName = path.getModuleName();
   }
   let alias = entryName;
-  if (n.alias != undefined) {
+  if (n.alias !== undefined) {
     alias = n.alias;
   }
   return {
@@ -1227,14 +1227,14 @@ export class Relationship extends Record {
   }
 
   hasBooleanFlagSet(flag: string): boolean {
-    if (this.properties != undefined) {
+    if (this.properties !== undefined) {
       return this.properties.get(flag) == true;
     }
     return false;
   }
 
   private setProperty(p: string, v: any): Relationship {
-    if (this.properties == undefined) {
+    if (this.properties === undefined) {
       this.properties = new Map();
     }
     this.properties.set(p, v);
@@ -1661,7 +1661,7 @@ export function flowGraphNext(
       const c = node.on?.findIndex((v: string) => {
         return v == onCondition;
       });
-      if (c != undefined) {
+      if (c !== undefined) {
         const next = node.next[c];
         const r = graph.find((n: FlowGraphNode) => {
           return n.label == next;
@@ -2075,7 +2075,7 @@ export class Module {
       const r: Record = v as Record;
       return r.name == name;
     });
-    return entry != undefined;
+    return entry !== undefined;
   }
 
   isEntity(name: string): boolean {
@@ -2200,7 +2200,7 @@ export function isModule(name: string): boolean {
 
 export function fetchModule(moduleName: string): Module {
   const module: Module | undefined = moduleDb.get(moduleName);
-  if (module == undefined) {
+  if (module === undefined) {
     throw new Error(`Module not found - ${moduleName}`);
   }
   return module;
@@ -2289,14 +2289,14 @@ export function isValidType(type: string): boolean {
 }
 
 function checkType(type: string | undefined): void {
-  if (type == undefined) throw new Error('Attribute type is required');
+  if (type === undefined) throw new Error('Attribute type is required');
   if (!isValidType(type)) {
     console.log(chalk.red(`WARN: type not found - ${type}`));
   }
 }
 
 function validateProperties(props: PropertyDefinition[] | undefined): void {
-  if (props != undefined) {
+  if (props !== undefined) {
     props.forEach((p: PropertyDefinition) => {
       if (!propertyNames.has(p.name)) throw new Error(`Invalid property ${p.name}`);
     });
@@ -2313,9 +2313,9 @@ export function defaultAttributes(schema: RecordSchema): Map<string, any> {
   const result: Map<string, any> = new Map<string, any>();
   schema.forEach((v: AttributeSpec, k: string) => {
     const props: Map<string, any> | undefined = v.properties;
-    if (props != undefined) {
+    if (props !== undefined) {
       const d: any | undefined = props.get('default');
-      if (d != undefined) {
+      if (d !== undefined) {
         result.set(k, d);
       }
     }
@@ -2327,7 +2327,7 @@ export function passwordAttributes(schema: RecordSchema): Set<string> | undefine
   let result: Set<string> | undefined = undefined;
   schema.forEach((v: AttributeSpec, k: string) => {
     if (v.type == 'Password') {
-      if (result == undefined) {
+      if (result === undefined) {
         result = new Set<string>();
       }
       result?.add(k);
@@ -2340,7 +2340,7 @@ export function objectAttributes(schema: RecordSchema): Array<string> | undefine
   let result: Array<string> | undefined;
   schema.forEach((v: AttributeSpec, k: string) => {
     if (isObjectAttribute(v)) {
-      if (result == undefined) result = new Array<string>();
+      if (result === undefined) result = new Array<string>();
       result.push(k);
     }
   });
@@ -2348,21 +2348,21 @@ export function objectAttributes(schema: RecordSchema): Array<string> | undefine
 }
 
 function getBooleanProperty(propName: string, attrSpec: AttributeSpec): boolean {
-  if (attrSpec.properties != undefined) {
+  if (attrSpec.properties !== undefined) {
     return attrSpec.properties.get(propName) == true;
   }
   return false;
 }
 
 function getAnyProperty(propName: string, attrSpec: AttributeSpec): any | undefined {
-  if (attrSpec.properties != undefined) {
+  if (attrSpec.properties !== undefined) {
     return attrSpec.properties.get(propName);
   }
   return undefined;
 }
 
 function setAnyProperty(propName: string, value: any, attrSpec: AttributeSpec): AttributeSpec {
-  if (attrSpec.properties == undefined) {
+  if (attrSpec.properties === undefined) {
     attrSpec.properties = new Map();
   }
   attrSpec.properties.set(propName, value);
@@ -2494,7 +2494,7 @@ export function addRelationship(
     n2 = nodes[1];
   }
   let propsMap: Map<string, any> | undefined;
-  if (props != undefined) propsMap = asPropertiesMap(props);
+  if (props !== undefined) propsMap = asPropertiesMap(props);
   return module.addEntry(
     new Relationship(name, type, n1, n2, moduleName, scm, propsMap)
   ) as Relationship;
@@ -2794,7 +2794,7 @@ function filterBetweenRelationshipsForEntity(
   predic: Function,
   allBetweenRels?: Relationship[]
 ): Relationship[] {
-  if (allBetweenRels == undefined) {
+  if (allBetweenRels === undefined) {
     allBetweenRels = getAllBetweenRelationships();
   }
   const p = new Path(moduleName, entityName);
@@ -2927,7 +2927,7 @@ export function removeEvent(name: string, moduleName = activeModule): boolean {
 
 function getAttributeSpec(attrsSpec: RecordSchema, attrName: string): AttributeSpec {
   const spec: AttributeSpec | undefined = attrsSpec.get(attrName);
-  if (spec == undefined) {
+  if (spec === undefined) {
     throw new Error(`Failed to find spec for attribute ${attrName}`);
   }
   return spec;
@@ -2963,7 +2963,7 @@ function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec)
   }
   let predic = getCheckPredicate(attrSpec);
   predic = predic ? predic : builtInChecks.get(attrSpec.type);
-  if (predic != undefined) {
+  if (predic !== undefined) {
     if (isArrayAttribute(attrSpec)) {
       if (!(attrValue instanceof Array)) {
         throw new Error(`${attrName} expects an array of values`);
@@ -3061,7 +3061,12 @@ export class Instance {
   }
 
   lookup(k: string): any {
-    return this.attributes.get(k);
+    const v = this.attributes.get(k);
+    if (v === undefined) {
+      return this.getRelatedInstances(k);
+    } else {
+      return v;
+    }
   }
 
   lookupQueryVal(k: string): any {
@@ -3176,24 +3181,24 @@ export class Instance {
   }
 
   queryAttributesAsObject(): object {
-    if (this.queryAttributes != undefined) {
+    if (this.queryAttributes !== undefined) {
       return Object.fromEntries(this.queryAttributes);
     }
     return {};
   }
 
   queryAttributeValuesAsObject(): object {
-    if (this.queryAttributeValues != undefined) {
+    if (this.queryAttributeValues !== undefined) {
       return Object.fromEntries(this.queryAttributeValues);
     }
     return {};
   }
 
   addQuery(attrName: string, op: string = '=', attrVal: any = undefined) {
-    if (this.queryAttributes == undefined) this.queryAttributes = newInstanceAttributes();
+    if (this.queryAttributes === undefined) this.queryAttributes = newInstanceAttributes();
     this.queryAttributes.set(attrName, op);
-    if (attrVal != undefined) {
-      if (this.queryAttributeValues == undefined)
+    if (attrVal !== undefined) {
+      if (this.queryAttributeValues === undefined)
         this.queryAttributeValues = newInstanceAttributes();
       this.queryAttributeValues.set(attrName, attrVal);
     }
@@ -3207,11 +3212,11 @@ export class Instance {
   }
 
   attachRelatedInstances(relName: string, insts: Instance | Instance[]) {
-    if (this.relatedInstances == undefined) {
+    if (this.relatedInstances === undefined) {
       this.relatedInstances = new Map<string, Array<Instance>>();
     }
     let relInsts: Array<Instance> | undefined = this.relatedInstances.get(relName);
-    if (relInsts == undefined) {
+    if (relInsts === undefined) {
       relInsts = new Array<Instance>();
     }
     if (insts instanceof Instance) {
@@ -3226,7 +3231,7 @@ export class Instance {
   }
 
   detachAllRelatedInstance() {
-    if (this.relatedInstances != undefined) {
+    if (this.relatedInstances !== undefined) {
       this.relatedInstances?.clear();
       this.relatedInstances = undefined;
       this.attributes.delete('->');
@@ -3234,7 +3239,7 @@ export class Instance {
   }
 
   mergeRelatedInstances() {
-    if (this.relatedInstances != undefined) {
+    if (this.relatedInstances !== undefined) {
       this.relatedInstances.forEach((v: Instance[], k: string) => {
         this.attributes.set(k, v);
       });
@@ -3259,7 +3264,7 @@ export class Instance {
   }
 
   addContextData(k: string, v: any): Instance {
-    if (this.contextData == undefined) {
+    if (this.contextData === undefined) {
       this.contextData = new Map();
     }
     this.contextData.set(k, v);
@@ -3269,7 +3274,7 @@ export class Instance {
   getContextData(k: string, notFoundValue?: any): any {
     if (this.contextData) {
       const v: any = this.contextData.get(k);
-      if (v == undefined) return notFoundValue;
+      if (v === undefined) return notFoundValue;
       return v;
     }
     return notFoundValue;
@@ -3296,7 +3301,7 @@ export class Instance {
     this.record.schema.forEach((attrSpec: AttributeSpec, n: string) => {
       const expr = getAttributeExpr(attrSpec);
       if (expr) {
-        if (result == undefined) {
+        if (result === undefined) {
           result = new Map<string, Expr>();
         }
         result.set(n, expr);
@@ -3373,7 +3378,7 @@ function maybeSetDefaultAttributeValues(
   const defAttrs = defaultAttributes(schema);
   defAttrs.forEach((v: any, k: string) => {
     const cv = attributes.get(k);
-    if (cv == undefined || cv == null) {
+    if (cv === undefined || cv === null) {
       if (isString(v)) {
         if (v == 'uuid()') {
           v = crypto.randomUUID();
@@ -3421,7 +3426,7 @@ export function makeInstance(
         throw new Error(`Invalid attribute '${key}' specified for ${moduleName}/${entryName}`);
       }
       const spec: AttributeSpec = getAttributeSpec(schema, key);
-      if (value != null && value != undefined) validateType(key, value, spec);
+      if (value !== null && value !== undefined) validateType(key, value, spec);
     });
   }
   if (!queryAttributes && !queryAll) {
@@ -3557,7 +3562,7 @@ export function isTimer(eventInst: Instance): boolean {
 
 export function isAgentEvent(record: Record): boolean {
   const flag = record.getMeta(IsAgentEventMeta);
-  return flag != undefined && flag == 'y';
+  return flag !== undefined && flag == 'y';
 }
 
 export function isAgentEventInstance(eventInst: Instance): boolean {
@@ -3583,7 +3588,7 @@ export function getEntityRbacRules(entityFqName: string): RbacSpecification[] | 
   if (m && m.isEntity(en)) {
     const entity = getEntity(en, mn);
     return entity?.getRbacSpecifications()?.filter((spec: RbacSpecification) => {
-      return spec.expression != undefined;
+      return spec.expression !== undefined;
     });
   }
   return undefined;

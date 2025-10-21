@@ -227,7 +227,7 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
     }
     if (callback) await callback(appSpec);
   }
-  if (appSpec.dependencies != undefined) {
+  if (appSpec.dependencies !== undefined) {
     for (const [depName, _] of Object.entries(appSpec.dependencies)) {
       try {
         const depDirName = `./node_modules/${depName}`;
@@ -355,7 +355,7 @@ async function loadModule(fileName: string, fsOptions?: any, callback?: Function
 let cachedFsAdapter: any = null;
 
 function getFsAdapter(fs: any) {
-  if (cachedFsAdapter == null) {
+  if (cachedFsAdapter === null) {
     // Create an adapter to make our filesystem compatible with Langium
     cachedFsAdapter = {
       // Read file contents as text
@@ -477,7 +477,7 @@ const StandaloneStatements = new Map<string, Statement[]>();
 
 function addStandaloneStatement(stmt: Statement, moduleName: string, userDefined = true) {
   let stmts: Array<Statement> | undefined = StandaloneStatements.get(moduleName);
-  if (stmts == undefined) {
+  if (stmts === undefined) {
     stmts = new Array<Statement>();
   }
   stmts.push(stmt);
@@ -682,11 +682,11 @@ async function addAgentDefinition(
         v = processAgentArray(apdef.value.array, name);
       } else {
         v = apdef.value.str || apdef.value.id || apdef.value.ref || apdef.value.num;
-        if (v == undefined) {
+        if (v === undefined) {
           v = apdef.value.bool;
         }
       }
-      if (v == undefined) {
+      if (v === undefined) {
         throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
       }
       if (apdef.name == 'llm') {
@@ -765,7 +765,7 @@ function processAgentArray(array: ArrayLiteral, attrName: string): string {
 function processAgentArrayValue(expr: Expr | undefined, attrName: string): string {
   if (expr && isLiteral(expr)) {
     const s = expr.str || expr.id || expr.ref || expr.bool;
-    if (s != undefined) {
+    if (s !== undefined) {
       return s;
     }
     if (expr.array) {

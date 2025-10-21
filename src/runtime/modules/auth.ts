@@ -607,10 +607,10 @@ export async function findUserRoles(userId: string, env: Environment): Promise<R
   const inst: Instance | undefined = result ? (result[0] as Instance) : undefined;
   if (inst) {
     let roles: Instance[] | undefined = inst.getRelatedInstances('UserRole');
-    if (roles == undefined) {
+    if (roles === undefined) {
       roles = [];
     }
-    if (DefaultRoleInstance == undefined) {
+    if (DefaultRoleInstance === undefined) {
       DefaultRoleInstance = makeInstance(
         CoreAuthModuleName,
         'Role',
@@ -664,7 +664,7 @@ export async function userHasPermissions(
     return true;
   }
   let userRoles: string[] | null | undefined = UserRoleCache.get(userId);
-  if (userRoles == undefined) {
+  if (userRoles === undefined) {
     const roles: any = await findUserRoles(userId, env);
     userRoles = [];
     if (roles) {
@@ -680,6 +680,7 @@ export async function userHasPermissions(
     UserRoleCache.set(userId, userRoles);
   }
   if (
+    userRoles &&
     userRoles.find((role: string) => {
       return role === 'admin';
     })
@@ -692,21 +693,23 @@ export async function userHasPermissions(
     perms.has(RbacPermissionFlag.UPDATE),
     perms.has(RbacPermissionFlag.DELETE),
   ];
-  for (let i = 0; i < userRoles.length; ++i) {
-    const permInsts: RbacPermission[] | undefined = RolePermissionsCache.get(userRoles[i]);
-    if (permInsts) {
-      if (
-        permInsts.find((p: RbacPermission) => {
-          return (
-            p.resourceFqName == resourceFqName &&
-            (c ? isSqlTrue(p.c) : true) &&
-            (r ? isSqlTrue(p.r) : true) &&
-            (u ? isSqlTrue(p.u) : true) &&
-            (d ? isSqlTrue(p.d) : true)
-          );
-        })
-      )
-        return true;
+  if (userRoles !== null) {
+    for (let i = 0; i < userRoles.length; ++i) {
+      const permInsts: RbacPermission[] | undefined = RolePermissionsCache.get(userRoles[i]);
+      if (permInsts) {
+        if (
+          permInsts.find((p: RbacPermission) => {
+            return (
+              p.resourceFqName == resourceFqName &&
+              (c ? isSqlTrue(p.c) : true) &&
+              (r ? isSqlTrue(p.r) : true) &&
+              (u ? isSqlTrue(p.u) : true) &&
+              (d ? isSqlTrue(p.d) : true)
+            );
+          })
+        )
+          return true;
+      }
     }
   }
   return false;
@@ -1030,7 +1033,7 @@ async function verifySessionToken(token: string, env?: Environment): Promise<Act
   const f = async () => {
     try {
       const sess: Instance = await findSession(sessId, env);
-      if (sess != undefined) {
+      if (sess !== undefined) {
         await fetchAuthImpl().verifyToken(sess.lookup('authToken'), env);
         return { sessionId: sessId, userId: parts[0] };
       } else {
