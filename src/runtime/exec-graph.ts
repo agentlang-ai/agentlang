@@ -336,6 +336,7 @@ export async function executeEvent(
       if (kernelCall) {
         env.setInKernelMode(true);
       }
+      env.setActiveEvent(eventInstance);
       await executeEventHelper(eventInstance, env);
     } else if (isAgentEventInstance(eventInstance)) {
       env.setStatementsExecutor(executeStatements);

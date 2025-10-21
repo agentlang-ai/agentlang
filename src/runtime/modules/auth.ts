@@ -664,7 +664,7 @@ export async function userHasPermissions(
     return true;
   }
   let userRoles: string[] | null | undefined = UserRoleCache.get(userId);
-  if (userRoles === undefined) {
+  if (!userRoles) {
     const roles: any = await findUserRoles(userId, env);
     userRoles = [];
     if (roles) {
