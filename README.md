@@ -303,6 +303,46 @@ The agent `classifyProvisioningRequest` has its `responseSchema` attribute set t
 
 Agentlang's sophisticated modeling capabilities allow you to design the data-schema, workflows and access control constructs of your application in a declarative way. Agents can work directly with this ontology and dynamically generate business workflows, making your application into a living system that constantly adapts to new requirements and demands.
 
+This simple blogging application demonstrates Agentlang’s powerful data modeling and agent integration capabilities.
+
+```typescript
+module blog.core
+
+entity Post {
+    id UUID @id @default(uuid()),
+    title String,
+    content String,
+    postedBy Email,
+    createdAt DateTime @default(now()),
+    @rbac [(roles: [manager], allow: [create, read])]
+}
+
+entity Comment {
+   id UUID @id @default(uuid()),
+   content String,
+   postedBy Email,
+   postedOn DateTime @default(now())
+}
+
+relationship PostComment contains(Post, Comment)
+
+entity Category {
+    id UUID @id @default(uuid()),
+    name String
+}
+
+relationship PostCategory between(Post, Category)
+
+@public agent postEditor {
+    instruction "Create a new blog post based on the outline provided to you.",
+    tools [blog.core/Post]
+}
+```
+
+Entities like `Post`, `Comment`, and `Category` define a clear domain schema connected through declarative relationships such as `contains` and `between`. Access rules, like the `@rbac` annotation on posts, show how policies can be built directly into the model itself.
+
+What makes this model special is how seamlessly an agent can interact with it — for instance, the `postEditor` agent can create new posts directly using the `Post` entity as a tool. This tight coupling between schema and agent logic allows intelligent automation to operate safely and predictably within a structured data framework.
+
 To get started with Agentlang Ontology, please see the [Agentlang Tutorial](https://docs.fractl.io/app) or explore the following example applications:
 
  * [Car Dealership](https://github.com/agentlang-ai/agentlang/tree/main/example/car_dealership)
