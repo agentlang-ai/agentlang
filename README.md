@@ -90,17 +90,16 @@ flow TicketFlow {
     ticketTriager --> "NotEnoughInfo" ticketPending
 }
 
-glossary TicketFlow [
-    {"name": "incident", "meaning": "a problem report", "synonyms": "ticket"},
-    {"name": "task", "meaning": "a record that captures some work that needs to be done", "synonyms": "ticket"},
-    {"name": "DNS", "meaning": "Domain Name Service - is used to translate human-readable domain names to IP addresses", "synonyms": "DNS name, CNAME, DNS HOST record"}
-    {"name": "WLAN", "meaning": "Wireless LAN - wireless network to connect devices to each other and the internet", "synonyms": "Office network"}
-]
-
 agent TicketFlow {
     llm "gpt4o",
     role "You are a network ticket management application. Your job is to triage any ticket passed to you
           and update the ticket with appropriate assigned_to, status and triaging comments.",
+	glossary [
+		{"name": "incident", "meaning": "a problem report", "synonyms": "ticket"},
+		{"name": "task", "meaning": "a record that captures some work that needs to be done", "synonyms": "ticket"},
+		{"name": "DNS", "meaning": "Domain Name Service - is used to translate human-readable domain names to IP addresses", "synonyms": "DNS name, CNAME, DNS HOST record"}
+		{"name": "WLAN", "meaning": "Wireless LAN - wireless network to connect devices to each other and the internet", "synonyms": "Office network"}
+]
 }
 
 decision ticketTriager {
@@ -130,18 +129,15 @@ workflow ticketInProgress {
 Agents and many concepts agents use are built-in language constructs.
 
 ```typescript
-flow TicketFlow {
-    ticketTriager --> "DNS" ticketInProgress
-    ticketTriager --> "WLAN" ticketInProgress
-    ticketTriager --> "NotEnoughInfo" ticketPending
-}
-
 agent TicketFlow {
     llm "gpt4o",
     role "You are a network ticket management agent. Your job is to triage any ticket passed to you and
-          update the ticket with appropriate assigned_to, status and triaging comments.",
+          update the ticket with appropriate assigned_to, status and triaging comments."
 }
 
+directive TicketFlow {
+    "if": "the context indicates the ticket as handled", "then": "set status to done"
+}
 ```
 
 ### Flows
@@ -273,6 +269,7 @@ agent classifyProvisioningRequest {
     responseSchema NetworkProvisioningRequest
 }
 ```
+
 This kind of structured data (as entity or record instances) returned by an agent is added to an internal-cache used by the flow. This cache is known as *scratchpad*. 
 
 ### Templatized Instructions
@@ -306,9 +303,10 @@ The agent `classifyProvisioningRequest` has its `responseSchema` attribute set t
 
 Agentlang's sophisticated modeling capabilities allow you to design the data-schema, workflows and access control constructs of your application in a declarative way. Agents can work directly with this ontology and dynamically generate business workflows, making your application into a living system that constantly adapts to new requirements and demands.
 
-To get started with Agentlang Ontology, please see the [quick start](link-to-doc) guide or explore the following example applications:
+To get started with Agentlang Ontology, please see the [Agentlang Tutorial](https://docs.fractl.io/app) or explore the following example applications:
 
-// TODO: links to example apps
+ * [Car Dealership](https://github.com/agentlang-ai/agentlang/tree/main/example/car_dealership)
+ * [Customer Support System](https://github.com/agentlang-ai/agentlang/tree/main/example/customer_support_system)
 
 ## 🚀 Getting Started
 
