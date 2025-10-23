@@ -156,11 +156,15 @@ DecisionDefBody: '{' (cases+=CaseEntry (cases+=CaseEntry)*)+ '}';
 
 CaseEntry: 'case' '(' cond=Expr ')' Body;
 
-ScenarioDefinition: 'scenario' name=Ref (body=MapLiteral? | '{''}');
+AgentXtraSpec: '{' (attributes+=AgentXtraAttribute (',' attributes+=AgentXtraAttribute)*)+ '}';
 
-DirectiveDefinition: 'directive' name=Ref (body=MapLiteral? | '{''}');
+AgentXtraAttribute: name=ID value=STRING|Ref;
 
-GlossaryEntryDefinition: 'glossaryEntry' name=Ref (body=MapLiteral? | '{''}');
+ScenarioDefinition: 'scenario' name=Ref (body=MapLiteral? | scn=AgentXtraSpec? | '{''}');
+
+DirectiveDefinition: 'directive' name=Ref (body=MapLiteral? | dir=If | '{''}');
+
+GlossaryEntryDefinition: 'glossaryEntry' name=Ref (body=MapLiteral? | glos=AgentXtraSpec? | '{''}');
 
 ResolverDefinition: 'resolver' name=GenericName '[' (paths+=GenericName (',' paths+=GenericName)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';

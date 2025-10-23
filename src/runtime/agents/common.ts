@@ -357,6 +357,7 @@ export type AgentCondition = {
   if: string;
   then: string;
   internal: boolean;
+  isIf: boolean;
 };
 
 const AgentDirectives = new Map<string, AgentCondition[]>();
@@ -364,9 +365,10 @@ const AgentDirectives = new Map<string, AgentCondition[]>();
 export function newAgentDirective(
   cond: string,
   then: string,
-  internal: boolean = false
+  internal: boolean = false,
+  isIf: boolean = false
 ): AgentCondition {
-  return { if: cond, then, internal };
+  return { if: cond, then, internal, isIf };
 }
 
 export function registerAgentDirectives(agentFqName: string, conds: AgentCondition[]) {
@@ -387,7 +389,11 @@ export function getAgentDirectivesJson(agentFqName: string): string | undefined 
   const conds = getAgentDirectivesInternal(agentFqName);
   if (conds) {
     const fmted = conds.map((c: AgentCondition) => {
-      return { if: c.if, then: c.then };
+      if (c.isIf) {
+        return c.if;
+      } else {
+        return { if: c.if, then: c.then };
+      }
     });
     return JSON.stringify(fmted);
   }
