@@ -4664,16 +4664,30 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "cardinality": "?"
               },
               {
-                "$type": "Assignment",
-                "feature": "dir",
-                "operator": "=",
-                "terminal": {
-                  "$type": "RuleCall",
-                  "rule": {
-                    "$ref": "#/rules@86"
+                "$type": "Group",
+                "elements": [
+                  {
+                    "$type": "Keyword",
+                    "value": "{"
                   },
-                  "arguments": []
-                }
+                  {
+                    "$type": "Assignment",
+                    "feature": "dir",
+                    "operator": "=",
+                    "terminal": {
+                      "$type": "RuleCall",
+                      "rule": {
+                        "$ref": "#/rules@86"
+                      },
+                      "arguments": []
+                    },
+                    "cardinality": "?"
+                  },
+                  {
+                    "$type": "Keyword",
+                    "value": "}"
+                  }
+                ]
               },
               {
                 "$type": "Group",

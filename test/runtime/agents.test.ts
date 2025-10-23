@@ -311,7 +311,7 @@ if (process.env.AL_TEST === 'true') {
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
          scenario ga.scn01 {user "Kiran had a block-buster", ai "GuidedAgent/scenario01"}
          directive GuidedAgent/ga.dir01 {
-             if("sales is less than 2000) { "hike salary by 0.5 percent" }
+             if("sales is less than 2000") { "hike salary by 0.5 percent" }
          }
          workflow chat {{ga {message chat.msg}}}
           `

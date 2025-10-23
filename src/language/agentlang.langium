@@ -162,7 +162,7 @@ AgentXtraAttribute: name=ID value=STRING|Ref;
 
 ScenarioDefinition: 'scenario' name=Ref (body=MapLiteral? | scn=AgentXtraSpec? | '{''}');
 
-DirectiveDefinition: 'directive' name=Ref (body=MapLiteral? | dir=If | '{''}');
+DirectiveDefinition: 'directive' name=Ref (body=MapLiteral? | '{' dir=If? '}' | '{''}');
 
 GlossaryEntryDefinition: 'glossaryEntry' name=Ref (body=MapLiteral? | glos=AgentXtraSpec? | '{''}');
 

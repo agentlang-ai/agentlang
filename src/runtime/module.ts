@@ -1602,11 +1602,10 @@ export class Scenario extends ModuleEntry {
   }
 
   override toString(): string {
-    const obj: any = {
-      user: this.def.user,
-      ai: this.def.ai,
-    };
-    return `scenario ${this.name} ${JSON.stringify(obj)}`;
+    const ss = new Array<string>();
+    ss.push(`    user "${this.def.user}"`);
+    ss.push(`    ai "${this.def.ai}"`);
+    return `scenario ${this.name}\n {\n${ss.join(',\n')}\n}`;
   }
 }
 
@@ -1619,11 +1618,17 @@ export class Directive extends ModuleEntry {
   }
 
   override toString(): string {
-    const obj: any = {
-      if: this.def.if,
-      then: this.def.then,
-    };
-    return `directive ${this.name} ${JSON.stringify(obj)}`;
+    if (this.def.isIf) {
+      return `directive ${this.name} {
+        ${this.def.if}
+      }`;
+    } else {
+      const obj: any = {
+        if: this.def.if,
+        then: this.def.then,
+      };
+      return `directive ${this.name} ${JSON.stringify(obj)}`;
+    }
   }
 }
 
@@ -1636,12 +1641,13 @@ export class GlossaryEntry extends ModuleEntry {
   }
 
   override toString(): string {
-    const obj: any = {
-      name: this.def.name,
-      meaning: this.def.meaning,
-      synonyms: this.def.synonyms,
-    };
-    return `glossaryEntry ${this.name} ${JSON.stringify(obj)}`;
+    const ss = new Array<string>();
+    ss.push(`    name "${this.def.name}"`);
+    ss.push(`    meaning "${this.def.meaning}"`);
+    if (this.def.synonyms) {
+      ss.push(`    synonyms "${this.def.synonyms}"`);
+    }
+    return `glossaryEntry ${this.name} \n{\n${ss.join(',\n')}\n}`;
   }
 }
 
