@@ -670,6 +670,27 @@ export function isIfPattern(p: BasePattern): boolean {
   return p instanceof IfPattern;
 }
 
+export class CasePattern extends BasePattern {
+  condition: BasePattern;
+  body: BasePattern;
+
+  constructor(condition: BasePattern, body: BasePattern) {
+    super();
+    this.condition = condition;
+    this.body = body;
+  }
+
+  override toString(): string {
+    return `case (${this.condition.toString()}) {
+    ${this.body.toString()}
+  }`;
+  }
+}
+
+export function isCasePattern(p: BasePattern): boolean {
+  return p instanceof CasePattern;
+}
+
 export function newCreatePattern(recName: string): CrudPattern {
   const cp: CrudPattern = new CrudPattern(recName);
   cp.isCreate = true;

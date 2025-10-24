@@ -127,17 +127,17 @@ scenario ticketAssignment.securityAlert {
 }
 
 glossaryEntry ticketAssignment.entry1 {
-    name "escalation",
+    word "escalation",
     meaning "the process of forwarding unresolved tickets to higher-level support"
 }
 
 glossaryEntry ticketAssignment.entry2 {
-    name "assignment",
+    word "assignment",
     meaning "linking a support ticket with a responsible executive"
 }
 
 glossaryEntry ticketAssignment.entry3 {
-    name "skills",
+    word "skills",
     meaning "areas of technical or domain expertise used to route tickets"
 }
 

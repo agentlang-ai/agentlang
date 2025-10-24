@@ -1,6 +1,7 @@
 import { assert, describe, test } from 'vitest';
 import {
   BasePattern,
+  CasePattern,
   CrudPattern,
   DeletePattern,
   ExpressionPattern,
@@ -14,7 +15,7 @@ import {
 } from '../../src/language/syntax.js';
 import { introspect } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
-import { addBeforeDeleteWorkflow, fetchModule, flowGraphNext, isModule, Record, removeModule } from '../../src/runtime/module.js';
+import { addBeforeDeleteWorkflow, Decision, fetchModule, flowGraphNext, isModule, Record, removeModule } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
 import { AgentCondition, newAgentDirective, newAgentGlossaryEntry, newAgentScenario } from '../../src/runtime/agents/common.js';
 
@@ -692,5 +693,62 @@ await doInternModule(mname2, s2)
 const m2 = fetchModule(mname2)
 const s3 = m2.toString().substring(idx).trim()
 assert(s2 === s3)
+  })
+})
+
+describe('case-generation', () => {
+  test('decsion-cases generated from pattern objects', async () => {
+    const c1 = new CasePattern(LiteralPattern.String("salary is greater than 1000"), LiteralPattern.Id('Accept'))
+    const c2 = new CasePattern(new ExpressionPattern("salary < 1000"), LiteralPattern.Id("Reject"))
+    const d = new Decision('acceptOrRejectOffer', "acme.core", [c1.toString(), c2.toString()])
+    const s = d.toString()
+    assert(s === `decision acceptOrRejectOffer {
+      case ("salary is greater than 1000") {
+    Accept
+  }
+case (salary < 1000) {
+    Reject
+  }
+    }`)
+    await doInternModule(`caseGen`,
+      `${s}
+  
+  agent offerAccept {
+      instruction "Accept the incoming offer"
+  }
+
+  agent offerReject {
+      instruction "Reject the incoming offer"
+  }
+
+  flow offerReviewer {
+      acceptOrRejectOffer --> "Accept" offerAccept
+      acceptOrRejectOffer --> "Reject" offerReject
+  }    
+  `
+    )
+    const mods = fetchModule('caseGen').toString()
+    assert(mods === `module caseGen
+
+decision acceptOrRejectOffer {
+      case ("salary is greater than 1000") {
+    Accept
+  }
+case (salary < 1000) {
+    Reject
+  }
+    }
+agent offerAccept
+{
+    instruction "Accept the incoming offer"
+}
+agent offerReject
+{
+    instruction "Reject the incoming offer"
+}
+flow offerReviewer {
+      acceptOrRejectOffer --> "Accept" offerAccept
+acceptOrRejectOffer --> "Reject" offerReject
+    }`)
   })
 })
