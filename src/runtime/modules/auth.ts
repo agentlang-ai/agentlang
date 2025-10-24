@@ -340,6 +340,10 @@ entity Session {
 @public workflow acceptInvitation {
   await Auth.acceptInvitationUser(acceptInvitation.email, acceptInvitation.tempPassword, acceptInvitation.newPassword)
 }
+
+@public workflow callback {
+  await Auth.callbackUser(callback.code)
+}
 `;
 
 const evalEvent = makeEventEvaluator(CoreAuthModuleName);
@@ -881,6 +885,32 @@ export async function loginUser(
   }
 }
 
+export async function callbackUser(code: string, env: Environment): Promise<string | object> {
+  let result: string | object = '';
+  try {
+    await fetchAuthImpl().callback(code, env, (r: SessionInfo) => {
+      UserRoleCache.set(r.userId, null);
+      if (r.idToken && r.accessToken && r.refreshToken) {
+        result = {
+          id_token: r.idToken,
+          access_token: r.accessToken,
+          refresh_token: r.refreshToken,
+          token_type: 'Bearer',
+          expires_in: 3600,
+          userId: r.userId,
+          sessionId: r.sessionId,
+        };
+      } else {
+        result = `${r.userId}/${r.sessionId}`;
+      }
+    });
+    return result;
+  } catch (err: any) {
+    logger.error(`Callback failed for ${code}: ${err.message}`);
+    throw err;
+  }
+}
+
 async function logoutSession(userId: string, sess: Instance, env: Environment): Promise<Result> {
   const sessId = sess.lookup('id');
   const tok = sess.lookup('authToken');
@@ -1197,7 +1227,8 @@ export function requireAuth(moduleName: string, eventName: string): boolean {
         eventName == 'forgotPassword' ||
         eventName == 'confirmForgotPassword' ||
         eventName == 'refreshToken' ||
-        eventName == 'acceptInvitation');
+        eventName == 'acceptInvitation' ||
+        eventName == 'callback');
     return !f;
   } else {
     return false;
