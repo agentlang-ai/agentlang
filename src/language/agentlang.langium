@@ -160,7 +160,7 @@ AgentXtraSpec: '{' (attributes+=AgentXtraAttribute (',' attributes+=AgentXtraAtt
 
 AgentXtraAttribute: name=ID value=STRING|Ref;
 
-ScenarioDefinition: 'scenario' name=Ref (body=MapLiteral? | scn=AgentXtraSpec? | '{''}');
+ScenarioDefinition: 'scenario' name=Ref (body=MapLiteral? | '{' scn=If? '}' | '{''}');
 
 DirectiveDefinition: 'directive' name=Ref (body=MapLiteral? | '{' dir=If? '}' | '{''}');
 

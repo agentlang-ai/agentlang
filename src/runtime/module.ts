@@ -1602,10 +1602,10 @@ export class Scenario extends ModuleEntry {
   }
 
   override toString(): string {
-    const ss = new Array<string>();
-    ss.push(`    user "${this.def.user}"`);
-    ss.push(`    ai "${this.def.ai}"`);
-    return `scenario ${this.name}\n {\n${ss.join(',\n')}\n}`;
+    const s = `if ("${this.def.user}") {
+      ${this.def.ai}
+    }`;
+    return `scenario ${this.name}\n {\n    ${s}\n}`;
   }
 }
 

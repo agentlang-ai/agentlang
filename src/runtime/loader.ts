@@ -43,6 +43,7 @@ import {
   isPublicAgentDefinition,
   isPublicEventDefinition,
   AgentXtraAttribute,
+  If,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -820,15 +821,38 @@ function agentXtraAttributesAsMap(xtras: AgentXtraAttribute[] | undefined): Map<
   return result;
 }
 
+function scenarioConditionAsMap(cond: If | undefined) {
+  const result = new Map<string, string>();
+  if (cond) {
+    if (isLiteral(cond.cond)) {
+      const s = cond.cond.str;
+      if (s === undefined) {
+        throw new Error(`scenario condition must be a string - ${cond.cond.$cstNode?.text}`);
+      }
+      const stmt = cond.statements[0];
+      if (stmt.pattern.expr && isLiteral(stmt.pattern.expr)) {
+        const v = stmt.pattern.expr.str || stmt.pattern.expr.id;
+        if (v === undefined) {
+          throw new Error(
+            `scenario consequent must be a string or name - ${cond.cond.$cstNode?.text}`
+          );
+        }
+        result.set('user', s).set('ai', v);
+      } else {
+        throw new Error(`scenario consequent is invalid - ${cond.cond.$cstNode?.text}`);
+      }
+    }
+  }
+  return result;
+}
+
 function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
   if (def.body || def.scn) {
     let n = rootRef(def.name);
     if (!isFqName(n)) {
       n = makeFqName(moduleName, n);
     }
-    const m = def.body
-      ? asStringLiteralsMap(def.body)
-      : agentXtraAttributesAsMap(def.scn?.attributes);
+    const m = def.body ? asStringLiteralsMap(def.body) : scenarioConditionAsMap(def.scn);
     const user = m.get('user');
     const ai = m.get('ai');
     if (user && ai) {

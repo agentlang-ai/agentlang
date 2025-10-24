@@ -258,7 +258,7 @@ export function isAgentXtraAttribute(item: unknown): item is AgentXtraAttribute 
 }
 
 export interface AgentXtraSpec extends langium.AstNode {
-    readonly $container: GlossaryEntryDefinition | ScenarioDefinition;
+    readonly $container: GlossaryEntryDefinition;
     readonly $type: 'AgentXtraSpec';
     attributes: Array<AgentXtraAttribute>;
 }
@@ -704,7 +704,7 @@ export function isHandler(item: unknown): item is Handler {
 }
 
 export interface If extends langium.AstNode {
-    readonly $container: DirectiveDefinition | Pattern;
+    readonly $container: DirectiveDefinition | Pattern | ScenarioDefinition;
     readonly $type: 'If';
     cond: Expr;
     else?: Else;
@@ -1247,7 +1247,7 @@ export interface ScenarioDefinition extends langium.AstNode {
     readonly $type: 'ScenarioDefinition';
     body?: MapLiteral;
     name: Ref;
-    scn?: AgentXtraSpec;
+    scn?: If;
 }
 
 export const ScenarioDefinition = 'ScenarioDefinition';

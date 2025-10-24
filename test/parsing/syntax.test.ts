@@ -628,7 +628,7 @@ await doInternModule(mname,
                        {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
            scenarios  [{"user": "Jake hit a jackpot!", "ai": "GuidedAgent/scenario01"}],
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
-         scenario ga.scn01 { user "Kiran had a block-buster", ai "GuidedAgent/scenario01" }
+         scenario ga.scn01 { if ("Kiran had a block-buster") { GuidedAgent/scenario01 } }
          directive GuidedAgent/ga.dir01 { if ("sales is less than 2000") { "hike salary by 0.5 percent"} }
          glossaryEntry ga.ge {meaning "low-sales", name "down", synonyms "bad"}
          workflow chat {{ga {message chat.msg}}}`
@@ -655,8 +655,9 @@ agent ga
 }
 scenario ga.scn01
  {
-    user "Kiran had a block-buster",
-    ai "GuidedAgent/scenario01"
+    if ("Kiran had a block-buster") {
+      GuidedAgent/scenario01
+    }
 }
 directive GuidedAgent/ga.dir01 {
         if ("sales is less than 2000") { "hike salary by 0.5 percent"}
@@ -674,8 +675,9 @@ workflow chat {
 directive ga.dir02 {"if":"sales equals 500","then":"no hike"}
 scenario ga.scn02
  {
-    user "Sam hits jackpot",
-    ai "GuidedAgent/scenario01"
+    if ("Sam hits jackpot") {
+      GuidedAgent/scenario01
+    }
 }
 glossaryEntry ga.ge02 
 {
