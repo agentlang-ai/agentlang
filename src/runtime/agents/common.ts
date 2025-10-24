@@ -364,11 +364,15 @@ const AgentDirectives = new Map<string, AgentCondition[]>();
 
 export function newAgentDirective(
   cond: string,
-  then: string,
+  then: string = '',
   internal: boolean = false,
   isIf: boolean = false
 ): AgentCondition {
-  return { if: cond, then, internal, isIf };
+  if (then === '') {
+    return { if: cond, then, internal, isIf: true };
+  } else {
+    return { if: cond, then, internal, isIf };
+  }
 }
 
 export function registerAgentDirectives(agentFqName: string, conds: AgentCondition[]) {
@@ -387,7 +391,7 @@ export function getAgentDirectivesInternal(agentFqName: string): AgentCondition[
 
 export function getAgentDirectivesJson(agentFqName: string): string | undefined {
   const conds = getAgentDirectivesInternal(agentFqName);
-  if (conds) {
+  if (conds && conds.length > 0) {
     const fmted = conds.map((c: AgentCondition) => {
       if (c.isIf) {
         return c.if;
@@ -436,7 +440,7 @@ export function getAgentScenarios(agentFqName: string): AgentScenario[] | undefi
 
 export function getAgentScenariosJson(agentFqName: string): string | undefined {
   const scns = getAgentScenariosInternal(agentFqName);
-  if (scns) {
+  if (scns && scns.length > 0) {
     const fmtd = scns.map((scn: AgentScenario) => {
       return {
         user: scn.user,
@@ -498,7 +502,7 @@ export function getAgentGlossaryInternal(agentFqName: string): AgentGlossaryEntr
 
 export function getAgentGlossaryJson(agentFqName: string): string | undefined {
   const gls = getAgentGlossaryInternal(agentFqName);
-  if (gls) {
+  if (gls && gls.length > 0) {
     const fmtd = gls.map((ge: AgentGlossaryEntry) => {
       return {
         name: ge.name,
