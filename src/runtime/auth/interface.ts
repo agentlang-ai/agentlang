@@ -77,4 +77,5 @@ export interface AgentlangAuth {
     newPassword: string,
     env: Environment
   ): Promise<void>;
+  callback(code: string, env: Environment, cb: LoginCallback): Promise<void>;
 }
