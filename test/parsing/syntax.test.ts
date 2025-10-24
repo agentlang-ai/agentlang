@@ -15,7 +15,7 @@ import {
 } from '../../src/language/syntax.js';
 import { introspect } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
-import { addBeforeDeleteWorkflow, Decision, fetchModule, flowGraphNext, isModule, Record, removeModule } from '../../src/runtime/module.js';
+import { addBeforeDeleteWorkflow, Decision, Directive, fetchModule, flowGraphNext, isModule, Record, removeModule } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
 import { AgentCondition, newAgentDirective, newAgentGlossaryEntry, newAgentScenario } from '../../src/runtime/agents/common.js';
 
@@ -750,5 +750,31 @@ flow offerReviewer {
       acceptOrRejectOffer --> "Accept" offerAccept
 acceptOrRejectOffer --> "Reject" offerReject
     }`)
+  })
+})
+
+describe('directive-generation', () => {
+  test('directives generated from pattern objects', async () => {
+    const cond1 = new IfPattern(LiteralPattern.String("salary > 1000"))
+    .addPattern(LiteralPattern.String("accept the offer"))
+    const d = new Directive('A.dir01', 'dirGen', newAgentDirective(cond1.toString()))
+    const s = d.toString()
+    assert(s === `directive A.dir01 {
+        if("salary > 1000") {"accept the offer"}
+      }`)
+    await doInternModule('dirGen',
+      `agent A {instruction "OK"}
+      ${s}`
+    )
+    const ms = fetchModule('dirGen').toString()
+    assert(ms === `module dirGen
+
+agent A
+{
+    instruction "OK"
+}
+directive A.dir01 {
+        if("salary > 1000") {"accept the offer"}
+      }`)
   })
 })
