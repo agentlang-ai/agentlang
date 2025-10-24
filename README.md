@@ -136,7 +136,9 @@ agent TicketFlow {
 }
 
 directive TicketFlow {
-    "if": "the context indicates the ticket as handled", "then": "set status to done"
+    if ("the context indicates the ticket as handled") {
+        "set status to done"
+    }
 }
 ```
 
@@ -203,8 +205,8 @@ agent salaryHikeAgent {
     tools acme/employee
 }
 
-directive salaryHikeAgent.hike5p {"if": "employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"}
-directive salaryHikeAgent.hike2p {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}
+directive salaryHikeAgent.hike5p { if ("employee sales exceeded 5000") { "Give a salary hike of 5 percent" }}
+directive salaryHikeAgent.hike2p { if ("sales is more than 2000 but less than 5000") { "hike salary by 2 percent" }}
 ```
 
 As the `salaryHikeAgent` tries to compute the salary-increment for a particular employee, the directives will guide it to take a more accurate decision based on specific conditions.
@@ -219,14 +221,16 @@ agent salaryHikeAgent {
     tools acme/employee
 }
 
-directive salaryHikeAgent.hike5p {"if": "employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"}
-directive salaryHikeAgent.hike2p {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}
+directive salaryHikeAgent.hike5p { if ("employee sales exceeded 5000") { "Give a salary hike of 5 percent" }}
+directive salaryHikeAgent.hike2p { if ("sales is more than 2000 but less than 5000") {  "hike salary by 2 percent" }}
 
 scenario salaryHikeAgent.outperform {
-    user "Jake's sale exceeded 5000"
+    if ("Jake's sale exceeded 5000") {
+        handleOutperform
+    }
 }
 
-workflow salaryHikeAgent.outperform {
+workflow handleOutperform {
   {acme/employee {email? "jake@acme.com"}} @as [employee];
   {acme/employee {id? employee.id,
                   salary employee.salary + employee.salary * 0.5}}
@@ -247,21 +251,21 @@ agent campaignAnalyzer {
 }
 
 glossaryEntry campaignAnalyzer.entry1 {
-    "name": "outstanding",
-	"meaning": "CTR ≥ 5%, Conversion Rate ≥ 10%, ROI ≥ 50%",
-	"synonyms": "exceptional, high-impact"
+    word "outstanding",
+    meaning "CTR ≥ 5%, Conversion Rate ≥ 10%, ROI ≥ 50%",
+    synonyms "exceptional, high-impact"
 }
 
 glossaryEntry campaignAnalyzer.entry2 {
-    "name": "satisfactory",
-	"meaning": "CTR 2-4.9%, Conversion Rate 5-9.9%, ROI 20-49%",
-	"synonyms": "solid, effective"
+    word "satisfactory",
+    meaning "CTR 2-4.9%, Conversion Rate 5-9.9%, ROI 20-49%",
+    synonyms "solid, effective"
 }
 
 glossaryEntry campaignAnalyzer.entry3 {
-    "name": "underperforming",
-	"meaning": "CTR < 2%, Conversion Rate < 5%, ROI < 20%",
-	"synonyms": "needs improvement, low-impact"
+    word "underperforming",
+    meaning "CTR < 2%, Conversion Rate < 5%, ROI < 20%",
+    synonyms "needs improvement, low-impact"
 }
 ```
 
