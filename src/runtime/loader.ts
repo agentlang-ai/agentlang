@@ -830,17 +830,13 @@ function scenarioConditionAsMap(cond: If | undefined) {
         throw new Error(`scenario condition must be a string - ${cond.cond.$cstNode?.text}`);
       }
       const stmt = cond.statements[0];
-      if (stmt.pattern.expr && isLiteral(stmt.pattern.expr)) {
-        const v = stmt.pattern.expr.str || stmt.pattern.expr.id;
-        if (v === undefined) {
-          throw new Error(
-            `scenario consequent must be a string or name - ${cond.cond.$cstNode?.text}`
-          );
-        }
-        result.set('user', s).set('ai', v);
-      } else {
-        throw new Error(`scenario consequent is invalid - ${cond.cond.$cstNode?.text}`);
+      const v = stmt.pattern.$cstNode?.text;
+      if (v === undefined) {
+        throw new Error(
+          `scenario consequent must be a string or name - ${cond.cond.$cstNode?.text}`
+        );
       }
+      result.set('user', s).set('ai', v);
     }
   }
   return result;

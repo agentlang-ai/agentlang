@@ -99,28 +99,46 @@ agent ticketAssignment {
     instruction "When a new support ticket arrives, analyze its subject and description. 
 If the ticket topic matches one of the support executive’s skills {{SupportExecutive.skills}}, assign it to that executive with email {{SupportExecutive.email}}.
 Otherwise, escalate the ticket to the EscalationQueue.",
-
-    directives [
-        {"if": "the support executive’s skills match the ticket subject or keywords", 
-         "then": "assign the ticket to that executive"},
-        {"if": "no matching executive is found", 
-         "then": "add the ticket to the EscalationQueue for manual review"}
-    ],
-
-    scenarios [
-        {"user": "Ticket Id: '714a164e-1ebb-4ca3-97c5-c7a0bccdf8f4', subject: Payment failure reported by customer. Executive email - 'joe@acme.com, executive skills - payments,transactions,billing", 
-         "ai": "{assignTicketToExecutive {executiveEmail \"joe@acme.com\", ticketId \"714a164e-1ebb-4ca3-97c5-c7a0bccdf8f4\"}}"},
-        {"user": "Ticket Id: '30c2f915-16d6-4300-84e0-1b9041bb69fd', subject: Security alert: SSL certificate expired, Executive email - 'mat@acme.com', executive skills - networking", 
-         "ai": "{EscalationQueueEntry {ticketId \"30c2f915-16d6-4300-84e0-1b9041bb69fd\"}}"}
-    ],
-
-    glossary [
-        {"name": "escalation", "meaning": "the process of forwarding unresolved tickets to higher-level support"},
-        {"name": "assignment", "meaning": "linking a support ticket with a responsible executive"},
-        {"name": "skills", "meaning": "areas of technical or domain expertise used to route tickets"}
-    ],
-
     tools [support.core/ExecutiveTicketAssignment, support.core/EscalationQueueEntry]
+}
+
+directive ticketAssignment.match {
+    if ("the support executive’s skills match the ticket subject or keywords") {
+	"assign the ticket to that executive"
+    }
+}
+
+directive ticketAssignment.noMatch {
+    if ("executive's skills do not match the ticket's subject") {
+	"add the ticket to the EscalationQueue for manual review"
+    }
+}
+
+scenario ticketAssignment.paymentFailure {
+    if ("Ticket Id: '714a164e-1ebb-4ca3-97c5-c7a0bccdf8f4', subject: Payment failure reported by customer. Executive email - 'joe@acme.com, executive skills - payments,transactions,billing") {
+	{assignTicketToExecutive {executiveEmail "joe@acme.com", ticketId "714a164e-1ebb-4ca3-97c5-c7a0bccdf8f4"}}
+    }
+}
+
+scenario ticketAssignment.securityAlert {
+    if ("Ticket Id: '30c2f915-16d6-4300-84e0-1b9041bb69fd', subject: Security alert: SSL certificate expired, Executive email - 'mat@acme.com', executive skills - networking") {
+	{EscalationQueueEntry {ticketId "30c2f915-16d6-4300-84e0-1b9041bb69fd"}}
+    }
+}
+
+glossaryEntry ticketAssignment.entry1 {
+    name "escalation",
+    meaning "the process of forwarding unresolved tickets to higher-level support"
+}
+
+glossaryEntry ticketAssignment.entry2 {
+    name "assignment",
+    meaning "linking a support ticket with a responsible executive"
+}
+
+glossaryEntry ticketAssignment.entry3 {
+    name "skills",
+    meaning "areas of technical or domain expertise used to route tickets"
 }
 
 flow ticketManager {
