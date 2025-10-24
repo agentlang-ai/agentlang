@@ -531,7 +531,7 @@ export class CognitoAuth implements AgentlangAuth {
           );
         },
       });
-      while (result == undefined && authError == undefined) {
+      while (result === undefined && authError === undefined) {
         await sleepMilliseconds(100);
       }
       if (authError) {
@@ -624,7 +624,7 @@ export class CognitoAuth implements AgentlangAuth {
           );
         },
       });
-      while (result == undefined && authError == undefined) {
+      while (result === undefined && authError === undefined) {
         await sleepMilliseconds(100);
       }
       if (authError) {

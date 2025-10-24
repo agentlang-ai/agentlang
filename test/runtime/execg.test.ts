@@ -67,7 +67,7 @@ describe('Basic exec-graph evaluation', () => {
     const r04: Instance = await executeEventHelper(dele)
     chkE(r04, 2)
     const r05 = await executeEventHelper(finde)
-    assert(r05 == null)
+    assert(r05 === null)
     attrs2.set('id', 1)
     const r06: Instance = await executeEventHelper(finde)
     chkE(r06, 1)

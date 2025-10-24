@@ -227,7 +227,7 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
     }
     if (callback) await callback(appSpec);
   }
-  if (appSpec.dependencies != undefined) {
+  if (appSpec.dependencies !== undefined) {
     for (const [depName, _] of Object.entries(appSpec.dependencies)) {
       try {
         const depDirName = `./node_modules/${depName}`;
@@ -355,7 +355,7 @@ async function loadModule(fileName: string, fsOptions?: any, callback?: Function
 let cachedFsAdapter: any = null;
 
 function getFsAdapter(fs: any) {
-  if (cachedFsAdapter == null) {
+  if (cachedFsAdapter === null) {
     // Create an adapter to make our filesystem compatible with Langium
     cachedFsAdapter = {
       // Read file contents as text
@@ -477,7 +477,7 @@ const StandaloneStatements = new Map<string, Statement[]>();
 
 function addStandaloneStatement(stmt: Statement, moduleName: string, userDefined = true) {
   let stmts: Array<Statement> | undefined = StandaloneStatements.get(moduleName);
-  if (stmts == undefined) {
+  if (stmts === undefined) {
     stmts = new Array<Statement>();
   }
   stmts.push(stmt);
@@ -529,7 +529,7 @@ function processAgentDirectives(agentName: string, value: Literal): AgentConditi
         });
         if (cond && then) {
           const internal = true;
-          conds?.push({ cond, then, internal });
+          conds?.push({ if: cond, then, internal });
         } else {
           throw new Error(`Invalid condition spec in agent ${agentName}`);
         }
@@ -682,11 +682,11 @@ async function addAgentDefinition(
         v = processAgentArray(apdef.value.array, name);
       } else {
         v = apdef.value.str || apdef.value.id || apdef.value.ref || apdef.value.num;
-        if (v == undefined) {
+        if (v === undefined) {
           v = apdef.value.bool;
         }
       }
-      if (v == undefined) {
+      if (v === undefined) {
         throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
       }
       if (apdef.name == 'llm') {
@@ -765,7 +765,7 @@ function processAgentArray(array: ArrayLiteral, attrName: string): string {
 function processAgentArrayValue(expr: Expr | undefined, attrName: string): string {
   if (expr && isLiteral(expr)) {
     const s = expr.str || expr.id || expr.ref || expr.bool;
-    if (s != undefined) {
+    if (s !== undefined) {
       return s;
     }
     if (expr.array) {
@@ -821,9 +821,11 @@ function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
     const m = asStringLiteralsMap(def.body);
     const user = m.get('user');
     const ai = m.get('ai');
-    if (user && ai) addAgentScenario(n, { user: user, ai: ai, internal: false });
-    else throw new Error(`scenario ${def.name} requires both user and ai entries`);
-    fetchModule(moduleName).addScenario(def);
+    if (user && ai) {
+      const scn = { user: user, ai: ai, internal: false };
+      addAgentScenario(n, scn);
+      fetchModule(moduleName).addScenario(def.name, scn);
+    } else throw new Error(`scenario ${def.name} requires both user and ai entries`);
   }
 }
 
@@ -836,9 +838,11 @@ function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
     const m = asStringLiteralsMap(def.body);
     const cond = m.get('if');
     const then = m.get('then');
-    if (cond && then) addAgentDirective(n, { cond: cond, then: then, internal: false });
-    else throw new Error(`directive ${def.name} requires both if and then entries`);
-    fetchModule(moduleName).addDirective(def);
+    if (cond && then) {
+      const dir = { if: cond, then: then, internal: false };
+      addAgentDirective(n, dir);
+      fetchModule(moduleName).addDirective(def.name, dir);
+    } else throw new Error(`directive ${def.name} requires both if and then entries`);
   }
 }
 
@@ -852,15 +856,16 @@ function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: str
     const name = m.get('name');
     const meaning = m.get('meaning');
     const syn = m.get('synonyms');
-    if (name && meaning)
-      addAgentGlossaryEntry(n, {
+    if (name && meaning) {
+      const ge = {
         name: name,
         meaning: meaning,
         synonyms: syn,
         internal: false,
-      });
-    else throw new Error(`glossaryEntry ${def.name} requires both name and meaning keys`);
-    fetchModule(moduleName).addGlossaryEntry(def);
+      };
+      addAgentGlossaryEntry(n, ge);
+      fetchModule(moduleName).addGlossaryEntry(def.name, ge);
+    } else throw new Error(`glossaryEntry ${def.name} requires both name and meaning keys`);
   }
 }
 

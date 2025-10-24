@@ -15,7 +15,7 @@ export async function registerOpenApiModule(
   moduleName: string,
   handle: OpenApiHandle
 ): Promise<string> {
-  if (OpenApiModules == undefined) {
+  if (OpenApiModules === undefined) {
     OpenApiModules = new Map();
   }
   const m = new Map(Object.entries(handle.client));
@@ -37,7 +37,7 @@ export async function registerOpenApiModule(
 }
 
 export function isOpenApiModule(moduleName: string): boolean {
-  return OpenApiModules != undefined && OpenApiModules.has(moduleName);
+  return OpenApiModules !== undefined && OpenApiModules.has(moduleName);
 }
 
 export type OpenApiArgs = {

@@ -24,7 +24,7 @@ export function getResolverNameForPath(fqEntryName: string): string | undefined 
 
 export function getResolver(fqEntryName: string): Resolver {
   const resName: string | undefined = resolverPathMappings.get(fqEntryName);
-  if (resName != undefined) {
+  if (resName !== undefined) {
     const f: MakeResolver | undefined = resolverDb.get(resName);
     if (f) return f();
   }

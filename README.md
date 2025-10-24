@@ -1,4 +1,6 @@
-<div>
+
+<div align="center">
+
 <p>
   <a href="https://zdoc.app/ja/agentlang-ai/agentlang">日本語</a> |
   <a href="https://zdoc.app/es/agentlang-ai/agentlang">Español</a> |
@@ -10,14 +12,29 @@
   <a href="https://zdoc.app/zh/agentlang-ai/agentlang">中文</a>
 </p>
 
-# Agentlang - Reliable Enterprise AI Agents
-Agentic Reliability Modeling - Build AI Agents that actually work!
+<div id="toc"> <!-- both work, toc or user-content-toc -->
+  <ul style="list-style: none;">
+    <summary>
+      <h1>Agentlang - Reliable Enterprise AI Agents</h1>
+    </summary>
+  </ul>
+</div>
 
-|         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Quick Start | [![Documentation](https://img.shields.io/badge/docs-available-brightgreen)](https://github.com/agentlang-ai/agentlang#readme) [![Examples](https://img.shields.io/badge/examples-available-yellow)](https://github.com/agentlang-ai/agentlang/tree/main/example) |
-| Environment | [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![pnpm](https://img.shields.io/badge/pnpm-10.13.1-blue?logo=pnpm)](https://pnpm.io) [![Agentlang CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml) |
-| Meta        | [![GitHub Stars](https://img.shields.io/github/stars/agentlang-ai/agentlang?style=social)](https://github.com/agentlang-ai/agentlang) ![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang) |
+
+<a href="https://agentlang-ai.fractl.io"><img src="https://img.shields.io/badge/Project-Home-blue?logo=homepage&logoColor=blue&style=for-the-badge"></a>
+<a href="https://discord.gg/5bkX9CrW"><img src="https://img.shields.io/badge/Discord-Join%20Us-purple?logo=discord&logoColor=red&style=for-the-badge"></a>
+<a href="https://github.com/agentlang-ai/agentlang/tree/main/example"><img src="https://img.shields.io/badge/Examples-Page-yellow?logo=homepage&logoColor=yellow&style=for-the-badge"></a>
+
+[![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml)![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang)
+<hr>
+
+<div id="toc"> <!-- both work, toc or user-content-toc -->
+  <ul style="list-style: none;">
+    <summary>
+      <h2>🎯 Agentic Reliability Modeling - Build AI Agents that actually work!</h2>
+    </summary>
+  </ul>
+</div>
 
 </div>
 
@@ -31,11 +48,60 @@ Build **teams of reliable AI Agents** that follow your organization's processes 
 
 > Coming soon! Fractl Studio is a no-code environment for building and operating AI Agents.
 
+The two key innovations in AgentLang are: [Agentic Reliability Modeling](#agentic-reliabillity-modeling) and [AgentLang Ontology](#agentlang-ontology)
+
 ## Agentic Reliability Modeling
 
-Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking to achieve our goal. Agentlang offers just enough structure, to augment natural language instructions, to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
+Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking to achieve our goal. Agentlang offers **just enough structure**, to augment natural language instructions, to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
+
+<table>
+    <tr>
+        <td valign="top">
+          <div>
+          <b>Agentic Reliability Features:</b>
+          <ul>
+<li> First-class AI Agents </li>
+<li> Flows </li>
+<li> Decisions </li>
+<li> Directives </li>
+<li> Scenarios </li>
+<li> Glossary </li>
+<li> Structured output and scratchpad </li>
+<li> Input Template </li>
+          </ul>
+            <img width="441" height="1">
+          </div>
+        </td>
+        <td>
+          <div align="center">
+          <img width="350" height="420" alt="image" src="https://github.com/user-attachments/assets/b240a235-3804-4423-a639-cdfb90f07282" />
+          <img width="441" height="1">
+          </div>
+        </td>
+    </tr>
+</table>
+
+### An Example
 
 ```typescript
+flow TicketFlow {
+    ticketTriager --> "DNS" ticketInProgress
+    ticketTriager --> "WLAN" ticketInProgress
+    ticketTriager --> "NotEnoughInfo" ticketPending
+}
+
+agent TicketFlow {
+    llm "gpt4o",
+    role "You are a network ticket management application. Your job is to triage any ticket passed to you
+          and update the ticket with appropriate assigned_to, status and triaging comments.",
+	glossary [
+		{"name": "incident", "meaning": "a problem report", "synonyms": "ticket"},
+		{"name": "task", "meaning": "a record that captures some work that needs to be done", "synonyms": "ticket"},
+		{"name": "DNS", "meaning": "Domain Name Service - is used to translate human-readable domain names to IP addresses", "synonyms": "DNS name, CNAME, DNS HOST record"}
+		{"name": "WLAN", "meaning": "Wireless LAN - wireless network to connect devices to each other and the internet", "synonyms": "Office network"}
+]
+}
+
 decision ticketTriager {
    case ("Ticket is related to DNS provisioning. If the request is to point one host/DNS name to an IP address") {
       DNS
@@ -51,77 +117,27 @@ decision ticketTriager {
    }
 }
 
-flow triageFlow {
-    ticketTriager --> "DNS" ticketInProgress
-    ticketTriager --> "WLAN" ticketInProgress
-    ticketTriager --> "NotEnoughInfo" ticketPending
-}
-
-glossary TicketFlow [
-    {"name": "incident", "meaning": "a problem report", "synonyms": "ticket"},
-    {"name": "task", "meaning": "a record that captures some work that needs to be done", "synonyms": "ticket"},
-    {"name": "DNS", "meaning": "Domain Name Service - is used to translate human-readable domain names to IP addresses", "synonyms": "DNS name, CNAME, DNS HOST record"}
-    {"name": "WLAN", "meaning": "Wireless LAN - wireless network to connect devices to each other and the internet", "synonyms": "Office network"}
-]
-
-agent TicketFlow {
-    llm "gpt4o",
-    role "You are a network ticket management application. Your job is to triage any ticket passed to you
-          and update the ticket with appropriate assigned_to, status and triaging comments.",
-    flows [triageFlow]
-}
-
 workflow ticketInProgress {
     // workflow body is developer-written declarative code (not handled by LLM)
     ...
 }
 ```
 
-### Reliability Modeling Features
 
-<table>
-    <tr>
-        <td valign="top">
-          <div>
-          <b>Key concepts:</b>
-          <ul>
-<li> <b>First-class AI Agents</b> </li>
-<li> <b>Flows</b> </li>
-<li> <b>Decisions</b> </li>
-<li> <b>Directives</b> </li>
-<li> <b>Scenarios</b> </li>
-<li> <b>Glossary</b> </li>
-<li> <b>Structured output and scratchpad</b> </li>
-<li> <b>Input Template</b> </li>
-          </ul>
-          </div>
-        </td>
-        <td>
-          <div align="center">
-          <img width="350" height="420" alt="image" src="https://github.com/user-attachments/assets/b240a235-3804-4423-a639-cdfb90f07282" />
-          </div>
-        </td>
-    </tr>
-</table>
-
-### First-class AI Agents
+### ✨ First-class AI Agents
 
 Agents and many concepts agents use are built-in language constructs.
 
 ```typescript
-flow triageFlow {
-    ticketTriager --> "DNS" ticketInProgress
-    ticketTriager --> "WLAN" ticketInProgress
-    ticketTriager --> "NotEnoughInfo" ticketPending
-}
-
 agent TicketFlow {
     llm "gpt4o",
     role "You are a network ticket management agent. Your job is to triage any ticket passed to you and
-          update the ticket with appropriate assigned_to, status and triaging comments.",
-    flows [triageFlow]
+          update the ticket with appropriate assigned_to, status and triaging comments."
 }
 
+directive TicketFlow {
+    "if": "the context indicates the ticket as handled", "then": "set status to done"
+}
 ```
 
 ### Flows
@@ -184,10 +200,11 @@ As the flow executes an agent that specializes in evaluating decision tables wil
 ```typescript
 agent salaryHikeAgent {
     instruction "Give an employee a salary-hike based on his/her sales performance",
-    tools acme/employee,
-    directives [{"if": "employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
-                {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}]
+    tools acme/employee
 }
+
+directive salaryHikeAgent.hike5p {"if": "employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"}
+directive salaryHikeAgent.hike2p {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}
 ```
 
 As the `salaryHikeAgent` tries to compute the salary-increment for a particular employee, the directives will guide it to take a more accurate decision based on specific conditions.
@@ -199,10 +216,11 @@ As the `salaryHikeAgent` tries to compute the salary-increment for a particular 
 ```typescript
 agent salaryHikeAgent {
     instruction "Give an employee a salary-hike based on his/her sales performance",
-    tools acme/employee,
-    directives [{"if": "employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
-                {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
+    tools acme/employee
 }
+
+directive salaryHikeAgent.hike5p {"if": "employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"}
+directive salaryHikeAgent.hike2p {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}
 
 scenario salaryHikeAgent.outperform {
     user "Jake's sale exceeded 5000"
@@ -226,11 +244,24 @@ agent campaignAnalyzer {
     instruction "Evaluate and optimize marketing campaign performance based on key performance indicators (KPIs) and assign a performance rating",
     tools acme/campaign_eval,
     // ...
-    glossary [
-        {"name": "outstanding", "meaning": "CTR ≥ 5%, Conversion Rate ≥ 10%, ROI ≥ 50%", "synonyms": "exceptional, high-impact"},
-        {"name": "satisfactory", "meaning": "CTR 2-4.9%, Conversion Rate 5-9.9%, ROI 20-49%", "synonyms": "solid, effective"},
-        {"name": "underperforming", "meaning": "CTR < 2%, Conversion Rate < 5%, ROI < 20%", "synonyms": "needs improvement, low-impact"}
-    ]
+}
+
+glossaryEntry campaignAnalyzer.entry1 {
+    "name": "outstanding",
+	"meaning": "CTR ≥ 5%, Conversion Rate ≥ 10%, ROI ≥ 50%",
+	"synonyms": "exceptional, high-impact"
+}
+
+glossaryEntry campaignAnalyzer.entry2 {
+    "name": "satisfactory",
+	"meaning": "CTR 2-4.9%, Conversion Rate 5-9.9%, ROI 20-49%",
+	"synonyms": "solid, effective"
+}
+
+glossaryEntry campaignAnalyzer.entry3 {
+    "name": "underperforming",
+	"meaning": "CTR < 2%, Conversion Rate < 5%, ROI < 20%",
+	"synonyms": "needs improvement, low-impact"
 }
 ```
 
@@ -253,6 +284,7 @@ agent classifyProvisioningRequest {
     responseSchema NetworkProvisioningRequest
 }
 ```
+
 This kind of structured data (as entity or record instances) returned by an agent is added to an internal-cache used by the flow. This cache is known as *scratchpad*. 
 
 ### Templatized Instructions
@@ -286,13 +318,52 @@ The agent `classifyProvisioningRequest` has its `responseSchema` attribute set t
 
 Agentlang's sophisticated modeling capabilities allow you to design the data-schema, workflows and access control constructs of your application in a declarative way. Agents can work directly with this ontology and dynamically generate business workflows, making your application into a living system that constantly adapts to new requirements and demands.
 
-To get started with Agentlang Ontology, please see the [quick start](link-to-doc) guide or explore the following example applications:
+This simple blogging application demonstrates Agentlang’s powerful data modeling and agent integration capabilities.
 
-// TODO: links to example apps
+```typescript
+module blog.core
 
-## Build Agentlang from Source
+entity Post {
+    id UUID @id @default(uuid()),
+    title String,
+    content String,
+    postedBy Email,
+    createdAt DateTime @default(now()),
+    @rbac [(roles: [manager], allow: [create, read])]
+}
 
-### Installation
+entity Comment {
+   id UUID @id @default(uuid()),
+   content String,
+   postedBy Email,
+   postedOn DateTime @default(now())
+}
+
+relationship PostComment contains(Post, Comment)
+
+entity Category {
+    id UUID @id @default(uuid()),
+    name String
+}
+
+relationship PostCategory between(Post, Category)
+
+@public agent postEditor {
+    instruction "Create a new blog post based on the outline provided to you.",
+    tools [blog.core/Post]
+}
+```
+
+Entities like `Post`, `Comment`, and `Category` define a clear domain schema connected through declarative relationships such as `contains` and `between`. Access rules, like the `@rbac` annotation on posts, show how policies can be built directly into the model itself.
+
+What makes this model special is how seamlessly an agent can interact with it — for instance, the `postEditor` agent can create new posts directly using the `Post` entity as a tool. This tight coupling between schema and agent logic allows intelligent automation to operate safely and predictably within a structured data framework.
+
+To get started with Agentlang Ontology, please see the [Agentlang Tutorial](https://docs.fractl.io/app) or explore the following example applications:
+
+ * [Car Dealership](https://github.com/agentlang-ai/agentlang/tree/main/example/car_dealership)
+ * [Customer Support System](https://github.com/agentlang-ai/agentlang/tree/main/example/customer_support_system)
+
+## 🚀 Getting Started
 
 #### ⚡ Use npm or pnpm
 
@@ -307,7 +378,7 @@ pnpm install
 ```
 **Note**: If pnpm shows build script warnings, run `pnpm approve-builds` and approve esbuild and sqlite3.
 
-### Build
+### ⚡ Build
 
 ```shell
 # Generate parser and build
@@ -315,7 +386,7 @@ npm run langium:generate
 npm run build
 ```
 
-### Test
+### ⚡ Test
 
 ```shell
 # Run all tests

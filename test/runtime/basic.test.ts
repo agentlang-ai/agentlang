@@ -65,8 +65,8 @@ function addTestRecords(mod: Module) {
 describe('Basic module operations', () => {
   test('check create module', async () => {
     const m: Module | undefined = createTestModule();
-    assert(m != undefined, 'Failed to create test module');
-    if (m != undefined) {
+    assert(m !== undefined, 'Failed to create test module');
+    if (m !== undefined) {
       assert(m.name == 'Acme', 'Not the expected module`');
       addTestRecords(m);
       assert(arrayEquals(m.getRecordNames(), ['A']), 'Mismatch in record names');
@@ -91,7 +91,7 @@ describe('Basic loader test', () => {
       try {
         assert(m.name == 'Blog.Core', 'Failed to load Blog module');
         let re: Record = m.getEntry('UserPost') as Record;
-        assert(re != undefined, 'UserPost entry not found');
+        assert(re !== undefined, 'UserPost entry not found');
         const attrs: Set<string> = new Set(['User', 'Post']);
         // Convert iterator to array for compatibility with Node.js 20.x
         Array.from(re.schema.keys()).forEach((k: string) => {
@@ -120,14 +120,14 @@ describe('Basic loader test', () => {
           'Blog.Core',
           node.edges
         );
-        assert(edge != undefined, 'Edge for UserProfile not found');
-        if (edge != undefined) {
+        assert(edge !== undefined, 'Edge for UserProfile not found');
+        if (edge !== undefined) {
           assert(edge.node.entity.getEntryName() == 'Profile', 'Profile not found in relationship');
           assert(edge.node.edges.length == 0, 'Profile does not have relationships');
         }
         edge = findEdgeForRelationship('UserPost', 'Blog.Core', node.edges);
-        assert(edge != undefined, 'Edge for UserPost not found');
-        if (edge != undefined) {
+        assert(edge !== undefined, 'Edge for UserPost not found');
+        if (edge !== undefined) {
           assert(edge.node.entity.getEntryName() == 'Post', 'Post not found in relationship');
           assert(edge.node.edges.length == 1, 'POst has exactly one relationships');
           assert(
@@ -612,19 +612,19 @@ describe('Multiple module loading tests', () => {
         assert(blogModule.hasEntry('Post'), 'Blog module missing Post entity');
 
         // Load second module and verify if Blog is still accessible
-        await flushAllAndLoad('example/family/family.al').then(
-          async (erpAppSpec: ApplicationSpec) => {
-            assert(erpAppSpec.name, 'Invalid Family application spec');
-            const familyModule: Module = fetchModule('Family');
-            assert(familyModule.name == 'Family', 'Failed to load Family module');
-            assert(familyModule.hasEntry('Member'), 'Family module missing Member entity');
+        await flushAllAndLoad('example/pets/src/core.al').then(
+          async (appSpec: ApplicationSpec) => {
+            assert(appSpec.name, 'Invalid application spec');
+            const m: Module = fetchModule('pets.core');
+            assert(m.name == 'pets.core', 'Failed to load pets.core module');
+            assert(m.hasEntry('createPet'), 'pets.core module missing createPet');
 
             // Critical test: Blog module should not still be accessible after Family load
-            assert(!isModule('Blog.Core'), 'Blog.Core module not removed before ErpCore load');
-            assert(isModule('Family'), 'Family module not registered');
+            assert(!isModule('Blog.Core'), 'Blog.Core module not removed before pets.core load');
+            assert(isModule('pets.core'), 'pets.core module not registered');
 
-            removeModule('Family');
-            assert(!isModule('Family'), 'Family module not removed');
+            removeModule('pets.core');
+            assert(!isModule('pets.core'), 'pets.core module not removed');
           }
         );
       });
@@ -884,7 +884,7 @@ describe('Config entity', () => {
         }
       });
     } else {
-      assert(e != undefined);
+      assert(e !== undefined);
     }
     const s = m.toString();
     assert(

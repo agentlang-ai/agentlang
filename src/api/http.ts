@@ -287,7 +287,7 @@ function queryPatternFromPath(path: string, req: Request): string {
   let entityName = r[1];
   const id = r[2];
   const parts = r[3];
-  if (parts.length == 2 && id == undefined) {
+  if (parts.length == 2 && id === undefined) {
     if (req.query && Object.keys(req.query).length > 0) {
       const pat = objectAsAttributesPattern(req.query);
       return `{${moduleName}/${entityName} ${pat}}`;
@@ -306,7 +306,7 @@ function queryPatternFromPath(path: string, req: Request): string {
       return `{${pm}/${pe} {${PathAttributeNameQuery} "${p}"}, ${relName} {${moduleName}/${entityName}? {}}}`;
     }
     entityName = restoreFqName(entityName);
-    if (id == undefined) {
+    if (id === undefined) {
       return `{${moduleName}/${entityName} {${PathAttributeNameQuery}like "${path}%"}}`;
     } else {
       return `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;

@@ -5,8 +5,8 @@ export class ResolverAuthInfo {
 
   constructor(userId: string, readForUpdate?: boolean, readForDelete?: boolean) {
     this.userId = userId;
-    if (readForUpdate != undefined) this.readForUpdate = readForUpdate;
-    if (readForDelete != undefined) this.readForDelete = readForDelete;
+    if (readForUpdate !== undefined) this.readForUpdate = readForUpdate;
+    if (readForDelete !== undefined) this.readForDelete = readForDelete;
   }
 }
 

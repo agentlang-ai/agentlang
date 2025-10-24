@@ -354,12 +354,20 @@ Now apply the same analysis to the following context and cases provided by the u
 `;
 
 export type AgentCondition = {
-  cond: string;
+  if: string;
   then: string;
   internal: boolean;
 };
 
 const AgentDirectives = new Map<string, AgentCondition[]>();
+
+export function newAgentDirective(
+  cond: string,
+  then: string,
+  internal: boolean = false
+): AgentCondition {
+  return { if: cond, then, internal };
+}
 
 export function registerAgentDirectives(agentFqName: string, conds: AgentCondition[]) {
   AgentDirectives.set(agentFqName, conds);
@@ -379,7 +387,7 @@ export function getAgentDirectivesJson(agentFqName: string): string | undefined 
   const conds = getAgentDirectivesInternal(agentFqName);
   if (conds) {
     const fmted = conds.map((c: AgentCondition) => {
-      return { if: c.cond, then: c.then };
+      return { if: c.if, then: c.then };
     });
     return JSON.stringify(fmted);
   }
@@ -401,6 +409,14 @@ export type AgentScenario = {
   ai: string;
   internal: boolean;
 };
+
+export function newAgentScenario(
+  user: string,
+  ai: string,
+  internal: boolean = false
+): AgentScenario {
+  return { user, ai, internal };
+}
 
 const AgentScenarios = new Map<string, AgentScenario[]>();
 
@@ -448,6 +464,15 @@ export type AgentGlossaryEntry = {
   synonyms: string | undefined;
   internal: boolean;
 };
+
+export function newAgentGlossaryEntry(
+  name: string,
+  meaning: string,
+  synonyms: string | undefined,
+  internal: boolean = false
+): AgentGlossaryEntry {
+  return { name, meaning, synonyms, internal };
+}
 
 const AgentGlossary = new Map<string, AgentGlossaryEntry[]>();
 

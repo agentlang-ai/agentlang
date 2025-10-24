@@ -16,7 +16,7 @@ import { introspect } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
 import { addBeforeDeleteWorkflow, fetchModule, flowGraphNext, isModule, Record, removeModule } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
-import { AgentCondition } from '../../src/runtime/agents/common.js';
+import { AgentCondition, newAgentDirective, newAgentGlossaryEntry, newAgentScenario } from '../../src/runtime/agents/common.js';
 
 describe('Pattern generation using the syntax API', () => {
   test('test01', async () => {
@@ -258,7 +258,7 @@ describe('Relationship and `into` introspection', () => {
     assert(p.isQuery)
     assert(!p.isCreate)
     assert(!p.isQueryUpdate)
-    assert(p.into != undefined)
+    assert(p.into !== undefined)
     assert(p.into.get('Project') == 'Allocation.Project')
     assert(p.into.get('AllocationEntered') == 'Allocation.AllocationEntered')
     assert(p.into.get('Duration') == 'Allocation.Duration')
@@ -275,10 +275,10 @@ AllocationEntered Allocation.AllocationEntered,
 ActualsEntered Allocation.ActualsEntered,
 Notes Allocation.Notes }}`)
     pats = await introspect(s)
-    assert(p.into != undefined)
+    assert(p.into !== undefined)
     assert(p.into.get('Project') == 'Allocation.Project')
     assert(p.into.get('AllocationEntered') == 'Allocation.AllocationEntered')
-    assert(p.into.get('Duration') == undefined)
+    assert(p.into.get('Duration') === undefined)
     pats = await introspect(` {Resource {id? CreateAllocation.id},
     ResAlloc {Allocation {name CreateAllocation.name}}}`)
     p = pats[0] as CrudPattern
@@ -448,7 +448,7 @@ in the incident's description."
     const n2 = flowGraphNext(fg, n0, 'Other')
     assert(n2?.label == 'incidentStatusUpdater')
     const n3 = flowGraphNext(fg, n2)
-    assert(n3 == undefined)
+    assert(n3 === undefined)
     const n4 = flowGraphNext(fg, n1)
     assert(n4?.label == 'managerRequestHandler')
     const s = mod.toString()
@@ -528,12 +528,12 @@ describe('Extra agent attributes', () => {
     const agent = m.getAgent('xaaAgent')
     const conds = new Array<AgentCondition>()
     conds.push({
-      cond: "Employee sales exceeded 5000",
+      if: "Employee sales exceeded 5000",
       then: "Give a salary hike of 5 percent",
       internal: true
     })
     conds.push({
-      cond: "sales is more than 2000 but less than 5000",
+      if: "sales is more than 2000 but less than 5000",
       then: "hike salary by 2 percent",
       internal: true
     })
@@ -630,10 +630,13 @@ await doInternModule(mname,
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
          scenario ga.scn01 {"user": "Kiran had a block-buster", "ai": "GuidedAgent/scenario01"}
          directive GuidedAgent/ga.dir01 {"if": "sales is less than 2000", "then": "hike salary by 0.5 percent"}
-         glossarytEntry ga.ge {"meaning": "low-sales", "name": "down", "synonyms": "bad"}
+         glossaryEntry ga.ge {"meaning": "low-sales", "name": "down", "synonyms": "bad"}
          workflow chat {{ga {message chat.msg}}}`
 )
 const m = fetchModule(mname)
+m.addDirective('ga.dir02', newAgentDirective("sales equals 500", "no hike"))
+m.addScenario('ga.scn02', newAgentScenario("Sam hits jackpot", "GuidedAgent/scenario01"))
+m.addGlossaryEntry('ga.ge02', newAgentGlossaryEntry("up", "high-sales", "ok"))
 const s = m.toString()
 assert(s === `module StdAloneAgentXtras
 
@@ -650,15 +653,16 @@ agent ga
     scenarios [{"user":"Jake hit a jackpot!","ai":"GuidedAgent/scenario01"}],
     glossary [{"name":"jackpot","meaning":"sales of 5000 or above","synonyms":"high sales, block-buster"}]
 }
-scenario ga.scn01 {"user": "Kiran had a block-buster", "ai": "GuidedAgent/scenario01"}
-directive GuidedAgent/ga.dir01 {"if": "sales is less than 2000", "then": "hike salary by 0.5 percent"}
-glossarytEntry
-ga.ge
-{"meaning": "low-sales", "name": "down", "synonyms": "bad"}
+scenario ga.scn01 {"user":"Kiran had a block-buster","ai":"GuidedAgent/scenario01"}
+directive GuidedAgent/ga.dir01 {"if":"sales is less than 2000","then":"hike salary by 0.5 percent"}
+glossaryEntry ga.ge {"name":"down","meaning":"low-sales","synonyms":"bad"}
 
 workflow chat {
     {ga {message chat.msg}}
-}`)
+}
+directive ga.dir02 {"if":"sales equals 500","then":"no hike"}
+scenario ga.scn02 {"user":"Sam hits jackpot","ai":"GuidedAgent/scenario01"}
+glossaryEntry ga.ge02 {"name":"up","meaning":"high-sales","synonyms":"ok"}`)
 const mname2 = `${mname}2`
 const idx = s.indexOf('workflow')
 const s2 = s.substring(idx).trim()
