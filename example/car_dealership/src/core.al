@@ -54,28 +54,33 @@ agent analyseCarOrderRequest {
 }
 
 directive analyseCarOrderRequest.dir01 {
-    "if": "the request for an electric vehicle does not contain battery-pack or charger specs",
-    "then": "batteryPack: 79kwh, charger: 11.2kw"
+    if ("the request for an electric vehicle does not contain battery-pack or charger specs") {
+	"batteryPack: 79kwh, charger: 11.2kw"
+    }
 }
 
 directive analyseCarOrderRequest.dir02 {
-    "if": "the request for an SUV does not specify transmission, fule or torque",
-    "then": "transmission: manual, fuel: petrol, torque: 330nm"
+    if ("the request for an SUV does not specify transmission, fule or torque") {
+	"transmission: manual, fuel: petrol, torque: 330nm"
+    }
 }
 
 directive analyseCarOrderRequest.dir03 {
-    "if": "the request does not specify body color",
-    "then": "bodyColor: white"
+    if ("the request does not specify body color") {
+       "bodyColor: white"
+    }
 }
 
 scenario analyseCarOrderRequest.scenario01 {
-    "user": "I am looking for a high-end electric car. My favorite color is red",
-    "ai": "{carType \"EV\", bodyColor \"red\", batteryPack \"79kwh\", charger \"11.2kw\", segment \"luxury\"}"
+    if ("I am looking for a high-end electric car. My favorite color is red") {
+	{"carType": "EV", "bodyColor": "red", "batteryPack": "79kwh", "charger": "11.2kw", "segment": "luxury"}
+    }
 }
 
 scenario analyseCarOrderRequest.scenario02 {
-    "user": "I am looking for an affordable, fule-efficient SUV",
-    "ai": "{carType \"SUV\", bodyColor \"white\", transmission \"manual\", fuel \"petrol\", torque \"330nm\"}"
+    if ("I am looking for an affordable, fule-efficient SUV") {
+	{"carType": "SUV", "bodyColor": "white", "transmission": "manual", "fuel": "petrol", "torque": "330nm"}
+    }
 }
 
 decision classifyOrder {
