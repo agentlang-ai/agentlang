@@ -530,12 +530,12 @@ describe('Extra agent attributes', () => {
     conds.push({
       if: "Employee sales exceeded 5000",
       then: "Give a salary hike of 5 percent",
-      internal: true
+      internal: true, isIf: false
     })
     conds.push({
       if: "sales is more than 2000 but less than 5000",
       then: "hike salary by 2 percent",
-      internal: true
+      internal: true, isIf: false
     })
     agent?.setDirectives(conds)
     const scns = agent?.getScenarios()
@@ -628,9 +628,9 @@ await doInternModule(mname,
                        {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
            scenarios  [{"user": "Jake hit a jackpot!", "ai": "GuidedAgent/scenario01"}],
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
-         scenario ga.scn01 {"user": "Kiran had a block-buster", "ai": "GuidedAgent/scenario01"}
-         directive GuidedAgent/ga.dir01 {"if": "sales is less than 2000", "then": "hike salary by 0.5 percent"}
-         glossaryEntry ga.ge {"meaning": "low-sales", "name": "down", "synonyms": "bad"}
+         scenario ga.scn01 { if ("Kiran had a block-buster") { GuidedAgent/scenario01 } }
+         directive GuidedAgent/ga.dir01 { if ("sales is less than 2000") { "hike salary by 0.5 percent"} }
+         glossaryEntry ga.ge {meaning "low-sales", name "down", synonyms "bad"}
          workflow chat {{ga {message chat.msg}}}`
 )
 const m = fetchModule(mname)
@@ -653,16 +653,38 @@ agent ga
     scenarios [{"user":"Jake hit a jackpot!","ai":"GuidedAgent/scenario01"}],
     glossary [{"name":"jackpot","meaning":"sales of 5000 or above","synonyms":"high sales, block-buster"}]
 }
-scenario ga.scn01 {"user":"Kiran had a block-buster","ai":"GuidedAgent/scenario01"}
-directive GuidedAgent/ga.dir01 {"if":"sales is less than 2000","then":"hike salary by 0.5 percent"}
-glossaryEntry ga.ge {"name":"down","meaning":"low-sales","synonyms":"bad"}
+scenario ga.scn01
+ {
+    if ("Kiran had a block-buster") {
+      GuidedAgent/scenario01
+    }
+}
+directive GuidedAgent/ga.dir01 {
+        if ("sales is less than 2000") { "hike salary by 0.5 percent"}
+      }
+glossaryEntry ga.ge 
+{
+    name "down",
+    meaning "low-sales",
+    synonyms "bad"
+}
 
 workflow chat {
     {ga {message chat.msg}}
 }
 directive ga.dir02 {"if":"sales equals 500","then":"no hike"}
-scenario ga.scn02 {"user":"Sam hits jackpot","ai":"GuidedAgent/scenario01"}
-glossaryEntry ga.ge02 {"name":"up","meaning":"high-sales","synonyms":"ok"}`)
+scenario ga.scn02
+ {
+    if ("Sam hits jackpot") {
+      GuidedAgent/scenario01
+    }
+}
+glossaryEntry ga.ge02 
+{
+    name "up",
+    meaning "high-sales",
+    synonyms "ok"
+}`)
 const mname2 = `${mname}2`
 const idx = s.indexOf('workflow')
 const s2 = s.substring(idx).trim()

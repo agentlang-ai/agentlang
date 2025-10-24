@@ -42,6 +42,8 @@ import {
   isPublicWorkflowDefinition,
   isPublicAgentDefinition,
   isPublicEventDefinition,
+  AgentXtraAttribute,
+  If,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -528,8 +530,7 @@ function processAgentDirectives(agentName: string, value: Literal): AgentConditi
           }
         });
         if (cond && then) {
-          const internal = true;
-          conds?.push({ if: cond, then, internal });
+          conds?.push({ if: cond, then, internal: true, isIf: false });
         } else {
           throw new Error(`Invalid condition spec in agent ${agentName}`);
         }
@@ -812,13 +813,42 @@ function addDecisionDefinition(def: DecisionDefinition, moduleName: string) {
   }
 }
 
+function agentXtraAttributesAsMap(xtras: AgentXtraAttribute[] | undefined): Map<string, string> {
+  const result = new Map<string, string>();
+  xtras?.forEach((v: AgentXtraAttribute) => {
+    result.set(v.name, v.value);
+  });
+  return result;
+}
+
+function scenarioConditionAsMap(cond: If | undefined) {
+  const result = new Map<string, string>();
+  if (cond) {
+    if (isLiteral(cond.cond)) {
+      const s = cond.cond.str;
+      if (s === undefined) {
+        throw new Error(`scenario condition must be a string - ${cond.cond.$cstNode?.text}`);
+      }
+      const stmt = cond.statements[0];
+      const v = stmt.pattern.$cstNode?.text;
+      if (v === undefined) {
+        throw new Error(
+          `scenario consequent must be a string or name - ${cond.cond.$cstNode?.text}`
+        );
+      }
+      result.set('user', s).set('ai', v);
+    }
+  }
+  return result;
+}
+
 function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
-  if (def.body) {
+  if (def.body || def.scn) {
     let n = rootRef(def.name);
     if (!isFqName(n)) {
       n = makeFqName(moduleName, n);
     }
-    const m = asStringLiteralsMap(def.body);
+    const m = def.body ? asStringLiteralsMap(def.body) : scenarioConditionAsMap(def.scn);
     const user = m.get('user');
     const ai = m.get('ai');
     if (user && ai) {
@@ -830,29 +860,42 @@ function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
 }
 
 function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
-  if (def.body) {
+  if (def.body || def.dir) {
     let n = rootRef(def.name);
     if (!isFqName(n)) {
       n = makeFqName(moduleName, n);
     }
-    const m = asStringLiteralsMap(def.body);
-    const cond = m.get('if');
-    const then = m.get('then');
-    if (cond && then) {
-      const dir = { if: cond, then: then, internal: false };
-      addAgentDirective(n, dir);
-      fetchModule(moduleName).addDirective(def.name, dir);
-    } else throw new Error(`directive ${def.name} requires both if and then entries`);
+    if (def.body) {
+      const m = asStringLiteralsMap(def.body);
+      const cond = m.get('if');
+      const then = m.get('then');
+      if (cond && then) {
+        const dir = { if: cond, then: then, internal: false, isIf: false };
+        addAgentDirective(n, dir);
+        fetchModule(moduleName).addDirective(def.name, dir);
+      } else throw new Error(`directive ${def.name} requires both if and then entries`);
+    } else if (def.dir) {
+      const cond = def.dir.$cstNode?.text;
+      if (cond) {
+        const dir = { if: cond, then: '', internal: false, isIf: true };
+        addAgentDirective(n, dir);
+        fetchModule(moduleName).addDirective(def.name, dir);
+      } else {
+        throw new Error(`directive ${def.name} requires a valid if expression`);
+      }
+    }
   }
 }
 
 function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: string) {
-  if (def.body) {
+  if (def.body || def.glos) {
     let n = rootRef(def.name);
     if (!isFqName(n)) {
       n = makeFqName(moduleName, n);
     }
-    const m = asStringLiteralsMap(def.body);
+    const m = def.body
+      ? asStringLiteralsMap(def.body)
+      : agentXtraAttributesAsMap(def.glos?.attributes);
     const name = m.get('name');
     const meaning = m.get('meaning');
     const syn = m.get('synonyms');

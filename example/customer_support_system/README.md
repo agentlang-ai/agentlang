@@ -177,15 +177,24 @@ This means that as soon as a ticket is posted via the REST API, the full AI-driv
 
 ## Try It Out
 
+Please update `config.al` to match your local Postgres installation. Also ensure that [pgvector](https://github.com/pgvector/pgvector) is installed and enabled.
+
+Set the following environment variables:
+
+```bash copy
+export AL_DB_TYPE=postgres
+export OPENAI_API_KEY=<your-openai-api-key>
+```
+
 Start the Agentlang runtime:
 
-```bash
+```bash copy
 $ node ./bin/cli.js run example/customer_support_system
 ```
 
 Then create some sample data:
 
-```bash
+```bash copy
 # Add executives
 curl -X POST http://localhost:8080/support.core/SupportExecutive \
   -H 'Content-Type: application/json' \
@@ -203,13 +212,13 @@ curl -X POST http://localhost:8080/support.core/Customer \
 
 Now create a few tickets and watch the agent network in action:
 
-```bash
+```bash copy
 # High priority - assigned
 curl -X POST http://localhost:8080/support.core/Customer/cust01@acme.com/CustomerTicket/Ticket \
   -H 'Content-Type: application/json' \
   -d '{"subject": "Unable to connect to internet, need urgent help", "description": "connection times-out"}'
 
-# Medium priority - assigned
+# High priority - assigned
 curl -X POST http://localhost:8080/support.core/Customer/cust01@acme.com/CustomerTicket/Ticket \
   -H 'Content-Type: application/json' \
   -d '{"subject": "Need help with payments", "description": "No payment update email received"}'
