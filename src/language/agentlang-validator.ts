@@ -44,6 +44,7 @@ export class AgentlangValidator {
         }
         if (
           d.$type != 'WorkflowDefinition' &&
+          d.$type != 'FlowDefinition' &&
           d.$type != 'PublicWorkflowDefinition' &&
           d.$type != 'ScenarioDefinition' &&
           d.$type != 'DirectiveDefinition' &&

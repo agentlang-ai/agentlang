@@ -896,7 +896,7 @@ function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: str
     const m = def.body
       ? asStringLiteralsMap(def.body)
       : agentXtraAttributesAsMap(def.glos?.attributes);
-    const name = m.get('name');
+    const name = m.get('name') || m.get('word');
     const meaning = m.get('meaning');
     const syn = m.get('synonyms');
     if (name && meaning) {
