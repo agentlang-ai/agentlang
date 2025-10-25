@@ -15,9 +15,9 @@ import {
 } from '../../src/language/syntax.js';
 import { introspect } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
-import { addBeforeDeleteWorkflow, Decision, Directive, fetchModule, flowGraphNext, isModule, Record, removeModule } from '../../src/runtime/module.js';
+import { addBeforeDeleteWorkflow, Decision, Directive, fetchModule, flowGraphNext, isModule, Record, removeModule, Scenario } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
-import { AgentCondition, newAgentDirective, newAgentGlossaryEntry, newAgentScenario } from '../../src/runtime/agents/common.js';
+import { AgentCondition, newAgentDirective, newAgentDirectiveFromIf, newAgentGlossaryEntry, newAgentScenarioFromIf } from '../../src/runtime/agents/common.js';
 
 describe('Pattern generation using the syntax API', () => {
   test('test01', async () => {
@@ -531,17 +531,17 @@ describe('Extra agent attributes', () => {
     conds.push({
       if: "Employee sales exceeded 5000",
       then: "Give a salary hike of 5 percent",
-      internal: true, isIf: false
+      internal: true, ifPattern: undefined
     })
     conds.push({
       if: "sales is more than 2000 but less than 5000",
       then: "hike salary by 2 percent",
-      internal: true, isIf: false
+      internal: true, ifPattern: undefined
     })
     agent?.setDirectives(conds)
     const scns = agent?.getScenarios()
     scns?.push({
-      user: "hello", ai: "unknown request", internal: true
+      user: "hello", ai: "unknown request", internal: true, ifPattern: undefined
     })
     agent?.setResponseSchema('acme/response')
     agent?.getGlossary()?.push({
@@ -636,10 +636,13 @@ await doInternModule(mname,
 )
 const m = fetchModule(mname)
 m.addDirective('ga.dir02', newAgentDirective("sales equals 500", "no hike"))
-m.addScenario('ga.scn02', newAgentScenario("Sam hits jackpot", "GuidedAgent/scenario01"))
+const cond1 = new IfPattern(LiteralPattern.String("Sam hits jackpot"))
+    .addPattern(LiteralPattern.Id("GuidedAgent/scenario01"))
+m.addScenario('ga.scn02', newAgentScenarioFromIf(cond1))
 m.addGlossaryEntry('ga.ge02', newAgentGlossaryEntry("up", "high-sales", "ok"))
 const s = m.toString()
-assert(s === `module StdAloneAgentXtras
+assert(s === 
+  `module StdAloneAgentXtras
 
 
 workflow scenario01 {
@@ -654,12 +657,10 @@ agent ga
     scenarios [{"user":"Jake hit a jackpot!","ai":"GuidedAgent/scenario01"}],
     glossary [{"name":"jackpot","meaning":"sales of 5000 or above","synonyms":"high sales, block-buster"}]
 }
-scenario ga.scn01
- {
-    if ("Kiran had a block-buster") {
-      GuidedAgent/scenario01
-    }
+scenario ga.scn01 {
+    if("Kiran had a block-buster") {GuidedAgent/scenario01}
 }
+
 directive GuidedAgent/ga.dir01 {
         if ("sales is less than 2000") { "hike salary by 0.5 percent"}
       }
@@ -674,12 +675,10 @@ workflow chat {
     {ga {message chat.msg}}
 }
 directive ga.dir02 {"if":"sales equals 500","then":"no hike"}
-scenario ga.scn02
- {
-    if ("Sam hits jackpot") {
-      GuidedAgent/scenario01
-    }
+scenario ga.scn02 {
+    if("Sam hits jackpot") {GuidedAgent/scenario01}
 }
+
 glossaryEntry ga.ge02 
 {
     name "up",
@@ -757,7 +756,7 @@ describe('directive-generation', () => {
   test('directives generated from pattern objects', async () => {
     const cond1 = new IfPattern(LiteralPattern.String("salary > 1000"))
     .addPattern(LiteralPattern.String("accept the offer"))
-    const d = new Directive('A.dir01', 'dirGen', newAgentDirective(cond1.toString()))
+    const d = new Directive('A.dir01', 'dirGen', newAgentDirectiveFromIf(cond1))
     const s = d.toString()
     assert(s === `directive A.dir01 {
         if("salary > 1000") {"accept the offer"}
@@ -776,5 +775,33 @@ agent A
 directive A.dir01 {
         if("salary > 1000") {"accept the offer"}
       }`)
+  })
+})
+
+describe('scenario-generation', () => {
+  test('scenarios generated from pattern objects', async () => {
+    const cond1 = new IfPattern(LiteralPattern.String("salary > 1000"))
+    .addPattern(LiteralPattern.Id("acme.core/incrementSalary"))
+    const d = new Scenario('A.scn01', 'scnGen', newAgentScenarioFromIf(cond1))
+    const s = d.toString()
+    assert(s === `scenario A.scn01 {
+    if("salary > 1000") {acme.core/incrementSalary}
+}
+`)
+    await doInternModule('dirGen',
+      `agent A {instruction "OK"}
+      ${s}`
+    )
+    const ms = fetchModule('dirGen').toString()
+    assert(ms === `module dirGen
+
+agent A
+{
+    instruction "OK"
+}
+scenario A.scn01 {
+    if("salary > 1000") {acme.core/incrementSalary}
+}
+`)
   })
 })

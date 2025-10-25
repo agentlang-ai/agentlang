@@ -229,7 +229,7 @@ export class AgentInstance {
         '\nUse the following guidelines to take more accurate decisions in relevant scenarios.\n'
       );
       conds.forEach((ac: AgentCondition) => {
-        if (ac.isIf) {
+        if (ac.ifPattern) {
           ss.push(ac.if);
         } else {
           ss.push(`if ${ac.if}, then ${ac.then}`);

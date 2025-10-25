@@ -82,6 +82,7 @@ import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules, registerCoreModules } from './modules/core.js';
 import {
+  introspectIf,
   maybeGetValidationErrors,
   maybeRaiseParserErrors,
   parse,
@@ -530,7 +531,7 @@ function processAgentDirectives(agentName: string, value: Literal): AgentConditi
           }
         });
         if (cond && then) {
-          conds?.push({ if: cond, then, internal: true, isIf: false });
+          conds?.push({ if: cond, then, internal: true, ifPattern: undefined });
         } else {
           throw new Error(`Invalid condition spec in agent ${agentName}`);
         }
@@ -561,7 +562,7 @@ function processAgentScenarios(agentName: string, value: Literal): AgentScenario
         });
         if (user && ai) {
           const internal = true;
-          scenarios.push({ user, ai, internal });
+          scenarios.push({ user, ai, internal, ifPattern: undefined });
         } else {
           throw new Error(`Invalid glossary spec in agent ${agentName}`);
         }
@@ -822,7 +823,7 @@ function agentXtraAttributesAsMap(xtras: AgentXtraAttribute[] | undefined): Map<
 }
 
 function scenarioConditionAsMap(cond: If | undefined) {
-  const result = new Map<string, string>();
+  const result = new Map<string, any>();
   if (cond) {
     if (isLiteral(cond.cond)) {
       const s = cond.cond.str;
@@ -836,7 +837,7 @@ function scenarioConditionAsMap(cond: If | undefined) {
           `scenario consequent must be a string or name - ${cond.cond.$cstNode?.text}`
         );
       }
-      result.set('user', s).set('ai', v);
+      result.set('user', s).set('ai', v).set('if', introspectIf(cond));
     }
   }
   return result;
@@ -851,8 +852,9 @@ function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
     const m = def.body ? asStringLiteralsMap(def.body) : scenarioConditionAsMap(def.scn);
     const user = m.get('user');
     const ai = m.get('ai');
+    const ifPattern = m.get('if');
     if (user && ai) {
-      const scn = { user: user, ai: ai, internal: false };
+      const scn = { user: user, ai: ai, internal: false, ifPattern };
       addAgentScenario(n, scn);
       fetchModule(moduleName).addScenario(def.name, scn);
     } else throw new Error(`scenario ${def.name} requires both user and ai entries`);
@@ -870,14 +872,15 @@ function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
       const cond = m.get('if');
       const then = m.get('then');
       if (cond && then) {
-        const dir = { if: cond, then: then, internal: false, isIf: false };
+        const dir = { if: cond, then: then, internal: false, ifPattern: undefined };
         addAgentDirective(n, dir);
         fetchModule(moduleName).addDirective(def.name, dir);
       } else throw new Error(`directive ${def.name} requires both if and then entries`);
     } else if (def.dir) {
       const cond = def.dir.$cstNode?.text;
       if (cond) {
-        const dir = { if: cond, then: '', internal: false, isIf: true };
+        const ifPattern = introspectIf(def.dir);
+        const dir = { if: cond, then: '', internal: false, ifPattern };
         addAgentDirective(n, dir);
         fetchModule(moduleName).addDirective(def.name, dir);
       } else {
