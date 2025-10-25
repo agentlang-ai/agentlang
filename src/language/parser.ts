@@ -381,7 +381,7 @@ function introspectForEach(forEach: ForEach): ForEachPattern {
   return fp;
 }
 
-function introspectIf(ifpat: If): IfPattern {
+export function introspectIf(ifpat: If): IfPattern {
   const ifp: IfPattern = new IfPattern(introspectExpression(ifpat.cond));
   ifpat.statements.forEach((stmt: Statement) => {
     ifp.addPattern(introspectStatement(stmt));

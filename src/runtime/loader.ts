@@ -82,6 +82,7 @@ import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules, registerCoreModules } from './modules/core.js';
 import {
+  introspectIf,
   maybeGetValidationErrors,
   maybeRaiseParserErrors,
   parse,
@@ -530,7 +531,7 @@ function processAgentDirectives(agentName: string, value: Literal): AgentConditi
           }
         });
         if (cond && then) {
-          conds?.push({ if: cond, then, internal: true, isIf: false });
+          conds?.push({ if: cond, then, internal: true, ifPattern: undefined });
         } else {
           throw new Error(`Invalid condition spec in agent ${agentName}`);
         }
@@ -870,14 +871,15 @@ function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
       const cond = m.get('if');
       const then = m.get('then');
       if (cond && then) {
-        const dir = { if: cond, then: then, internal: false, isIf: false };
+        const dir = { if: cond, then: then, internal: false, ifPattern: undefined };
         addAgentDirective(n, dir);
         fetchModule(moduleName).addDirective(def.name, dir);
       } else throw new Error(`directive ${def.name} requires both if and then entries`);
     } else if (def.dir) {
-      const cond = def.dir.$cstNode?.text;
+      const cond = def.dir.$cstNode?.text
       if (cond) {
-        const dir = { if: cond, then: '', internal: false, isIf: true };
+        const ifPattern = introspectIf(def.dir)
+        const dir = { if: cond, then: '', internal: false, ifPattern };
         addAgentDirective(n, dir);
         fetchModule(moduleName).addDirective(def.name, dir);
       } else {

@@ -1618,7 +1618,7 @@ export class Directive extends ModuleEntry {
   }
 
   override toString(): string {
-    if (this.def.isIf) {
+    if (this.def.ifPattern) {
       return `directive ${this.name} {
         ${this.def.if}
       }`;

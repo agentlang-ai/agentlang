@@ -1,3 +1,5 @@
+import { IfPattern } from "../../language/syntax.js";
+
 export const PlannerInstructions = `Agentlang is a very-high-level declarative language that makes it easy to define business applications as 'models'.
 The model of a business application consists of entity definitions and workflows defined in "modules". 
 A module is be encoded in a syntax inspired by JavaScript and JSON. Example of a simple module follows:
@@ -357,7 +359,7 @@ export type AgentCondition = {
   if: string;
   then: string;
   internal: boolean;
-  isIf: boolean;
+  ifPattern: IfPattern | undefined;
 };
 
 const AgentDirectives = new Map<string, AgentCondition[]>();
@@ -366,13 +368,13 @@ export function newAgentDirective(
   cond: string,
   then: string = '',
   internal: boolean = false,
-  isIf: boolean = false
+  ifPattern: IfPattern | undefined = undefined
 ): AgentCondition {
-  if (then === '') {
-    return { if: cond, then, internal, isIf: true };
-  } else {
-    return { if: cond, then, internal, isIf };
-  }
+  return { if: cond, then, internal, ifPattern };
+}
+
+export function newAgentDirectiveFromIf(ifPattern: IfPattern): AgentCondition {
+  return newAgentDirective(ifPattern.toString(), '', false, ifPattern)
 }
 
 export function registerAgentDirectives(agentFqName: string, conds: AgentCondition[]) {
@@ -393,8 +395,8 @@ export function getAgentDirectivesJson(agentFqName: string): string | undefined 
   const conds = getAgentDirectivesInternal(agentFqName);
   if (conds && conds.length > 0) {
     const fmted = conds.map((c: AgentCondition) => {
-      if (c.isIf) {
-        return c.if;
+      if (c.ifPattern) {
+        return c.ifPattern.toString();
       } else {
         return { if: c.if, then: c.then };
       }

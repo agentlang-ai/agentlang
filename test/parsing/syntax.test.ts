@@ -17,7 +17,7 @@ import { introspect } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
 import { addBeforeDeleteWorkflow, Decision, Directive, fetchModule, flowGraphNext, isModule, Record, removeModule } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
-import { AgentCondition, newAgentDirective, newAgentGlossaryEntry, newAgentScenario } from '../../src/runtime/agents/common.js';
+import { AgentCondition, newAgentDirective, newAgentDirectiveFromIf, newAgentGlossaryEntry, newAgentScenario } from '../../src/runtime/agents/common.js';
 
 describe('Pattern generation using the syntax API', () => {
   test('test01', async () => {
@@ -531,12 +531,12 @@ describe('Extra agent attributes', () => {
     conds.push({
       if: "Employee sales exceeded 5000",
       then: "Give a salary hike of 5 percent",
-      internal: true, isIf: false
+      internal: true, ifPattern: undefined
     })
     conds.push({
       if: "sales is more than 2000 but less than 5000",
       then: "hike salary by 2 percent",
-      internal: true, isIf: false
+      internal: true, ifPattern: undefined
     })
     agent?.setDirectives(conds)
     const scns = agent?.getScenarios()
@@ -757,7 +757,7 @@ describe('directive-generation', () => {
   test('directives generated from pattern objects', async () => {
     const cond1 = new IfPattern(LiteralPattern.String("salary > 1000"))
     .addPattern(LiteralPattern.String("accept the offer"))
-    const d = new Directive('A.dir01', 'dirGen', newAgentDirective(cond1.toString()))
+    const d = new Directive('A.dir01', 'dirGen', newAgentDirectiveFromIf(cond1))
     const s = d.toString()
     assert(s === `directive A.dir01 {
         if("salary > 1000") {"accept the offer"}
