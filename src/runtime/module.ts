@@ -1602,10 +1602,13 @@ export class Scenario extends ModuleEntry {
   }
 
   override toString(): string {
+    if (this.def.ifPattern) {
+      return `scenario ${this.name} {\n    ${this.def.ifPattern.toString()}\n}\n`;
+    }
     const s = `if ("${this.def.user}") {
       ${this.def.ai}
     }`;
-    return `scenario ${this.name}\n {\n    ${s}\n}`;
+    return `scenario ${this.name} {\n    ${s}\n}\n`;
   }
 }
 

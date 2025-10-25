@@ -562,7 +562,7 @@ function processAgentScenarios(agentName: string, value: Literal): AgentScenario
         });
         if (user && ai) {
           const internal = true;
-          scenarios.push({ user, ai, internal });
+          scenarios.push({ user, ai, internal, ifPattern: undefined });
         } else {
           throw new Error(`Invalid glossary spec in agent ${agentName}`);
         }
@@ -823,7 +823,7 @@ function agentXtraAttributesAsMap(xtras: AgentXtraAttribute[] | undefined): Map<
 }
 
 function scenarioConditionAsMap(cond: If | undefined) {
-  const result = new Map<string, string>();
+  const result = new Map<string, any>();
   if (cond) {
     if (isLiteral(cond.cond)) {
       const s = cond.cond.str;
@@ -837,7 +837,7 @@ function scenarioConditionAsMap(cond: If | undefined) {
           `scenario consequent must be a string or name - ${cond.cond.$cstNode?.text}`
         );
       }
-      result.set('user', s).set('ai', v);
+      result.set('user', s).set('ai', v).set('if', introspectIf(cond));
     }
   }
   return result;
@@ -852,8 +852,9 @@ function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
     const m = def.body ? asStringLiteralsMap(def.body) : scenarioConditionAsMap(def.scn);
     const user = m.get('user');
     const ai = m.get('ai');
+    const ifPattern = m.get('if');
     if (user && ai) {
-      const scn = { user: user, ai: ai, internal: false };
+      const scn = { user: user, ai: ai, internal: false, ifPattern };
       addAgentScenario(n, scn);
       fetchModule(moduleName).addScenario(def.name, scn);
     } else throw new Error(`scenario ${def.name} requires both user and ai entries`);
@@ -876,9 +877,9 @@ function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
         fetchModule(moduleName).addDirective(def.name, dir);
       } else throw new Error(`directive ${def.name} requires both if and then entries`);
     } else if (def.dir) {
-      const cond = def.dir.$cstNode?.text
+      const cond = def.dir.$cstNode?.text;
       if (cond) {
-        const ifPattern = introspectIf(def.dir)
+        const ifPattern = introspectIf(def.dir);
         const dir = { if: cond, then: '', internal: false, ifPattern };
         addAgentDirective(n, dir);
         fetchModule(moduleName).addDirective(def.name, dir);
