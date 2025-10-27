@@ -11,7 +11,7 @@ export function registerFlow(name: string, flow: FlowSpec): string {
   return name;
 }
 
-export function getFlow(name: string): FlowSpec | undefined {
+function getFlow(name: string): FlowSpec | undefined {
   return FlowRegistry.get(name);
 }
 

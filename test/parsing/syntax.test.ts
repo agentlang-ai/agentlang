@@ -817,3 +817,105 @@ scenario A.scn02 {
 `)
   })
 })
+
+describe('flow-load-fix', () => {
+  test('flow should load', async () => {
+    const mname = 'expaugust.core'
+    const mdef = `record RecordOne
+{
+
+}
+
+record RecordB
+{
+
+}
+
+event EventA
+{
+    Name String
+}
+
+workflow EventA {
+    {EntityA {}};
+    {Agent1 {}};
+    {EventA {}}
+}
+event EventB
+{
+
+}
+
+workflow EventB {
+
+}
+entity EntityA
+{
+    id String @id,
+    Name String,
+    Age Int
+}
+
+entity EntityB
+{
+    make String
+}
+
+entity EntityC
+{
+
+}
+
+
+workflow @after create:expaugust.core/EntityA {
+
+}
+record RecordD
+{
+
+}
+
+record RecordE
+{
+
+}
+
+agent Agent4
+{
+    llm "llm01",
+    flows [Agent4],
+   responseSchema expaugust.core/RecordOne
+}
+agent Agent1
+{
+    llm "llm01"
+}
+event id
+{
+
+}
+
+workflow id {
+
+}
+agent Agent2
+{
+    type "chat",
+    llm "llm01"
+}
+agent Agent5
+{
+    type "chat",
+    llm "llm01"
+}
+flow Agent4 {
+      
+    }`
+    await doInternModule(mname, mdef)
+    const m = fetchModule(mname)
+    const s = m.toString()
+    const idx = s.indexOf('record')
+    const s1 = s.substring(idx)
+    assert(mdef === s1)
+  })
+})
