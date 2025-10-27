@@ -51,6 +51,34 @@ workflow AfterDeleteUser {
          lastName CreateUser.lastName}}
 }
 
+@public workflow CreateUsers {
+  for user in CreateUsers.users {
+      {User {email? user.email}} @as [u];
+      if (u) {
+        {User {id? u.id,
+               firstName user.firstName,
+               lastName user.lastName}} 
+         @as [um]
+        um
+      }
+      else {
+        {User {email user.email,
+               firstName user.firstName,
+               lastName user.lastName}}
+         @as [um]
+        {Role {name? user.role}}
+         @as [r];
+        if (r) {
+          {UserRole {User um, Role r}}
+        } else {
+          {Role {name user.role}} @as [rnew]
+          {UserRole {User um, Role rnew}}
+        }
+        um
+      }
+  }
+}
+
 @public workflow UpdateUser {
   {User {id UpdateUser.id,
          firstName UpdateUser.firstName,
