@@ -105,7 +105,6 @@ export class AgentInstance {
   llm: string = '';
   name: string = '';
   moduleName: string = CoreAIModuleName;
-  chatId: string | undefined;
   instruction: string = '';
   type: string = 'chat';
   tools: string | undefined;
@@ -362,14 +361,20 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   async invoke(message: string, env: Environment) {
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
-    const chatId = this.chatId || agentName;
-    const isplnr = this.isPlanner();
+    const chatId = env.getAgentChatId() || agentName;
+    let isplnr = this.isPlanner();
     const isflow = !isplnr && this.isFlowExecutor();
     if (isplnr && this.withSession) {
       this.withSession = false;
     }
     if (isflow) {
       this.withSession = false;
+    }
+    if (!this.withSession && env.isAgentModeSet()) {
+      this.withSession = true;
+      if (env.isInAgentChatMode()) {
+        isplnr = false;
+      }
     }
     const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
     let msgs: BaseMessage[] | undefined;
