@@ -789,19 +789,19 @@ function processAgentArrayValue(expr: Expr | undefined, attrName: string): strin
 }
 
 function addFlowDefinition(def: FlowDefinition, moduleName: string) {
-  if (def.body && def.$cstNode) {
-    const m = fetchModule(moduleName);
-    const sdef = def.$cstNode.text;
+  const m = fetchModule(moduleName);
+  const sdef = def.$cstNode?.text;
+  let f = '';
+  if (sdef) {
     const idx = sdef.indexOf('{');
-    let f = '';
     if (idx > 0) {
       f = sdef.substring(idx + 1, sdef.lastIndexOf('}')).trim();
     } else {
       f = sdef;
     }
-    m.addFlow(def.name, f);
-    registerFlow(`${moduleName}/${def.name}`, f);
   }
+  m.addFlow(def.name, f);
+  registerFlow(`${moduleName}/${def.name}`, f);
 }
 
 function addDecisionDefinition(def: DecisionDefinition, moduleName: string) {
