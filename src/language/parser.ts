@@ -348,7 +348,7 @@ function introspectLiteral(lit: Literal): BasePattern {
     return LiteralPattern.Number(lit.num);
   } else if (lit.ref) {
     return LiteralPattern.Reference(lit.ref);
-  } else if (lit.str) {
+  } else if (lit.str !== undefined) {
     return LiteralPattern.String(lit.str);
   } else if (lit.bool) {
     return LiteralPattern.Boolean(lit.bool == 'true' ? true : false);
