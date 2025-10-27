@@ -142,6 +142,8 @@ export class Environment extends Instance {
   private eventExecutor: Function | undefined = undefined;
   private statementsExecutor: Function | undefined = undefined;
   private scratchPad: any = undefined;
+  private agentMode: 'chat' | 'planner' | undefined = undefined;
+  private agentChatId: string | undefined = undefined;
 
   private activeUserData: any = undefined;
 
@@ -166,6 +168,7 @@ export class Environment extends Instance {
       this.activeCatchHandlers = parent.activeCatchHandlers;
       this.suspensionId = parent.suspensionId;
       this.eventExecutor = parent.eventExecutor;
+      this.agentChatId = parent.agentChatId;
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
@@ -680,6 +683,38 @@ export class Environment extends Instance {
 
   getActiveUserData(): any {
     return this.activeUserData;
+  }
+
+  inChatAgentMode(): Environment {
+    this.agentMode = 'chat';
+    return this;
+  }
+
+  inPlannerAgentMode(): Environment {
+    this.agentMode = 'planner';
+    return this;
+  }
+
+  resetAgentMode(): Environment {
+    this.agentMode = undefined;
+    return this;
+  }
+
+  isInAgentChatMode(): boolean {
+    return this.agentMode === 'chat';
+  }
+
+  isAgentModeSet(): boolean {
+    return this.agentMode !== undefined;
+  }
+
+  setAgentChatId(chatId: string): Environment {
+    this.agentChatId = chatId;
+    return this;
+  }
+
+  getAgentChatId(): string | undefined {
+    return this.agentChatId;
   }
 }
 
@@ -1624,7 +1659,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   await agent.invoke(msg, env);
   let result: string | undefined = env.getLastResult();
   logger.debug(`Agent ${agent.name} result: ${result}`);
-  const isPlanner = agent.isPlanner();
+  const isPlanner = !env.isInAgentChatMode() && agent.isPlanner();
   const stmtsExec = env.getStatementsExecutor();
   if (result) {
     if (isPlanner) {
@@ -1721,9 +1756,28 @@ export async function handleAgentInvocation(
   if (flow) {
     await handleAgentInvocationWithFlow(agent, flow, msg, env);
   } else {
-    await agentInvoke(agent, msg, env).catch((reason: any) => {
+    const mode = agentEventInst.lookup('mode');
+    let activeEnv = env;
+    const chatId = agentEventInst.lookup('chatId');
+    if (chatId !== undefined) {
+      activeEnv.setAgentChatId(chatId);
+    }
+    let envChanged = false;
+    if (mode !== undefined) {
+      if (mode === 'chat') {
+        activeEnv = new Environment(`${env.name}.chat`, env).inChatAgentMode();
+        envChanged = true;
+      } else if (mode === 'planner') {
+        activeEnv = new Environment(`${env.name}.planner`, env).inPlannerAgentMode();
+        envChanged = true;
+      }
+    }
+    await agentInvoke(agent, msg, activeEnv).catch((reason: any) => {
       logger.warn(reason);
     });
+    if (envChanged) {
+      env.setLastResult(activeEnv.getLastResult());
+    }
   }
 }
 

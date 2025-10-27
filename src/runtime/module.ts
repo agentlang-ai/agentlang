@@ -114,10 +114,11 @@ function normalizePropertyNames(props: Map<string, any>) {
 const SystemAttributeProperty: string = 'system-attribute';
 const SystemDefinedEvent = 'system-event';
 
-function setAsSystemAttribute(attrSpec: AttributeSpec) {
+function asSystemAttribute(attrSpec: AttributeSpec): AttributeSpec {
   const props: Map<string, any> = attrSpec.properties ? attrSpec.properties : new Map();
   props.set(SystemAttributeProperty, true);
   attrSpec.properties = props;
+  return attrSpec;
 }
 
 function isSystemAttribute(attrSpec: AttributeSpec): boolean {
@@ -485,7 +486,7 @@ export class Record extends ModuleEntry {
   }
 
   addSystemAttribute(n: string, attrSpec: AttributeSpec): Record {
-    setAsSystemAttribute(attrSpec);
+    asSystemAttribute(attrSpec);
     this.addAttribute(n, attrSpec);
     return this;
   }
@@ -3548,7 +3549,8 @@ export function defineAgentEvent(moduleName: string, agentName: string, instruct
   const module = fetchModule(moduleName);
   const event: Record = new Event(agentName, moduleName);
   event.addAttribute('message', { type: 'Any' });
-  event.addAttribute('chatId', { type: 'String' });
+  event.addAttribute('chatId', asOptionalAttribute({ type: 'String' }));
+  event.addAttribute('mode', asSystemAttribute(asOptionalAttribute({ type: 'String' })));
   event.addMeta(IsAgentEventMeta, 'y');
   event.addMeta(EventAgentName, agentName);
   if (instruction) {
