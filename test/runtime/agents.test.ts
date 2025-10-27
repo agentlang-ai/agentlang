@@ -244,7 +244,20 @@ if (process.env.AL_TEST === 'true') {
          }
          entity Failure {
           message String
-         } 
+         }
+         decision classifyUserRequest {
+          case ("request refers to customer") {
+            Customer
+          }
+
+          case ("request refers to product") {
+            Product
+          }
+
+          case ("request refers to employee, or anything other than customer or product") {
+            Other
+          }
+        }
          agent classifyUserRequest {
             instruction "Analyse the user request and classify it as either 'Customer', 'Product' or 'Other'. Return one of Customer, Product or Other and nothing else"
          }
