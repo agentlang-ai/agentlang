@@ -613,6 +613,14 @@ export class IfPattern extends BasePattern {
     this.body = [];
   }
 
+  isEmpty(): boolean {
+    if (this.condition === IfPattern.True && this.body.length === 0) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   addPattern(p: BasePattern): IfPattern {
     this.body.push(p);
     return this;

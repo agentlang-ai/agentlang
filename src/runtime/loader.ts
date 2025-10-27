@@ -831,7 +831,7 @@ function scenarioConditionAsMap(cond: If | undefined) {
         throw new Error(`scenario condition must be a string - ${cond.cond.$cstNode?.text}`);
       }
       const stmt = cond.statements[0];
-      const v = stmt.pattern.$cstNode?.text;
+      const v = stmt ? stmt.pattern.$cstNode?.text : '';
       if (v === undefined) {
         throw new Error(
           `scenario consequent must be a string or name - ${cond.cond.$cstNode?.text}`
@@ -853,7 +853,7 @@ function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
     const user = m.get('user');
     const ai = m.get('ai');
     const ifPattern = m.get('if');
-    if (user && ai) {
+    if (user !== undefined && ai !== undefined) {
       const scn = { user: user, ai: ai, internal: false, ifPattern };
       addAgentScenario(n, scn);
       fetchModule(moduleName).addScenario(def.name, scn);

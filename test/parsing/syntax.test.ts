@@ -617,8 +617,8 @@ entity B extends A
 describe('agent-xtras-to-string', () => {
   test('standalone scenarios, directives', async () => {
     const mname = 'StdAloneAgentXtras'
-await doInternModule(mname,
-  `workflow scenario01 {
+    await doInternModule(mname,
+      `workflow scenario01 {
              {GA/Employee {name? "Jake"}} @as [employee];
              {GA/Employee {id? employee.id, salary employee.salary + employee.salary * 0.5}}
          }
@@ -633,16 +633,16 @@ await doInternModule(mname,
          directive GuidedAgent/ga.dir01 { if ("sales is less than 2000") { "hike salary by 0.5 percent"} }
          glossaryEntry ga.ge {meaning "low-sales", name "down", synonyms "bad"}
          workflow chat {{ga {message chat.msg}}}`
-)
-const m = fetchModule(mname)
-m.addDirective('ga.dir02', newAgentDirective("sales equals 500", "no hike"))
-const cond1 = new IfPattern(LiteralPattern.String("Sam hits jackpot"))
-    .addPattern(LiteralPattern.Id("GuidedAgent/scenario01"))
-m.addScenario('ga.scn02', newAgentScenarioFromIf(cond1))
-m.addGlossaryEntry('ga.ge02', newAgentGlossaryEntry("up", "high-sales", "ok"))
-const s = m.toString()
-assert(s === 
-  `module StdAloneAgentXtras
+    )
+    const m = fetchModule(mname)
+    m.addDirective('ga.dir02', newAgentDirective("sales equals 500", "no hike"))
+    const cond1 = new IfPattern(LiteralPattern.String("Sam hits jackpot"))
+      .addPattern(LiteralPattern.Id("GuidedAgent/scenario01"))
+    m.addScenario('ga.scn02', newAgentScenarioFromIf(cond1))
+    m.addGlossaryEntry('ga.ge02', newAgentGlossaryEntry("up", "high-sales", "ok"))
+    const s = m.toString()
+    assert(s ===
+      `module StdAloneAgentXtras
 
 
 workflow scenario01 {
@@ -685,13 +685,13 @@ glossaryEntry ga.ge02
     meaning "high-sales",
     synonyms "ok"
 }`)
-const mname2 = `${mname}2`
-const idx = s.indexOf('workflow')
-const s2 = s.substring(idx).trim()
-await doInternModule(mname2, s2)
-const m2 = fetchModule(mname2)
-const s3 = m2.toString().substring(idx).trim()
-assert(s2 === s3)
+    const mname2 = `${mname}2`
+    const idx = s.indexOf('workflow')
+    const s2 = s.substring(idx).trim()
+    await doInternModule(mname2, s2)
+    const m2 = fetchModule(mname2)
+    const s3 = m2.toString().substring(idx).trim()
+    assert(s2 === s3)
   })
 })
 
@@ -755,7 +755,7 @@ acceptOrRejectOffer --> "Reject" offerReject
 describe('directive-generation', () => {
   test('directives generated from pattern objects', async () => {
     const cond1 = new IfPattern(LiteralPattern.String("salary > 1000"))
-    .addPattern(LiteralPattern.String("accept the offer"))
+      .addPattern(LiteralPattern.String("accept the offer"))
     const d = new Directive('A.dir01', 'dirGen', newAgentDirectiveFromIf(cond1))
     const s = d.toString()
     assert(s === `directive A.dir01 {
@@ -781,16 +781,24 @@ directive A.dir01 {
 describe('scenario-generation', () => {
   test('scenarios generated from pattern objects', async () => {
     const cond1 = new IfPattern(LiteralPattern.String("salary > 1000"))
-    .addPattern(LiteralPattern.Id("acme.core/incrementSalary"))
-    const d = new Scenario('A.scn01', 'scnGen', newAgentScenarioFromIf(cond1))
-    const s = d.toString()
-    assert(s === `scenario A.scn01 {
+      .addPattern(LiteralPattern.Id("acme.core/incrementSalary"))
+    const scn01 = new Scenario('A.scn01', 'scnGen', newAgentScenarioFromIf(cond1))
+    const s1 = scn01.toString()
+    assert(s1 === `scenario A.scn01 {
     if("salary > 1000") {acme.core/incrementSalary}
+}
+`)
+    // empty scenario
+    const scn02 = new Scenario('A.scn02', 'scnGen', newAgentScenarioFromIf(new IfPattern()))
+    const s2 = scn02.toString()
+    assert(s2 === `scenario A.scn02 {
+    if("") {}
 }
 `)
     await doInternModule('dirGen',
       `agent A {instruction "OK"}
-      ${s}`
+      ${s1}
+      ${s2}`
     )
     const ms = fetchModule('dirGen').toString()
     assert(ms === `module dirGen
@@ -801,6 +809,10 @@ agent A
 }
 scenario A.scn01 {
     if("salary > 1000") {acme.core/incrementSalary}
+}
+
+scenario A.scn02 {
+    if("") {}
 }
 `)
   })

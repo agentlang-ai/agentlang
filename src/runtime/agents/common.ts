@@ -1,4 +1,4 @@
-import { IfPattern } from '../../language/syntax.js';
+import { IfPattern, LiteralPattern } from '../../language/syntax.js';
 import { trimQuotes } from '../util.js';
 
 export const PlannerInstructions = `Agentlang is a very-high-level declarative language that makes it easy to define business applications as 'models'.
@@ -434,9 +434,14 @@ export function newAgentScenario(
 }
 
 export function newAgentScenarioFromIf(ifPattern: IfPattern): AgentScenario {
-  const user = trimQuotes(ifPattern.condition.toString());
-  const ai = trimQuotes(ifPattern.body[0].toString());
-  return newAgentScenario(user, ai, false, ifPattern);
+  if (ifPattern.isEmpty()) {
+    ifPattern.condition = LiteralPattern.String('');
+    return newAgentScenario('', '', false, ifPattern);
+  } else {
+    const user = trimQuotes(ifPattern.condition.toString());
+    const ai = trimQuotes(ifPattern.body[0].toString());
+    return newAgentScenario(user, ai, false, ifPattern);
+  }
 }
 
 const AgentScenarios = new Map<string, AgentScenario[]>();
