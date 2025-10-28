@@ -810,7 +810,7 @@ function addDecisionDefinition(def: DecisionDefinition, moduleName: string) {
     const cases = def.body.cases.map((ce: CaseEntry) => {
       return ce.$cstNode?.text;
     });
-    m.addDecision(def.name, cases as string[]);
+    m.addRawDecision(def.name, cases as string[]);
   }
 }
 
