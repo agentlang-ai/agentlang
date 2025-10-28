@@ -1,5 +1,7 @@
 import {
   AgentlangAuth,
+  InviteUserCallback,
+  InvitationInfo,
   LoginCallback,
   LogoutCallback,
   SessionInfo,
@@ -40,6 +42,8 @@ let ForgotPasswordCommand: any = undefined;
 let ConfirmForgotPasswordCommand: any = undefined;
 let AdminGetUserCommand: any = undefined;
 let InitiateAuthCommand: any = undefined;
+let AdminCreateUserCommand: any = undefined;
+let RespondToAuthChallengeCommand: any = undefined;
 let AuthenticationDetails: any = undefined;
 let CognitoUser: any = undefined;
 let CognitoUserPool: any = undefined;
@@ -61,6 +65,8 @@ if (isNodeEnv) {
   ConfirmForgotPasswordCommand = cip.ConfirmForgotPasswordCommand;
   AdminGetUserCommand = cip.AdminGetUserCommand;
   InitiateAuthCommand = cip.InitiateAuthCommand;
+  AdminCreateUserCommand = cip.AdminCreateUserCommand;
+  RespondToAuthChallengeCommand = cip.RespondToAuthChallengeCommand;
 
   const ci = await import('amazon-cognito-identity-js');
   AuthenticationDetails = ci.AuthenticationDetails;
@@ -378,9 +384,11 @@ export class CognitoAuth implements AgentlangAuth {
 
       if (response.$metadata.httpStatusCode == 200) {
         logger.info(`Signup successful for user: ${username}`);
-        const user = await ensureUser(username, '', '', env);
+        const user = await ensureUser(username, firstName, lastName, env);
         const userInfo: UserInfo = {
           username: username,
+          firstName: firstName,
+          lastName: lastName,
           id: user.id,
           systemUserInfo: response.UserSub,
         };
@@ -523,7 +531,7 @@ export class CognitoAuth implements AgentlangAuth {
           );
         },
       });
-      while (result == undefined && authError == undefined) {
+      while (result === undefined && authError === undefined) {
         await sleepMilliseconds(100);
       }
       if (authError) {
@@ -540,10 +548,20 @@ export class CognitoAuth implements AgentlangAuth {
         // After successful Cognito authentication, create/update local records
         const localUser = await ensureUser(username, '', '', env);
         const userid = localUser.lookup('id');
+
         const idtok = result.getIdToken();
         const idToken = idtok.getJwtToken();
         const idTokenPayload = idtok.decodePayload();
+
+        const firstName = idTokenPayload['given_name'] || idTokenPayload['name'] || '';
+        const lastName = idTokenPayload['family_name'] || '';
         const userGroups = idTokenPayload['cognito:groups'];
+
+        let localUser = await findUserByEmail(username, env);
+        if (!localUser) {
+          localUser = await ensureUser(username, firstName, lastName, env);
+        }
+        const userid = localUser.lookup('id');
         if (userGroups) {
           await ensureUserRoles(userid, userGroups, env);
         }
@@ -605,7 +623,7 @@ export class CognitoAuth implements AgentlangAuth {
           );
         },
       });
-      while (result == undefined && authError == undefined) {
+      while (result === undefined && authError === undefined) {
         await sleepMilliseconds(100);
       }
       if (authError) {
@@ -795,6 +813,8 @@ export class CognitoAuth implements AgentlangAuth {
     }
 
     const userEmail = localUser.lookup('email');
+    const firstName = localUser.lookup('firstName');
+    const lastName = localUser.lookup('lastName');
 
     // Check if Cognito is configured
     const cognitoConfigured = process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID;
@@ -818,6 +838,8 @@ export class CognitoAuth implements AgentlangAuth {
         return {
           id: userId,
           username: userEmail,
+          firstName: firstName,
+          lastName: lastName,
           systemUserInfo: {
             localUser: localUser,
             cognitoData: {
@@ -840,6 +862,8 @@ export class CognitoAuth implements AgentlangAuth {
         return {
           id: userId,
           username: userEmail,
+          firstName: firstName,
+          lastName: lastName,
           systemUserInfo: localUser,
         };
       }
@@ -848,6 +872,8 @@ export class CognitoAuth implements AgentlangAuth {
       return {
         id: userId,
         username: userEmail || userId,
+        firstName: firstName,
+        lastName: lastName,
         systemUserInfo: localUser,
       };
     }
@@ -860,6 +886,8 @@ export class CognitoAuth implements AgentlangAuth {
     }
 
     const userId = localUser.lookup('id');
+    const firstName = localUser.lookup('firstName');
+    const lastName = localUser.lookup('lastName');
 
     // Check if Cognito is configured
     const cognitoConfigured = process.env.COGNITO_USER_POOL_ID && process.env.COGNITO_CLIENT_ID;
@@ -869,11 +897,11 @@ export class CognitoAuth implements AgentlangAuth {
         // Get additional user details from Cognito
         const client = new CognitoIdentityProviderClient({
           region: process.env.AWS_REGION || 'us-west-2',
-          credentials: fromEnv(),
         });
 
         const command = new AdminGetUserCommand({
           UserPoolId: this.fetchUserPoolId(),
+          ClientId: this.fetchClientId(),
           Username: email,
         });
 
@@ -883,6 +911,8 @@ export class CognitoAuth implements AgentlangAuth {
         return {
           id: userId,
           username: email,
+          firstName: firstName,
+          lastName: lastName,
           systemUserInfo: {
             localUser: localUser,
             cognitoData: {
@@ -897,7 +927,7 @@ export class CognitoAuth implements AgentlangAuth {
           },
         };
       } catch (err: any) {
-        logger.warn(`Failed to get Cognito user info for email ${email}, using local data only:`, {
+        console.log(`Failed to get Cognito user info for email ${email}, using local data only:`, {
           errorName: err.name,
           errorMessage: sanitizeErrorMessage(err.message),
         });
@@ -905,6 +935,8 @@ export class CognitoAuth implements AgentlangAuth {
         return {
           id: userId,
           username: email,
+          firstName: firstName,
+          lastName: lastName,
           systemUserInfo: localUser,
         };
       }
@@ -913,6 +945,8 @@ export class CognitoAuth implements AgentlangAuth {
       return {
         id: userId,
         username: email,
+        firstName: firstName,
+        lastName: lastName,
         systemUserInfo: localUser,
       };
     }
@@ -980,6 +1014,257 @@ export class CognitoAuth implements AgentlangAuth {
       }
       handleCognitoError(err, 'refreshToken');
       throw err; // This line won't be reached due to handleCognitoError throwing
+    }
+  }
+
+  async inviteUser(
+    email: string,
+    firstName: string,
+    lastName: string,
+    userData: Map<string, any> | undefined,
+    env: Environment,
+    cb: InviteUserCallback
+  ): Promise<void> {
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+      });
+
+      const userAttrs = [
+        {
+          Name: 'email',
+          Value: email,
+        },
+        {
+          Name: 'email_verified',
+          Value: 'true',
+        },
+        {
+          Name: 'given_name',
+          Value: firstName,
+        },
+        {
+          Name: 'family_name',
+          Value: lastName,
+        },
+      ];
+
+      if (userData) {
+        userData.forEach((v: any, k: string) => {
+          userAttrs.push({ Name: k, Value: String(v) });
+        });
+      }
+
+      let userExists = false;
+      try {
+        const getUserCommand = new AdminGetUserCommand({
+          UserPoolId: this.fetchUserPoolId(),
+          Username: email,
+        });
+        await client.send(getUserCommand);
+        userExists = true;
+        logger.debug(`User ${email} already exists, will resend invitation`);
+      } catch (err: any) {
+        if (err.name !== 'UserNotFoundException') {
+          throw err;
+        }
+        logger.debug(`User ${email} does not exist, will create new user`);
+      }
+
+      const command = new AdminCreateUserCommand({
+        UserPoolId: this.fetchUserPoolId(),
+        Username: email,
+        UserAttributes: userAttrs,
+        DesiredDeliveryMediums: ['EMAIL'],
+        ...(userExists ? { MessageAction: 'RESEND' } : {}),
+      });
+
+      logger.debug(`Attempting to invite user: ${email}`);
+      const response = await client.send(command);
+
+      if (response.$metadata.httpStatusCode === 200) {
+        logger.info(`User invitation successful for: ${email}`);
+
+        await ensureUser(email, firstName, lastName, env);
+
+        const invitationInfo: InvitationInfo = {
+          email: email,
+          firstName: firstName,
+          lastName: lastName,
+          invitationId: response.User?.Username,
+          systemInvitationInfo: response,
+        };
+
+        cb(invitationInfo);
+      } else {
+        logger.error(
+          `User invitation failed with HTTP status ${response.$metadata.httpStatusCode}`,
+          {
+            email: email,
+            statusCode: response.$metadata.httpStatusCode,
+          }
+        );
+        throw new BadRequestError(
+          `User invitation failed with status ${response.$metadata.httpStatusCode}`
+        );
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestError) throw err;
+      logger.error(`User invitation error for ${email}:`, {
+        errorName: err.name,
+        errorMessage: sanitizeErrorMessage(err.message),
+      });
+      handleCognitoError(err, 'inviteUser');
+    }
+  }
+
+  async acceptInvitation(
+    email: string,
+    tempPassword: string,
+    newPassword: string,
+    _env: Environment
+  ): Promise<void> {
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+        credentials: fromEnv(),
+      });
+
+      const initAuth = new InitiateAuthCommand({
+        AuthFlow: 'USER_PASSWORD_AUTH',
+        ClientId: this.fetchClientId(),
+        AuthParameters: {
+          USERNAME: email,
+          PASSWORD: tempPassword,
+        },
+      });
+
+      const initResponse = await client.send(initAuth);
+
+      if (initResponse.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
+        const respond = new RespondToAuthChallengeCommand({
+          ClientId: this.fetchClientId(),
+          ChallengeName: 'NEW_PASSWORD_REQUIRED',
+          Session: initResponse.Session,
+          ChallengeResponses: {
+            USERNAME: email,
+            NEW_PASSWORD: newPassword,
+          },
+        });
+
+        await client.send(respond);
+        logger.info(`User invitation accepted successfully for: ${email}`);
+      } else {
+        throw new Error(`Unexpected challenge: ${initResponse.ChallengeName}`);
+      }
+    } catch (err: any) {
+      logger.error(`Accept invitation failed for ${email}: ${sanitizeErrorMessage(err.message)}`);
+      handleCognitoError(err, 'acceptInvitation');
+    }
+  }
+
+  async callback(code: string, env: Environment, cb: LoginCallback): Promise<void> {
+    try {
+      if (!isNodeEnv) {
+        throw new Error('Callback authentication is only supported in Node.js environment');
+      }
+
+      const clientId = this.fetchConfig('ClientId');
+      const region = process.env.AWS_REGION || 'us-east-1';
+      const redirectUri = process.env.COGNITO_REDIRECT_URI || 'http://localhost:3000/auth/callback';
+      const hostedDomain = process.env.COGNITO_HOSTED_DOMAIN;
+      const tokenEndpoint = `https://${hostedDomain}.auth.${region}.amazoncognito.com/oauth2/token`;
+
+      const tokenRequestBody = new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        code: code,
+        redirect_uri: redirectUri,
+      });
+
+      logger.debug(`Exchanging authorization code for tokens via OAuth2 endpoint`);
+
+      console.log('te', tokenEndpoint, tokenRequestBody.toString());
+      const response = await fetch(tokenEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: tokenRequestBody.toString(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Token exchange failed: ${response.status} ${errorText}`);
+      }
+
+      const tokenData = await response.json();
+
+      if (!tokenData.access_token || !tokenData.id_token || !tokenData.refresh_token) {
+        throw new Error('Missing required tokens in response');
+      }
+
+      const {
+        access_token: AccessToken,
+        id_token: IdToken,
+        refresh_token: RefreshToken,
+      } = tokenData;
+
+      const idTokenPayload = this.decodeJwtPayload(IdToken);
+      const userEmail = idTokenPayload.email;
+      const firstName = idTokenPayload['given_name'] || idTokenPayload['name'] || '';
+      const lastName = idTokenPayload['family_name'] || '';
+      const userGroups = idTokenPayload['cognito:groups'];
+
+      if (!userEmail) {
+        throw new Error('Email not found in ID attributes');
+      }
+
+      let localUser = await findUserByEmail(userEmail, env);
+      if (!localUser) {
+        localUser = await ensureUser(userEmail, firstName, lastName, env);
+      }
+      const userId = localUser.lookup('id');
+
+      if (userGroups) {
+        await ensureUserRoles(userId, userGroups, env);
+      }
+
+      const localSession = await ensureUserSession(userId, IdToken, AccessToken, RefreshToken, env);
+
+      const sessionInfo: SessionInfo = {
+        sessionId: localSession.lookup('id'),
+        userId: userId,
+        authToken: IdToken,
+        idToken: IdToken,
+        accessToken: AccessToken,
+        refreshToken: RefreshToken,
+        systemSesionInfo: tokenData,
+      };
+
+      logger.info(`Auth callback successful for user ${userEmail}`);
+      cb(sessionInfo);
+    } catch (err: any) {
+      console.log(err);
+      logger.error(`Auth callback failed: ${sanitizeErrorMessage(err.message)}`);
+      handleCognitoError(err, 'callback');
+    }
+  }
+
+  private decodeJwtPayload(token: string): any {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(jsonPayload);
+    } catch (err) {
+      logger.error(`Failed to decode JWT payload: ${err}`);
+      throw new Error('Invalid JWT token');
     }
   }
 }

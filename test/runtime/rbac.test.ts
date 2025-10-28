@@ -1,11 +1,11 @@
 import { parseModule } from "../../src/language/parser.js"
 import { assert, describe, test } from "vitest"
 import { ModuleDefinition } from "../../src/language/generated/ast.js"
-import { assignUserToRole, createUser } from "../../src/runtime/modules/auth.js"
+import { assignUserToRole, createPermission, createUser, ensureUserRoles } from "../../src/runtime/modules/auth.js"
 import { internAndRunModule } from "../../src/cli/main.js"
 import { Environment, parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
 import { Instance, isInstanceOfType } from "../../src/runtime/module.js"
-import { doInternModule, expectError } from "../util.js"
+import { doInitRuntime, doInternModule, expectError } from "../util.js"
 import { callWithRbac } from "../../src/runtime/auth/defs.js"
 
 const mod1 = `module Acme
@@ -150,6 +150,51 @@ describe('RBAC where-clause test', () => {
             chkresult(r, 2, [id1, id2])
             r = await parseAndEvaluateStatement(`{RbacWhere/User? {}}`, id2)
             chkresult(r, 1, [id2])
+        })
+    })
+})
+
+describe('Issue-350', () => {
+    test('Permissions on between', async () => {
+        await doInitRuntime()
+        const managerRole = 'i2350manager'
+        const userId = 'user@i350.com'
+        const tempuser = 'temp@i350.com'
+        let env = new Environment()
+        await createUser(userId, userId, 'User', '01', env)
+        await createUser(tempuser, tempuser, 'User', 'temp', env)
+        await ensureUserRoles(userId, [managerRole], env)
+        await createPermission('i350p1', managerRole, 'agentlang.auth/Role', true, true, true, true, env)
+        await createPermission('i350p2', managerRole, 'agentlang.auth/UserRole', true, true, true, true, env)
+        await createPermission('i350p3', managerRole, 'agentlang.auth/User', true, true, true, true, env)
+        await createPermission('i350p4', managerRole, 'agentlang.auth/RolePermission', true, true, true, true, env)
+        await env.commitAllTransactions()
+        await callWithRbac(async () => {
+            env = new Environment()
+            let r: Instance[] = await parseAndEvaluateStatement(`{agentlang.auth/User? {}}`, userId, env)
+            assert(r.length == 2)
+            const ids = new Set().add(userId).add(tempuser)
+            r.forEach((inst: Instance) => {
+                assert(isInstanceOfType(inst, 'agentlang.auth/User'))
+                const id = inst.lookup('id')
+                assert(ids.has(id))
+                ids.delete(id)
+            })
+            r = await parseAndEvaluateStatement(`{agentlang.auth/User? {}}`, tempuser, env)
+            assert(r.length == 1)
+            assert(r[0].lookup('id') == tempuser)
+            r = await parseAndEvaluateStatement(`{agentlang.auth/RolePermission? {}}`, userId, env)
+            const chk = () => {
+                assert(r.length > 1)
+                assert(r.every((inst: Instance) => {
+                    return isInstanceOfType(inst, 'agentlang.auth/RolePermission')
+                }))
+            }
+            chk()
+            r = await parseAndEvaluateStatement(`{agentlang.auth/RolePermission? {}}`, tempuser, env)
+            assert(r.length == 0)
+            r = await parseAndEvaluateStatement(`{agentlang.auth/ListRolePermissions {}}`, userId, env)
+            chk()
         })
     })
 })

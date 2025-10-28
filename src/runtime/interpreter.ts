@@ -20,6 +20,7 @@ import {
   Pattern,
   Purge,
   RelationshipPattern,
+  Return,
   RuntimeHint,
   SelectIntoEntry,
   SelectIntoSpec,
@@ -27,6 +28,7 @@ import {
   Statement,
 } from '../language/generated/ast.js';
 import {
+  maybeInstanceAsString,
   defineAgentEvent,
   getOneOfRef,
   getRelationship,
@@ -47,14 +49,14 @@ import {
   Relationship,
   Workflow,
 } from './module.js';
-import { JoinInfo, Resolver, ResolverAuthInfo } from './resolvers/interface.js';
+import { JoinInfo, Resolver } from './resolvers/interface.js';
+import { ResolverAuthInfo } from './resolvers/authinfo.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
 import {
   CrudType,
   DefaultModuleName,
   escapeFqName,
   escapeQueryName,
-  escapeSpecialChars,
   fqNameFromPath,
   isFqName,
   isPath,
@@ -64,7 +66,7 @@ import {
   Path,
   QuerySuffix,
   restoreSpecialChars,
-  splitFqName,
+  nameToPath,
   splitRefs,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
@@ -72,7 +74,12 @@ import { parseStatement, parseWorkflow } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 import { AgentInstance, AgentEntityName, AgentFqName, findAgentByName } from './modules/ai.js';
 import { logger } from './logger.js';
-import { ParentAttributeName, PathAttributeName, PathAttributeNameQuery } from './defs.js';
+import {
+  FlowSuspensionTag,
+  ParentAttributeName,
+  PathAttributeName,
+  PathAttributeNameQuery,
+} from './defs.js';
 import {
   addCreateAudit,
   addDeleteAudit,
@@ -84,6 +91,7 @@ import {
 import { invokeModuleFn } from './jsmodules.js';
 import { invokeOpenApiEvent, isOpenApiEventInstance } from './openapi.js';
 import { fetchDoc } from './docs.js';
+import { FlowSpec, FlowStep, getAgentFlow } from './agents/flows.js';
 
 export type Result = any;
 
@@ -129,7 +137,15 @@ export class Environment extends Instance {
   private inDeleteMode: boolean = false;
   private inKernelMode: boolean = false;
   private suspensionId: string | undefined;
+  private preGeneratedSuspensionId: string;
   private activeCatchHandlers: Array<CatchHandlers>;
+  private eventExecutor: Function | undefined = undefined;
+  private statementsExecutor: Function | undefined = undefined;
+  private scratchPad: any = undefined;
+  private agentMode: 'chat' | 'planner' | undefined = undefined;
+  private agentChatId: string | undefined = undefined;
+
+  private activeUserData: any = undefined;
 
   constructor(name?: string, parent?: Environment) {
     super(
@@ -138,7 +154,7 @@ export class Environment extends Instance {
       mkEnvName(name, parent),
       newInstanceAttributes()
     );
-    if (parent != undefined) {
+    if (parent !== undefined) {
       this.parent = parent;
       this.activeModule = parent.activeModule;
       this.activeUser = parent.activeUser;
@@ -151,12 +167,16 @@ export class Environment extends Instance {
       this.inKernelMode = parent.inKernelMode;
       this.activeCatchHandlers = parent.activeCatchHandlers;
       this.suspensionId = parent.suspensionId;
+      this.eventExecutor = parent.eventExecutor;
+      this.agentChatId = parent.agentChatId;
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
       this.activeTransactions = new Map<string, string>();
       this.activeCatchHandlers = new Array<CatchHandlers>();
+      this.attributes.set('process', process);
     }
+    this.preGeneratedSuspensionId = crypto.randomUUID();
   }
 
   static from(
@@ -169,6 +189,7 @@ export class Environment extends Instance {
       env.activeResolvers = new Map<string, Resolver>();
       env.activeTransactions = new Map<string, string>();
       env.activeCatchHandlers = new Array<CatchHandlers>();
+      env.preGeneratedSuspensionId = parent.preGeneratedSuspensionId;
     }
     return env;
   }
@@ -216,8 +237,8 @@ export class Environment extends Instance {
 
   override lookup(k: string): Result {
     const v = this.attributes.get(k);
-    if (v == undefined) {
-      if (this.parent != undefined) {
+    if (v === undefined) {
+      if (this.parent !== undefined) {
         return this.parent.lookup(k);
       } else if (this == GlobalEnvironment) {
         return EmptyResult;
@@ -235,6 +256,63 @@ export class Environment extends Instance {
   bindInstance(inst: Instance): Environment {
     const n: string = inst.name;
     this.attributes.set(n, inst);
+    return this;
+  }
+
+  private static FlowContextTag = 'flow-context';
+
+  setFlowContext(s: string): Environment {
+    this.attributes.set(Environment.FlowContextTag, s);
+    return this;
+  }
+
+  resetFlowContext(): Environment {
+    this.attributes.set(Environment.FlowContextTag, undefined);
+    return this;
+  }
+
+  getFlowContext(): string | undefined {
+    return this.attributes.get(Environment.FlowContextTag);
+  }
+
+  addToScratchPad(k: string, data: any): Environment {
+    if (this.scratchPad === undefined) {
+      this.scratchPad = {};
+    }
+    if (isFqName(k)) {
+      const parts = nameToPath(k);
+      this.scratchPad[parts.getEntryName()] = data;
+    }
+    this.scratchPad[k] = data;
+    return this.addAttributesToScratchPad(data);
+  }
+
+  private addAttributesToScratchPad(data: any): Environment {
+    if (data instanceof Map) {
+      data.forEach((v: any, k: any) => {
+        this.addToScratchPad(k as string, v);
+      });
+    } else if (data instanceof Array) {
+      return this;
+    } else if (data instanceof Object) {
+      Object.keys(data).forEach((k: string) => {
+        this.addToScratchPad(k, data[k]);
+      });
+    }
+    return this;
+  }
+
+  getScratchPad(): any {
+    return this.scratchPad;
+  }
+
+  resetScratchPad(): Environment {
+    this.scratchPad = undefined;
+    return this;
+  }
+
+  setScratchPad(obj: any): Environment {
+    this.scratchPad = obj;
     return this;
   }
 
@@ -277,17 +355,27 @@ export class Environment extends Instance {
   }
 
   isSuspended(): boolean {
-    return this.suspensionId != undefined;
+    return this.suspensionId !== undefined;
   }
 
   suspend(): string {
-    if (this.suspensionId == undefined) {
-      const id = crypto.randomUUID();
+    if (this.suspensionId === undefined) {
+      const id = this.preGeneratedSuspensionId;
       this.propagateSuspension(id);
       return id;
     } else {
       return this.suspensionId;
     }
+  }
+
+  releaseSuspension(): Environment {
+    this.suspensionId = undefined;
+    this.preGeneratedSuspensionId = crypto.randomUUID();
+    return this;
+  }
+
+  fetchSuspensionId(): string {
+    return this.preGeneratedSuspensionId;
   }
 
   markForReturn(): Environment {
@@ -300,6 +388,14 @@ export class Environment extends Instance {
 
   isMarkedForReturn(): boolean {
     return this.returnFlag;
+  }
+
+  propagateLastResult(): Environment {
+    if (this.parent) {
+      this.parent.lastResult = this.lastResult;
+      this.parent.propagateLastResult();
+    }
+    return this;
   }
 
   resetReturnFlag(): Environment {
@@ -541,16 +637,90 @@ export class Environment extends Instance {
 
   popHandlers(): CatchHandlers {
     const r = this.activeCatchHandlers.pop();
-    if (r == undefined) {
+    if (r === undefined) {
       throw new Error(`No more handlers to pop`);
     }
     return r;
+  }
+
+  setEventExecutor(exec: Function): Environment {
+    this.eventExecutor = exec;
+    return this;
+  }
+
+  getEventExecutor(): Function | undefined {
+    return this.eventExecutor;
+  }
+
+  unsetEventExecutor(): Environment {
+    this.eventExecutor = undefined;
+    return this;
+  }
+
+  setStatementsExecutor(f: Function): Environment {
+    this.statementsExecutor = f;
+    return this;
+  }
+
+  getStatementsExecutor(): Function | undefined {
+    return this.statementsExecutor;
+  }
+
+  async callWithStatementsExecutor(exec: Function, f: Function): Promise<any> {
+    const oldExec = this.statementsExecutor;
+    this.statementsExecutor = exec;
+    try {
+      return await f();
+    } finally {
+      this.statementsExecutor = oldExec;
+    }
+  }
+
+  setActiveUserData(data: any): Environment {
+    this.activeUserData = data;
+    return this;
+  }
+
+  getActiveUserData(): any {
+    return this.activeUserData;
+  }
+
+  inChatAgentMode(): Environment {
+    this.agentMode = 'chat';
+    return this;
+  }
+
+  inPlannerAgentMode(): Environment {
+    this.agentMode = 'planner';
+    return this;
+  }
+
+  resetAgentMode(): Environment {
+    this.agentMode = undefined;
+    return this;
+  }
+
+  isInAgentChatMode(): boolean {
+    return this.agentMode === 'chat';
+  }
+
+  isAgentModeSet(): boolean {
+    return this.agentMode !== undefined;
+  }
+
+  setAgentChatId(chatId: string): Environment {
+    this.agentChatId = chatId;
+    return this;
+  }
+
+  getAgentChatId(): string | undefined {
+    return this.agentChatId;
   }
 }
 
 export const GlobalEnvironment = new Environment();
 
-export async function evaluate(
+export let evaluate = async function (
   eventInstance: Instance,
   continuation?: Function,
   activeEnv?: Environment,
@@ -590,7 +760,7 @@ export async function evaluate(
     if (env && env.hasHandlers()) {
       throw err;
     } else {
-      if (env != undefined && activeEnv == undefined) {
+      if (env !== undefined && activeEnv === undefined) {
         await env.rollbackAllTransactions().then(() => {
           txnRolledBack = true;
         });
@@ -598,10 +768,16 @@ export async function evaluate(
       throw err;
     }
   } finally {
-    if (!txnRolledBack && env != undefined && activeEnv == undefined) {
+    if (!txnRolledBack && env !== undefined && activeEnv === undefined) {
       await env.commitAllTransactions();
     }
   }
+};
+
+export function setEvaluateFn(f: any): Function {
+  const oldf = evaluate;
+  evaluate = f;
+  return oldf;
 }
 
 export async function evaluateAsEvent(
@@ -637,27 +813,6 @@ export function makeEventEvaluator(moduleName: string): Function {
   };
 }
 
-function statemtentString(stmt: Statement): string {
-  if (stmt.$cstNode) {
-    return stmt.$cstNode.text;
-  } else {
-    throw new Error(`Failed to fetch text for statement - ${stmt}`);
-  }
-}
-
-async function saveSuspension(cont: Statement[], env: Environment) {
-  if (cont.length > 0) {
-    const suspId = await createSuspension(
-      env.getSuspensionId(),
-      cont.map((stmt: Statement) => {
-        return statemtentString(stmt);
-      }),
-      env
-    );
-    env.setLastResult({ suspension: suspId || 'null' });
-  }
-}
-
 export async function evaluateStatements(
   stmts: Statement[],
   env: Environment,
@@ -670,7 +825,7 @@ export async function evaluateStatements(
       break;
     }
   }
-  if (continuation != undefined) {
+  if (continuation !== undefined) {
     continuation(env.getLastResult());
   }
 }
@@ -686,7 +841,17 @@ async function evaluateAsyncPattern(
     await evaluatePattern(pat, env);
     maybeBindStatementResultToAlias(hints, env);
     if (env.isSuspended()) {
-      await saveSuspension(thenStmts, env);
+      await createSuspension(
+        env.fetchSuspensionId(),
+        thenStmts.map((s: Statement) => {
+          if (s.$cstNode) {
+            return s.$cstNode.text;
+          } else {
+            throw new Error('failed to extract code for suspension statement');
+          }
+        }),
+        env
+      );
     } else {
       await evaluateStatements(thenStmts, env);
     }
@@ -698,7 +863,7 @@ async function evaluateAsyncPattern(
   }
 }
 
-async function evaluateStatement(stmt: Statement, env: Environment): Promise<void> {
+export async function evaluateStatement(stmt: Statement, env: Environment): Promise<void> {
   const hints = stmt.hints;
   const hasHints = hints && hints.length > 0;
   const thenStmts: Statement[] | undefined = hasHints ? maybeFindThenStatements(hints) : undefined;
@@ -711,8 +876,12 @@ async function evaluateStatement(stmt: Statement, env: Environment): Promise<voi
       hints,
       Environment.from(env, env.name + 'async', true)
     );
+    env.setLastResult(env.fetchSuspensionId());
     if (isReturn(stmt.pattern)) {
       env.markForReturn();
+    }
+    if (hasHints) {
+      maybeBindStatementResultToAlias(hints, env);
     }
     return;
   }
@@ -738,13 +907,15 @@ async function evaluateStatement(stmt: Statement, env: Environment): Promise<voi
 async function maybeHandleNotFound(handlers: CatchHandlers | undefined, env: Environment) {
   const lastResult: Result = env.getLastResult();
   if (
-    lastResult == null ||
-    lastResult == undefined ||
+    lastResult === null ||
+    lastResult === undefined ||
     (lastResult instanceof Array && lastResult.length == 0)
   ) {
     const onNotFound = handlers ? handlers.get('not_found') : undefined;
     if (onNotFound) {
-      await evaluateStatement(onNotFound, env);
+      const newEnv = new Environment('not-found-env', env).unsetEventExecutor();
+      await evaluateStatement(onNotFound, newEnv);
+      env.setLastResult(newEnv.getLastResult());
     }
   }
 }
@@ -756,20 +927,22 @@ async function maybeHandleError(
 ) {
   const handler = handlers ? handlers.get('error') : undefined;
   if (handler) {
-    await evaluateStatement(handler, env);
+    const newEnv = new Environment('handler-env', env).unsetEventExecutor();
+    await evaluateStatement(handler, newEnv);
+    env.setLastResult(newEnv.getLastResult());
   } else {
     throw reason;
   }
 }
 
-function maybeBindStatementResultToAlias(hints: RuntimeHint[], env: Environment) {
+export function maybeBindStatementResultToAlias(hints: RuntimeHint[], env: Environment) {
   for (let i = 0; i < hints.length; ++i) {
     const rh = hints[i];
     if (rh.aliasSpec) {
-      if (rh.aliasSpec.alias != undefined || rh.aliasSpec.aliases.length > 0) {
+      if (rh.aliasSpec.alias !== undefined || rh.aliasSpec.aliases.length > 0) {
         const result: Result = env.getLastResult();
         const alias: string | undefined = rh.aliasSpec.alias;
-        if (alias != undefined) {
+        if (alias !== undefined) {
           env.bind(alias, result);
         } else {
           const aliases: string[] = rh.aliasSpec.aliases;
@@ -818,7 +991,7 @@ function maybeFindThenStatements(hints: RuntimeHint[]): Statement[] | undefined 
   return undefined;
 }
 
-export async function parseAndEvaluateStatement(
+export let parseAndEvaluateStatement = async function (
   stmtString: string,
   activeUserId?: string,
   actievEnv?: Environment
@@ -848,25 +1021,75 @@ export async function parseAndEvaluateStatement(
       }
     }
   }
+};
+
+export function setParseAndEvaluateStatementFn(f: any): Function {
+  const oldf = parseAndEvaluateStatement;
+  parseAndEvaluateStatement = f;
+  return oldf;
 }
 
-async function evaluatePattern(pat: Pattern, env: Environment): Promise<void> {
+export async function lookupAllInstances(entityFqName: string): Promise<Instance[]> {
+  return await parseAndEvaluateStatement(`{${entityFqName}? {}}`);
+}
+
+export class PatternHandler {
+  async handleExpression(expr: Expr, env: Environment) {
+    await evaluateExpression(expr, env);
+  }
+
+  async handleCrudMap(crudMap: CrudMap, env: Environment) {
+    await evaluateCrudMap(crudMap, env);
+  }
+
+  async handleForEach(forEach: ForEach, env: Environment) {
+    await evaluateForEach(forEach, env);
+  }
+
+  async handleIf(_if: If, env: Environment) {
+    await evaluateIf(_if, env);
+  }
+
+  async handleDelete(del: Delete, env: Environment) {
+    await evaluateDelete(del, env);
+  }
+
+  async handlePurge(purge: Purge, env: Environment) {
+    await evaluatePurge(purge, env);
+  }
+
+  async handleFullTextSearch(fullTextSearch: FullTextSearch, env: Environment) {
+    await evaluateFullTextSearch(fullTextSearch, env);
+  }
+
+  async handleReturn(ret: Return, env: Environment) {
+    await evaluatePattern(ret.pattern, env);
+  }
+}
+
+const DefaultPatternHandler = new PatternHandler();
+
+export async function evaluatePattern(
+  pat: Pattern,
+  env: Environment,
+  handler: PatternHandler = DefaultPatternHandler
+): Promise<void> {
   if (pat.expr) {
-    await evaluateExpression(pat.expr, env);
+    await handler.handleExpression(pat.expr, env);
   } else if (pat.crudMap) {
-    await evaluateCrudMap(pat.crudMap, env);
+    await handler.handleCrudMap(pat.crudMap, env);
   } else if (pat.forEach) {
-    await evaluateForEach(pat.forEach, env);
+    await handler.handleForEach(pat.forEach, env);
   } else if (pat.if) {
-    await evaluateIf(pat.if, env);
+    await handler.handleIf(pat.if, env);
   } else if (pat.delete) {
-    await evaluateDelete(pat.delete, env);
+    await handler.handleDelete(pat.delete, env);
   } else if (pat.purge) {
-    await evaluatePurge(pat.purge, env);
+    await handler.handlePurge(pat.purge, env);
   } else if (pat.fullTextSearch) {
-    await evaluateFullTextSearch(pat.fullTextSearch, env);
+    await handler.handleFullTextSearch(pat.fullTextSearch, env);
   } else if (pat.return) {
-    await evaluatePattern(pat.return.pat, env);
+    await handler.handleReturn(pat.return, env);
     env.markForReturn();
   }
 }
@@ -881,7 +1104,7 @@ async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Pr
       throw new Error(`Fully qualified name required for full-text-search in ${n}`);
     }
   }
-  const path = splitFqName(n);
+  const path = nameToPath(n);
   const entryName = path.getEntryName();
   const moduleName = path.getModuleName();
   const resolver = await getResolverForPath(entryName, moduleName, env);
@@ -899,21 +1122,21 @@ async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Pr
 }
 
 async function evaluateLiteral(lit: Literal, env: Environment): Promise<void> {
-  if (lit.id != undefined) env.setLastResult(env.lookup(lit.id));
-  else if (lit.ref != undefined) env.setLastResult(await followReference(env, lit.ref));
-  else if (lit.fnCall != undefined) await applyFn(lit.fnCall, env, false);
-  else if (lit.asyncFnCall != undefined) await applyFn(lit.asyncFnCall.fnCall, env, true);
-  else if (lit.array != undefined) await realizeArray(lit.array, env);
-  else if (lit.map != undefined) await realizeMap(lit.map, env);
-  else if (lit.num != undefined) env.setLastResult(lit.num);
-  else if (lit.str != undefined) env.setLastResult(restoreSpecialChars(lit.str));
-  else if (lit.bool != undefined) env.setLastResult(lit.bool == 'true' ? true : false);
+  if (lit.id !== undefined) env.setLastResult(env.lookup(lit.id));
+  else if (lit.ref !== undefined) env.setLastResult(await followReference(env, lit.ref));
+  else if (lit.fnCall !== undefined) await applyFn(lit.fnCall, env, false);
+  else if (lit.asyncFnCall !== undefined) await applyFn(lit.asyncFnCall.fnCall, env, true);
+  else if (lit.array !== undefined) await realizeArray(lit.array, env);
+  else if (lit.map !== undefined) await realizeMap(lit.map, env);
+  else if (lit.num !== undefined) env.setLastResult(lit.num);
+  else if (lit.str !== undefined) env.setLastResult(restoreSpecialChars(lit.str));
+  else if (lit.bool !== undefined) env.setLastResult(lit.bool == 'true' ? true : false);
 }
 
 function getMapKey(k: MapKey): Result {
-  if (k.str != undefined) return k.str;
-  else if (k.num != undefined) return k.num;
-  else if (k.bool != undefined) k.bool == 'true' ? true : false;
+  if (k.str !== undefined) return k.str;
+  else if (k.num !== undefined) return k.num;
+  else if (k.bool !== undefined) return k.bool == 'true' ? true : false;
 }
 
 const DefaultResolverName: string = '-';
@@ -928,15 +1151,15 @@ async function getResolverForPath(
   const fqEntryName: string = isFqName(entryName) ? entryName : makeFqName(moduleName, entryName);
   const resN: string | undefined = getResolverNameForPath(fqEntryName);
   let res: Resolver | undefined;
-  if (resN == undefined) {
+  if (resN === undefined) {
     res = env.getResolver(DefaultResolverName);
-    if (res == undefined) {
+    if (res === undefined) {
       res = new SqlDbResolver(DefaultResolverName);
       await env.addResolver(res);
     }
   } else {
     res = env.getResolver(resN);
-    if (res == undefined) {
+    if (res === undefined) {
       res = getResolver(fqEntryName);
       await env.addResolver(res);
     }
@@ -976,10 +1199,10 @@ async function patternToInstance(
         if (isQueryAll) {
           throw new Error(`Cannot specifiy query attribute ${aname} here`);
         }
-        if (qattrs == undefined) qattrs = newInstanceAttributes();
-        if (qattrVals == undefined) qattrVals = newInstanceAttributes();
+        if (qattrs === undefined) qattrs = newInstanceAttributes();
+        if (qattrVals === undefined) qattrVals = newInstanceAttributes();
         aname = aname.slice(0, aname.length - 1);
-        qattrs.set(aname, a.op == undefined ? '=' : a.op);
+        qattrs.set(aname, a.op === undefined ? '=' : a.op);
         qattrVals.set(aname, v);
       } else {
         attrs.set(aname, v);
@@ -988,7 +1211,7 @@ async function patternToInstance(
   }
   let moduleName = env.getActiveModuleName();
   if (isFqName(entryName)) {
-    const p: Path = splitFqName(entryName);
+    const p: Path = nameToPath(entryName);
     if (p.hasModule()) moduleName = p.getModuleName();
     if (p.hasEntry()) entryName = p.getEntryName();
   }
@@ -1001,7 +1224,7 @@ async function instanceFromSource(crud: CrudMap, env: Environment): Promise<Inst
     const attrsSrc = env.getLastResult();
     if (attrsSrc && attrsSrc instanceof Object) {
       const attrs: InstanceAttributes = new Map(Object.entries(attrsSrc));
-      const nparts = splitFqName(crud.name);
+      const nparts = nameToPath(crud.name);
       const n = nparts.getEntryName();
       const m = nparts.hasModule() ? nparts.getModuleName() : env.getActiveModuleName();
       return makeInstance(m, n, attrs);
@@ -1021,7 +1244,7 @@ async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
   for (let i = 0; i < attrs.length; ++i) {
     const n = attrs[i];
     const v = inst.lookup(n);
-    if (v == undefined) continue;
+    if (v === undefined) continue;
     const attrSpec = inst.record.schema.get(n);
     if (!attrSpec) continue;
     const r = getOneOfRef(attrSpec);
@@ -1066,14 +1289,14 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         `Query pattern for ${entryName} with 'into' clause cannot be used to update attributes`
       );
     }
-    if (qattrs == undefined && !isQueryAll) {
+    if (qattrs === undefined && !isQueryAll) {
       throw new Error(`Pattern for ${entryName} with 'into' clause must be a query`);
     }
     await evaluateJoinQuery(crud.into, inst, crud.relationships, distinct, env);
     return;
   }
   if (isEntityInstance(inst) || isBetweenRelationship(inst.name, inst.moduleName)) {
-    if (qattrs == undefined && !isQueryAll) {
+    if (qattrs === undefined && !isQueryAll) {
       const parentPath: string | undefined = env.getParentPath();
       if (parentPath) {
         inst.attributes.set(PathAttributeName, parentPath);
@@ -1081,7 +1304,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
       let r: Instance | undefined;
-      await computeExprAttributes(inst, env);
+      await computeExprAttributes(inst, undefined, undefined, env);
       if (env.isInUpsertMode()) {
         await runPreUpdateEvents(inst, env);
         r = await res.upsertInstance(inst);
@@ -1092,8 +1315,8 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         r = await res.createInstance(inst);
         await runPostCreateEvents(inst, env);
       }
-      if (r && entryName == AgentEntityName) {
-        defineAgentEvent(env.getActiveModuleName(), r.lookup('name'));
+      if (r && entryName == AgentEntityName && inst.moduleName == CoreAIModuleName) {
+        defineAgentEvent(env.getActiveModuleName(), r.lookup('name'), r.lookup('instruction'));
       }
       env.setLastResult(r);
       const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
@@ -1105,7 +1328,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           env.isInUpsertMode()
         );
       }
-      if (crud.relationships != undefined) {
+      if (crud.relationships !== undefined) {
         for (let i = 0; i < crud.relationships.length; ++i) {
           const rel: RelationshipPattern = crud.relationships[i];
           const relEntry: Relationship = getRelationship(rel.name, moduleName);
@@ -1132,11 +1355,11 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
       const isReadForUpdate = attrs.size > 0;
       let res: Resolver = Resolver.Default;
-      if (parentPath != undefined) {
+      if (parentPath !== undefined) {
         res = await getResolverForPath(inst.name, inst.moduleName, env);
         const insts: Instance[] = await res.queryChildInstances(parentPath, inst);
         env.setLastResult(insts);
-      } else if (betRelInfo != undefined) {
+      } else if (betRelInfo !== undefined) {
         res = await getResolverForPath(
           betRelInfo.relationship.name,
           betRelInfo.relationship.moduleName,
@@ -1159,7 +1382,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         const insts: Instance[] = await res.queryInstances(inst, isQueryAll, distinct);
         env.setLastResult(insts);
       }
-      if (crud.relationships != undefined) {
+      if (crud.relationships !== undefined) {
         const lastRes: Instance[] = env.getLastResult();
         for (let i = 0; i < crud.relationships.length; ++i) {
           const rel: RelationshipPattern = crud.relationships[i];
@@ -1198,7 +1421,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             );
             const res: Array<Instance> = new Array<Instance>();
             for (let i = 0; i < lastRes.length; ++i) {
-              await computeExprAttributes(lastRes[i], env);
+              await computeExprAttributes(lastRes[i], crud.body?.attributes, attrs, env);
               await runPreUpdateEvents(lastRes[i], env);
               const finalInst: Instance = await resolver.updateInstance(lastRes[i], attrs);
               await runPostUpdateEvents(finalInst, lastRes[i], env);
@@ -1210,7 +1433,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           }
         } else {
           const res: Resolver = await getResolverForPath(lastRes.name, lastRes.moduleName, env);
-          await computeExprAttributes(lastRes, env);
+          await computeExprAttributes(lastRes, crud.body?.attributes, attrs, env);
           await runPreUpdateEvents(lastRes, env);
           const finalInst: Instance = await res.updateInstance(lastRes, attrs);
           await runPostUpdateEvents(finalInst, lastRes, env);
@@ -1223,7 +1446,14 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
     else if (isDocEventInstance(inst)) await handleDocEvent(inst, env);
     else {
-      await evaluate(inst, (result: Result) => env.setLastResult(result), env);
+      const eventExec = env.getEventExecutor();
+      const newEnv = new Environment(`${inst.name}.env`, env);
+      if (eventExec) {
+        await eventExec(inst, newEnv);
+        env.setLastResult(newEnv.getLastResult());
+      } else {
+        await evaluate(inst, (result: Result) => env.setLastResult(result), newEnv);
+      }
       env.resetReturnFlag();
     }
   } else {
@@ -1232,7 +1462,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
 }
 
 const CoreAIModuleName = makeCoreModuleName('ai');
-const DocEventName = `${CoreAIModuleName}/doc`;
+export const DocEventName = `${CoreAIModuleName}/doc`;
 
 function isDocEventInstance(inst: Instance): boolean {
   return isInstanceOfType(inst, DocEventName);
@@ -1272,7 +1502,7 @@ function triggerTimer(timerInst: Instance): Instance {
       break;
     }
   }
-  const eventName = splitFqName(timerInst.lookup('trigger'));
+  const eventName = nameToPath(timerInst.lookup('trigger'));
   const m = eventName.hasModule() ? eventName.getModuleName() : timerInst.moduleName;
   const n = eventName.getEntryName();
   const inst = makeInstance(m, n, newInstanceAttributes());
@@ -1295,22 +1525,45 @@ function triggerTimer(timerInst: Instance): Instance {
   return timerInst;
 }
 
-async function computeExprAttributes(inst: Instance, env: Environment) {
+async function computeExprAttributes(
+  inst: Instance,
+  origAttrs: SetAttribute[] | undefined,
+  updatedAttrs: InstanceAttributes | undefined,
+  env: Environment
+) {
   const exprAttrs = inst.getExprAttributes();
-  if (exprAttrs) {
+  if (exprAttrs || origAttrs) {
     const newEnv = new Environment('expr-env', env);
     inst.attributes.forEach((v: any, k: string) => {
-      newEnv.bind(k, v);
+      if (v !== undefined) newEnv.bind(k, v);
     });
-    const ks = [...exprAttrs.keys()];
-    for (let i = 0; i < ks.length; ++i) {
-      const n = ks[i];
-      const expr: Expr | undefined = exprAttrs.get(n);
-      if (expr) {
-        await evaluateExpression(expr, newEnv);
-        const v: Result = newEnv.getLastResult();
-        newEnv.bind(n, v);
-        inst.attributes.set(n, v);
+    updatedAttrs?.forEach((v: any, k: string) => {
+      if (v !== undefined) newEnv.bind(k, v);
+    });
+    if (exprAttrs) {
+      const ks = [...exprAttrs.keys()];
+      for (let i = 0; i < ks.length; ++i) {
+        const n = ks[i];
+        const expr: Expr | undefined = exprAttrs.get(n);
+        if (expr) {
+          await evaluateExpression(expr, newEnv);
+          const v: Result = newEnv.getLastResult();
+          newEnv.bind(n, v);
+          inst.attributes.set(n, v);
+          updatedAttrs?.set(n, v);
+        }
+      }
+    }
+    if (origAttrs && updatedAttrs) {
+      for (let i = 0; i < origAttrs.length; ++i) {
+        const a: SetAttribute = origAttrs[i];
+        const n = a.name;
+        if (!n.endsWith(QuerySuffix) && updatedAttrs.has(n)) {
+          await evaluateExpression(a.value, newEnv);
+          const v: Result = newEnv.getLastResult();
+          updatedAttrs.set(n, v);
+          newEnv.bind(n, v);
+        }
       }
     }
   }
@@ -1334,7 +1587,31 @@ async function evaluateJoinQuery(
   }
   const resolver = await getResolverForPath(inst.name, moduleName, env);
   const result: Result = await resolver.queryByJoin(inst, joinsSpec, normIntoSpec, distinct);
-  env.setLastResult(result);
+
+  const transformedResult = transformDateFieldsInJoinResult(result);
+
+  env.setLastResult(transformedResult);
+}
+
+function transformDateFieldsInJoinResult(result: any): any {
+  if (!result || !Array.isArray(result)) {
+    return result;
+  }
+  return result.map((row: any) => {
+    if (typeof row !== 'object' || row === null) {
+      return row;
+    }
+
+    for (const [key, value] of Object.entries(row)) {
+      if (value && value instanceof Date) {
+        if (value instanceof Date) {
+          row[key] = value.toLocaleDateString('en-CA');
+        }
+      }
+    }
+
+    return row;
+  });
 }
 
 async function walkJoinQueryPattern(
@@ -1365,19 +1642,29 @@ async function walkJoinQueryPattern(
 
 const MAX_PLANNER_RETRIES = 3;
 
-async function handleAgentInvocation(agentEventInst: Instance, env: Environment): Promise<void> {
-  const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
-  const origMsg: any = agentEventInst.lookup('message');
-  const msg: string = isString(origMsg) ? origMsg : agentInputAsString(origMsg);
+async function agentInvoke(agent: AgentInstance, msg: string, env: Environment): Promise<void> {
+  const flowContext = env.getFlowContext();
+  msg = flowContext ? `${msg}\nContext:\n${flowContext}` : msg;
+
+  // log invocation details
+  let invokeDebugMsg = `\nInvoking agent ${agent.name}:`;
+  if (agent.role) {
+    invokeDebugMsg = `${invokeDebugMsg} Role=${agent.role}`;
+  }
+  console.debug(invokeDebugMsg);
+  invokeDebugMsg = `\nMessage=${msg}`;
+  console.debug(invokeDebugMsg);
+  //
+
   await agent.invoke(msg, env);
-  const r: string | undefined = env.getLastResult();
-  const isPlanner = agent.isPlanner();
-  let result: string | undefined = isPlanner ? cleanupAgentResponse(r) : r;
+  let result: string | undefined = env.getLastResult();
+  logger.debug(`Agent ${agent.name} result: ${result}`);
+  const isPlanner = !env.isInAgentChatMode() && agent.isPlanner();
+  const stmtsExec = env.getStatementsExecutor();
   if (result) {
     if (isPlanner) {
       let retries = 0;
       while (true) {
-        logger.debug(`Agent ${agent.name} generated pattern: ${result}`);
         try {
           let rs: string = result ? result.trim() : '';
           let isWf = rs.startsWith('workflow');
@@ -1396,16 +1683,29 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
           }
           if (isWf) {
             const wf = await parseWorkflow(rs);
-            await evaluateStatements(wf.statements, env);
+            if (stmtsExec) {
+              await stmtsExec(wf.statements, env);
+            } else {
+              await evaluateStatements(wf.statements, env);
+            }
           } else {
-            env.setLastResult(await parseAndEvaluateStatement(rs, undefined, env));
+            if (stmtsExec) {
+              const stmt = await parseStatement(rs);
+              env.setLastResult(await stmtsExec([stmt], env));
+            } else {
+              env.setLastResult(await parseAndEvaluateStatement(rs, undefined, env));
+            }
           }
+          agent.maybeAddScratchData(env);
           break;
         } catch (err: any) {
           if (retries < MAX_PLANNER_RETRIES) {
-            await agent.invoke(`Please fix these errors:\n ${err}`, env);
+            await agent.invoke(
+              `For my previouns request <${msg}>, you generated this pattern: ${result}. It had these errors: ${err}. Please fix these errors.`,
+              env
+            );
             const r: string | undefined = env.getLastResult();
-            result = cleanupAgentResponse(r);
+            result = r;
             ++retries;
           } else {
             logger.error(
@@ -1415,72 +1715,173 @@ async function handleAgentInvocation(agentEventInst: Instance, env: Environment)
           }
         }
       }
-    }
-    if (agent.output) {
-      await pushToAgent(agent.output, env.getLastResult(), env);
-    }
-  } else {
-    logger.warn(`Agent ${agent.name} failed to generate a response`);
-  }
-}
-
-function agentInputAsString(result: any): string {
-  if (!isString(result)) {
-    if (result instanceof Instance) {
-      const inst = result as Instance;
-      return JSON.stringify(inst.asSerializableObject());
-    } else if (result instanceof Array) {
-      return `[${(result as Array<any>)
-        .map((r: any) => {
-          return agentInputAsString(r);
-        })
-        .join(',')}]`;
     } else {
-      return JSON.stringify(result);
-    }
-  }
-  return result;
-}
-
-async function pushToAgent(agentName: string, result: any, env: Environment) {
-  const r = escapeSpecialChars(agentInputAsString(result));
-  const pat = `{${agentName} {message "\n${r}"}}`;
-  env.setLastResult(await parseAndEvaluateStatement(pat, undefined, env));
-}
-
-function cleanupAgentResponse(response: string | undefined): string | undefined {
-  if (response) {
-    const resp = response.trim();
-    if (resp.startsWith('[') && resp.endsWith(']')) {
-      return resp;
-    }
-    const parts = resp.split('\n');
-    const validated = parts.filter((s: string) => {
-      let stmt = s.trim();
-      if (stmt.endsWith(',')) {
-        stmt = `${stmt.substring(0, stmt.length - 1)};`;
+      let retries = 0;
+      while (true) {
+        try {
+          const obj = agent.maybeValidateJsonResponse(result);
+          if (obj !== undefined) {
+            env.setLastResult(obj);
+            env.addToScratchPad(agent.getFqName(), obj);
+          }
+          break;
+        } catch (err: any) {
+          if (retries < MAX_PLANNER_RETRIES) {
+            await agent.invoke(`Please fix these errors:\n ${err}`, env);
+            const r: string | undefined = env.getLastResult();
+            result = r;
+            ++retries;
+          } else {
+            logger.error(
+              `Failed to validate JSON response generated by agent ${agent.name} - ${result}, ${err}`
+            );
+            break;
+          }
+        }
       }
-      const r =
-        stmt.startsWith('{') ||
-        stmt.startsWith('}') ||
-        stmt.startsWith('if') ||
-        stmt.startsWith('for') ||
-        stmt.startsWith('delete') ||
-        stmt.startsWith('workflow');
-      if (!r) {
-        const i = stmt.indexOf('(');
-        return i > 0 && stmt.indexOf(')') > i;
-      } else {
-        return r;
-      }
-    });
-    return validated.join('\n');
+    }
   } else {
-    return response;
+    throw new Error(`Agent ${agent.name} failed to generate a response`);
   }
 }
 
-async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
+export async function handleAgentInvocation(
+  agentEventInst: Instance,
+  env: Environment
+): Promise<void> {
+  const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
+  const origMsg: any = agentEventInst.lookup('message');
+  const msg: string = isString(origMsg) ? origMsg : maybeInstanceAsString(origMsg);
+  const flow = getAgentFlow(agent.name, agent.moduleName);
+  if (flow) {
+    await handleAgentInvocationWithFlow(agent, flow, msg, env);
+  } else {
+    const mode = agentEventInst.lookup('mode');
+    let activeEnv = env;
+    const chatId = agentEventInst.lookup('chatId');
+    if (chatId !== undefined) {
+      activeEnv.setAgentChatId(chatId);
+    }
+    let envChanged = false;
+    if (mode !== undefined) {
+      if (mode === 'chat') {
+        activeEnv = new Environment(`${env.name}.chat`, env).inChatAgentMode();
+        envChanged = true;
+      } else if (mode === 'planner') {
+        activeEnv = new Environment(`${env.name}.planner`, env).inPlannerAgentMode();
+        envChanged = true;
+      }
+    }
+    await agentInvoke(agent, msg, activeEnv).catch((reason: any) => {
+      logger.warn(reason);
+    });
+    if (envChanged) {
+      env.setLastResult(activeEnv.getLastResult());
+    }
+  }
+}
+
+async function handleAgentInvocationWithFlow(
+  rootAgent: AgentInstance,
+  flow: FlowSpec,
+  msg: string,
+  env: Environment
+): Promise<void> {
+  rootAgent.markAsFlowExecutor();
+  await iterateOnFlow(flow, rootAgent, msg, env);
+  env.resetScratchPad();
+}
+
+async function saveFlowSuspension(
+  agent: AgentInstance,
+  context: string,
+  step: FlowStep,
+  env: Environment
+): Promise<void> {
+  const spad = env.getScratchPad() || {};
+  const suspId = await createSuspension(
+    env.getSuspensionId(),
+    [FlowSuspensionTag, agent.name, step, context, JSON.stringify(spad)],
+    env
+  );
+  env.setLastResult({ suspension: suspId || 'null' });
+}
+
+export async function restartFlow(
+  flowContext: string[],
+  userData: string,
+  env: Environment
+): Promise<void> {
+  const [_, agentName, step, ctx, spad] = flowContext;
+  const rootAgent: AgentInstance = await findAgentByName(agentName, env);
+  const flow = getAgentFlow(agentName, rootAgent.moduleName);
+  if (flow) {
+    const newCtx = `${ctx}\n${step} --> ${userData}\n`;
+    env.setScratchPad(JSON.parse(spad));
+    await iterateOnFlow(flow, rootAgent, newCtx, env);
+  }
+}
+
+const MaxFlowSteps = 25;
+
+async function iterateOnFlow(
+  flow: FlowSpec,
+  rootAgent: AgentInstance,
+  msg: string,
+  env: Environment
+): Promise<void> {
+  rootAgent.disableSession();
+  const initContext = msg;
+  const s = `Now consider the following flowchart:\n${flow}\n
+  If you understand from the context that a step with no further possible steps has been evaluated,
+  terminate the flowchart by returning DONE. Never return to the top or root step of the flowchart, instead return DONE.\n`;
+  env.setFlowContext(initContext);
+  await agentInvoke(rootAgent, s, env);
+  let step = env.getLastResult().trim();
+  let context = initContext;
+  let stepc = 0;
+  const iterId = crypto.randomUUID();
+  console.debug(`Starting iteration ${iterId} on flow: ${flow}`);
+  const executedSteps = new Set<string>();
+  while (step != 'DONE' && !executedSteps.has(step)) {
+    if (stepc > MaxFlowSteps) {
+      throw new Error(`Flow execution exceeded maximum steps limit`);
+    }
+    executedSteps.add(step);
+    ++stepc;
+    const agent = AgentInstance.FromFlowStep(step, rootAgent, context);
+    console.debug(`\n---------------------------------------------------\n`);
+    console.debug(
+      `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
+    );
+    const isfxc = agent.isFlowExecutor();
+    if (isfxc || agent.isDecisionExecutor()) env.setFlowContext(context);
+    else env.setFlowContext(initContext);
+    await agentInvoke(agent, '', env);
+    if (env.isSuspended()) {
+      console.debug(`${iterId} suspending iteration on step ${step}`);
+      await saveFlowSuspension(rootAgent, context, step, env);
+      env.releaseSuspension();
+      return;
+    }
+    const r = env.getLastResult();
+    const rs = maybeInstanceAsString(r);
+    console.debug(
+      `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
+    );
+    context = `${context}\n${step} --> ${rs}\n`;
+    if (isfxc) {
+      step = rs.trim();
+    } else {
+      env.setFlowContext(context);
+      await agentInvoke(rootAgent, `${s}\n${context}`, env);
+      step = env.getLastResult().trim();
+    }
+  }
+  console.debug(`No more flow steps, completed iteration ${iterId} on flow:\n${flow}`);
+}
+
+export async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
   const r = await invokeOpenApiEvent(
     eventInst.moduleName,
     eventInst.name,
@@ -1520,7 +1921,7 @@ async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
   await evaluateExpression(ifStmt.cond, env);
   if (env.getLastResult()) {
     await evaluateStatements(ifStmt.statements, env);
-  } else if (ifStmt.else != undefined) {
+  } else if (ifStmt.else !== undefined) {
     await evaluateStatements(ifStmt.else.statements, env);
   }
 }
@@ -1532,11 +1933,19 @@ async function evaluateDeleteHelper(
 ): Promise<void> {
   const newEnv = Environment.from(env).setInDeleteMode(true);
   await evaluatePattern(pattern, newEnv);
-  const inst: Instance[] | Instance = newEnv.getLastResult();
+  await maybeDeleteQueriedInstances(newEnv, env, purge);
+}
+
+export async function maybeDeleteQueriedInstances(
+  queryEnv: Environment,
+  env: Environment,
+  purge: boolean = false
+): Promise<void> {
+  const inst: Instance[] | Instance = queryEnv.getLastResult();
   let resolver: Resolver = Resolver.Default;
   if (inst instanceof Array) {
     if (inst.length > 0) {
-      resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, newEnv);
+      resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, queryEnv);
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
         await runPreDeleteEvents(inst[i], env);
@@ -1544,18 +1953,18 @@ async function evaluateDeleteHelper(
         await runPostDeleteEvents(inst[i], env);
         finalResult.push(r);
       }
-      newEnv.setLastResult(finalResult);
+      queryEnv.setLastResult(finalResult);
     } else {
-      newEnv.setLastResult(inst);
+      queryEnv.setLastResult(inst);
     }
   } else {
-    resolver = await getResolverForPath(inst.name, inst.moduleName, newEnv);
+    resolver = await getResolverForPath(inst.name, inst.moduleName, queryEnv);
     await runPreDeleteEvents(inst, env);
     const r: Instance | null = await resolver.deleteInstance(inst, purge);
     await runPostDeleteEvents(inst, env);
-    newEnv.setLastResult(r);
+    queryEnv.setLastResult(r);
   }
-  env.setLastResult(newEnv.getLastResult());
+  env.setLastResult(queryEnv.getLastResult());
 }
 
 async function evaluateDelete(delStmt: Delete, env: Environment): Promise<void> {
@@ -1566,7 +1975,7 @@ async function evaluatePurge(purgeStmt: Purge, env: Environment): Promise<void> 
   await evaluateDeleteHelper(purgeStmt.pattern, true, env);
 }
 
-async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
+export async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
   let result: Result = EmptyResult;
   if (isBinExpr(expr)) {
     await evaluateExpression(expr.e1, env);
@@ -1580,8 +1989,16 @@ async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
       await evaluateExpression(expr.e2, env);
       return;
     }
+    if (v1 === null || v1 === undefined) {
+      env.setLastResult(undefined);
+      return;
+    }
     await evaluateExpression(expr.e2, env);
     const v2 = env.getLastResult();
+    if (v2 === null || v2 === undefined) {
+      env.setLastResult(undefined);
+      return;
+    }
     switch (expr.op) {
       // arithmetic operators
       case '+':
@@ -1597,7 +2014,7 @@ async function evaluateExpression(expr: Expr, env: Environment): Promise<void> {
         result = v1 / v2;
         break;
       // comparison operators
-      case '=':
+      case '==':
         result = v1 == v2;
         break;
       case '<':
@@ -1658,7 +2075,7 @@ async function followReference(env: Environment, s: string): Promise<Result> {
   for (let i = 0; i < refs.length; ++i) {
     const r: string = refs[i];
     const v: Result | undefined = await getRef(r, src, env);
-    if (v == undefined) return EmptyResult;
+    if (v === undefined) return EmptyResult;
     result = v;
     src = result;
   }
@@ -1667,7 +2084,7 @@ async function followReference(env: Environment, s: string): Promise<Result> {
 
 async function dereferencePath(path: string, env: Environment): Promise<Result> {
   const fqName = fqNameFromPath(path);
-  if (fqName == undefined) {
+  if (fqName === undefined) {
     throw new Error(`Failed to deduce entry-name from path - ${path}`);
   }
   const newEnv = new Environment('path-deref', env);
@@ -1685,9 +2102,9 @@ async function dereferencePath(path: string, env: Environment): Promise<Result> 
 
 async function applyFn(fnCall: FnCall, env: Environment, isAsync: boolean): Promise<void> {
   const fnName: string | undefined = fnCall.name;
-  if (fnName != undefined) {
+  if (fnName !== undefined) {
     let args: Array<Result> | null = null;
-    if (fnCall.args != undefined) {
+    if (fnCall.args !== undefined) {
       args = new Array<Result>();
       for (let i = 0; i < fnCall.args.length; ++i) {
         const arg = fnCall.args[i];
@@ -1745,7 +2162,7 @@ async function runPrePostEvents(
     ? inst.record.getPreTriggerInfo(crudType)
     : inst.record.getPostTriggerInfo(crudType);
   if (trigInfo) {
-    const p = splitFqName(trigInfo.eventName);
+    const p = nameToPath(trigInfo.eventName);
     const moduleName = p.hasModule() ? p.getModuleName() : inst.record.moduleName;
     const eventInst: Instance = makeInstance(
       moduleName,
@@ -1766,20 +2183,22 @@ async function runPrePostEvents(
       }
     };
     if (trigInfo.async) {
-      const newEnv = new Environment('async.prepost.env');
-      evaluate(eventInst, callback, bindAliasesForPrePost(newEnv, inst)).catch(catchHandler);
+      evaluate(eventInst, callback, bindAliasesForPrePost(env, inst, prefix)).catch(catchHandler);
     } else {
-      env.bind('this', inst);
-      await evaluate(eventInst, callback, bindAliasesForPrePost(env, inst)).catch(catchHandler);
+      await evaluate(eventInst, callback, bindAliasesForPrePost(env, inst, prefix)).catch(
+        catchHandler
+      );
     }
   }
 }
 
-function bindAliasesForPrePost(env: Environment, inst: Instance): Environment {
+function bindAliasesForPrePost(env: Environment, inst: Instance, prefix: string): Environment {
+  const newEnv = new Environment(`${prefix}.env`, env);
   const fullAlias = inst.getFqName();
-  env.bind('this', inst);
-  env.bind(fullAlias, inst);
-  return env;
+  newEnv.bind('this', inst);
+  newEnv.bind(fullAlias, inst);
+  newEnv.bind(inst.name, inst);
+  return newEnv;
 }
 
 async function runPreCreateEvents(inst: Instance, env: Environment) {

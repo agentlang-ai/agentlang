@@ -3,6 +3,8 @@ import { Environment } from '../interpreter.js';
 export type UserInfo = {
   id: string; // a UUID
   username: string;
+  firstName: string;
+  lastName: string;
   systemUserInfo?: any;
 };
 
@@ -19,6 +21,16 @@ export type SessionInfo = {
 export type SignUpCallback = (userInfo: UserInfo) => void;
 export type LoginCallback = (sessionInfo: SessionInfo) => void;
 export type LogoutCallback = (status: boolean) => void;
+export type InviteUserCallback = (invitationInfo: InvitationInfo) => void;
+
+export type InvitationInfo = {
+  email: string;
+  firstName: string;
+  lastName: string;
+  tempPassword?: string;
+  invitationId?: string;
+  systemInvitationInfo?: any;
+};
 
 export interface AgentlangAuth {
   signUp(
@@ -51,4 +63,19 @@ export interface AgentlangAuth {
     env: Environment
   ): Promise<boolean>;
   refreshToken(refreshToken: string, env: Environment): Promise<SessionInfo>;
+  inviteUser(
+    email: string,
+    firstName: string,
+    lastName: string,
+    userData: Map<string, any> | undefined,
+    env: Environment,
+    cb: InviteUserCallback
+  ): Promise<void>;
+  acceptInvitation(
+    email: string,
+    tempPassword: string,
+    newPassword: string,
+    env: Environment
+  ): Promise<void>;
+  callback(code: string, env: Environment, cb: LoginCallback): Promise<void>;
 }

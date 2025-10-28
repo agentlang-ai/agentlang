@@ -25,6 +25,7 @@ export type AgentlangKeywordNames =
     | "+"
     | ","
     | "-"
+    | "-->"
     | "."
     | "/"
     | ":"
@@ -33,6 +34,7 @@ export type AgentlangKeywordNames =
     | "<="
     | "<>"
     | "="
+    | "=="
     | ">"
     | ">="
     | "?"
@@ -50,6 +52,7 @@ export type AgentlangKeywordNames =
     | "@into"
     | "@meta"
     | "@oneof"
+    | "@public"
     | "@rbac"
     | "@ref"
     | "@then"
@@ -62,16 +65,22 @@ export type AgentlangKeywordNames =
     | "and"
     | "await"
     | "between"
+    | "case"
+    | "commitTransaction"
     | "contains"
     | "create"
+    | "decision"
     | "delete"
+    | "directive"
     | "else"
     | "entity"
     | "error"
     | "event"
     | "extends"
     | "false"
+    | "flow"
     | "for"
+    | "glossaryEntry"
     | "if"
     | "import"
     | "in"
@@ -89,6 +98,9 @@ export type AgentlangKeywordNames =
     | "resolver"
     | "return"
     | "roles"
+    | "rollbackTransaction"
+    | "scenario"
+    | "startTransaction"
     | "subscribe"
     | "true"
     | "update"
@@ -120,7 +132,7 @@ export function isDecimal(item: unknown): item is Decimal {
     return typeof item === 'number';
 }
 
-export type Definition = AgentDefinition | RelationshipDefinition | ResolverDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
+export type Definition = AgentDefinition | DecisionDefinition | DirectiveDefinition | FlowDefinition | GlossaryEntryDefinition | PublicAgentDefinition | PublicWorkflowDefinition | RelationshipDefinition | ResolverDefinition | ScenarioDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = 'Definition';
 
@@ -168,7 +180,7 @@ export function isRef(item: unknown): item is Ref {
     return typeof item === 'string';
 }
 
-export type SchemaDefinition = EntityDefinition | EventDefinition | RecordDefinition;
+export type SchemaDefinition = EntityDefinition | EventDefinition | PublicEventDefinition | RecordDefinition;
 
 export const SchemaDefinition = 'SchemaDefinition';
 
@@ -219,22 +231,10 @@ export function isAfterTriggerDefinition(item: unknown): item is AfterTriggerDef
     return reflection.isInstance(item, AfterTriggerDefinition);
 }
 
-export interface AgentDefBody extends langium.AstNode {
-    readonly $container: AgentDefinition;
-    readonly $type: 'AgentDefBody';
-    attributes: Array<AgentPropertyDef>;
-}
-
-export const AgentDefBody = 'AgentDefBody';
-
-export function isAgentDefBody(item: unknown): item is AgentDefBody {
-    return reflection.isInstance(item, AgentDefBody);
-}
-
 export interface AgentDefinition extends langium.AstNode {
-    readonly $container: ModuleDefinition;
+    readonly $container: ModuleDefinition | PublicAgentDefinition;
     readonly $type: 'AgentDefinition';
-    body?: AgentDefBody;
+    body?: GenericDefBody;
     name: GenericName;
 }
 
@@ -244,17 +244,29 @@ export function isAgentDefinition(item: unknown): item is AgentDefinition {
     return reflection.isInstance(item, AgentDefinition);
 }
 
-export interface AgentPropertyDef extends langium.AstNode {
-    readonly $container: AgentDefBody;
-    readonly $type: 'AgentPropertyDef';
+export interface AgentXtraAttribute extends langium.AstNode {
+    readonly $container: AgentXtraSpec;
+    readonly $type: 'AgentXtraAttribute' | 'Ref';
     name: string;
-    value: Literal;
+    value: string;
 }
 
-export const AgentPropertyDef = 'AgentPropertyDef';
+export const AgentXtraAttribute = 'AgentXtraAttribute';
 
-export function isAgentPropertyDef(item: unknown): item is AgentPropertyDef {
-    return reflection.isInstance(item, AgentPropertyDef);
+export function isAgentXtraAttribute(item: unknown): item is AgentXtraAttribute {
+    return reflection.isInstance(item, AgentXtraAttribute);
+}
+
+export interface AgentXtraSpec extends langium.AstNode {
+    readonly $container: GlossaryEntryDefinition;
+    readonly $type: 'AgentXtraSpec';
+    attributes: Array<AgentXtraAttribute>;
+}
+
+export const AgentXtraSpec = 'AgentXtraSpec';
+
+export function isAgentXtraSpec(item: unknown): item is AgentXtraSpec {
+    return reflection.isInstance(item, AgentXtraSpec);
 }
 
 export interface AliasSpec extends langium.AstNode {
@@ -326,17 +338,30 @@ export function isBeforeTriggerDefinition(item: unknown): item is BeforeTriggerD
 }
 
 export interface BinExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'BinExpr';
     e1: Expr | PrimExpr;
     e2: Expr | PrimExpr;
-    op: '!=' | '*' | '+' | '-' | '/' | '<' | '<=' | '<>' | '=' | '>' | '>=' | 'and' | 'in' | 'like' | 'or';
+    op: '!=' | '*' | '+' | '-' | '/' | '<' | '<=' | '<>' | '==' | '>' | '>=' | 'and' | 'in' | 'like' | 'or';
 }
 
 export const BinExpr = 'BinExpr';
 
 export function isBinExpr(item: unknown): item is BinExpr {
     return reflection.isInstance(item, BinExpr);
+}
+
+export interface CaseEntry extends langium.AstNode {
+    readonly $container: DecisionDefBody;
+    readonly $type: 'CaseEntry';
+    cond: Expr;
+    statements: Array<Statement>;
+}
+
+export const CaseEntry = 'CaseEntry';
+
+export function isCaseEntry(item: unknown): item is CaseEntry {
+    return reflection.isInstance(item, CaseEntry);
 }
 
 export interface CatchSpec extends langium.AstNode {
@@ -361,6 +386,19 @@ export const CompositeUniqueDefinition = 'CompositeUniqueDefinition';
 
 export function isCompositeUniqueDefinition(item: unknown): item is CompositeUniqueDefinition {
     return reflection.isInstance(item, CompositeUniqueDefinition);
+}
+
+export interface ConditionalFlowStep extends langium.AstNode {
+    readonly $container: FlowEntry;
+    readonly $type: 'ConditionalFlowStep';
+    expr: string;
+    next: GenericName;
+}
+
+export const ConditionalFlowStep = 'ConditionalFlowStep';
+
+export function isConditionalFlowStep(item: unknown): item is ConditionalFlowStep {
+    return reflection.isInstance(item, ConditionalFlowStep);
 }
 
 export interface CrudMap extends langium.AstNode {
@@ -394,6 +432,31 @@ export function isCrudMapBody(item: unknown): item is CrudMapBody {
     return reflection.isInstance(item, CrudMapBody);
 }
 
+export interface DecisionDefBody extends langium.AstNode {
+    readonly $container: DecisionDefinition;
+    readonly $type: 'DecisionDefBody';
+    cases: Array<CaseEntry>;
+}
+
+export const DecisionDefBody = 'DecisionDefBody';
+
+export function isDecisionDefBody(item: unknown): item is DecisionDefBody {
+    return reflection.isInstance(item, DecisionDefBody);
+}
+
+export interface DecisionDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'DecisionDefinition';
+    body?: DecisionDefBody;
+    name: GenericName;
+}
+
+export const DecisionDefinition = 'DecisionDefinition';
+
+export function isDecisionDefinition(item: unknown): item is DecisionDefinition {
+    return reflection.isInstance(item, DecisionDefinition);
+}
+
 export interface Delete extends langium.AstNode {
     readonly $container: Pattern;
     readonly $type: 'Delete';
@@ -404,6 +467,20 @@ export const Delete = 'Delete';
 
 export function isDelete(item: unknown): item is Delete {
     return reflection.isInstance(item, Delete);
+}
+
+export interface DirectiveDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'DirectiveDefinition';
+    body?: MapLiteral;
+    dir?: If;
+    name: Ref;
+}
+
+export const DirectiveDefinition = 'DirectiveDefinition';
+
+export function isDirectiveDefinition(item: unknown): item is DirectiveDefinition {
+    return reflection.isInstance(item, DirectiveDefinition);
 }
 
 export interface Else extends langium.AstNode {
@@ -457,7 +534,7 @@ export function isEnumSpec(item: unknown): item is EnumSpec {
 }
 
 export interface EventDefinition extends langium.AstNode {
-    readonly $container: ModuleDefinition;
+    readonly $container: ModuleDefinition | PublicEventDefinition;
     readonly $type: 'EventDefinition';
     extends?: ExtendsClause;
     name: QualifiedName;
@@ -480,6 +557,45 @@ export const ExtendsClause = 'ExtendsClause';
 
 export function isExtendsClause(item: unknown): item is ExtendsClause {
     return reflection.isInstance(item, ExtendsClause);
+}
+
+export interface FlowDefBody extends langium.AstNode {
+    readonly $container: FlowDefinition;
+    readonly $type: 'FlowDefBody';
+    entries: Array<FlowEntry>;
+}
+
+export const FlowDefBody = 'FlowDefBody';
+
+export function isFlowDefBody(item: unknown): item is FlowDefBody {
+    return reflection.isInstance(item, FlowDefBody);
+}
+
+export interface FlowDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'FlowDefinition';
+    body?: FlowDefBody;
+    name: GenericName;
+}
+
+export const FlowDefinition = 'FlowDefinition';
+
+export function isFlowDefinition(item: unknown): item is FlowDefinition {
+    return reflection.isInstance(item, FlowDefinition);
+}
+
+export interface FlowEntry extends langium.AstNode {
+    readonly $container: FlowDefBody;
+    readonly $type: 'FlowEntry';
+    cond?: ConditionalFlowStep;
+    next?: GenericName;
+    root: GenericName;
+}
+
+export const FlowEntry = 'FlowEntry';
+
+export function isFlowEntry(item: unknown): item is FlowEntry {
+    return reflection.isInstance(item, FlowEntry);
 }
 
 export interface FnCall extends langium.AstNode {
@@ -523,8 +639,47 @@ export function isFullTextSearch(item: unknown): item is FullTextSearch {
     return reflection.isInstance(item, FullTextSearch);
 }
 
+export interface GenericDefBody extends langium.AstNode {
+    readonly $container: AgentDefinition;
+    readonly $type: 'GenericDefBody';
+    attributes: Array<GenericPropertyDef>;
+}
+
+export const GenericDefBody = 'GenericDefBody';
+
+export function isGenericDefBody(item: unknown): item is GenericDefBody {
+    return reflection.isInstance(item, GenericDefBody);
+}
+
+export interface GenericPropertyDef extends langium.AstNode {
+    readonly $container: GenericDefBody;
+    readonly $type: 'GenericPropertyDef';
+    name: string;
+    value: Literal;
+}
+
+export const GenericPropertyDef = 'GenericPropertyDef';
+
+export function isGenericPropertyDef(item: unknown): item is GenericPropertyDef {
+    return reflection.isInstance(item, GenericPropertyDef);
+}
+
+export interface GlossaryEntryDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'GlossaryEntryDefinition';
+    body?: MapLiteral;
+    glos?: AgentXtraSpec;
+    name: Ref;
+}
+
+export const GlossaryEntryDefinition = 'GlossaryEntryDefinition';
+
+export function isGlossaryEntryDefinition(item: unknown): item is GlossaryEntryDefinition {
+    return reflection.isInstance(item, GlossaryEntryDefinition);
+}
+
 export interface Group extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'Group';
     ge: Expr;
 }
@@ -549,7 +704,7 @@ export function isHandler(item: unknown): item is Handler {
 }
 
 export interface If extends langium.AstNode {
-    readonly $container: Pattern;
+    readonly $container: DirectiveDefinition | Pattern | ScenarioDefinition;
     readonly $type: 'If';
     cond: Expr;
     else?: Else;
@@ -601,7 +756,7 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: AgentPropertyDef | AttributeDefinition | BinExpr | CrudMap | FnCall | FullTextSearch | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | CrudMap | FnCall | FullTextSearch | GenericPropertyDef | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
@@ -648,7 +803,7 @@ export function isMapKey(item: unknown): item is MapKey {
 }
 
 export interface MapLiteral extends langium.AstNode {
-    readonly $container: FullTextSearch | Literal | MetaDefinition;
+    readonly $container: DirectiveDefinition | FullTextSearch | GlossaryEntryDefinition | Literal | MetaDefinition | ScenarioDefinition;
     readonly $type: 'MapLiteral';
     entries: Array<MapEntry>;
 }
@@ -685,7 +840,7 @@ export function isModuleDefinition(item: unknown): item is ModuleDefinition {
 }
 
 export interface NegExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'NegExpr';
     ne: Expr;
 }
@@ -710,7 +865,7 @@ export function isNodeDefinition(item: unknown): item is NodeDefinition {
 }
 
 export interface NotExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute;
     readonly $type: 'NotExpr';
     ne: Expr;
 }
@@ -776,6 +931,42 @@ export const PropertyDefinition = 'PropertyDefinition';
 
 export function isPropertyDefinition(item: unknown): item is PropertyDefinition {
     return reflection.isInstance(item, PropertyDefinition);
+}
+
+export interface PublicAgentDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'PublicAgentDefinition';
+    def: AgentDefinition;
+}
+
+export const PublicAgentDefinition = 'PublicAgentDefinition';
+
+export function isPublicAgentDefinition(item: unknown): item is PublicAgentDefinition {
+    return reflection.isInstance(item, PublicAgentDefinition);
+}
+
+export interface PublicEventDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'PublicEventDefinition';
+    def: EventDefinition;
+}
+
+export const PublicEventDefinition = 'PublicEventDefinition';
+
+export function isPublicEventDefinition(item: unknown): item is PublicEventDefinition {
+    return reflection.isInstance(item, PublicEventDefinition);
+}
+
+export interface PublicWorkflowDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'PublicWorkflowDefinition';
+    def: WorkflowDefinition;
+}
+
+export const PublicWorkflowDefinition = 'PublicWorkflowDefinition';
+
+export function isPublicWorkflowDefinition(item: unknown): item is PublicWorkflowDefinition {
+    return reflection.isInstance(item, PublicWorkflowDefinition);
 }
 
 export interface Purge extends langium.AstNode {
@@ -1003,7 +1194,7 @@ export function isResolverFnName(item: unknown): item is ResolverFnName {
 export interface ResolverMethodName extends langium.AstNode {
     readonly $container: ResolverMethodSpec;
     readonly $type: 'ResolverMethodName';
-    name: 'create' | 'delete' | 'onSubscription' | 'query' | 'subscribe' | 'update' | 'upsert';
+    name: 'commitTransaction' | 'create' | 'delete' | 'onSubscription' | 'query' | 'rollbackTransaction' | 'startTransaction' | 'subscribe' | 'update' | 'upsert';
 }
 
 export const ResolverMethodName = 'ResolverMethodName';
@@ -1028,7 +1219,7 @@ export function isResolverMethodSpec(item: unknown): item is ResolverMethodSpec 
 export interface Return extends langium.AstNode {
     readonly $container: Pattern;
     readonly $type: 'Return';
-    pat: Pattern;
+    pattern: Pattern;
 }
 
 export const Return = 'Return';
@@ -1049,6 +1240,20 @@ export const RuntimeHint = 'RuntimeHint';
 
 export function isRuntimeHint(item: unknown): item is RuntimeHint {
     return reflection.isInstance(item, RuntimeHint);
+}
+
+export interface ScenarioDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'ScenarioDefinition';
+    body?: MapLiteral;
+    name: Ref;
+    scn?: If;
+}
+
+export const ScenarioDefinition = 'ScenarioDefinition';
+
+export function isScenarioDefinition(item: unknown): item is ScenarioDefinition {
+    return reflection.isInstance(item, ScenarioDefinition);
 }
 
 export interface SelectIntoEntry extends langium.AstNode {
@@ -1103,7 +1308,7 @@ export function isStandaloneStatement(item: unknown): item is StandaloneStatemen
 }
 
 export interface Statement extends langium.AstNode {
-    readonly $container: ArrayLiteral | Else | ForEach | Handler | If | StandaloneStatement | ThenSpec | WorkflowDefinition;
+    readonly $container: ArrayLiteral | CaseEntry | Else | ForEach | Handler | If | StandaloneStatement | ThenSpec | WorkflowDefinition;
     readonly $type: 'Statement';
     hints: Array<RuntimeHint>;
     pattern: Pattern;
@@ -1154,7 +1359,7 @@ export function isTriggerEntry(item: unknown): item is TriggerEntry {
 }
 
 export interface WorkflowDefinition extends langium.AstNode {
-    readonly $container: ModuleDefinition;
+    readonly $container: ModuleDefinition | PublicWorkflowDefinition;
     readonly $type: 'WorkflowDefinition';
     header?: WorkflowHeader;
     name?: string;
@@ -1184,9 +1389,9 @@ export function isWorkflowHeader(item: unknown): item is WorkflowHeader {
 export type AgentlangAstType = {
     ActionEntry: ActionEntry
     AfterTriggerDefinition: AfterTriggerDefinition
-    AgentDefBody: AgentDefBody
     AgentDefinition: AgentDefinition
-    AgentPropertyDef: AgentPropertyDef
+    AgentXtraAttribute: AgentXtraAttribute
+    AgentXtraSpec: AgentXtraSpec
     AliasSpec: AliasSpec
     ArrayLiteral: ArrayLiteral
     AsyncFnCall: AsyncFnCall
@@ -1194,12 +1399,17 @@ export type AgentlangAstType = {
     AttributeValueExpression: AttributeValueExpression
     BeforeTriggerDefinition: BeforeTriggerDefinition
     BinExpr: BinExpr
+    CaseEntry: CaseEntry
     CatchSpec: CatchSpec
     CompositeUniqueDefinition: CompositeUniqueDefinition
+    ConditionalFlowStep: ConditionalFlowStep
     CrudMap: CrudMap
     CrudMapBody: CrudMapBody
+    DecisionDefBody: DecisionDefBody
+    DecisionDefinition: DecisionDefinition
     Definition: Definition
     Delete: Delete
+    DirectiveDefinition: DirectiveDefinition
     Else: Else
     EntityActionsDefinitions: EntityActionsDefinitions
     EntityDefinition: EntityDefinition
@@ -1207,9 +1417,15 @@ export type AgentlangAstType = {
     EventDefinition: EventDefinition
     Expr: Expr
     ExtendsClause: ExtendsClause
+    FlowDefBody: FlowDefBody
+    FlowDefinition: FlowDefinition
+    FlowEntry: FlowEntry
     FnCall: FnCall
     ForEach: ForEach
     FullTextSearch: FullTextSearch
+    GenericDefBody: GenericDefBody
+    GenericPropertyDef: GenericPropertyDef
+    GlossaryEntryDefinition: GlossaryEntryDefinition
     Group: Group
     Handler: Handler
     If: If
@@ -1230,6 +1446,9 @@ export type AgentlangAstType = {
     PrePostTriggerDefinition: PrePostTriggerDefinition
     PrimExpr: PrimExpr
     PropertyDefinition: PropertyDefinition
+    PublicAgentDefinition: PublicAgentDefinition
+    PublicEventDefinition: PublicEventDefinition
+    PublicWorkflowDefinition: PublicWorkflowDefinition
     Purge: Purge
     RbacAllowSpec: RbacAllowSpec
     RbacExpressionSpec: RbacExpressionSpec
@@ -1251,6 +1470,7 @@ export type AgentlangAstType = {
     ResolverMethodSpec: ResolverMethodSpec
     Return: Return
     RuntimeHint: RuntimeHint
+    ScenarioDefinition: ScenarioDefinition
     SchemaDefinition: SchemaDefinition
     SelectIntoEntry: SelectIntoEntry
     SelectIntoSpec: SelectIntoSpec
@@ -1267,14 +1487,21 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefBody, AgentDefinition, AgentPropertyDef, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CatchSpec, CompositeUniqueDefinition, CrudMap, CrudMapBody, Definition, Delete, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FnCall, ForEach, FullTextSearch, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AgentXtraAttribute, AgentXtraSpec, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicAgentDefinition, PublicEventDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
         switch (subtype) {
             case AgentDefinition:
+            case DecisionDefinition:
+            case DirectiveDefinition:
+            case FlowDefinition:
+            case GlossaryEntryDefinition:
+            case PublicAgentDefinition:
+            case PublicWorkflowDefinition:
             case RelationshipDefinition:
             case ResolverDefinition:
+            case ScenarioDefinition:
             case SchemaDefinition:
             case StandaloneStatement:
             case WorkflowDefinition: {
@@ -1286,6 +1513,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             }
             case EntityDefinition:
             case EventDefinition:
+            case PublicEventDefinition:
             case RecordDefinition: {
                 return this.isSubtype(SchemaDefinition, supertype);
             }
@@ -1332,14 +1560,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
-            case AgentDefBody: {
-                return {
-                    name: AgentDefBody,
-                    properties: [
-                        { name: 'attributes', defaultValue: [] }
-                    ]
-                };
-            }
             case AgentDefinition: {
                 return {
                     name: AgentDefinition,
@@ -1349,12 +1569,20 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
-            case AgentPropertyDef: {
+            case AgentXtraAttribute: {
                 return {
-                    name: AgentPropertyDef,
+                    name: AgentXtraAttribute,
                     properties: [
                         { name: 'name' },
                         { name: 'value' }
+                    ]
+                };
+            }
+            case AgentXtraSpec: {
+                return {
+                    name: AgentXtraSpec,
+                    properties: [
+                        { name: 'attributes', defaultValue: [] }
                     ]
                 };
             }
@@ -1416,6 +1644,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case CaseEntry: {
+                return {
+                    name: CaseEntry,
+                    properties: [
+                        { name: 'cond' },
+                        { name: 'statements', defaultValue: [] }
+                    ]
+                };
+            }
             case CatchSpec: {
                 return {
                     name: CatchSpec,
@@ -1429,6 +1666,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: CompositeUniqueDefinition,
                     properties: [
                         { name: 'attrs', defaultValue: [] }
+                    ]
+                };
+            }
+            case ConditionalFlowStep: {
+                return {
+                    name: ConditionalFlowStep,
+                    properties: [
+                        { name: 'expr' },
+                        { name: 'next' }
                     ]
                 };
             }
@@ -1455,11 +1701,38 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case DecisionDefBody: {
+                return {
+                    name: DecisionDefBody,
+                    properties: [
+                        { name: 'cases', defaultValue: [] }
+                    ]
+                };
+            }
+            case DecisionDefinition: {
+                return {
+                    name: DecisionDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'name' }
+                    ]
+                };
+            }
             case Delete: {
                 return {
                     name: Delete,
                     properties: [
                         { name: 'pattern' }
+                    ]
+                };
+            }
+            case DirectiveDefinition: {
+                return {
+                    name: DirectiveDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'dir' },
+                        { name: 'name' }
                     ]
                 };
             }
@@ -1515,6 +1788,33 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case FlowDefBody: {
+                return {
+                    name: FlowDefBody,
+                    properties: [
+                        { name: 'entries', defaultValue: [] }
+                    ]
+                };
+            }
+            case FlowDefinition: {
+                return {
+                    name: FlowDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'name' }
+                    ]
+                };
+            }
+            case FlowEntry: {
+                return {
+                    name: FlowEntry,
+                    properties: [
+                        { name: 'cond' },
+                        { name: 'next' },
+                        { name: 'root' }
+                    ]
+                };
+            }
             case FnCall: {
                 return {
                     name: FnCall,
@@ -1541,6 +1841,33 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'name' },
                         { name: 'options' },
                         { name: 'query' }
+                    ]
+                };
+            }
+            case GenericDefBody: {
+                return {
+                    name: GenericDefBody,
+                    properties: [
+                        { name: 'attributes', defaultValue: [] }
+                    ]
+                };
+            }
+            case GenericPropertyDef: {
+                return {
+                    name: GenericPropertyDef,
+                    properties: [
+                        { name: 'name' },
+                        { name: 'value' }
+                    ]
+                };
+            }
+            case GlossaryEntryDefinition: {
+                return {
+                    name: GlossaryEntryDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'glos' },
+                        { name: 'name' }
                     ]
                 };
             }
@@ -1724,6 +2051,30 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case PublicAgentDefinition: {
+                return {
+                    name: PublicAgentDefinition,
+                    properties: [
+                        { name: 'def' }
+                    ]
+                };
+            }
+            case PublicEventDefinition: {
+                return {
+                    name: PublicEventDefinition,
+                    properties: [
+                        { name: 'def' }
+                    ]
+                };
+            }
+            case PublicWorkflowDefinition: {
+                return {
+                    name: PublicWorkflowDefinition,
+                    properties: [
+                        { name: 'def' }
+                    ]
+                };
+            }
             case Purge: {
                 return {
                     name: Purge,
@@ -1899,7 +2250,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: Return,
                     properties: [
-                        { name: 'pat' }
+                        { name: 'pattern' }
                     ]
                 };
             }
@@ -1910,6 +2261,16 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'aliasSpec' },
                         { name: 'catchSpec' },
                         { name: 'thenSpec' }
+                    ]
+                };
+            }
+            case ScenarioDefinition: {
+                return {
+                    name: ScenarioDefinition,
+                    properties: [
+                        { name: 'body' },
+                        { name: 'name' },
+                        { name: 'scn' }
                     ]
                 };
             }

@@ -1,7 +1,6 @@
 import {
   callPostEventOnSubscription,
   Environment,
-  evaluate,
   runPostCreateEvents,
   runPostDeleteEvents,
   runPostUpdateEvents,
@@ -14,25 +13,8 @@ import {
   newInstanceAttributes,
   Relationship,
 } from '../module.js';
-import { CrudType, splitFqName } from '../util.js';
-
-export class ResolverAuthInfo {
-  userId: string;
-  readForUpdate: boolean = false;
-  readForDelete: boolean = false;
-
-  constructor(userId: string, readForUpdate?: boolean, readForDelete?: boolean) {
-    this.userId = userId;
-    if (readForUpdate != undefined) this.readForUpdate = readForUpdate;
-    if (readForDelete != undefined) this.readForDelete = readForDelete;
-  }
-}
-
-export const DefaultAuthInfo = new ResolverAuthInfo(
-  // This user-id is only for testing, per-session user-id needs to be set from
-  // the HTTP layer.
-  '9459a305-5ee6-415d-986d-caaf6d6e2828'
-);
+import { CrudType, nameToPath } from '../util.js';
+import { DefaultAuthInfo, ResolverAuthInfo } from './authinfo.js';
 
 export type JoinInfo = {
   relationship: Relationship;
@@ -73,6 +55,11 @@ export class Resolver {
 
   public getEnvironment(): Environment | undefined {
     return this.env;
+  }
+
+  public suspend(): Resolver {
+    this.env?.suspend();
+    return this;
   }
 
   public getName(): string {
@@ -228,7 +215,7 @@ export class Resolver {
   }
 
   public async onSubscription(result: any, callPostCrudEvent: boolean = false): Promise<any> {
-    if (result != undefined) {
+    if (result !== undefined) {
       try {
         if (callPostCrudEvent) {
           const inst = result as Instance;
@@ -236,12 +223,13 @@ export class Resolver {
         } else {
           const eventName = getSubscriptionEvent(this.name);
           if (eventName) {
-            const path = splitFqName(eventName);
+            const path = nameToPath(eventName);
             const inst = makeInstance(
               path.getModuleName(),
               path.getEntryName(),
               newInstanceAttributes().set('data', result)
             );
+            const { evaluate } = await import('../interpreter.js');
             return await evaluate(inst);
           }
         }
@@ -337,9 +325,16 @@ export class GenericResolver extends Resolver {
   }
 
   override async subscribe() {
-    if (this.subs?.subscribe) {
-      await this.subs.subscribe(this);
+    while (true) {
+      try {
+        if (this.subs?.subscribe) {
+          await this.subs.subscribe(this);
+        }
+        await super.subscribe();
+        return;
+      } catch (reason: any) {
+        logger.warn(`subscribe error in resolver ${this.name}: ${reason}`);
+      }
     }
-    await super.subscribe();
   }
 }

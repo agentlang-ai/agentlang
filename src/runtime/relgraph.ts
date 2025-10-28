@@ -107,7 +107,7 @@ export function buildGraph(moduleName: string): RelationshipGraph {
       }
     });
   });
-  if (localMod == undefined) {
+  if (localMod === undefined) {
     throw new Error(`Failed to find module ${moduleName}`);
   }
   const remEnts: Set<string> = new Set();

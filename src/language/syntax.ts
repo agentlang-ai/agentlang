@@ -1,5 +1,5 @@
 import { parseHelper } from 'langium/test';
-import { escapeQueryName } from '../runtime/util.js';
+import { escapeQueryName, trimQuotes } from '../runtime/util.js';
 import { ModuleDefinition } from './generated/ast.js';
 import { createAgentlangServices } from './agentlang-module.js';
 import { EmptyFileSystem } from 'langium';
@@ -20,7 +20,7 @@ export class BasePattern {
   }
 
   addAlias(alias: string) {
-    if (this.aliases == undefined) {
+    if (this.aliases === undefined) {
       this.aliases = [];
     }
     this.aliases.push(alias);
@@ -31,7 +31,7 @@ export class BasePattern {
   }
 
   addHandler(k: 'not_found' | 'error', handler: BasePattern) {
-    if (this.handlers == undefined) {
+    if (this.handlers === undefined) {
       this.handlers = new Map();
     }
     this.handlers.set(k, handler);
@@ -150,12 +150,12 @@ export class LiteralPattern extends BasePattern {
         const arr = new Array<string>();
         m.forEach((v: BasePattern, key: any) => {
           let k: any = key.str;
-          if (k == undefined) {
+          if (k === undefined) {
             k = key.num;
           } else {
             k = `"${k}"`;
           }
-          if (k == undefined) {
+          if (k === undefined) {
             k = key.bool;
           }
           arr.push(`${k}: ${v.toString()}`);
@@ -407,7 +407,7 @@ export class CrudPattern extends BasePattern {
   }
 
   addInto(alias: string, attr: string): CrudPattern {
-    if (this.into == undefined) {
+    if (this.into === undefined) {
       this.into = new Map();
     }
     this.into.set(alias, attr);
@@ -445,15 +445,21 @@ export class CrudPattern extends BasePattern {
     }
     if (hasq && hasc) {
       this.isQueryUpdate = true;
+      this.isQuery = false;
+      this.isCreate = false;
     } else if (hasc) {
       this.isCreate = true;
+      this.isQuery = false;
+      this.isQueryUpdate = false;
     } else {
       this.isQuery = hasq;
+      this.isCreate = false;
+      this.isQueryUpdate = false;
     }
   }
 
   addRelationship(n: string, p: CrudPattern[] | CrudPattern) {
-    if (this.relationships == undefined) {
+    if (this.relationships === undefined) {
       this.relationships = new Map();
     }
     this.relationships.set(n, p);
@@ -477,7 +483,7 @@ export class CrudPattern extends BasePattern {
   }
 
   private relationshipsAsString(): string | undefined {
-    if (this.relationships != undefined) {
+    if (this.relationships !== undefined) {
       const result: Array<string> = [];
       this.relationships.forEach((p: CrudPattern | CrudPattern[], n: string) => {
         const ps = p instanceof Array ? `[${patternsToString(p, ',')}]` : p.toString();
@@ -581,7 +587,7 @@ export class ForEachPattern extends BasePattern {
   }
 
   override toString(): string {
-    if (this.source == undefined || this.variable == undefined) {
+    if (this.source === undefined || this.variable === undefined) {
       throw new Error('`for` requires variable and source-pattern');
     }
     let s = `for ${this.variable} in ${this.source.toString()}`;
@@ -605,6 +611,14 @@ export class IfPattern extends BasePattern {
     super();
     this.condition = condition ? condition : IfPattern.True;
     this.body = [];
+  }
+
+  isEmpty(): boolean {
+    if (this.condition === IfPattern.True && this.body.length === 0) {
+      return true;
+    } else {
+      return false;
+    }
   }
 
   addPattern(p: BasePattern): IfPattern {
@@ -664,6 +678,27 @@ export function isIfPattern(p: BasePattern): boolean {
   return p instanceof IfPattern;
 }
 
+export class CasePattern extends BasePattern {
+  condition: BasePattern;
+  body: BasePattern;
+
+  constructor(condition: BasePattern, body: BasePattern) {
+    super();
+    this.condition = condition;
+    this.body = body;
+  }
+
+  override toString(): string {
+    return `case (${this.condition.toString()}) {
+    ${this.body.toString()}
+  }`;
+  }
+}
+
+export function isCasePattern(p: BasePattern): boolean {
+  return p instanceof CasePattern;
+}
+
 export function newCreatePattern(recName: string): CrudPattern {
   const cp: CrudPattern = new CrudPattern(recName);
   cp.isCreate = true;
@@ -714,4 +749,39 @@ function patternsToString(body: BasePattern[], sep = ';\n'): string {
       return p.toString();
     })
     .join(sep);
+}
+
+export class FlowStepPattern extends BasePattern {
+  first: string;
+  next: string;
+  condition?: string;
+
+  constructor(first: string, next: string, condition?: string) {
+    super();
+    this.first = first;
+    this.next = next;
+    this.condition = condition ? trimQuotes(condition) : undefined;
+  }
+
+  static Parse(s: string): FlowStepPattern {
+    const parts = s.trim().split(' ');
+    const first = parts[0];
+    if (parts[1] == '-->') {
+      if (parts.length == 3) {
+        return new FlowStepPattern(first, parts[2]);
+      } else {
+        return new FlowStepPattern(first, parts[3], parts[2]);
+      }
+    } else {
+      throw new Error(`Invalid flow-step format in ${s}`);
+    }
+  }
+
+  override toString(): string {
+    if (this.condition) {
+      return `${this.first} --> "${this.condition}" ${this.next}`;
+    } else {
+      return `${this.first} --> ${this.next}`;
+    }
+  }
 }

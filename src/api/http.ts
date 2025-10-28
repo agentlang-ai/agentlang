@@ -10,8 +10,11 @@ import {
   makeInstance,
   objectAsInstanceAttributes,
   Relationship,
+  fetchModule,
+  getModuleNames,
+  Record,
 } from '../runtime/module.js';
-import { evaluate, parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
+import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
 import { requireAuth, verifySession } from '../runtime/modules/auth.js';
@@ -22,13 +25,14 @@ import {
   forceAsEscapedName,
   forceAsFqName,
   isString,
+  isStringNumeric,
   makeFqName,
   restoreFqName,
-  splitFqName,
+  nameToPath,
   walkDownInstancePath,
 } from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
-import { getServiceLastAccess, touchServiceInfo } from '../runtime/modules/core.js';
+import { evaluate, getServiceLastAccess, touchServiceInfo } from '../runtime/interpreter.js';
 
 export function startServer(appSpec: ApplicationSpec, port: number, host?: string) {
   const app = express();
@@ -58,13 +62,19 @@ export function startServer(appSpec: ApplicationSpec, port: number, host?: strin
 
   app.get('/lastUsedTime', (req: Request, res: Response) => {
     handleGetLastAccessTime(req, res);
+  }
+
+  app.get('/meta', (req: Request, res: Response) => {
+    handleMetaGet(req, res);
   });
 
   getAllEventNames().forEach((eventNames: string[], moduleName: string) => {
+    const m = fetchModule(moduleName);
     eventNames.forEach((n: string) => {
-      app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
-        handleEventPost(moduleName, n, req, res);
-      });
+      if (m.eventIsPublic(n))
+        app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+          handleEventPost(moduleName, n, req, res);
+        });
     });
   });
 
@@ -175,7 +185,12 @@ function normalizeRequestPath(path: string[], moduleName: string): string[] {
 function pathFromRequest(moduleName: string, entryName: string, req: Request): string {
   const path: any = req.params.path;
   if (!path) {
-    return req.url;
+    const url = req.url;
+    const i = url.indexOf('?');
+    if (i > 0) {
+      return url.substring(0, i);
+    }
+    return url;
   }
   let p = '';
   if (path instanceof Array) {
@@ -271,7 +286,7 @@ async function handleEntityGet(
     if (req.query.tree) {
       pattern = fetchTreePattern(makeFqName(moduleName, entityName), path);
     } else {
-      pattern = queryPatternFromPath(path);
+      pattern = queryPatternFromPath(path, req);
     }
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
@@ -280,27 +295,49 @@ async function handleEntityGet(
   }
 }
 
-function queryPatternFromPath(path: string): string {
+function objectAsAttributesPattern(obj: object): string {
+  const attrs = new Array<string>();
+  Object.keys(obj).forEach(key => {
+    const s: string = obj[key as keyof object];
+    let v = s;
+    if (!s.startsWith('"')) {
+      if (!isStringNumeric(s) && s != 'true' && s != 'false') {
+        v = `"${s}"`;
+      }
+    }
+    attrs.push(`${key}? ${v}`);
+  });
+  return `{
+    ${attrs.join(',')}
+  }`;
+}
+
+function queryPatternFromPath(path: string, req: Request): string {
   const r = walkDownInstancePath(path);
   let moduleName = r[0];
   let entityName = r[1];
   const id = r[2];
   const parts = r[3];
-  if (parts.length == 2 && id == undefined) {
-    return `{${moduleName}/${entityName}? {}}`;
+  if (parts.length == 2 && id === undefined) {
+    if (req.query && Object.keys(req.query).length > 0) {
+      const pat = objectAsAttributesPattern(req.query);
+      return `{${moduleName}/${entityName} ${pat}}`;
+    } else {
+      return `{${moduleName}/${entityName}? {}}`;
+    }
   } else {
     moduleName = restoreFqName(moduleName);
     const relName: string | undefined = restoreFqName(parts[parts.length - 2]);
     if (relName && isBetweenRelationship(relName, moduleName)) {
       const n = restoreFqName(parts[0]);
-      const ns = splitFqName(n);
+      const ns = nameToPath(n);
       const pe = ns.getEntryName();
       const pm = ns.hasModule() ? ns.getModuleName() : moduleName;
       const p = parts.slice(0, parts.length - 2).join('/');
       return `{${pm}/${pe} {${PathAttributeNameQuery} "${p}"}, ${relName} {${moduleName}/${entityName}? {}}}`;
     }
     entityName = restoreFqName(entityName);
-    if (id == undefined) {
+    if (id === undefined) {
       return `{${moduleName}/${entityName} {${PathAttributeNameQuery}like "${path}%"}}`;
     } else {
       return `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;
@@ -347,7 +384,8 @@ async function handleEntityDelete(
       res.status(401).send('Authorization required');
       return;
     }
-    const pattern = `delete ${queryPatternFromPath(path)}`;
+    const cmd = req.query.purge == 'true' ? 'purge' : 'delete';
+    const pattern = `${cmd} ${queryPatternFromPath(path, req)}`;
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
@@ -377,7 +415,7 @@ function createChildPattern(moduleName: string, entityName: string, req: Request
     const relName = forceAsFqName(pinfo[2], moduleName);
     const parentPath = parts.slice(0, parts.length - 2).join('/');
     const childFqName = forceAsFqName(pinfo[3], moduleName);
-    const cparts = splitFqName(childFqName);
+    const cparts = nameToPath(childFqName);
     const childModuleName = cparts.getModuleName();
     const childName = cparts.getEntryName();
     const cp = patternFromAttributes(
@@ -426,5 +464,232 @@ function normalizedResult(r: Result): Result {
       return Object.fromEntries(r.entries());
     }
     return r;
+  }
+}
+
+async function handleMetaGet(req: Request, res: Response): Promise<void> {
+  try {
+    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+
+    const moduleFilter = req.query.module as string;
+    const entityFilter = req.query.entity as string;
+    const eventFilter = req.query.event as string;
+
+    const entities: any[] = [];
+    const events: any[] = [];
+    const entityNames = getAllEntityNames();
+    const eventNames = getAllEventNames();
+
+    // entities
+    // skip entities if eventFilter is provided
+    if (!eventFilter || eventFilter === '') {
+      entityNames.forEach((entityNames: string[], moduleName: string) => {
+        if (moduleFilter && moduleName !== moduleFilter) {
+          return;
+        }
+
+        entityNames.forEach((entityName: string) => {
+          if (entityFilter && !entityName.toLowerCase().includes(entityFilter.toLowerCase())) {
+            return;
+          }
+
+          try {
+            const module = fetchModule(moduleName);
+            const entity = module.getEntry(entityName);
+
+            const attributes: any[] = [];
+            if (entity instanceof Record && entity.schema) {
+              entity.schema.forEach((attrSpec: any, attrName: string) => {
+                let properties = {};
+                if (attrSpec.properties) {
+                  const propsObj: any = {};
+                  attrSpec.properties.forEach((value: any, key: string) => {
+                    if (value instanceof Set) {
+                      propsObj[key] = Array.from(value);
+                    } else {
+                      propsObj[key] = value;
+                    }
+                  });
+                  properties = propsObj;
+                }
+
+                const attrInfo: any = {
+                  name: attrName,
+                  type: attrSpec.type,
+                  properties: JSON.stringify(properties),
+                };
+                attributes.push(attrInfo);
+              });
+            }
+
+            const relationships: any[] = [];
+            const allModules = getModuleNames();
+            allModules.forEach((modName: string) => {
+              const mod = fetchModule(modName);
+              const rels = mod.getRelationshipEntries();
+              rels.forEach((rel: Relationship) => {
+                const parentNode = rel.parentNode();
+                const childNode = rel.childNode();
+
+                if (
+                  parentNode.path.getModuleName() === moduleName &&
+                  parentNode.path.getEntryName() === entityName
+                ) {
+                  relationships.push({
+                    name: rel.name,
+                    type: rel.isContains() ? 'contains' : 'between',
+                    direction: 'parent',
+                    target: childNode.path.asFqName(),
+                    cardinality: rel.isOneToOne()
+                      ? 'one-to-one'
+                      : rel.isOneToMany()
+                        ? 'one-to-many'
+                        : 'many-to-many',
+                  });
+                } else if (
+                  childNode.path.getModuleName() === moduleName &&
+                  childNode.path.getEntryName() === entityName
+                ) {
+                  relationships.push({
+                    name: rel.name,
+                    type: rel.isContains() ? 'contains' : 'between',
+                    direction: 'child',
+                    target: parentNode.path.asFqName(),
+                    cardinality: rel.isOneToOne()
+                      ? 'one-to-one'
+                      : rel.isOneToMany()
+                        ? 'one-to-many'
+                        : 'many-to-many',
+                  });
+                }
+              });
+            });
+
+            const entityInfo = {
+              name: entityName,
+              module: moduleName,
+              fqName: makeFqName(moduleName, entityName),
+              type: 'entity',
+              attributes: attributes,
+              relationships: relationships,
+              meta: entity instanceof Record && entity.meta ? Object.fromEntries(entity.meta) : {},
+            };
+            entities.push(entityInfo);
+          } catch (err: any) {
+            logger.warn(
+              `Could not get detailed info for entity ${moduleName}/${entityName}: ${err.message}`
+            );
+            const entityInfo = {
+              name: entityName,
+              module: moduleName,
+              fqName: makeFqName(moduleName, entityName),
+              type: 'entity',
+              error: 'Could not load detailed information',
+            };
+            entities.push(entityInfo);
+          }
+        });
+      });
+    }
+
+    // events
+    if (!entityFilter || entityFilter === '') {
+      eventNames.forEach((eventNames: string[], moduleName: string) => {
+        if (moduleFilter && moduleName !== moduleFilter) {
+          return;
+        }
+
+        eventNames.forEach((eventName: string) => {
+          if (eventFilter && !eventName.toLowerCase().includes(eventFilter.toLowerCase())) {
+            return;
+          }
+
+          try {
+            const module = fetchModule(moduleName);
+            const event = module.getEntry(eventName);
+
+            const attributes: any[] = [];
+            if (event instanceof Record && event.schema) {
+              event.schema.forEach((attrSpec: any, attrName: string) => {
+                let properties = {};
+                if (attrSpec.properties) {
+                  const propsObj: any = {};
+                  attrSpec.properties.forEach((value: any, key: string) => {
+                    if (value instanceof Set) {
+                      propsObj[key] = Array.from(value);
+                    } else {
+                      propsObj[key] = value;
+                    }
+                  });
+                  properties = propsObj;
+                }
+
+                const attrInfo: any = {
+                  name: attrName,
+                  type: attrSpec.type,
+                  properties: JSON.stringify(properties),
+                };
+                attributes.push(attrInfo);
+              });
+            }
+
+            const eventInfo = {
+              name: eventName,
+              module: moduleName,
+              fqName: makeFqName(moduleName, eventName),
+              type: 'event',
+              attributes: attributes,
+              meta: event instanceof Record && event.meta ? Object.fromEntries(event.meta) : {},
+            };
+            events.push(eventInfo);
+          } catch (err: any) {
+            logger.warn(
+              `Could not get detailed info for event ${moduleName}/${eventName}: ${err.message}`
+            );
+            const eventInfo = {
+              name: eventName,
+              module: moduleName,
+              fqName: makeFqName(moduleName, eventName),
+              type: 'event',
+              error: 'Could not load detailed information',
+            };
+            events.push(eventInfo);
+          }
+        });
+      });
+    }
+
+    const entitiesByModule: { [key: string]: any[] } = {};
+    const eventsByModule: { [key: string]: any[] } = {};
+
+    entities.forEach(entity => {
+      if (!entitiesByModule[entity.module]) {
+        entitiesByModule[entity.module] = [];
+      }
+      entitiesByModule[entity.module].push(entity);
+    });
+
+    events.forEach(event => {
+      if (!eventsByModule[event.module]) {
+        eventsByModule[event.module] = [];
+      }
+      eventsByModule[event.module].push(event);
+    });
+
+    const result = {
+      entities: entitiesByModule,
+      events: eventsByModule,
+      modules: Array.from(new Set([...entities.map(e => e.module), ...events.map(e => e.module)])),
+    };
+
+    res.contentType('application/json');
+    res.send(result);
+  } catch (err: any) {
+    logger.error(err);
+    res.status(500).send(err.toString());
   }
 }

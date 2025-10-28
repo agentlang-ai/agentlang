@@ -23,7 +23,7 @@ import {
 } from '../language/generated/ast.js';
 import {
   Path,
-  splitFqName,
+  nameToPath,
   isString,
   isNumber,
   isBoolean,
@@ -42,15 +42,38 @@ import {
   findUqCompositeAttributes,
   escapeFqName,
   encryptPassword,
+  splitFqName,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
 import { FetchModuleFn, PathAttributeName } from './defs.js';
 import { logger } from './logger.js';
+import { FlowStepPattern } from '../language/syntax.js';
+import {
+  AgentCondition,
+  AgentGlossaryEntry,
+  AgentScenario,
+  getAgentDirectives,
+  getAgentDirectivesJson,
+  getAgentGlossary,
+  getAgentGlossaryJson,
+  getAgentResponseSchema,
+  getAgentScenarios,
+  getAgentScenariosJson,
+  registerAgentDirectives,
+  registerAgentGlossary,
+  registerAgentResponseSchema,
+  registerAgentScenarios,
+  removeAgentDirectives,
+  removeAgentGlossary,
+  removeAgentResponseSchema,
+  removeAgentScenarios,
+} from './agents/common.js';
 
 export class ModuleEntry {
   name: string;
   moduleName: string;
+  private taggedAsPublic: boolean = false;
 
   constructor(name: string, moduleName: string) {
     this.name = name;
@@ -59,6 +82,15 @@ export class ModuleEntry {
 
   getFqName(): string {
     return makeFqName(this.moduleName, this.name);
+  }
+
+  setPublic(flag: boolean): ModuleEntry {
+    this.taggedAsPublic = flag;
+    return this;
+  }
+
+  isPublic(): boolean {
+    return this.taggedAsPublic;
   }
 }
 
@@ -82,10 +114,11 @@ function normalizePropertyNames(props: Map<string, any>) {
 const SystemAttributeProperty: string = 'system-attribute';
 const SystemDefinedEvent = 'system-event';
 
-function setAsSystemAttribute(attrSpec: AttributeSpec) {
+function asSystemAttribute(attrSpec: AttributeSpec): AttributeSpec {
   const props: Map<string, any> = attrSpec.properties ? attrSpec.properties : new Map();
   props.set(SystemAttributeProperty, true);
   attrSpec.properties = props;
+  return attrSpec;
 }
 
 function isSystemAttribute(attrSpec: AttributeSpec): boolean {
@@ -114,12 +147,38 @@ function attributeSpecToString(attrSpec: AttributeSpec): string {
   }
   if (attrSpec.properties) {
     const ps: Array<string> = [];
-    attrSpec.properties.forEach((v: any, k: string) => {
-      if (k != 'array') {
-        if (v == true) ps.push(` @${k}`);
-        else ps.push(` @${k}(${attributePropertyValueToString(k, v, attrSpec.type)})`);
-      }
-    });
+    const hasEnum = attrSpec.properties.has('enum');
+    const hasOneOf = attrSpec.properties.has('oneof');
+    const needsReordering = hasEnum || hasOneOf;
+
+    if (needsReordering) {
+      const priorityKeys = ['enum', 'oneof'];
+      const processedKeys = new Set<string>();
+
+      priorityKeys.forEach(k => {
+        if (attrSpec.properties!.has(k)) {
+          const v = attrSpec.properties!.get(k);
+          if (v == true) ps.push(` @${k}`);
+          else ps.push(` @${k}(${attributePropertyValueToString(k, v, attrSpec.type)})`);
+          processedKeys.add(k);
+        }
+      });
+
+      attrSpec.properties.forEach((v: any, k: string) => {
+        if (k !== 'array' && !processedKeys.has(k)) {
+          if (v == true) ps.push(` @${k}`);
+          else ps.push(` @${k}(${attributePropertyValueToString(k, v, attrSpec.type)})`);
+        }
+      });
+    } else {
+      attrSpec.properties.forEach((v: any, k: string) => {
+        if (k != 'array') {
+          if (v == true) ps.push(` @${k}`);
+          else ps.push(` @${k}(${attributePropertyValueToString(k, v, attrSpec.type)})`);
+        }
+      });
+    }
+
     s = s.concat(ps.join(' '));
   }
   return s;
@@ -174,7 +233,7 @@ function normalizeMetaValue(metaValue: any): any {
     return v.array.vals.map((value: Statement) => {
       return normalizeMetaValue(value.pattern.expr);
     });
-  } else if (v.bool != undefined) {
+  } else if (v.bool !== undefined) {
     return v.bool == 'true' ? true : false;
   } else if (v.id) {
     return v.id;
@@ -247,7 +306,7 @@ export class Record extends ModuleEntry {
       ? cloneParentSchema(parentEntryName, moduleName)
       : newRecordSchema();
     const attributes: AttributeDefinition[] | undefined = scm ? scm.attributes : undefined;
-    if (attributes != undefined) {
+    if (attributes !== undefined) {
       attributes.forEach((a: AttributeDefinition) => {
         verifyAttribute(a);
         let props: Map<string, any> | undefined = asPropertiesMap(a.properties);
@@ -255,12 +314,12 @@ export class Record extends ModuleEntry {
         let t: string | undefined = isArrayType ? a.arrayType : a.type;
         if (a.refSpec) {
           let fp = a.refSpec.ref;
-          const rp = splitFqName(fp);
+          const rp = nameToPath(fp);
           if (!rp.hasModule()) {
             rp.setModuleName(this.moduleName);
             fp = rp.asFqName();
           }
-          if (props == undefined) {
+          if (props === undefined) {
             props = new Map();
           }
           props.set('ref', escapeFqName(fp));
@@ -276,14 +335,14 @@ export class Record extends ModuleEntry {
           }
         }
         if (a.expr) {
-          if (props == undefined) {
+          if (props === undefined) {
             props = new Map();
           }
           props.set('expr', a.expr).set('optional', true);
         }
         const isObjectType: boolean = t == 'Map' || !isBuiltInType(t);
         if (isArrayType || isObjectType || enumValues || oneOfRef) {
-          if (props == undefined) {
+          if (props === undefined) {
             props = new Map<string, any>();
           }
           if (isArrayType) props.set('array', true);
@@ -311,14 +370,14 @@ export class Record extends ModuleEntry {
     if (prepostTrigs) {
       prepostTrigs.forEach((ppt: PrePostTriggerDefinition) => {
         if (ppt.after) {
-          if (this.afterTriggers == undefined) {
+          if (this.afterTriggers === undefined) {
             this.afterTriggers = new Map();
           }
           ppt.after.triggers.entries.forEach((te: TriggerEntry) => {
             if (this.afterTriggers) this.afterTriggers.set(asCrudType(te.on), asTriggerInfo(te));
           });
         } else if (ppt.before) {
-          if (this.beforeTriggers == undefined) {
+          if (this.beforeTriggers === undefined) {
             this.beforeTriggers = new Map();
           }
           ppt.before.triggers.entries.forEach((te: TriggerEntry) => {
@@ -331,7 +390,7 @@ export class Record extends ModuleEntry {
   }
 
   private addOneOfRefAttribute(s: string): Record {
-    if (this.oneOfRefAttributes == undefined) {
+    if (this.oneOfRefAttributes === undefined) {
       this.oneOfRefAttributes = [];
     }
     this.oneOfRefAttributes.push(s);
@@ -339,7 +398,7 @@ export class Record extends ModuleEntry {
   }
 
   public addAfterTrigger(te: any): Record {
-    if (this.afterTriggers == undefined) {
+    if (this.afterTriggers === undefined) {
       this.afterTriggers = new Map();
     }
     this.afterTriggers?.set(asCrudType(te.on), asTriggerInfo(te));
@@ -347,7 +406,7 @@ export class Record extends ModuleEntry {
   }
 
   public addBeforeTrigger(te: any): Record {
-    if (this.beforeTriggers == undefined) {
+    if (this.beforeTriggers === undefined) {
       this.beforeTriggers = new Map();
     }
     this.beforeTriggers?.set(asCrudType(te.on), asTriggerInfo(te));
@@ -406,7 +465,7 @@ export class Record extends ModuleEntry {
     if (this.schema.has(n)) {
       throw new Error(`Attribute named ${n} already exists in ${this.moduleName}.${this.name}`);
     }
-    if (attrSpec.properties != undefined) {
+    if (attrSpec.properties !== undefined) {
       normalizePropertyNames(attrSpec.properties);
     }
     this.schema.set(n, attrSpec);
@@ -427,7 +486,7 @@ export class Record extends ModuleEntry {
   }
 
   addSystemAttribute(n: string, attrSpec: AttributeSpec): Record {
-    setAsSystemAttribute(attrSpec);
+    asSystemAttribute(attrSpec);
     this.addAttribute(n, attrSpec);
     return this;
   }
@@ -435,7 +494,7 @@ export class Record extends ModuleEntry {
   findAttribute(predic: Function): AttributeEntry | undefined {
     for (const k of this.schema.keys()) {
       const attrSpec: AttributeSpec | undefined = this.schema.get(k);
-      if (attrSpec != undefined) {
+      if (attrSpec !== undefined) {
         if (predic(attrSpec))
           return {
             name: k,
@@ -449,9 +508,9 @@ export class Record extends ModuleEntry {
   hasRefTo(modName: string, entryName: string): boolean {
     if (
       this.findAttribute((attrSpec: AttributeSpec) => {
-        if (attrSpec.properties != undefined) {
+        if (attrSpec.properties !== undefined) {
           const ref: Path | undefined = attrSpec.properties.get('ref');
-          if (ref != undefined) {
+          if (ref !== undefined) {
             if (ref.getModuleName() == modName && ref.getEntryName() == entryName) {
               return true;
             }
@@ -468,21 +527,41 @@ export class Record extends ModuleEntry {
     const e: AttributeEntry | undefined = this.findAttribute((attrSpec: AttributeSpec) => {
       return isIdAttribute(attrSpec);
     });
-    if (e != undefined) {
+    if (e !== undefined) {
       return e.name;
     }
     return undefined;
   }
 
   override toString(): string {
+    return this.toString_();
+  }
+
+  toString_(internParentSchema: boolean = false): string {
     if (this.type == RecordType.EVENT && this.meta && this.meta.get(SystemDefinedEvent)) {
       return '';
     }
     let s: string = `${RecordType[this.type].toLowerCase()} ${this.name}`;
-    if (this.parentEntryName) {
+    let scm: RecordSchema = this.schema;
+    if (this.parentEntryName && !internParentSchema) {
       s = s.concat(` extends ${this.parentEntryName}`);
+      scm = newRecordSchema();
+      let modName = this.moduleName;
+      let pname = this.parentEntryName;
+      if (isFqName(pname)) {
+        const parts = splitFqName(pname);
+        modName = parts[0];
+        pname = parts[1];
+      }
+      const p = fetchModule(modName).getEntry(pname) as Record;
+      const pks = new Set(p.schema.keys());
+      this.schema.forEach((v: AttributeSpec, n: string) => {
+        if (!pks.has(n)) {
+          scm.set(n, v);
+        }
+      });
     }
-    let scms = recordSchemaToString(this.schema);
+    let scms = recordSchemaToString(scm);
     if (this.rbac && this.rbac.length > 0) {
       const rbs = this.rbac.map((rs: RbacSpecification) => {
         return rs.toString();
@@ -493,6 +572,9 @@ export class Record extends ModuleEntry {
       const metaObj = Object.fromEntries(this.meta);
       const ms = `@meta ${JSON.stringify(metaObj)}`;
       scms = `${scms},\n    ${ms}`;
+    }
+    if (this.isPublic()) {
+      s = `@public ${s}`;
     }
     return s.concat('\n{', scms, '\n}\n');
   }
@@ -523,7 +605,7 @@ function fetchModuleByEntryName(
   suspectModuleName: string
 ): FetchModuleByEntryNameResult {
   if (isFqName(entryName)) {
-    const path: Path = splitFqName(entryName);
+    const path: Path = nameToPath(entryName);
     entryName = path.getEntryName();
     suspectModuleName = path.getModuleName();
   }
@@ -548,14 +630,14 @@ function cloneParentSchema(parentName: string, currentModuleName: string): Recor
 }
 
 function asPropertiesMap(props: PropertyDefinition[]): Map<string, any> | undefined {
-  if (props != undefined && props.length > 0) {
+  if (props !== undefined && props.length > 0) {
     const result: Map<string, any> = new Map<string, any>();
     props.forEach((p: PropertyDefinition) => {
       const n: string = p.name.substring(1);
-      if (p.value != undefined && p.value.pairs != undefined && p.value.pairs.length > 0) {
+      if (p.value !== undefined && p.value.pairs !== undefined && p.value.pairs.length > 0) {
         if (p.value.pairs.length == 1) {
           const kvp: KvPair = p.value.pairs[0];
-          if (kvp.key == undefined) {
+          if (kvp.key === undefined) {
             result.set(n, normalizeKvPairValue(kvp));
           } else {
             const v: Map<string, any> = new Map<string, any>();
@@ -566,7 +648,7 @@ function asPropertiesMap(props: PropertyDefinition[]): Map<string, any> | undefi
           const v: Map<string, any> = new Map<string, any>();
           p.value.pairs.forEach((kvp: KvPair) => {
             let k: string = 'null';
-            if (kvp.key != undefined) k = kvp.key;
+            if (kvp.key !== undefined) k = kvp.key;
             v.set(k, normalizeKvPairValue(kvp));
           });
           result.set(n, v);
@@ -582,8 +664,8 @@ function asPropertiesMap(props: PropertyDefinition[]): Map<string, any> | undefi
 
 function maybeProcessRefProperty(props: Map<string, any>): Map<string, any> {
   const v: string | undefined = props.get('ref');
-  if (v != undefined) {
-    const parts: Path = splitFqName(v);
+  if (v !== undefined) {
+    const parts: Path = nameToPath(v);
     if (!parts.hasModule()) {
       parts.setModuleName(activeModule);
     }
@@ -594,24 +676,24 @@ function maybeProcessRefProperty(props: Map<string, any>): Map<string, any> {
 
 function normalizeKvPairValue(kvp: KvPair): any | null {
   const v: Literal | undefined = kvp.value;
-  if (v == undefined) return true;
-  if (v.str != undefined) {
+  if (v === undefined) return true;
+  if (v.str !== undefined) {
     return v.str;
-  } else if (v.num != undefined) {
+  } else if (v.num !== undefined) {
     return v.num;
-  } else if (v.bool != undefined) {
-    return v.bool == 'true' ? true : false;
-  } else if (v.id != undefined) {
+  } else if (v.bool !== undefined) {
+    return v.bool === 'true' ? true : false;
+  } else if (v.id !== undefined) {
     return v.id;
-  } else if (v.ref != undefined) {
+  } else if (v.ref !== undefined) {
     return v.ref;
-  } else if (v.fnCall != undefined) {
+  } else if (v.fnCall !== undefined) {
     const fncall: FnCall = v.fnCall;
     if (fncall.args.length > 0) {
       throw new Error('Cannot allow arguments in properties function-call');
     }
     return fncall.name + '()';
-  } else if (v.array != undefined) {
+  } else if (v.array !== undefined) {
     return v.array;
   }
   return null;
@@ -674,7 +756,7 @@ export class RbacSpecification {
     perms.forEach((v: string) => {
       const idx: any = v.toUpperCase();
       const a: any = RbacPermissionFlag[idx];
-      if (a == undefined) {
+      if (a === undefined) {
         throw new Error(`Not a valid RBAC permission - ${v}`);
       }
       ps.add(a);
@@ -816,18 +898,26 @@ export class Agent extends Record {
     return this.removeAgentAttribute('type');
   }
 
-  setTools(tools: string[]): Agent {
-    this.attributes.set('tools', tools.join(','));
+  private setStrings(attrName: string, v: string[]): Agent {
+    this.attributes.set(attrName, v.join(','));
     return this;
   }
 
-  getTools(): string[] | undefined {
-    const tools = this.attributes.get('tools');
-    if (tools) {
-      return tools.split(',');
+  private getStrings(attrName: string): string[] | undefined {
+    const v = this.attributes.get(attrName);
+    if (v) {
+      return v.split(',');
     } else {
       return undefined;
     }
+  }
+
+  setTools(tools: string[]): Agent {
+    return this.setStrings('tools', tools);
+  }
+
+  getTools(): string[] | undefined {
+    return this.getStrings('tools');
   }
 
   removeTools(): Agent {
@@ -835,28 +925,125 @@ export class Agent extends Record {
   }
 
   setDocuments(docs: string[]): Agent {
-    this.attributes.set('documents', docs.join(','));
-    return this;
+    return this.setStrings('documents', docs);
   }
 
-  getDocuments(): string {
-    return this.attributes.get('documents');
+  getDocuments(): string[] | undefined {
+    return this.getStrings('documents');
   }
 
   removeDocuments(): Agent {
     return this.removeAgentAttribute('documents');
   }
 
+  setFlows(flows: string[]): Agent {
+    return this.setStrings('flows', flows);
+  }
+
+  getFlows(): string[] | undefined {
+    return this.getStrings('flows');
+  }
+
+  getAgentFqName(): string {
+    return makeFqName(this.moduleName, this.getName());
+  }
+
+  setDirectives(conds: AgentCondition[]): Agent {
+    registerAgentDirectives(this.getAgentFqName(), conds);
+    return this;
+  }
+
+  removeDirectives(): Agent {
+    removeAgentDirectives(this.getAgentFqName());
+    return this;
+  }
+
+  getDirectives(): AgentCondition[] | undefined {
+    return getAgentDirectives(this.getAgentFqName());
+  }
+
+  setScenarios(scenarios: AgentScenario[]): Agent {
+    registerAgentScenarios(this.getAgentFqName(), scenarios);
+    return this;
+  }
+
+  getScenarios(): AgentScenario[] | undefined {
+    return getAgentScenarios(this.getAgentFqName());
+  }
+
+  removeScenarios(): Agent {
+    removeAgentScenarios(this.getAgentFqName());
+    return this;
+  }
+
+  setGlossary(glossary: AgentGlossaryEntry[]): Agent {
+    registerAgentGlossary(this.getAgentFqName(), glossary);
+    return this;
+  }
+
+  getGlossary(): AgentGlossaryEntry[] | undefined {
+    return getAgentGlossary(this.getAgentFqName());
+  }
+
+  removeGlossary(): Agent {
+    removeAgentGlossary(this.getAgentFqName());
+    return this;
+  }
+
+  setResponseSchema(entryName: string): Agent {
+    registerAgentResponseSchema(this.getAgentFqName(), entryName);
+    return this;
+  }
+
+  getResponseSchema(): string | undefined {
+    return getAgentResponseSchema(this.getAgentFqName());
+  }
+
+  removeResponseSchema(): Agent {
+    removeAgentResponseSchema(this.getAgentFqName());
+    return this;
+  }
+
   override toString(): string {
     const attrs = new Array<string>();
     this.attributes.forEach((value: any, key: string) => {
-      const v = isString(value) ? `"${value}"` : value;
-      attrs.push(`    ${key} ${v}`);
+      const skip = key == 'moduleName' || (key == 'type' && value == 'flow-exec');
+      if (!skip && value !== null && value !== undefined) {
+        let v = value;
+        if (key == 'flows') {
+          v = `[${v}]`;
+        } else if (isString(v)) {
+          v = `"${v}"`;
+        }
+        attrs.push(`    ${key} ${v}`);
+      }
     });
-    return `agent ${Agent.NormalizeName(this.name)}
+    const fqName = makeFqName(this.moduleName, this.getName());
+    const conds = getAgentDirectivesJson(fqName);
+    if (conds) {
+      attrs.push(`    directives ${conds}`);
+    }
+    const scns = getAgentScenariosJson(fqName);
+    if (scns) {
+      attrs.push(`    scenarios ${scns}`);
+    }
+    const gls = getAgentGlossaryJson(fqName);
+    if (gls) {
+      attrs.push(`    glossary ${gls}`);
+    }
+    const rscm = getAgentResponseSchema(fqName);
+    if (rscm) {
+      attrs.push(`   responseSchema ${rscm}`);
+    }
+    const s = `agent ${Agent.NormalizeName(this.name)}
 {
 ${attrs.join(',\n')}
 }`;
+    if (this.isPublic()) {
+      return `@public ${s}`;
+    } else {
+      return s;
+    }
   }
 
   static Suffix = '__agent';
@@ -910,6 +1097,10 @@ export class Entity extends Record {
 
 export class Event extends Record {
   override type: RecordType = RecordType.EVENT;
+
+  isSystemDefined(): boolean {
+    return this.meta?.get(SystemDefinedEvent) === 'true';
+  }
 }
 
 enum RelType {
@@ -925,7 +1116,7 @@ export type RelationshipNode = {
 };
 
 export function newRelNodeEntry(nodeFqName: string, alias?: string): RelationshipNode {
-  const p: Path = splitFqName(nodeFqName);
+  const p: Path = nameToPath(nodeFqName);
   return {
     path: p,
     alias: alias ? alias : p.getEntryName(),
@@ -937,20 +1128,20 @@ export function newRelNodeEntry(nodeFqName: string, alias?: string): Relationshi
 function relNodeEntryToString(node: RelationshipNode): string {
   let n = `${node.origName}`;
   if (node.origAlias) {
-    n = n.concat(` as ${node.origAlias}`);
+    n = n.concat(` @as ${node.origAlias}`);
   }
   return n;
 }
 
 function asRelNodeEntry(n: NodeDefinition): RelationshipNode {
-  const path: Path = splitFqName(n.name);
+  const path: Path = nameToPath(n.name);
   let modName = activeModule;
   const entryName = path.getEntryName();
   if (path.hasModule()) {
     modName = path.getModuleName();
   }
   let alias = entryName;
-  if (n.alias != undefined) {
+  if (n.alias !== undefined) {
     alias = n.alias;
   }
   return {
@@ -1037,14 +1228,14 @@ export class Relationship extends Record {
   }
 
   hasBooleanFlagSet(flag: string): boolean {
-    if (this.properties != undefined) {
+    if (this.properties !== undefined) {
       return this.properties.get(flag) == true;
     }
     return false;
   }
 
   private setProperty(p: string, v: any): Relationship {
-    if (this.properties == undefined) {
+    if (this.properties === undefined) {
       this.properties = new Map();
     }
     this.properties.set(p, v);
@@ -1157,17 +1348,12 @@ export class Relationship extends Record {
 
 export class Workflow extends ModuleEntry {
   statements: Statement[];
-  generatedName: boolean;
+  isPrePost: boolean;
 
-  constructor(
-    name: string,
-    patterns: Statement[],
-    moduleName: string,
-    generatedName: boolean = false
-  ) {
+  constructor(name: string, patterns: Statement[], moduleName: string, isPrePost: boolean = false) {
     super(name, moduleName);
     this.statements = patterns;
-    this.generatedName = generatedName;
+    this.isPrePost = isPrePost;
   }
 
   async addStatement(stmtCode: string): Promise<Workflow> {
@@ -1284,12 +1470,255 @@ export class Workflow extends ModuleEntry {
     return this.statementsToStringsHelper(this.statements);
   }
 
+  override setPublic(flag: boolean): ModuleEntry {
+    super.setPublic(flag);
+    if (!this.isPrePost) {
+      const n = normalizeWorkflowName(this.name);
+      const event = getEvent(n, this.moduleName);
+      event.setPublic(flag);
+    }
+    return this;
+  }
+
   override toString() {
-    const n = this.generatedName ? untangleWorkflowName(this.name) : this.name;
-    let s: string = `workflow ${normalizeWorkflowName(n)} {\n`;
+    const n = this.isPrePost ? untangleWorkflowName(this.name) : this.name;
+    const nn = normalizeWorkflowName(n);
+    let s: string = `workflow ${nn} {\n`;
     const ss = this.statementsToStringsHelper(this.statements);
     s = s.concat(joinStatements(ss));
+    if (!this.isPrePost) {
+      const event = getEvent(nn, this.moduleName);
+      if ((event.isPublic() && event.isSystemDefined()) || this.isPublic()) {
+        s = `@public ${s}`;
+      }
+    } else if (this.isPublic()) {
+      s = `@public ${s}`;
+    }
     return s.concat('\n}');
+  }
+}
+
+export type FlowGraphNode = {
+  label: string;
+  type: 'action' | 'condition';
+  on?: string[] | undefined;
+  next: string[];
+};
+
+export class Flow extends ModuleEntry {
+  flowSteps: string[];
+
+  constructor(name: string, moduleName: string, flow?: string) {
+    super(name, moduleName);
+    this.flowSteps = new Array<string>();
+    flow?.split('\n').forEach((step: string) => {
+      const s = step.trim();
+      if (s.length > 0) {
+        this.flowSteps.push(s);
+      }
+    });
+  }
+
+  getFlow(): string {
+    return this.flowSteps.join('\n');
+  }
+
+  removeStep(index: number): Flow {
+    this.flowSteps.splice(index, 1);
+    return this;
+  }
+
+  insertStep(index: number, s: string): Flow {
+    this.flowSteps.splice(index, 0, s);
+    return this;
+  }
+
+  appendStep(s: string): Flow {
+    this.flowSteps.push(s);
+    return this;
+  }
+
+  stepsCount(): number {
+    return this.flowSteps.length;
+  }
+
+  toGraph(): FlowGraphNode[] {
+    const result = new Array<FlowGraphNode>();
+    this.flowSteps.forEach((s: string) => {
+      const fp = FlowStepPattern.Parse(s);
+      if (fp.condition) {
+        const orig = result.find((v: FlowGraphNode) => {
+          return v.label == fp.first;
+        });
+        if (orig) {
+          const nxs = orig.next;
+          nxs?.push(fp.next);
+          const conds = orig.on;
+          conds?.push(fp.condition);
+        } else {
+          result.push({
+            label: fp.first,
+            type: 'condition',
+            on: [fp.condition],
+            next: [fp.next],
+          });
+        }
+      } else {
+        result.push({
+          label: fp.first,
+          type: 'action',
+          next: [fp.next],
+        });
+      }
+    });
+    return result;
+  }
+
+  static asFlowName(n: string): string {
+    return `${n}.flow`;
+  }
+
+  static normaliseFlowName(n: string): string {
+    const i = n.lastIndexOf('.flow');
+    if (i > 0) {
+      return n.substring(0, i);
+    } else {
+      return n;
+    }
+  }
+
+  override toString(): string {
+    return `flow ${Flow.normaliseFlowName(this.name)} {
+      ${this.getFlow()}
+    }`;
+  }
+}
+
+export class Scenario extends ModuleEntry {
+  def: AgentScenario;
+
+  constructor(name: string, moduleName: string, scn: AgentScenario) {
+    super(name, moduleName);
+    this.def = scn;
+  }
+
+  override toString(): string {
+    if (this.def.ifPattern) {
+      return `scenario ${this.name} {\n    ${this.def.ifPattern.toString()}\n}\n`;
+    }
+    const s = `if ("${this.def.user}") {
+      ${this.def.ai}
+    }`;
+    return `scenario ${this.name} {\n    ${s}\n}\n`;
+  }
+}
+
+export class Directive extends ModuleEntry {
+  private def: AgentCondition;
+
+  constructor(name: string, moduleName: string, def: AgentCondition) {
+    super(name, moduleName);
+    this.def = def;
+  }
+
+  override toString(): string {
+    if (this.def.ifPattern) {
+      return `directive ${this.name} {
+        ${this.def.if}
+      }`;
+    } else {
+      const obj: any = {
+        if: this.def.if,
+        then: this.def.then,
+      };
+      return `directive ${this.name} ${JSON.stringify(obj)}`;
+    }
+  }
+}
+
+export class GlossaryEntry extends ModuleEntry {
+  private def: AgentGlossaryEntry;
+
+  constructor(name: string, moduleName: string, def: AgentGlossaryEntry) {
+    super(name, moduleName);
+    this.def = def;
+  }
+
+  override toString(): string {
+    const ss = new Array<string>();
+    ss.push(`    name "${this.def.name}"`);
+    ss.push(`    meaning "${this.def.meaning}"`);
+    if (this.def.synonyms) {
+      ss.push(`    synonyms "${this.def.synonyms}"`);
+    }
+    return `glossaryEntry ${this.name} \n{\n${ss.join(',\n')}\n}`;
+  }
+}
+
+export function flowGraphNext(
+  graph: FlowGraphNode[],
+  currentNode?: FlowGraphNode,
+  onCondition?: string
+): FlowGraphNode | undefined {
+  if (!currentNode) {
+    return graph[0];
+  }
+  const node = graph.find((n: FlowGraphNode) => {
+    return n.label == currentNode.label;
+  });
+  if (node) {
+    if (onCondition) {
+      const c = node.on?.findIndex((v: string) => {
+        return v == onCondition;
+      });
+      if (c !== undefined) {
+        const next = node.next[c];
+        const r = graph.find((n: FlowGraphNode) => {
+          return n.label == next;
+        });
+        return r || { label: next, type: 'action', next: [] };
+      } else {
+        return undefined;
+      }
+    } else {
+      return graph.find((n: FlowGraphNode) => {
+        return n.label == node.next[0];
+      });
+    }
+  }
+  return undefined;
+}
+
+export class Decision extends ModuleEntry {
+  cases: string[];
+
+  constructor(name: string, moduleName: string, cases: string[]) {
+    super(name, moduleName);
+    this.cases = cases;
+  }
+
+  joinedCases(): string {
+    return this.cases.join('\n');
+  }
+
+  override toString(): string {
+    return `decision ${this.name} {
+      ${this.cases.join('\n')}
+    }`;
+  }
+}
+
+class StandaloneStatement extends ModuleEntry {
+  stmt: Statement;
+
+  constructor(stmt: Statement, moduleName: string) {
+    super(crypto.randomUUID(), moduleName);
+    this.stmt = stmt;
+  }
+
+  override toString(): string {
+    if (this.stmt.$cstNode) return this.stmt.$cstNode?.text;
+    else return '';
   }
 }
 
@@ -1302,17 +1731,14 @@ export function isEmptyWorkflow(wf: Workflow): boolean {
 export class Module {
   name: string;
   entries: ModuleEntry[];
-  entriesByTypeCache: Map<RecordType, ModuleEntry[]> | null;
 
   constructor(name: string) {
     this.name = name;
     this.entries = new Array<ModuleEntry>();
-    this.entriesByTypeCache = null;
   }
 
   addEntry(entry: ModuleEntry): ModuleEntry {
     this.entries.push(entry);
-    if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
     return entry;
   }
 
@@ -1338,6 +1764,214 @@ export class Module {
     return this.removeEntry(Agent.EscapeName(agentName));
   }
 
+  addFlow(name: string, flowString?: string): Flow {
+    const flow: Flow = new Flow(Flow.asFlowName(name), this.name, flowString);
+    this.addEntry(flow);
+    return flow;
+  }
+
+  getFlow(name: string): Flow | undefined {
+    const n = Flow.asFlowName(name);
+    if (this.hasEntry(n)) {
+      const e = this.getEntry(n);
+      if (e instanceof Flow) {
+        return e as Flow;
+      }
+    }
+    return undefined;
+  }
+
+  getAllFlows(): Flow[] {
+    return this.entries.filter((v: ModuleEntry) => {
+      return v instanceof Flow;
+    });
+  }
+
+  removeFlow(name: string): boolean {
+    if (this.getFlow(name)) {
+      return this.removeEntry(Flow.asFlowName(name));
+    }
+    return false;
+  }
+
+  addRawDecision(name: string, cases: string[]): Decision {
+    const d = new Decision(name, this.name, cases);
+    this.addEntry(d);
+    return d;
+  }
+
+  addDecision(decision: Decision): Module {
+    this.addEntry(decision);
+    return this;
+  }
+
+  getDecision(name: string): Decision | undefined {
+    if (this.hasEntry(name)) {
+      const e = this.getEntry(name);
+      if (e instanceof Decision) {
+        return e as Decision;
+      }
+    }
+    return undefined;
+  }
+
+  getAllDecisions(): Decision[] {
+    return this.entries.filter((e: ModuleEntry) => {
+      return e instanceof Decision;
+    });
+  }
+
+  getAllDecisionsForAgent(agentName: string): Decision[] {
+    const n = `${agentName}.`;
+    return this.getAllDecisions().filter((d: Decision) => {
+      return d.name.startsWith(n);
+    });
+  }
+
+  removeDecision(name: string): boolean {
+    for (let i = 0; i < this.entries.length; ++i) {
+      const entry = this.entries[i];
+      if (entry.name === name && entry instanceof Decision) {
+        this.entries.splice(i, 1);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  addScenario(name: string, scn: AgentScenario): Scenario {
+    const entry = new Scenario(name, this.name, scn);
+    this.addEntry(entry);
+    return entry;
+  }
+
+  getScenario(name: string): Scenario | undefined {
+    if (this.hasEntry(name)) {
+      const e = this.getEntry(name);
+      if (e instanceof Scenario) {
+        return e as Scenario;
+      }
+    }
+    return undefined;
+  }
+
+  getAllScenarios(): Scenario[] {
+    return this.entries.filter((e: ModuleEntry) => {
+      return e instanceof Scenario;
+    });
+  }
+
+  getAllScenariosForAgent(agentName: string): Scenario[] {
+    const n = `${agentName}.`;
+    return this.getAllScenarios().filter((s: Scenario) => {
+      return s.name.startsWith(n);
+    });
+  }
+
+  removeScenario(name: string): Module {
+    for (let i = 0; i < this.entries.length; ++i) {
+      const entry = this.entries[i];
+      if (entry.name === name && entry instanceof Scenario) {
+        this.entries.splice(i, 1);
+        break;
+      }
+    }
+    return this;
+  }
+
+  addDirective(name: string, cond: AgentCondition): Directive {
+    const entry = new Directive(name, this.name, cond);
+    this.addEntry(entry);
+    return entry;
+  }
+
+  getDirective(name: string): Directive | undefined {
+    if (this.hasEntry(name)) {
+      const e = this.getEntry(name);
+      if (e instanceof Directive) {
+        return e as Directive;
+      }
+    }
+    return undefined;
+  }
+
+  getAllDirectives(): Directive[] {
+    return this.entries.filter((e: ModuleEntry) => {
+      return e instanceof Directive;
+    });
+  }
+
+  getAllDirectivesForAgent(agentName: string): Directive[] {
+    const n = `${agentName}.`;
+    return this.getAllDirectives().filter((d: Directive) => {
+      return d.name.startsWith(n);
+    });
+  }
+
+  removeDirective(name: string): Module {
+    for (let i = 0; i < this.entries.length; ++i) {
+      const entry = this.entries[i];
+      if (entry.name === name && entry instanceof Directive) {
+        this.entries.splice(i, 1);
+        break;
+      }
+    }
+    return this;
+  }
+
+  addGlossaryEntry(name: string, ge: AgentGlossaryEntry): GlossaryEntry {
+    const entry = new GlossaryEntry(name, this.name, ge);
+    this.addEntry(entry);
+    return entry;
+  }
+
+  getGlossaryEntry(name: string): GlossaryEntry | undefined {
+    if (this.hasEntry(name)) {
+      const e = this.getEntry(name);
+      if (e instanceof GlossaryEntry) {
+        return e as GlossaryEntry;
+      }
+    }
+    return undefined;
+  }
+
+  getAllGlossaryEntries(): GlossaryEntry[] {
+    return this.entries.filter((e: ModuleEntry) => {
+      return e instanceof GlossaryEntry;
+    });
+  }
+
+  getAllGlossaryEntriesForAgent(agentName: string): GlossaryEntry[] {
+    const n = `${agentName}.`;
+    return this.getAllGlossaryEntries().filter((ge: GlossaryEntry) => {
+      return ge.name.startsWith(n);
+    });
+  }
+
+  removeGlossaryEntry(name: string): Module {
+    for (let i = 0; i < this.entries.length; ++i) {
+      const entry = this.entries[i];
+      if (entry.name === name && entry instanceof GlossaryEntry) {
+        this.entries.splice(i, 1);
+        break;
+      }
+    }
+    return this;
+  }
+
+  addStandaloneStatement(stmt: Statement): StandaloneStatement {
+    const s = new StandaloneStatement(stmt, this.name);
+    this.addEntry(s);
+    return s;
+  }
+
+  getStandaloneStatement(name: string): StandaloneStatement | undefined {
+    if (this.hasEntry(name)) {
+      return this.getEntry(name) as StandaloneStatement;
+    }
+    return undefined;
+  }
+
   private getEntryIndex(entryName: string): number {
     return this.entries.findIndex((v: ModuleEntry) => {
       return v.name == entryName;
@@ -1354,6 +1988,12 @@ export class Module {
     return this.entries[idx];
   }
 
+  getEntrySafe(entryName: string): ModuleEntry | undefined {
+    const idx: number = this.getEntryIndex(entryName);
+    if (idx < 0) return undefined;
+    return this.entries[idx];
+  }
+
   getRecord(recordName: string): Record {
     const e: ModuleEntry = this.getEntry(recordName);
     if (e instanceof Record) {
@@ -1366,27 +2006,16 @@ export class Module {
     const idx: number = this.getEntryIndex(entryName);
     if (idx >= 0) {
       this.entries.splice(idx, 1);
-      if (this.entriesByTypeCache != null) this.entriesByTypeCache = null;
       return true;
     }
     return false;
   }
 
   private getEntriesOfType(t: RecordType): ModuleEntry[] {
-    if (this.entriesByTypeCache != null && this.entriesByTypeCache.has(t)) {
-      const result: ModuleEntry[] | undefined = this.entriesByTypeCache.get(t);
-      if (result == undefined) return new Array<ModuleEntry>();
-      return result;
-    } else {
-      const result: ModuleEntry[] = this.entries.filter((v: ModuleEntry) => {
-        const r: Record = v as Record;
-        return r.type == t;
-      });
-      if (this.entriesByTypeCache != null)
-        this.entriesByTypeCache = new Map<RecordType, ModuleEntry[]>();
-      this.entriesByTypeCache?.set(t, result);
-      return result;
-    }
+    return this.entries.filter((v: ModuleEntry) => {
+      const r: Record = v as Record;
+      return r.type == t;
+    });
   }
 
   getEntityEntries(): Entity[] {
@@ -1436,12 +2065,24 @@ export class Module {
     });
   }
 
-  getWorkflowForEvent(eventName: string): Workflow {
-    return this.getEntry(asWorkflowName(eventName)) as Workflow;
+  getWorkflowForEvent(eventName: string): Workflow | undefined {
+    const entry = this.getEntrySafe(asWorkflowName(eventName));
+    if (entry) return entry as Workflow;
+    else return undefined;
+  }
+
+  eventIsPublic(eventName: string): boolean {
+    const entry = this.getEntry(eventName);
+    if (entry instanceof Event) {
+      return entry.isPublic();
+    }
+    return false;
   }
 
   isPrePostEvent(eventName: string): boolean {
-    return this.getWorkflowForEvent(eventName).generatedName;
+    const wf = this.getWorkflowForEvent(eventName);
+    if (wf) return wf.isPrePost;
+    return false;
   }
 
   isEntryOfType(t: RecordType, name: string): boolean {
@@ -1449,7 +2090,7 @@ export class Module {
       const r: Record = v as Record;
       return r.name == name;
     });
-    return entry != undefined;
+    return entry !== undefined;
   }
 
   isEntity(name: string): boolean {
@@ -1574,7 +2215,7 @@ export function isModule(name: string): boolean {
 
 export function fetchModule(moduleName: string): Module {
   const module: Module | undefined = moduleDb.get(moduleName);
-  if (module == undefined) {
+  if (module === undefined) {
     throw new Error(`Module not found - ${moduleName}`);
   }
   return module;
@@ -1593,6 +2234,8 @@ const builtInChecks = new Map([
   ['String', isString],
   ['Int', Number.isSafeInteger],
   ['Number', isNumber],
+  ['Float', isNumber],
+  ['Decimal', isNumber],
   ['Email', isString],
   ['Date', isString],
   ['Time', isString],
@@ -1641,13 +2284,19 @@ function isTextualType(type: string): boolean {
   return TextualTypes.has(type);
 }
 
+const NumericTypes = new Set(['Int', 'Number', 'Float', 'Decimal']);
+
+function isNumericType(type: string): boolean {
+  return NumericTypes.has(type);
+}
+
 export function isBuiltInType(type: string): boolean {
   return builtInTypes.has(type);
 }
 
 export function isValidType(type: string): boolean {
   if (isBuiltInType(type)) return true;
-  const path: Path = splitFqName(type);
+  const path: Path = nameToPath(type);
   let modName: string = '';
   if (path.hasModule()) modName = path.getModuleName();
   else modName = activeModule;
@@ -1655,14 +2304,14 @@ export function isValidType(type: string): boolean {
 }
 
 function checkType(type: string | undefined): void {
-  if (type == undefined) throw new Error('Attribute type is required');
+  if (type === undefined) throw new Error('Attribute type is required');
   if (!isValidType(type)) {
     console.log(chalk.red(`WARN: type not found - ${type}`));
   }
 }
 
 function validateProperties(props: PropertyDefinition[] | undefined): void {
-  if (props != undefined) {
+  if (props !== undefined) {
     props.forEach((p: PropertyDefinition) => {
       if (!propertyNames.has(p.name)) throw new Error(`Invalid property ${p.name}`);
     });
@@ -1679,9 +2328,9 @@ export function defaultAttributes(schema: RecordSchema): Map<string, any> {
   const result: Map<string, any> = new Map<string, any>();
   schema.forEach((v: AttributeSpec, k: string) => {
     const props: Map<string, any> | undefined = v.properties;
-    if (props != undefined) {
+    if (props !== undefined) {
       const d: any | undefined = props.get('default');
-      if (d != undefined) {
+      if (d !== undefined) {
         result.set(k, d);
       }
     }
@@ -1693,7 +2342,7 @@ export function passwordAttributes(schema: RecordSchema): Set<string> | undefine
   let result: Set<string> | undefined = undefined;
   schema.forEach((v: AttributeSpec, k: string) => {
     if (v.type == 'Password') {
-      if (result == undefined) {
+      if (result === undefined) {
         result = new Set<string>();
       }
       result?.add(k);
@@ -1706,7 +2355,7 @@ export function objectAttributes(schema: RecordSchema): Array<string> | undefine
   let result: Array<string> | undefined;
   schema.forEach((v: AttributeSpec, k: string) => {
     if (isObjectAttribute(v)) {
-      if (result == undefined) result = new Array<string>();
+      if (result === undefined) result = new Array<string>();
       result.push(k);
     }
   });
@@ -1714,21 +2363,21 @@ export function objectAttributes(schema: RecordSchema): Array<string> | undefine
 }
 
 function getBooleanProperty(propName: string, attrSpec: AttributeSpec): boolean {
-  if (attrSpec.properties != undefined) {
+  if (attrSpec.properties !== undefined) {
     return attrSpec.properties.get(propName) == true;
   }
   return false;
 }
 
 function getAnyProperty(propName: string, attrSpec: AttributeSpec): any | undefined {
-  if (attrSpec.properties != undefined) {
+  if (attrSpec.properties !== undefined) {
     return attrSpec.properties.get(propName);
   }
   return undefined;
 }
 
 function setAnyProperty(propName: string, value: any, attrSpec: AttributeSpec): AttributeSpec {
-  if (attrSpec.properties == undefined) {
+  if (attrSpec.properties === undefined) {
     attrSpec.properties = new Map();
   }
   attrSpec.properties.set(propName, value);
@@ -1773,6 +2422,10 @@ export function isArrayAttribute(attrSpec: AttributeSpec): boolean {
 
 export function isObjectAttribute(attrSpec: AttributeSpec): boolean {
   return getBooleanProperty('object', attrSpec);
+}
+
+export function isNumericAttribute(attrSpec: AttributeSpec): boolean {
+  return isNumericType(attrSpec.type);
 }
 
 export function getAttributeExpr(attrSpec: AttributeSpec): Expr | undefined {
@@ -1856,7 +2509,7 @@ export function addRelationship(
     n2 = nodes[1];
   }
   let propsMap: Map<string, any> | undefined;
-  if (props != undefined) propsMap = asPropertiesMap(props);
+  if (props !== undefined) propsMap = asPropertiesMap(props);
   return module.addEntry(
     new Relationship(name, type, n1, n2, moduleName, scm, propsMap)
   ) as Relationship;
@@ -1908,7 +2561,8 @@ export function addWorkflow(
   name: string,
   moduleName = activeModule,
   statements?: Statement[],
-  hdr?: WorkflowHeader | ThinWfHeader
+  hdr?: WorkflowHeader | ThinWfHeader,
+  ispub: boolean = false
 ): Workflow {
   if (hdr) {
     name = prePostWorkflowName(hdr.tag, hdr.prefix, hdr.name, moduleName);
@@ -1919,9 +2573,11 @@ export function addWorkflow(
     if (!(entry instanceof Event))
       throw new Error(`Not an event, cannot attach workflow to ${entry.name}`);
   } else {
-    addEvent(name, moduleName);
-    const event: Record = module.getEntry(name) as Record;
+    const event = addEvent(name, moduleName);
     event.addMeta(SystemDefinedEvent, 'true');
+    if (ispub) {
+      event.setPublic(true);
+    }
   }
   if (!statements) statements = new Array<Statement>();
   if (hdr) {
@@ -2015,7 +2671,7 @@ export function prePostWorkflowName(
   entityName: string,
   moduleName?: string
 ): string {
-  const parts = splitFqName(entityName);
+  const parts = nameToPath(entityName);
   const mname = parts.hasModule() ? parts.getModuleName() : moduleName;
   if (!mname) {
     throw new Error(`Cannot infer module name for ${entityName}`);
@@ -2040,18 +2696,32 @@ export function parsePrePostWorkflowName(name: string): ThinWfHeader {
 }
 
 function getEntityDef(entityName: string, moduleName: string): Entity | undefined {
-  const parts = splitFqName(entityName);
-  const mname = parts.hasModule() ? parts.getModuleName() : moduleName;
-  return getEntity(parts.getEntryName(), mname);
+  try {
+    const parts = nameToPath(entityName);
+    const mname = parts.hasModule() ? parts.getModuleName() : moduleName;
+    return getEntity(parts.getEntryName(), mname);
+  } catch (reason: any) {
+    logger.error(`getEntityDef: ${reason}`);
+  }
+  return undefined;
 }
 
 export function getWorkflow(eventInstance: Instance): Workflow {
-  const eventName: string = eventInstance.name;
-  const moduleName: string = eventInstance.moduleName;
-  const wfName: string = asWorkflowName(eventName);
-  const module: Module = fetchModule(moduleName);
-  if (module.hasEntry(wfName)) {
-    return module.getEntry(wfName) as Workflow;
+  return getWorkflowForEvent(eventInstance.name, eventInstance.moduleName);
+}
+
+export function getWorkflowForEvent(eventName: string, moduleName?: string): Workflow {
+  if (isFqName(eventName)) {
+    const parts = nameToPath(eventName);
+    eventName = parts.getEntryName();
+    moduleName = parts.getModuleName();
+  }
+  if (moduleName) {
+    const wfName: string = asWorkflowName(eventName);
+    const module: Module = fetchModule(moduleName);
+    if (module.hasEntry(wfName)) {
+      return module.getEntry(wfName) as Workflow;
+    }
   }
   return EmptyWorkflow;
 }
@@ -2066,7 +2736,7 @@ export function getEntity(name: string, moduleName: string): Entity | undefined 
 }
 
 function isEntryOfType(t: RecordType, fqName: string): boolean {
-  const path = splitFqName(fqName);
+  const path = nameToPath(fqName);
   const mod = fetchModule(path.getModuleName());
   return mod.isEntryOfType(t, path.getEntryName());
 }
@@ -2139,7 +2809,7 @@ function filterBetweenRelationshipsForEntity(
   predic: Function,
   allBetweenRels?: Relationship[]
 ): Relationship[] {
-  if (allBetweenRels == undefined) {
+  if (allBetweenRels === undefined) {
     allBetweenRels = getAllBetweenRelationships();
   }
   const p = new Path(moduleName, entityName);
@@ -2272,7 +2942,7 @@ export function removeEvent(name: string, moduleName = activeModule): boolean {
 
 function getAttributeSpec(attrsSpec: RecordSchema, attrName: string): AttributeSpec {
   const spec: AttributeSpec | undefined = attrsSpec.get(attrName);
-  if (spec == undefined) {
+  if (spec === undefined) {
     throw new Error(`Failed to find spec for attribute ${attrName}`);
   }
   return spec;
@@ -2308,7 +2978,7 @@ function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec)
   }
   let predic = getCheckPredicate(attrSpec);
   predic = predic ? predic : builtInChecks.get(attrSpec.type);
-  if (predic != undefined) {
+  if (predic !== undefined) {
     if (isArrayAttribute(attrSpec)) {
       if (!(attrValue instanceof Array)) {
         throw new Error(`${attrName} expects an array of values`);
@@ -2389,7 +3059,10 @@ export class Instance {
     attrs.forEach((v: any, k: string) => {
       const attrSpec = this.record.schema.get(k);
       if (attrSpec) {
-        if ((isArrayAttribute(attrSpec) || isObjectAttribute(attrSpec)) && isString(v)) {
+        const isstr = isString(v);
+        if (isNumericAttribute(attrSpec) && isstr) {
+          attrs.set(k, Number(v));
+        } else if ((isArrayAttribute(attrSpec) || isObjectAttribute(attrSpec)) && isstr) {
           const obj: any = JSON.parse(v);
           attrs.set(k, obj);
         }
@@ -2403,7 +3076,12 @@ export class Instance {
   }
 
   lookup(k: string): any {
-    return this.attributes.get(k);
+    const v = this.attributes.get(k);
+    if (v === undefined) {
+      return this.getRelatedInstances(k);
+    } else {
+      return v;
+    }
   }
 
   lookupQueryVal(k: string): any {
@@ -2429,7 +3107,7 @@ export class Instance {
       const relsObj: any = {};
       this.relatedInstances.forEach((insts: Instance[], relName: string) => {
         relsObj[relName] = insts.map((inst: Instance) => {
-          return inst.asSerializableObject();
+          return maybeInstanceAsString(inst);
         });
       });
       obj.relatedInstances = relsObj;
@@ -2518,24 +3196,24 @@ export class Instance {
   }
 
   queryAttributesAsObject(): object {
-    if (this.queryAttributes != undefined) {
+    if (this.queryAttributes !== undefined) {
       return Object.fromEntries(this.queryAttributes);
     }
     return {};
   }
 
   queryAttributeValuesAsObject(): object {
-    if (this.queryAttributeValues != undefined) {
+    if (this.queryAttributeValues !== undefined) {
       return Object.fromEntries(this.queryAttributeValues);
     }
     return {};
   }
 
   addQuery(attrName: string, op: string = '=', attrVal: any = undefined) {
-    if (this.queryAttributes == undefined) this.queryAttributes = newInstanceAttributes();
+    if (this.queryAttributes === undefined) this.queryAttributes = newInstanceAttributes();
     this.queryAttributes.set(attrName, op);
-    if (attrVal != undefined) {
-      if (this.queryAttributeValues == undefined)
+    if (attrVal !== undefined) {
+      if (this.queryAttributeValues === undefined)
         this.queryAttributeValues = newInstanceAttributes();
       this.queryAttributeValues.set(attrName, attrVal);
     }
@@ -2549,11 +3227,11 @@ export class Instance {
   }
 
   attachRelatedInstances(relName: string, insts: Instance | Instance[]) {
-    if (this.relatedInstances == undefined) {
+    if (this.relatedInstances === undefined) {
       this.relatedInstances = new Map<string, Array<Instance>>();
     }
     let relInsts: Array<Instance> | undefined = this.relatedInstances.get(relName);
-    if (relInsts == undefined) {
+    if (relInsts === undefined) {
       relInsts = new Array<Instance>();
     }
     if (insts instanceof Instance) {
@@ -2568,7 +3246,7 @@ export class Instance {
   }
 
   detachAllRelatedInstance() {
-    if (this.relatedInstances != undefined) {
+    if (this.relatedInstances !== undefined) {
       this.relatedInstances?.clear();
       this.relatedInstances = undefined;
       this.attributes.delete('->');
@@ -2576,7 +3254,7 @@ export class Instance {
   }
 
   mergeRelatedInstances() {
-    if (this.relatedInstances != undefined) {
+    if (this.relatedInstances !== undefined) {
       this.relatedInstances.forEach((v: Instance[], k: string) => {
         this.attributes.set(k, v);
       });
@@ -2601,7 +3279,7 @@ export class Instance {
   }
 
   addContextData(k: string, v: any): Instance {
-    if (this.contextData == undefined) {
+    if (this.contextData === undefined) {
       this.contextData = new Map();
     }
     this.contextData.set(k, v);
@@ -2611,7 +3289,7 @@ export class Instance {
   getContextData(k: string, notFoundValue?: any): any {
     if (this.contextData) {
       const v: any = this.contextData.get(k);
-      if (v == undefined) return notFoundValue;
+      if (v === undefined) return notFoundValue;
       return v;
     }
     return notFoundValue;
@@ -2638,7 +3316,7 @@ export class Instance {
     this.record.schema.forEach((attrSpec: AttributeSpec, n: string) => {
       const expr = getAttributeExpr(attrSpec);
       if (expr) {
-        if (result == undefined) {
+        if (result === undefined) {
           result = new Map<string, Expr>();
         }
         result.set(n, expr);
@@ -2654,6 +3332,28 @@ export class Instance {
   get(k: string): any {
     return this.attributes.get(k);
   }
+}
+
+export function maybeInstanceAsString(result: any): string {
+  if (!isString(result)) {
+    try {
+      if (result instanceof Instance) {
+        const inst = result as Instance;
+        return JSON.stringify(inst.asSerializableObject());
+      } else if (result instanceof Array) {
+        return `[${(result as Array<any>)
+          .map((r: any) => {
+            return maybeInstanceAsString(r);
+          })
+          .join(',')}]`;
+      } else {
+        return JSON.stringify(result);
+      }
+    } catch (reason: any) {
+      logger.error(`Failed to serialize object to string - ${reason}`);
+      return `${result}`;
+    }
+  } else return result;
 }
 
 export function objectAsInstanceAttributes(obj: object | undefined): InstanceAttributes {
@@ -2693,7 +3393,7 @@ function maybeSetDefaultAttributeValues(
   const defAttrs = defaultAttributes(schema);
   defAttrs.forEach((v: any, k: string) => {
     const cv = attributes.get(k);
-    if (cv == undefined || cv == null) {
+    if (cv === undefined || cv === null) {
       if (isString(v)) {
         if (v == 'uuid()') {
           v = crypto.randomUUID();
@@ -2738,10 +3438,10 @@ export function makeInstance(
   if (schema.size > 0) {
     attributes.forEach((value: any, key: string) => {
       if (!schema.has(key)) {
-        throw new Error(`Invalid attribute ${key} specified for ${moduleName}/${entryName}`);
+        throw new Error(`Invalid attribute '${key}' specified for ${moduleName}/${entryName}`);
       }
       const spec: AttributeSpec = getAttributeSpec(schema, key);
-      if (value != null && value != undefined) validateType(key, value, spec);
+      if (value !== null && value !== undefined) validateType(key, value, spec);
     });
   }
   if (!queryAttributes && !queryAll) {
@@ -2848,14 +3548,27 @@ export function assertInstance(obj: any) {
 
 const IsAgentEventMeta = 'is-agent-event';
 const EventAgentName = 'event-agent-name';
+const DocumentationMetaTag = 'documentation';
 
-export function defineAgentEvent(moduleName: string, agentName: string) {
+export function defineAgentEvent(moduleName: string, agentName: string, instruction?: string) {
   const module = fetchModule(moduleName);
   const event: Record = new Event(agentName, moduleName);
   event.addAttribute('message', { type: 'Any' });
-  event.addAttribute('chatId', { type: 'String' });
+  event.addAttribute('chatId', asOptionalAttribute({ type: 'String' }));
+  event.addAttribute('mode', asSystemAttribute(asOptionalAttribute({ type: 'String' })));
   event.addMeta(IsAgentEventMeta, 'y');
   event.addMeta(EventAgentName, agentName);
+  if (instruction) {
+    event.addMeta(
+      DocumentationMetaTag,
+      `This event will trigger an agent which has the instruction - "${instruction}".
+    So make sure to pass all relevant information in the 'message' attribute of this event.`
+    );
+  }
+  const agent = module.getAgent(agentName);
+  if (agent && agent.isPublic()) {
+    event.setPublic(true);
+  }
   module.addEntry(event);
 }
 
@@ -2865,7 +3578,7 @@ export function isTimer(eventInst: Instance): boolean {
 
 export function isAgentEvent(record: Record): boolean {
   const flag = record.getMeta(IsAgentEventMeta);
-  return flag != undefined && flag == 'y';
+  return flag !== undefined && flag == 'y';
 }
 
 export function isAgentEventInstance(eventInst: Instance): boolean {
@@ -2884,15 +3597,45 @@ export function instanceToObject<Type>(inst: Instance, obj: any): Type {
 }
 
 export function getEntityRbacRules(entityFqName: string): RbacSpecification[] | undefined {
-  const p = splitFqName(entityFqName);
+  const p = nameToPath(entityFqName);
   const mn = p.getModuleName();
   const en = p.getEntryName();
   const m = isModule(mn) && fetchModule(mn);
   if (m && m.isEntity(en)) {
     const entity = getEntity(en, mn);
     return entity?.getRbacSpecifications()?.filter((spec: RbacSpecification) => {
-      return spec.expression != undefined;
+      return spec.expression !== undefined;
     });
   }
   return undefined;
+}
+
+export function asJSONSchema(fqName: string): string {
+  const parts = nameToPath(fqName);
+  if (parts.hasModule()) {
+    const mod = fetchModule(parts.getModuleName());
+    const record = mod.getRecord(parts.getEntryName());
+    const s = new Array<string>();
+    record.schema.forEach((attr: AttributeSpec, n: string) => {
+      let t = attr.type;
+      const enums = getEnumValues(attr);
+      if (enums) {
+        t = `one of the strings: ${[...enums].join(',')}`;
+      }
+      s.push(`"${n}": <${t}>`);
+    });
+    return `{${s.join(',\n')}}`;
+  } else {
+    throw new Error(`Failed to find module for ${fqName}`);
+  }
+}
+
+export function getDecision(name: string, moduleName: string): Decision | undefined {
+  if (isFqName(name)) {
+    const parts = splitFqName(name);
+    name = parts[1];
+    moduleName = parts[0];
+  }
+  const m = fetchModule(moduleName);
+  return m.getDecision(name);
 }

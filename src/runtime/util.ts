@@ -3,6 +3,9 @@ import {
   AliasSpec,
   CatchSpec,
   ExtendsClause,
+  isLiteral,
+  MapEntry,
+  MapLiteral,
   MetaDefinition,
   PrePostTriggerDefinition,
   RbacSpecDefinition,
@@ -40,14 +43,18 @@ export function isBoolean(x: any): boolean {
   return typeof x === 'boolean';
 }
 
+export function isStringNumeric(str: string): boolean {
+  return !isNaN(Number(str)) && !isNaN(parseFloat(str));
+}
+
 type MaybeString = string | undefined;
 
 export function isString(s: MaybeString): boolean {
-  return s != undefined && typeof s === 'string';
+  return s !== undefined && typeof s === 'string';
 }
 
 function asString(s: MaybeString): string {
-  if (s == undefined) return '';
+  if (s === undefined) return '';
   else return s;
 }
 
@@ -137,12 +144,16 @@ export function isFqName(s: string): boolean {
   return s.indexOf('/') > 0;
 }
 
-export function splitFqName(s: string): Path {
+export function nameToPath(s: string): Path {
   if (s.indexOf('/') > 0) {
     const parts: string[] = s.split('/');
     return new Path(parts[0], parts[1]);
   }
   return new Path(undefined, s);
+}
+
+export function splitFqName(s: string): string[] {
+  return s.split('/');
 }
 
 export function splitRefs(s: string): string[] {
@@ -151,6 +162,10 @@ export function splitRefs(s: string): string[] {
   } else {
     return [s];
   }
+}
+
+export function rootRef(s: string): string {
+  return splitRefs(s)[0];
 }
 
 export function runShellCommand(cmd: string, options?: any, continuation?: Function) {
@@ -336,7 +351,7 @@ export function findAllPrePostTriggerSchema(
     for (let i = 0; i < scm.extras.length; ++i) {
       const rex: RecordExtraDefinition = scm.extras[i];
       if (rex.prePost) {
-        if (result == undefined) {
+        if (result === undefined) {
           result = new Array<PrePostTriggerDefinition>();
         }
         result.push(rex.prePost);
@@ -357,7 +372,7 @@ export enum CrudType {
 
 export function asCrudType(s: string): CrudType {
   const r: CrudType | undefined = CrudType[s.toUpperCase() as keyof typeof CrudType];
-  if (r == undefined) {
+  if (r === undefined) {
     throw new Error(`${s} does not represent a valid CrudType`);
   }
   return r;
@@ -425,7 +440,7 @@ function maybeExtractModuleName(n: string, moduleName?: string | undefined): str
   if (i > 0) {
     return n.substring(0, i);
   }
-  if (moduleName == undefined) {
+  if (moduleName === undefined) {
     throw new Error(`Failed to extract module-name from ${n}`);
   }
   return moduleName;
@@ -515,4 +530,27 @@ export function fileExtension(fileName: string): string {
     }
   }
   return '';
+}
+
+export function trimQuotes(s: string): string {
+  let ss = s.trim();
+  if (ss[0] == '"') {
+    ss = ss.substring(1);
+  }
+  if (ss[ss.length - 1] == '"') {
+    return ss.substring(0, ss.length - 1);
+  }
+  return ss;
+}
+
+export function asStringLiteralsMap(mapLit: MapLiteral): Map<string, string> {
+  const result = new Map<string, string>();
+  mapLit.entries.forEach((me: MapEntry) => {
+    const k = me.key.str;
+    if (k && isLiteral(me.value)) {
+      const v = me.value.str || me.value.id || me.value.ref;
+      if (v) result.set(k, v);
+    }
+  });
+  return result;
 }

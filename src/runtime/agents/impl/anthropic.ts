@@ -9,6 +9,7 @@ export interface AnthropicConfig {
   maxTokens?: number;
   maxRetries?: number;
   apiKey?: string;
+  stream?: boolean;
   clientOptions?: {
     defaultHeaders?: Record<string, string>;
     [key: string]: any;
@@ -35,6 +36,7 @@ export interface AnthropicConfig {
    * Enable extended thinking mode for Claude to show its reasoning process.
    * When enabled, responses include thinking blocks showing Claude's thought process.
    * Requires minimum budgetTokens of 1024 and counts towards maxTokens.
+   * NOTE: When thinking is enabled, temperature cannot be customized and will use default.
    * Useful for complex reasoning, problem-solving, and transparency.
    * @see https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking
    */
@@ -85,6 +87,7 @@ export class AnthropicProvider implements AgentServiceProvider {
       temperature: this.config.temperature,
       maxTokens: this.config.maxTokens,
       maxRetries: this.config.maxRetries,
+      streaming: this.config.stream,
     };
 
     if (this.config.apiKey) {
@@ -132,8 +135,8 @@ export class AnthropicProvider implements AgentServiceProvider {
       };
     }
 
-    // Validate thinking configuration if enabled
-    // Thinking mode requires careful token budget management
+    // Configure thinking mode if enabled
+    // Thinking mode should be passed to constructor, not invoke method
     if (this.config.enableThinking) {
       // Validate budget tokens (minimum 1024 required by API)
       const budgetTokens = Math.max(1024, this.config.budgetTokens || 1024);
@@ -145,6 +148,15 @@ export class AnthropicProvider implements AgentServiceProvider {
           `budgetTokens (${budgetTokens}) must be less than maxTokens (${this.config.maxTokens || 8192})`
         );
       }
+
+      // When thinking is enabled, temperature must not be customized
+      // Anthropic requires using default temperature with thinking mode
+      delete chatConfig.temperature;
+
+      chatConfig.thinking = {
+        type: 'enabled',
+        budget_tokens: budgetTokens,
+      };
     }
 
     this.model = new ChatAnthropic(chatConfig);
@@ -156,10 +168,11 @@ export class AnthropicProvider implements AgentServiceProvider {
       temperature: 0.7,
       maxTokens: 8192,
       maxRetries: 2,
+      stream: false,
       enablePromptCaching: false,
       cacheControl: 'ephemeral',
       enableThinking: false,
-      budgetTokens: 1024, // Minimum budget tokens for thinking mode
+      budgetTokens: 1024,
       enableExtendedOutput: false,
       enableInterleavedThinking: false,
       enableFineGrainedToolStreaming: false,
@@ -183,46 +196,77 @@ export class AnthropicProvider implements AgentServiceProvider {
       temperature: config.get('temperature') ?? defaultConfig.temperature,
       maxTokens: config.get('maxTokens') || config.get('max_tokens') || defaultConfig.maxTokens,
       maxRetries: config.get('maxRetries') || config.get('max_retries') || defaultConfig.maxRetries,
-      enablePromptCaching:
-        config.get('enablePromptCaching') ||
-        config.get('enable_prompt_caching') ||
-        defaultConfig.enablePromptCaching,
+      stream: (() => {
+        const value = config.get('stream');
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        if (typeof value === 'boolean') return value;
+        return defaultConfig.stream;
+      })(),
+      enablePromptCaching: (() => {
+        const value = config.get('enablePromptCaching') || config.get('enable_prompt_caching');
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        if (typeof value === 'boolean') return value;
+        return defaultConfig.enablePromptCaching;
+      })(),
       cacheControl:
         config.get('cacheControl') || config.get('cache_control') || defaultConfig.cacheControl,
-      enableThinking:
-        config.get('enableThinking') ||
-        config.get('enable_thinking') ||
-        config.get('thinking') ||
-        defaultConfig.enableThinking,
+      enableThinking: (() => {
+        const value =
+          config.get('enableThinking') || config.get('enable_thinking') || config.get('thinking');
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        if (typeof value === 'boolean') return value;
+        return defaultConfig.enableThinking;
+      })(),
       budgetTokens:
         config.get('budgetTokens') ||
         config.get('budget_tokens') ||
         config.get('thinking_budget') ||
         defaultConfig.budgetTokens,
-      enableExtendedOutput:
-        config.get('enableExtendedOutput') ||
-        config.get('enable_extended_output') ||
-        config.get('extendedOutput') ||
-        defaultConfig.enableExtendedOutput,
-      enableInterleavedThinking:
-        config.get('enableInterleavedThinking') ||
-        config.get('enable_interleaved_thinking') ||
-        config.get('interleavedThinking') ||
-        defaultConfig.enableInterleavedThinking,
-      enableFineGrainedToolStreaming:
-        config.get('enableFineGrainedToolStreaming') ||
-        config.get('enable_fine_grained_tool_streaming') ||
-        config.get('fineGrainedToolStreaming') ||
-        defaultConfig.enableFineGrainedToolStreaming,
+      enableExtendedOutput: (() => {
+        const value =
+          config.get('enableExtendedOutput') ||
+          config.get('enable_extended_output') ||
+          config.get('extendedOutput');
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        if (typeof value === 'boolean') return value;
+        return defaultConfig.enableExtendedOutput;
+      })(),
+      enableInterleavedThinking: (() => {
+        const value =
+          config.get('enableInterleavedThinking') ||
+          config.get('enable_interleaved_thinking') ||
+          config.get('interleavedThinking');
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        if (typeof value === 'boolean') return value;
+        return defaultConfig.enableInterleavedThinking;
+      })(),
+      enableFineGrainedToolStreaming: (() => {
+        const value =
+          config.get('enableFineGrainedToolStreaming') ||
+          config.get('enable_fine_grained_tool_streaming') ||
+          config.get('fineGrainedToolStreaming');
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        if (typeof value === 'boolean') return value;
+        return defaultConfig.enableFineGrainedToolStreaming;
+      })(),
       apiKey,
       clientOptions: config.get('clientOptions') || config.get('client_options'),
     };
   }
 
-  async invoke(messages: BaseMessage[]): Promise<AIResponse> {
+  async invoke(
+    messages: BaseMessage[],
+    _externalToolSpecs: any[] | undefined
+  ): Promise<AIResponse> {
     if (!this.config.apiKey) {
       throw new Error(
-        'Anthropic API key is required. Set ANTHROPIC_API_KEY environment variable or provide apiKey in config.'
+        'Anthropic API key is required. Set ANTHROPIC_API_KEY environment variable or use setLocalEnv("ANTHROPIC_API_KEY", key) or provide apiKey in config.'
       );
     }
 
@@ -232,18 +276,9 @@ export class AnthropicProvider implements AgentServiceProvider {
       processedMessages = this.applyCacheControl(messages);
     }
 
-    // Add thinking configuration to the invoke options if enabled
-    // Thinking mode is passed as a parameter during invocation, not in constructor
-    const invokeOptions: any = {};
-    if (this.config.enableThinking) {
-      const budgetTokens = Math.max(1024, this.config.budgetTokens || 1024);
-      invokeOptions.thinking = {
-        type: 'enabled',
-        budget_tokens: budgetTokens,
-      };
-    }
-
-    return asAIResponse(await this.model.invoke(processedMessages, invokeOptions));
+    // Thinking configuration is now handled in the constructor
+    // No need to pass additional options to invoke
+    return asAIResponse(await this.model.invoke(processedMessages));
   }
 
   /**
@@ -290,6 +325,7 @@ export class AnthropicProvider implements AgentServiceProvider {
       temperature: this.config.temperature,
       maxTokens: this.config.maxTokens,
       maxRetries: this.config.maxRetries,
+      streaming: this.config.stream,
     };
 
     if (this.config.apiKey) {
@@ -337,8 +373,8 @@ export class AnthropicProvider implements AgentServiceProvider {
       };
     }
 
-    // Validate thinking configuration if enabled
-    // Thinking mode requires careful token budget management
+    // Configure thinking mode if enabled
+    // Thinking mode should be passed to constructor, not invoke method
     if (this.config.enableThinking) {
       // Validate budget tokens (minimum 1024 required by API)
       const budgetTokens = Math.max(1024, this.config.budgetTokens || 1024);
@@ -350,6 +386,16 @@ export class AnthropicProvider implements AgentServiceProvider {
           `budgetTokens (${budgetTokens}) must be less than maxTokens (${this.config.maxTokens || 8192})`
         );
       }
+
+      // When thinking is enabled, temperature must not be customized
+      // Anthropic requires using default temperature with thinking mode
+      delete chatConfig.temperature;
+
+      // Add thinking configuration to the ChatAnthropic constructor
+      chatConfig.thinking = {
+        type: 'enabled',
+        budget_tokens: budgetTokens,
+      };
     }
 
     this.model = new ChatAnthropic(chatConfig);

@@ -1,11 +1,22 @@
-import { isFqName, makeCoreModuleName, makeFqName, splitFqName } from '../util.js';
+import { isFqName, makeCoreModuleName, makeFqName, nameToPath, splitFqName } from '../util.js';
 import {
   Environment,
   GlobalEnvironment,
   makeEventEvaluator,
   parseAndEvaluateStatement,
 } from '../interpreter.js';
-import { fetchModule, Instance, instanceToObject, isModule } from '../module.js';
+import {
+  asJSONSchema,
+  Decision,
+  fetchModule,
+  getDecision,
+  Instance,
+  instanceToObject,
+  isModule,
+  makeInstance,
+  newInstanceAttributes,
+  Record,
+} from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
   AgentServiceProvider,
@@ -15,9 +26,24 @@ import {
   systemMessage,
 } from '../agents/provider.js';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { PlannerInstructions } from '../agents/common.js';
+import {
+  AgentCondition,
+  AgentGlossaryEntry,
+  AgentScenario,
+  DecisionAgentInstructions,
+  FlowExecInstructions,
+  getAgentDirectives,
+  getAgentGlossary,
+  getAgentResponseSchema,
+  getAgentScenarios,
+  getAgentScratchNames,
+  PlannerInstructions,
+} from '../agents/common.js';
 import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
+import { FlowStep } from '../agents/flows.js';
+import Handlebars from 'handlebars';
+import { Statement } from '../../language/generated/ast.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -33,14 +59,15 @@ entity ${LlmEntityName} {
 
 entity ${AgentEntityName} {
     name String @id,
-    type @enum("chat", "planner") @default("chat"),
+    moduleName String @default("${CoreAIModuleName}"),
+    type @enum("chat", "planner", "flow-exec") @default("chat"),
     runWorkflows Boolean @default(true),
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
     documents String @optional, // comma-separated list of document names
     channels String @optional, // comma-separated list of channel names
-    output String @optional, // fq-name of another agent to which the result will be pushed
     role String @optional,
+    flows String @optional,
     llm String
 }
 
@@ -77,17 +104,20 @@ const ProviderDb = new Map<string, AgentServiceProvider>();
 export class AgentInstance {
   llm: string = '';
   name: string = '';
-  chatId: string | undefined;
+  moduleName: string = CoreAIModuleName;
   instruction: string = '';
   type: string = 'chat';
   tools: string | undefined;
   documents: string | undefined;
   channels: string | undefined;
   runWorkflows: boolean = true;
-  output: string | undefined;
   role: string | undefined;
+  flows: string | undefined;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
+  private withSession = true;
+  private fqName: string | undefined;
+  private decisionExecutor = false;
 
   private constructor() {}
 
@@ -112,7 +142,7 @@ export class AgentInstance {
       for (let i = 0; i < agent.toolsArray.length; ++i) {
         const n = agent.toolsArray[i];
         if (isFqName(n)) {
-          const parts = splitFqName(n);
+          const parts = nameToPath(n);
           agent.hasModuleTools = isModule(parts.getModuleName());
         } else {
           agent.hasModuleTools = isModule(n);
@@ -123,39 +153,265 @@ export class AgentInstance {
     return agent;
   }
 
+  static FromFlowStep(step: FlowStep, flowAgent: AgentInstance, context: string): AgentInstance {
+    const desc = getDecision(step, flowAgent.moduleName);
+    if (desc) {
+      return AgentInstance.FromDecision(desc, flowAgent, context);
+    }
+    const fqs = isFqName(step) ? step : `${flowAgent.moduleName}/${step}`;
+    const instruction = `Analyse the context and generate the pattern required to invoke ${fqs}.
+    Never include references in the pattern. All attribute values must be literals derived from the context.`;
+    const inst = makeInstance(
+      CoreAIModuleName,
+      AgentEntityName,
+      newInstanceAttributes()
+        .set('llm', flowAgent.llm)
+        .set('name', `${step}_agent`)
+        .set('moduleName', flowAgent.moduleName)
+        .set('instruction', instruction)
+        .set('tools', fqs)
+        .set('type', 'planner')
+    );
+    return AgentInstance.FromInstance(inst).disableSession();
+  }
+
+  static FromDecision(desc: Decision, flowAgent: AgentInstance, context: string): AgentInstance {
+    const instruction = `${DecisionAgentInstructions}\n${context}\n\n${desc.joinedCases()}`;
+    const inst = makeInstance(
+      CoreAIModuleName,
+      AgentEntityName,
+      newInstanceAttributes()
+        .set('llm', flowAgent.llm)
+        .set('name', `${desc.name}_agent`)
+        .set('moduleName', flowAgent.moduleName)
+        .set('instruction', instruction)
+    );
+    return AgentInstance.FromInstance(inst).disableSession().markAsDecisionExecutor();
+  }
+
+  disableSession(): AgentInstance {
+    this.withSession = false;
+    return this;
+  }
+
+  enableSession(): AgentInstance {
+    this.withSession = true;
+    return this;
+  }
+
+  hasSession(): boolean {
+    return this.withSession;
+  }
+
   isPlanner(): boolean {
     return this.hasModuleTools || this.type == 'planner';
+  }
+
+  isFlowExecutor(): boolean {
+    return this.type == 'flow-exec';
+  }
+
+  markAsDecisionExecutor(): AgentInstance {
+    this.decisionExecutor = true;
+    return this;
+  }
+
+  isDecisionExecutor(): boolean {
+    return this.decisionExecutor;
+  }
+
+  private directivesAsString(fqName: string): string {
+    const conds = getAgentDirectives(fqName);
+    if (conds) {
+      const ss = new Array<string>();
+      ss.push(
+        '\nUse the following guidelines to take more accurate decisions in relevant scenarios.\n'
+      );
+      conds.forEach((ac: AgentCondition) => {
+        if (ac.ifPattern) {
+          ss.push(ac.if);
+        } else {
+          ss.push(`if ${ac.if}, then ${ac.then}`);
+        }
+      });
+      return `${ss.join('\n')}\n`;
+    }
+    return '';
+  }
+
+  private getFullInstructions(env: Environment): string {
+    const fqName = this.getFqName();
+    const ins = this.role ? `${this.role}\n${this.instruction || ''}` : this.instruction || '';
+    let finalInstruction = `${ins} ${this.directivesAsString(fqName)}`;
+    const gls = getAgentGlossary(fqName);
+    if (gls) {
+      const glss = new Array<string>();
+      gls.forEach((age: AgentGlossaryEntry) => {
+        glss.push(
+          `${age.name}: ${age.meaning}. ${age.synonyms ? `These words are synonyms for ${age.name}: ${age.synonyms}` : ''}`
+        );
+      });
+      finalInstruction = `${finalInstruction}\nThe following glossary will be helpful for understanding user requests.
+      ${glss.join('\n')}\n`;
+    }
+    const scenarios = getAgentScenarios(fqName);
+    if (scenarios) {
+      const scs = new Array<string>();
+      scenarios.forEach((sc: AgentScenario) => {
+        try {
+          const aiResp = processScenarioResponse(sc.ai);
+          scs.push(`User: ${sc.user}\nAI: ${aiResp}\n`);
+        } catch (error: any) {
+          logger.error(`Unable to process scenario ${fqName}: ${error.message}`);
+        }
+      });
+      finalInstruction = `${finalInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
+    }
+    const responseSchema = getAgentResponseSchema(fqName);
+    if (responseSchema) {
+      finalInstruction = `${finalInstruction}\nReturn your response in the following JSON schema:\n${asJSONSchema(responseSchema)}
+Only return a pure JSON object with no extra text, annotations etc.`;
+    }
+    const spad = env.getScratchPad();
+    if (spad !== undefined) {
+      if (finalInstruction.indexOf('{{') > 0) {
+        return AgentInstance.maybeRewriteTemplatePatterns(spad, finalInstruction);
+      } else {
+        const ctx = JSON.stringify(spad);
+        return `${finalInstruction}\nSome additional context:\n${ctx}`;
+      }
+    } else {
+      return finalInstruction;
+    }
+  }
+
+  private static maybeRewriteTemplatePatterns(scratchPad: any, instruction: string): string {
+    const templ = Handlebars.compile(instruction);
+    return templ(scratchPad);
+  }
+
+  maybeValidateJsonResponse(response: string | undefined): object | undefined {
+    if (response) {
+      const responseSchema = getAgentResponseSchema(this.getFqName());
+      if (responseSchema) {
+        const attrs = JSON.parse(response);
+        const parts = nameToPath(responseSchema);
+        const moduleName = parts.getModuleName();
+        const entryName = parts.getEntryName();
+        const attrsMap = new Map(Object.entries(attrs));
+        const scm = fetchModule(moduleName).getRecord(entryName).schema;
+        const recAttrs = new Map<string, any>();
+        attrsMap.forEach((v: any, k: string) => {
+          if (scm.has(k)) {
+            recAttrs.set(k, v);
+          }
+        });
+        makeInstance(moduleName, entryName, recAttrs);
+        return attrs;
+      }
+    }
+    return undefined;
+  }
+
+  getFqName(): string {
+    if (this.fqName === undefined) {
+      this.fqName = makeFqName(this.moduleName, this.name);
+    }
+    return this.fqName;
+  }
+
+  markAsFlowExecutor(): AgentInstance {
+    this.type = 'flow-exec';
+    return this;
+  }
+
+  getScratchNames(): Set<string> | undefined {
+    return getAgentScratchNames(this.getFqName());
+  }
+
+  maybeAddScratchData(env: Environment): AgentInstance {
+    const obj: any = env.getLastResult();
+    if (obj === null || obj === undefined) return this;
+    let r: Instance | Instance[] | undefined = undefined;
+    if (
+      obj instanceof Instance ||
+      (obj instanceof Array && obj.length > 0 && obj[0] instanceof Instance)
+    ) {
+      r = obj;
+    } else {
+      env.addToScratchPad(this.name, obj);
+      return this;
+    }
+    const scratchNames = this.getScratchNames();
+    let data: any = undefined;
+    let n = '';
+    if (r instanceof Array) {
+      data = r.map((inst: Instance) => {
+        return extractScratchData(scratchNames, inst);
+      });
+      n = r[0].getFqName();
+    } else {
+      data = extractScratchData(scratchNames, r);
+      n = r.getFqName();
+    }
+    if (data) env.addToScratchPad(n, data);
+    return this;
   }
 
   async invoke(message: string, env: Environment) {
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
-    const chatId = this.chatId || agentName;
-    const sess: Instance | null = await findAgentChatSession(chatId, env);
+    const chatId = env.getAgentChatId() || agentName;
+    let isplnr = this.isPlanner();
+    const isflow = !isplnr && this.isFlowExecutor();
+    if (isplnr && this.withSession) {
+      this.withSession = false;
+    }
+    if (isflow) {
+      this.withSession = false;
+    }
+    if (!this.withSession && env.isAgentModeSet()) {
+      this.withSession = true;
+      if (env.isInAgentChatMode()) {
+        isplnr = false;
+      }
+    }
+    const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
     let msgs: BaseMessage[] | undefined;
-    const isplnr = this.isPlanner();
+    let cachedMsg: string | undefined = undefined;
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      msgs = [systemMessage(this.instruction)];
+      cachedMsg = this.getFullInstructions(env);
+      msgs = [systemMessage(cachedMsg || '')];
     }
     if (msgs) {
       try {
         const sysMsg = msgs[0];
-        if (isplnr) {
-          const newSysMsg = systemMessage(
-            `${PlannerInstructions}\n${this.toolsAsString()}\n${this.instruction}`
-          );
+        if (isplnr || isflow) {
+          const s = isplnr ? PlannerInstructions : FlowExecInstructions;
+          const ts = this.toolsAsString();
+          const msg = `${s}\n${ts}\n${cachedMsg || this.getFullInstructions(env)}`;
+          const newSysMsg = systemMessage(msg);
           msgs[0] = newSysMsg;
         }
         msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
         const externalToolSpecs = this.getExternalToolSpecs();
+        logger.debug(
+          `Invoking LLM ${this.llm} via agent ${this.fqName} with messages:\n${msgs
+            .map((bm: BaseMessage) => {
+              return bm.content;
+            })
+            .join('\n')}`
+        );
         const response: AIResponse = await p.invoke(msgs, externalToolSpecs);
         msgs.push(assistantMessage(response.content));
         if (isplnr) {
           msgs[0] = sysMsg;
         }
-        await saveAgentChatSession(chatId, msgs, env);
+        if (this.withSession) {
+          await saveAgentChatSession(chatId, msgs, env);
+        }
         env.setLastResult(response.content);
       } catch (err: any) {
         logger.error(`Error while invoking ${agentName} - ${err}`);
@@ -172,7 +428,7 @@ export class AgentInstance {
       this.toolsArray.forEach((n: string) => {
         const v = GlobalEnvironment.lookup(n);
         if (v) {
-          if (result == undefined) {
+          if (result === undefined) {
             result = new Array<any>();
           }
           result.push(v);
@@ -226,7 +482,7 @@ export class AgentInstance {
         let moduleName: string | undefined;
         let entryName: string | undefined;
         if (isFqName(n)) {
-          const parts = splitFqName(n);
+          const parts = nameToPath(n);
           moduleName = parts.getModuleName();
           entryName = parts.getEntryName();
         } else {
@@ -237,7 +493,10 @@ export class AgentInstance {
           if (entryName) {
             const hasmod = slimModules.has(moduleName);
             const defs = hasmod ? slimModules.get(moduleName) : new Array<string>();
-            defs?.push(m.getEntry(entryName).toString());
+            const entry = m.getEntry(entryName);
+            const s =
+              entry instanceof Record ? (entry as Record).toString_(true) : entry.toString();
+            defs?.push(s);
             if (!hasmod && defs) {
               slimModules.set(moduleName, defs);
             }
@@ -256,6 +515,20 @@ export class AgentInstance {
       return '';
     }
   }
+}
+
+function extractScratchData(scratchNames: Set<string> | undefined, inst: Instance): any {
+  const data: any = {};
+  inst.attributes.forEach((v: any, k: string) => {
+    if (scratchNames) {
+      if (scratchNames.has(k)) {
+        data[k] = v;
+      }
+    } else {
+      data[k] = v;
+    }
+  });
+  return data;
 }
 
 async function parseHelper(stmt: string, env: Environment): Promise<any> {
@@ -278,7 +551,7 @@ export async function findProviderForLLM(
   env: Environment
 ): Promise<AgentServiceProvider> {
   let p: AgentServiceProvider | undefined = ProviderDb.get(llmName);
-  if (p == undefined) {
+  if (p === undefined) {
     const result: Instance[] = await parseAndEvaluateStatement(
       `{${CoreAIModuleName}/${LlmEntityName} {name? "${llmName}"}}`,
       undefined,
@@ -361,4 +634,25 @@ export async function saveAgentChatSession(chatId: string, messages: any[], env:
 
 export function agentName(agentInstance: Instance): string {
   return agentInstance.lookup('name');
+}
+
+function processScenarioResponse(resp: string): string {
+  const r = resp.trimStart();
+  if (r.startsWith('[') || r.startsWith('{')) {
+    return resp;
+  }
+  if (isFqName(r)) {
+    const parts = splitFqName(r);
+    const m = fetchModule(parts[0]);
+    const wf = m.getWorkflowForEvent(parts[1]);
+    if (wf) {
+      const ss = wf.statements.map((stmt: Statement) => {
+        return stmt.$cstNode?.text;
+      });
+      return `[${ss.join(';\n')}]`;
+    } else {
+      return resp;
+    }
+  }
+  return resp;
 }

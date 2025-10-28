@@ -1,6 +1,7 @@
 import { assert, describe, test } from 'vitest';
 import {
   BasePattern,
+  CasePattern,
   CrudPattern,
   DeletePattern,
   ExpressionPattern,
@@ -14,20 +15,27 @@ import {
 } from '../../src/language/syntax.js';
 import { introspect } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
-import { addBeforeDeleteWorkflow, fetchModule, isModule, removeModule } from '../../src/runtime/module.js';
+import { addBeforeDeleteWorkflow, Decision, Directive, fetchModule, flowGraphNext, isModule, Record, removeModule, Scenario } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
+import { AgentCondition, newAgentDirective, newAgentDirectiveFromIf, newAgentGlossaryEntry, newAgentScenarioFromIf } from '../../src/runtime/agents/common.js';
 
 describe('Pattern generation using the syntax API', () => {
   test('test01', async () => {
     const crud0: CrudPattern = new CrudPattern('User?');
     assert(crud0.toString() == '{User? {}}')
     assert(isQueryPattern(crud0))
+    assert(!isCreatePattern(crud0))
+    assert(!isQueryUpdatePattern(crud0))
     crud0.addAttribute('email', LiteralPattern.String("joe@acme.com"))
     assert(crud0.toString() == '{User {email "joe@acme.com"}}')
     assert(isCreatePattern(crud0))
+    assert(!isQueryPattern(crud0))
+    assert(!isQueryUpdatePattern(crud0))
     crud0.addAttribute('age?', LiteralPattern.Number(18), '>')
     assert(crud0.toString() == '{User {email "joe@acme.com", age?> 18}}')
     assert(isQueryUpdatePattern(crud0))
+    assert(!isQueryPattern(crud0))
+    assert(!isCreatePattern(crud0))
     const crud1: CrudPattern = new CrudPattern('Acme/Employee');
     crud1
       .addAttribute('firstName', new ReferencePattern('CreateEmployee', 'firstName'))
@@ -131,6 +139,8 @@ describe('Pattern introspection', () => {
     pats = await introspect('{Blog/User {email? "joe@acme.com", name "Sam"}} @as [user]');
     cp = pats[0] as CrudPattern;
     assert(cp.isQueryUpdate, 'Failed to detect query-update pattern');
+    assert(!cp.isCreate)
+    assert(!cp.isQuery)
     assert(
       cp.aliases && cp.aliases.length == 1 && cp.aliases[0] == 'user',
       'Failed to parse aliases'
@@ -209,19 +219,19 @@ describe('Pattern introspection', () => {
     assert(arrayPat.toString() == '[100, "hi", [a, a.b]]')
 
     const mapPat = LiteralPattern.Map(new Map()
-      .set({str: 'a'}, LiteralPattern.Number(1))
-      .set({str: 'b'}, arrayPat))
+      .set({ str: 'a' }, LiteralPattern.Number(1))
+      .set({ str: 'b' }, arrayPat))
     assert(mapPat.toString() == '{"a": 1, "b": [100, "hi", [a, a.b]]}')
 
     const e1 = await ExpressionPattern.Validated('(x < 4)')
     assert(e1.toString() == '(x < 4)')
-    const e2 = await ExpressionPattern.Validated('((X - 2) + (2 / 5)) = 1')
-    assert(e2.toString() == '((X - 2) + (2 / 5)) = 1')
+    const e2 = await ExpressionPattern.Validated('((X - 2) + (2 / 5)) == 1')
+    assert(e2.toString() == '((X - 2) + (2 / 5)) == 1')
     let exprErr = false
     await ExpressionPattern.Validated('(X > 5').catch(() => exprErr = true)
     assert(exprErr, 'Failed to validate expression')
-    const e3 = await ExpressionPattern.Validated('(X < 5 and (y = 10 or y < 3))')
-    assert(e3.toString() == '(X < 5 and (y = 10 or y < 3))')
+    const e3 = await ExpressionPattern.Validated('(X < 5 and (y == 10 or y < 3))')
+    assert(e3.toString() == '(X < 5 and (y == 10 or y < 3))')
     const e4 = await ExpressionPattern.Validated('(X + 6) or (Y > 5)')
     assert(e4.toString() == '(X + 6) or (Y > 5)')
     const e5 = await ExpressionPattern.Validated('((X + 6) or (Y > 5))')
@@ -249,7 +259,7 @@ describe('Relationship and `into` introspection', () => {
     assert(p.isQuery)
     assert(!p.isCreate)
     assert(!p.isQueryUpdate)
-    assert(p.into != undefined)
+    assert(p.into !== undefined)
     assert(p.into.get('Project') == 'Allocation.Project')
     assert(p.into.get('AllocationEntered') == 'Allocation.AllocationEntered')
     assert(p.into.get('Duration') == 'Allocation.Duration')
@@ -266,10 +276,10 @@ AllocationEntered Allocation.AllocationEntered,
 ActualsEntered Allocation.ActualsEntered,
 Notes Allocation.Notes }}`)
     pats = await introspect(s)
-    assert(p.into != undefined)
+    assert(p.into !== undefined)
     assert(p.into.get('Project') == 'Allocation.Project')
     assert(p.into.get('AllocationEntered') == 'Allocation.AllocationEntered')
-    assert(p.into.get('Duration') == undefined)
+    assert(p.into.get('Duration') === undefined)
     pats = await introspect(` {Resource {id? CreateAllocation.id},
     ResAlloc {Allocation {name CreateAllocation.name}}}`)
     p = pats[0] as CrudPattern
@@ -302,6 +312,9 @@ describe('Pre/Post workflow syntax', () => {
       workflow @after create:incident {
         {orchestratorAgent {message this}}
       }
+      @public event onIncident {
+          incident Any
+      }
       workflow onIncident {
         {orchestratorAgent {message onIncident.incident}}
       }`
@@ -321,6 +334,10 @@ entity incident
 
 workflow @after create:WfSyntaxGen/incident {
     {orchestratorAgent {message this}}
+}
+@public event onIncident
+{
+    incident Any
 }
 
 workflow onIncident {
@@ -347,6 +364,10 @@ entity incident
 workflow @after create:WfSyntaxGen/incident {
     {orchestratorAgent {message this}}
 }
+@public event onIncident
+{
+    incident Any
+}
 
 workflow onIncident {
     {orchestratorAgent {message onIncident.incident}}
@@ -355,5 +376,546 @@ workflow onIncident {
 workflow @before delete:WfSyntaxGen/incident {
     {abc/incidentAdded {id this.id}}
 }`)
+  })
+})
+
+describe('Flow syntax', () => {
+  test('test01', async () => {
+    const mname = 'FlowSyntax'
+    await doInternModule(mname,
+      `
+      entity manager {
+        id String @id,
+        category @enum("DNS", "WLAN")
+      }
+      entity managerSlackChannel {
+        managerId String @id,
+        channel String
+      }
+      
+      agent incidentTriager {
+        llm "ticketflow_llm",
+        instruction "Based on the description of the incident (in context), return one of - DNS, WLAN or Other.
+Only return one of the strings [DNS, WLAN, Other] and nothing else."
+      }
+
+    agent managerRequestHandler {
+        channels [slack],
+        instruction "Create an approval request from the incident and send it over the slack-channel. Details of the incident
+and the slack channel id will be available in the context passed to you. For example, if the context contains an incident related to
+WLAN provisioning and the slack channel id CC774882, then send the approvale request as: 
+{slack/sendMessageOnChannel {channel &quote;CC774882&quote;, message &quote;Request to provision WLAN&quote;}}.
+Try to include as much information about the provisioning request in the message as possible."
+    }
+
+    agent incidentProvisioner {
+        tools [ticketflow.core/handleDnsProvisioning,
+	             ticketflow.core/handleWlanProvisioning],
+        instruction "If the incident triage category is DNS, do DNS provisioning. Otherwise do WLAN provisioning.
+The incident data and triage category will be available in the context. The relevant DNS or WLAN name will be available
+in the incident's description."
+    }
+  
+    flow orchestrator {
+        incidentTriager --> "DNS" findManagerForCategory
+        incidentTriager --> "WLAN" findManagerForCategory
+        incidentTriager --> "Other" incidentStatusUpdater
+        findManagerForCategory --> managerRequestHandler
+        managerRequestHandler --> "approve" incidentProvisioner
+        managerRequestHandler --> "reject" incidentStatusUpdater
+        incidentProvisioner --> incidentStatusUpdater
+    }
+
+    @public agent orchestratorAgent {
+        llm "ticketflow_llm",
+        role "You are an incident manager.",
+        flows [orchestrator]
+    }
+
+    {manager {id "01", category "DNS"}}
+    {manager {id "02", category "WLAN"}}
+    {managerSlackChannel {managerId "01", channel "C09C00XJ3GC"}}
+    {managerSlackChannel {managerId "02", channel "C09BRHX9B7D"}}`
+    )
+
+    const mod = fetchModule(mname)
+    const flow = mod.getFlow('orchestrator')
+    const fg = flow?.toGraph()
+    assert(fg)
+    const n0 = flowGraphNext(fg)
+    assert(n0?.label == 'incidentTriager')
+    const n1 = flowGraphNext(fg, n0, 'WLAN')
+    assert(n1?.label == 'findManagerForCategory')
+    const n2 = flowGraphNext(fg, n0, 'Other')
+    assert(n2?.label == 'incidentStatusUpdater')
+    const n3 = flowGraphNext(fg, n2)
+    assert(n3 === undefined)
+    const n4 = flowGraphNext(fg, n1)
+    assert(n4?.label == 'managerRequestHandler')
+    const s = mod.toString()
+    assert(s == `module FlowSyntax
+
+entity manager
+{
+    id String @id,
+    category  @enum("DNS","WLAN")
+}
+
+entity managerSlackChannel
+{
+    managerId String @id,
+    channel String
+}
+
+agent incidentTriager
+{
+    llm "ticketflow_llm",
+    instruction "Based on the description of the incident (in context), return one of - DNS, WLAN or Other.
+Only return one of the strings [DNS, WLAN, Other] and nothing else."
+}
+agent managerRequestHandler
+{
+    channels "slack",
+    instruction "Create an approval request from the incident and send it over the slack-channel. Details of the incident
+and the slack channel id will be available in the context passed to you. For example, if the context contains an incident related to
+WLAN provisioning and the slack channel id CC774882, then send the approvale request as: 
+{slack/sendMessageOnChannel {channel &quote;CC774882&quote;, message &quote;Request to provision WLAN&quote;}}.
+Try to include as much information about the provisioning request in the message as possible."
+}
+agent incidentProvisioner
+{
+    tools "ticketflow.core/handleDnsProvisioning,ticketflow.core/handleWlanProvisioning",
+    instruction "If the incident triage category is DNS, do DNS provisioning. Otherwise do WLAN provisioning.
+The incident data and triage category will be available in the context. The relevant DNS or WLAN name will be available
+in the incident's description."
+}
+flow orchestrator {
+      incidentTriager --> "DNS" findManagerForCategory
+incidentTriager --> "WLAN" findManagerForCategory
+incidentTriager --> "Other" incidentStatusUpdater
+findManagerForCategory --> managerRequestHandler
+managerRequestHandler --> "approve" incidentProvisioner
+managerRequestHandler --> "reject" incidentStatusUpdater
+incidentProvisioner --> incidentStatusUpdater
+    }
+@public agent orchestratorAgent
+{
+    llm "ticketflow_llm",
+    role "You are an incident manager.",
+    flows [orchestrator]
+}
+{manager {id "01", category "DNS"}}
+{manager {id "02", category "WLAN"}}
+{managerSlackChannel {managerId "01", channel "C09C00XJ3GC"}}
+{managerSlackChannel {managerId "02", channel "C09BRHX9B7D"}}`)
+  })
+})
+
+describe('Extra agent attributes', () => {
+  test('Extra attributes like directives should be emitted', async () => {
+    const mname = 'XtraAgentAttrs'
+    await doInternModule(mname,
+      `record emp {
+        id Int,
+        name String
+      }
+       agent xaaAgent
+          {instruction "Create appropriate patterns for managing Employee information",
+           tools "GA",
+           scenarios  [{"user": "Jake hit a jackpot!", "ai": "[{GA/Employee {name? &quote;Jake&quote;}} @as [employee]; {GA/Employee {id? employee.id, salary employee.salary + employee.salary * .5}}]"}],
+           glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
+         workflow chat {{xaaAgent {message chat.msg}}}`)
+    const m = fetchModule(mname)
+    const agent = m.getAgent('xaaAgent')
+    const conds = new Array<AgentCondition>()
+    conds.push({
+      if: "Employee sales exceeded 5000",
+      then: "Give a salary hike of 5 percent",
+      internal: true, ifPattern: undefined
+    })
+    conds.push({
+      if: "sales is more than 2000 but less than 5000",
+      then: "hike salary by 2 percent",
+      internal: true, ifPattern: undefined
+    })
+    agent?.setDirectives(conds)
+    const scns = agent?.getScenarios()
+    scns?.push({
+      user: "hello", ai: "unknown request", internal: true, ifPattern: undefined
+    })
+    agent?.setResponseSchema('acme/response')
+    agent?.getGlossary()?.push({
+      name: "hit",
+      meaning: "sales above 400",
+      synonyms: "block-buster",
+      internal: true
+    })
+    const s = m.toString();
+    assert(s == `module XtraAgentAttrs
+
+record emp
+{
+    id Int,
+    name String
+}
+
+agent xaaAgent
+{
+    instruction "Create appropriate patterns for managing Employee information",
+    tools "GA",
+    directives [{"if":"Employee sales exceeded 5000","then":"Give a salary hike of 5 percent"},{"if":"sales is more than 2000 but less than 5000","then":"hike salary by 2 percent"}],
+    scenarios [{"user":"Jake hit a jackpot!","ai":"[{GA/Employee {name? &quote;Jake&quote;}} @as [employee]; {GA/Employee {id? employee.id, salary employee.salary + employee.salary * .5}}]"},{"user":"hello","ai":"unknown request"}],
+    glossary [{"name":"jackpot","meaning":"sales of 5000 or above","synonyms":"high sales, block-buster"},{"name":"hit","meaning":"sales above 400","synonyms":"block-buster"}],
+   responseSchema acme/response
+}
+
+workflow chat {
+    {xaaAgent {message chat.msg}}
+}`)
+    const i = s.indexOf('record')
+    await doInternModule(`${mname}2`, s.substring(i))
+    assert(fetchModule(`${mname}2`))
+  })
+})
+
+describe('toString with extends', () => {
+  test('toString should not emit parent attributes', async () => {
+    await doInternModule(`ExtendsToS`,
+      `record A {
+        id Int,
+        name String
+      }
+      entity B extends A {
+        email Email
+      }`)
+    const m = fetchModule('ExtendsToS')
+    const s = m.toString()
+    assert(s == `module ExtendsToS
+
+record A
+{
+    id Int,
+    name String
+}
+
+entity B extends A
+{
+    email Email
+}
+`)
+    const es = (m.getEntry('B') as Record).toString_(true)
+    assert(es == `entity B
+{
+    id Int,
+    name String,
+    email Email
+}
+`)
+  })
+})
+
+describe('agent-xtras-to-string', () => {
+  test('standalone scenarios, directives', async () => {
+    const mname = 'StdAloneAgentXtras'
+    await doInternModule(mname,
+      `workflow scenario01 {
+             {GA/Employee {name? "Jake"}} @as [employee];
+             {GA/Employee {id? employee.id, salary employee.salary + employee.salary * 0.5}}
+         }
+         agent ga
+          {instruction "Create appropriate patterns for managing Employee information",
+           tools "GA",
+           directives [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
+                       {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
+           scenarios  [{"user": "Jake hit a jackpot!", "ai": "GuidedAgent/scenario01"}],
+           glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
+         scenario ga.scn01 { if ("Kiran had a block-buster") { GuidedAgent/scenario01 } }
+         directive GuidedAgent/ga.dir01 { if ("sales is less than 2000") { "hike salary by 0.5 percent"} }
+         glossaryEntry ga.ge {meaning "low-sales", name "down", synonyms "bad"}
+         workflow chat {{ga {message chat.msg}}}`
+    )
+    const m = fetchModule(mname)
+    m.addDirective('ga.dir02', newAgentDirective("sales equals 500", "no hike"))
+    const cond1 = new IfPattern(LiteralPattern.String("Sam hits jackpot"))
+      .addPattern(LiteralPattern.Id("GuidedAgent/scenario01"))
+    m.addScenario('ga.scn02', newAgentScenarioFromIf(cond1))
+    m.addGlossaryEntry('ga.ge02', newAgentGlossaryEntry("up", "high-sales", "ok"))
+    const s = m.toString()
+    assert(s ===
+      `module StdAloneAgentXtras
+
+
+workflow scenario01 {
+    {GA/Employee {name? "Jake"}} @as [employee];
+    {GA/Employee {id? employee.id, salary employee.salary + employee.salary * 0.5}}
+}
+agent ga
+{
+    instruction "Create appropriate patterns for managing Employee information",
+    tools "GA",
+    directives [{"if":"Employee sales exceeded 5000","then":"Give a salary hike of 5 percent"},{"if":"sales is more than 2000 but less than 5000","then":"hike salary by 2 percent"}],
+    scenarios [{"user":"Jake hit a jackpot!","ai":"GuidedAgent/scenario01"}],
+    glossary [{"name":"jackpot","meaning":"sales of 5000 or above","synonyms":"high sales, block-buster"}]
+}
+scenario ga.scn01 {
+    if("Kiran had a block-buster") {GuidedAgent/scenario01}
+}
+
+directive GuidedAgent/ga.dir01 {
+        if ("sales is less than 2000") { "hike salary by 0.5 percent"}
+      }
+glossaryEntry ga.ge 
+{
+    name "down",
+    meaning "low-sales",
+    synonyms "bad"
+}
+
+workflow chat {
+    {ga {message chat.msg}}
+}
+directive ga.dir02 {"if":"sales equals 500","then":"no hike"}
+scenario ga.scn02 {
+    if("Sam hits jackpot") {GuidedAgent/scenario01}
+}
+
+glossaryEntry ga.ge02 
+{
+    name "up",
+    meaning "high-sales",
+    synonyms "ok"
+}`)
+    const mname2 = `${mname}2`
+    const idx = s.indexOf('workflow')
+    const s2 = s.substring(idx).trim()
+    await doInternModule(mname2, s2)
+    const m2 = fetchModule(mname2)
+    const s3 = m2.toString().substring(idx).trim()
+    assert(s2 === s3)
+  })
+})
+
+describe('case-generation', () => {
+  test('decsion-cases generated from pattern objects', async () => {
+    const c1 = new CasePattern(LiteralPattern.String("salary is greater than 1000"), LiteralPattern.Id('Accept'))
+    const c2 = new CasePattern(new ExpressionPattern("salary < 1000"), LiteralPattern.Id("Reject"))
+    const d = new Decision('acceptOrRejectOffer', "acme.core", [c1.toString(), c2.toString()])
+    const s = d.toString()
+    assert(s === `decision acceptOrRejectOffer {
+      case ("salary is greater than 1000") {
+    Accept
+  }
+case (salary < 1000) {
+    Reject
+  }
+    }`)
+    await doInternModule(`caseGen`,
+      `${s}
+  
+  agent offerAccept {
+      instruction "Accept the incoming offer"
+  }
+
+  agent offerReject {
+      instruction "Reject the incoming offer"
+  }
+
+  flow offerReviewer {
+      acceptOrRejectOffer --> "Accept" offerAccept
+      acceptOrRejectOffer --> "Reject" offerReject
+  }    
+  `
+    )
+    const mods = fetchModule('caseGen').toString()
+    assert(mods === `module caseGen
+
+decision acceptOrRejectOffer {
+      case ("salary is greater than 1000") {
+    Accept
+  }
+case (salary < 1000) {
+    Reject
+  }
+    }
+agent offerAccept
+{
+    instruction "Accept the incoming offer"
+}
+agent offerReject
+{
+    instruction "Reject the incoming offer"
+}
+flow offerReviewer {
+      acceptOrRejectOffer --> "Accept" offerAccept
+acceptOrRejectOffer --> "Reject" offerReject
+    }`)
+  })
+})
+
+describe('directive-generation', () => {
+  test('directives generated from pattern objects', async () => {
+    const cond1 = new IfPattern(LiteralPattern.String("salary > 1000"))
+      .addPattern(LiteralPattern.String("accept the offer"))
+    const d = new Directive('A.dir01', 'dirGen', newAgentDirectiveFromIf(cond1))
+    const s = d.toString()
+    assert(s === `directive A.dir01 {
+        if("salary > 1000") {"accept the offer"}
+      }`)
+    await doInternModule('dirGen',
+      `agent A {instruction "OK"}
+      ${s}`
+    )
+    const ms = fetchModule('dirGen').toString()
+    assert(ms === `module dirGen
+
+agent A
+{
+    instruction "OK"
+}
+directive A.dir01 {
+        if("salary > 1000") {"accept the offer"}
+      }`)
+  })
+})
+
+describe('scenario-generation', () => {
+  test('scenarios generated from pattern objects', async () => {
+    const cond1 = new IfPattern(LiteralPattern.String("salary > 1000"))
+      .addPattern(LiteralPattern.Id("acme.core/incrementSalary"))
+    const scn01 = new Scenario('A.scn01', 'scnGen', newAgentScenarioFromIf(cond1))
+    const s1 = scn01.toString()
+    assert(s1 === `scenario A.scn01 {
+    if("salary > 1000") {acme.core/incrementSalary}
+}
+`)
+    // empty scenario
+    const scn02 = new Scenario('A.scn02', 'scnGen', newAgentScenarioFromIf(new IfPattern()))
+    const s2 = scn02.toString()
+    assert(s2 === `scenario A.scn02 {
+    if("") {}
+}
+`)
+    await doInternModule('dirGen',
+      `agent A {instruction "OK"}
+      ${s1}
+      ${s2}`
+    )
+    const ms = fetchModule('dirGen').toString()
+    assert(ms === `module dirGen
+
+agent A
+{
+    instruction "OK"
+}
+scenario A.scn01 {
+    if("salary > 1000") {acme.core/incrementSalary}
+}
+
+scenario A.scn02 {
+    if("") {}
+}
+`)
+  })
+})
+
+describe('flow-load-fix', () => {
+  test('flow should load', async () => {
+    const mname = 'expaugust.core'
+    const mdef = `record RecordOne
+{
+
+}
+
+record RecordB
+{
+
+}
+
+event EventA
+{
+    Name String
+}
+
+workflow EventA {
+    {EntityA {}};
+    {Agent1 {}};
+    {EventA {}}
+}
+event EventB
+{
+
+}
+
+workflow EventB {
+
+}
+entity EntityA
+{
+    id String @id,
+    Name String,
+    Age Int
+}
+
+entity EntityB
+{
+    make String
+}
+
+entity EntityC
+{
+
+}
+
+
+workflow @after create:expaugust.core/EntityA {
+
+}
+record RecordD
+{
+
+}
+
+record RecordE
+{
+
+}
+
+agent Agent4
+{
+    llm "llm01",
+    flows [Agent4],
+   responseSchema expaugust.core/RecordOne
+}
+agent Agent1
+{
+    llm "llm01"
+}
+event id
+{
+
+}
+
+workflow id {
+
+}
+agent Agent2
+{
+    type "chat",
+    llm "llm01"
+}
+agent Agent5
+{
+    type "chat",
+    llm "llm01"
+}
+flow Agent4 {
+      
+    }`
+    await doInternModule(mname, mdef)
+    const m = fetchModule(mname)
+    const s = m.toString()
+    const idx = s.indexOf('record')
+    const s1 = s.substring(idx)
+    assert(mdef === s1)
   })
 })

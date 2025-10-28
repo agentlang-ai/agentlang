@@ -22,8 +22,28 @@ import {
   isResolverDefinition,
   ResolverDefinition,
   ResolverMethodSpec,
-  AgentPropertyDef,
+  GenericPropertyDef,
   isLiteral,
+  ArrayLiteral,
+  MapEntry,
+  Expr,
+  FlowDefinition,
+  isFlowDefinition,
+  Literal,
+  isDecisionDefinition,
+  DecisionDefinition,
+  CaseEntry,
+  isScenarioDefinition,
+  ScenarioDefinition,
+  DirectiveDefinition,
+  GlossaryEntryDefinition,
+  isDirectiveDefinition,
+  isGlossaryEntryDefinition,
+  isPublicWorkflowDefinition,
+  isPublicAgentDefinition,
+  isPublicEventDefinition,
+  AgentXtraAttribute,
+  If,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -43,25 +63,37 @@ import {
   removeModule,
   newInstanceAttributes,
   addAgent,
+  fetchModule,
 } from './module.js';
 import {
+  asStringLiteralsMap,
   escapeSpecialChars,
   findRbacSchema,
+  isFqName,
   isString,
   makeFqName,
   maybeExtends,
   registerInitFunction,
+  rootRef,
 } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules, registerCoreModules } from './modules/core.js';
-import { maybeGetValidationErrors, parse, parseModule, parseWorkflow } from '../language/parser.js';
+import {
+  introspectIf,
+  maybeGetValidationErrors,
+  maybeRaiseParserErrors,
+  parse,
+  parseModule,
+  parseWorkflow,
+} from '../language/parser.js';
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
 import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
+import { getDefaultLLMService } from './agents/registry.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
 import { Config, ConfigSchema, setAppConfig } from './state.js';
@@ -69,6 +101,20 @@ import { getModuleFn, importModule } from './jsmodules.js';
 import { SetSubscription } from './defs.js';
 import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
 import z from 'zod';
+import { registerAgentFlow, registerFlow } from './agents/flows.js';
+import {
+  addAgentDirective,
+  addAgentGlossaryEntry,
+  addAgentScenario,
+  AgentCondition,
+  AgentGlossaryEntry,
+  AgentScenario,
+  registerAgentDirectives,
+  registerAgentGlossary,
+  registerAgentResponseSchema,
+  registerAgentScenarios,
+  registerAgentScratchNames,
+} from './agents/common.js';
 
 export async function extractDocument(
   fileName: string,
@@ -184,7 +230,7 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
     }
     if (callback) await callback(appSpec);
   }
-  if (appSpec.dependencies != undefined) {
+  if (appSpec.dependencies !== undefined) {
     for (const [depName, _] of Object.entries(appSpec.dependencies)) {
       try {
         const depDirName = `./node_modules/${depName}`;
@@ -288,6 +334,7 @@ export async function loadCoreModules() {
 
 async function loadModule(fileName: string, fsOptions?: any, callback?: Function): Promise<Module> {
   // Initialize filesystem if not already done
+  console.log(`loading ${fileName}`);
   const fs = await getFileSystem(fsOptions);
 
   const fsAdapter = getFsAdapter(fs);
@@ -311,7 +358,7 @@ async function loadModule(fileName: string, fsOptions?: any, callback?: Function
 let cachedFsAdapter: any = null;
 
 function getFsAdapter(fs: any) {
-  if (cachedFsAdapter == null) {
+  if (cachedFsAdapter === null) {
     // Create an adapter to make our filesystem compatible with Langium
     cachedFsAdapter = {
       // Read file contents as text
@@ -393,14 +440,23 @@ function addEntityFromDef(def: EntityDefinition, moduleName: string): Entity {
   return entity;
 }
 
-export function addSchemaFromDef(def: SchemaDefinition, moduleName: string): Record {
+function addSchemaFromDef(
+  def: SchemaDefinition,
+  moduleName: string,
+  ispub: boolean = false
+): Record {
   let result: Record | undefined;
   if (isEntityDefinition(def)) {
     result = addEntityFromDef(def, moduleName);
   } else if (isEventDefinition(def)) {
     result = addEvent(def.name, moduleName, def.schema, maybeExtends(def.extends));
-  } else {
+  } else if (isRecordDefinition(def)) {
     result = addRecord(def.name, moduleName, def.schema, maybeExtends(def.extends));
+  } else {
+    throw new Error(`Cannot add schema defintiion in module ${moduleName} for ${def}`);
+  }
+  if (ispub) {
+    result.setPublic(true);
   }
   return result;
 }
@@ -412,20 +468,28 @@ export function addRelationshipFromDef(
   return addRelationship(def.name, def.type, def.nodes, moduleName, def.schema, def.properties);
 }
 
-export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string): Workflow {
-  return addWorkflow(def.name || '', moduleName, def.statements, def.header);
+export function addWorkflowFromDef(
+  def: WorkflowDefinition,
+  moduleName: string,
+  ispub: boolean = false
+): Workflow {
+  return addWorkflow(def.name || '', moduleName, def.statements, def.header, ispub);
 }
 
 const StandaloneStatements = new Map<string, Statement[]>();
 
-function addStandaloneStatement(stmt: Statement, moduleName: string) {
+function addStandaloneStatement(stmt: Statement, moduleName: string, userDefined = true) {
   let stmts: Array<Statement> | undefined = StandaloneStatements.get(moduleName);
-  if (stmts == undefined) {
+  if (stmts === undefined) {
     stmts = new Array<Statement>();
   }
   stmts.push(stmt);
   if (!StandaloneStatements.has(moduleName)) {
     StandaloneStatements.set(moduleName, stmts);
+  }
+  if (userDefined) {
+    const m = fetchModule(moduleName);
+    m.addStandaloneStatement(stmt);
   }
 }
 
@@ -448,69 +512,407 @@ export async function runStandaloneStatements() {
   }
 }
 
-async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
+function processAgentDirectives(agentName: string, value: Literal): AgentCondition[] | undefined {
+  if (value.array) {
+    const conds = new Array<AgentCondition>();
+    value.array.vals.forEach((stmt: Statement) => {
+      const expr = stmt.pattern.expr;
+      if (expr && isLiteral(expr) && expr.map) {
+        let cond: string | undefined;
+        let then: string | undefined;
+        expr.map.entries.forEach((me: MapEntry) => {
+          const v = isLiteral(me.value) ? me.value.str : undefined;
+          if (v) {
+            if (me.key.str == 'if') {
+              cond = v;
+            } else if (me.key.str == 'then') {
+              then = v;
+            }
+          }
+        });
+        if (cond && then) {
+          conds?.push({ if: cond, then, internal: true, ifPattern: undefined });
+        } else {
+          throw new Error(`Invalid condition spec in agent ${agentName}`);
+        }
+      }
+    });
+    return conds;
+  }
+  return undefined;
+}
+
+function processAgentScenarios(agentName: string, value: Literal): AgentScenario[] | undefined {
+  if (value.array) {
+    const scenarios = new Array<AgentScenario>();
+    value.array.vals.forEach((stmt: Statement) => {
+      const expr = stmt.pattern.expr;
+      if (expr && isLiteral(expr) && expr.map) {
+        let user: string | undefined;
+        let ai: string | undefined;
+        expr.map.entries.forEach((me: MapEntry) => {
+          const v = isLiteral(me.value) ? me.value.str : undefined;
+          if (v) {
+            if (me.key.str == 'user') {
+              user = v;
+            } else if (me.key.str == 'ai') {
+              ai = v;
+            }
+          }
+        });
+        if (user && ai) {
+          const internal = true;
+          scenarios.push({ user, ai, internal, ifPattern: undefined });
+        } else {
+          throw new Error(`Invalid glossary spec in agent ${agentName}`);
+        }
+      }
+    });
+    return scenarios;
+  }
+  return undefined;
+}
+
+function processAgentGlossary(agentName: string, value: Literal): AgentGlossaryEntry[] | undefined {
+  if (value.array) {
+    const gls = new Array<AgentGlossaryEntry>();
+    value.array.vals.forEach((stmt: Statement) => {
+      const expr = stmt.pattern.expr;
+      if (expr && isLiteral(expr) && expr.map) {
+        let name: string | undefined;
+        let meaning: string | undefined;
+        let synonyms: string | undefined;
+        expr.map.entries.forEach((me: MapEntry) => {
+          const v = isLiteral(me.value) ? me.value.str : undefined;
+          if (v) {
+            if (me.key.str == 'name') {
+              name = v;
+            } else if (me.key.str == 'meaning') {
+              meaning = v;
+            } else if (me.key.str == 'synonyms') {
+              synonyms = v;
+            }
+          }
+        });
+        if (name && meaning) {
+          const internal = true;
+          gls.push({ name, meaning, synonyms, internal });
+        } else {
+          throw new Error(`Invalid glossary spec in agent ${agentName}`);
+        }
+      }
+    });
+    return gls;
+  }
+  return undefined;
+}
+
+function processAgentScratchNames(agentName: string, value: Literal): string[] | undefined {
+  if (value.array) {
+    const scratch = new Array<string>();
+    value.array.vals.forEach((stmt: Statement) => {
+      const expr = stmt.pattern.expr;
+      if (expr && isLiteral(expr) && (expr.id || expr.str)) {
+        scratch.push(expr.id || expr.str || '');
+      }
+    });
+    return scratch;
+  }
+  return undefined;
+}
+
+async function addAgentDefinition(
+  def: AgentDefinition,
+  moduleName: string,
+  ispub: boolean = false
+) {
   let llmName: string | undefined = undefined;
   const name = def.name;
-  let hasUserLlm = false;
   const attrsStrs = new Array<string>();
   attrsStrs.push(`name "${name}"`);
   const attrs = newInstanceAttributes();
-  def.body?.attributes.forEach((apdef: AgentPropertyDef) => {
-    let v: any = undefined;
-    if (apdef.value.array) {
-      v = apdef.value.array.vals
-        .map((stmt: Statement) => {
-          if (stmt.pattern.expr && isLiteral(stmt.pattern.expr)) {
-            const s = stmt.pattern.expr.str || stmt.pattern.expr.id || stmt.pattern.expr.ref;
-            if (s == undefined) {
-              throw new Error(
-                `Only arrays of string-literals or identifiers should be passed to agent ${name}`
-              );
-            }
-            return s;
-          } else {
-            throw new Error(`Invalid value in array passed to agent ${name}`);
-          }
-        })
-        .join(',');
-    } else {
-      v = apdef.value.str || apdef.value.id || apdef.value.ref || apdef.value.num;
-      if (v == undefined) {
-        v = apdef.value.bool;
+  attrsStrs.push(`moduleName "${moduleName}"`);
+  attrs.set('moduleName', moduleName);
+  let conds: AgentCondition[] | undefined = undefined;
+  let scenarios: AgentScenario[] | undefined = undefined;
+  let glossary: AgentGlossaryEntry[] | undefined = undefined;
+  let responseSchema: string | undefined = undefined;
+  let scratchNames: string[] | undefined = undefined;
+  def.body?.attributes.forEach((apdef: GenericPropertyDef) => {
+    if (apdef.name == 'flows') {
+      let fnames: string | undefined = undefined;
+      if (apdef.value.array) {
+        fnames = processAgentArray(apdef.value.array, name);
+      } else {
+        fnames = apdef.value.id || apdef.value.str;
       }
+      if (fnames) {
+        fnames.split(',').forEach((n: string) => {
+          n = n.trim();
+          const fqn = isFqName(n) ? n : `${moduleName}/${n}`;
+          registerAgentFlow(name, fqn);
+        });
+        attrsStrs.push(`type "flow-exec"`);
+        attrs.set('type', 'flow-exec');
+        attrsStrs.push(`flows "${fnames}"`);
+        attrs.set('flows', fnames);
+      } else {
+        throw new Error(`Invalid flows list in agent ${name}`);
+      }
+    } else if (apdef.name == 'directives') {
+      conds = processAgentDirectives(name, apdef.value);
+    } else if (apdef.name == 'scenarios') {
+      scenarios = processAgentScenarios(name, apdef.value);
+    } else if (apdef.name == 'glossary') {
+      glossary = processAgentGlossary(name, apdef.value);
+    } else if (apdef.name == 'responseSchema') {
+      const s = apdef.value.id || apdef.value.ref || apdef.value.str;
+      if (s) {
+        if (isFqName(s)) {
+          responseSchema = s;
+        } else {
+          responseSchema = makeFqName(moduleName, s);
+        }
+      } else {
+        throw new Error(`responseSchema must be a valid name in agent ${name}`);
+      }
+    } else if (apdef.name == 'scratch') {
+      scratchNames = processAgentScratchNames(name, apdef.value);
+    } else {
+      let v: any = undefined;
+      if (apdef.value.array) {
+        v = processAgentArray(apdef.value.array, name);
+      } else {
+        v = apdef.value.str || apdef.value.id || apdef.value.ref || apdef.value.num;
+        if (v === undefined) {
+          v = apdef.value.bool;
+        }
+      }
+      if (v === undefined) {
+        throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
+      }
+      if (apdef.name == 'llm') {
+        llmName = v;
+      }
+      const ov = v;
+      if (apdef.value.id || apdef.value.ref || apdef.value.array) {
+        v = `"${v}"`;
+      } else if (apdef.value.str) {
+        v = `"${escapeSpecialChars(v)}"`;
+      }
+      attrsStrs.push(`${apdef.name} ${v}`);
+      attrs.set(apdef.name, ov);
     }
-    if (v == undefined) {
-      throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
-    }
-    if (llmName == undefined && apdef.name == 'llm') {
-      llmName = v;
-      hasUserLlm = true;
-    }
-    const ov = v;
-    if (apdef.value.id || apdef.value.ref || apdef.value.array) {
-      v = `"${v}"`;
-    } else if (apdef.value.str) {
-      v = `"${escapeSpecialChars(v)}"`;
-    }
-    attrsStrs.push(`${apdef.name} ${v}`);
-    attrs.set(apdef.name, ov);
   });
+  let createDefaultLLM = false;
   if (!attrs.has('llm')) {
+    // Agent doesn't have an LLM specified, create a default one
     llmName = `${name}_llm`;
-    attrsStrs.push(`llm "${llmName}"`);
-    if (hasUserLlm) attrs.set('llm', llmName);
+    createDefaultLLM = true;
   }
+
+  // Create a copy of attrsStrs for the database operation
+  const dbAttrsStrs = [...attrsStrs];
+  // Only add llm to database attributes if we have one
+  if (llmName) {
+    dbAttrsStrs.push(`llm "${llmName}"`);
+  }
+
   const createAgent = `{${CoreAIModuleName}/${AgentEntityName} {
-    ${attrsStrs.join(',')}
+    ${dbAttrsStrs.join(',')}
   }, @upsert}`;
   let wf = createAgent;
-  if (llmName) {
-    wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}"}, @upsert}; ${wf}`;
+  // Only create an LLM with default service if we're creating a default LLM
+  // If the user specified an LLM name, don't create/upsert it (it should already exist)
+  if (createDefaultLLM && llmName) {
+    const service = getDefaultLLMService();
+    wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}", service "${service}"}, @upsert}; ${wf}`;
   }
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
-    addStandaloneStatement(stmt, moduleName);
+    addStandaloneStatement(stmt, moduleName, false);
   });
-  addAgent(def.name, attrs, moduleName);
+  const agentFqName = makeFqName(moduleName, name);
+  if (conds) {
+    registerAgentDirectives(agentFqName, conds);
+  }
+  if (scenarios) {
+    registerAgentScenarios(agentFqName, scenarios);
+  }
+  if (glossary) {
+    registerAgentGlossary(agentFqName, glossary);
+  }
+  if (responseSchema) {
+    registerAgentResponseSchema(agentFqName, responseSchema);
+  }
+  if (scratchNames) {
+    registerAgentScratchNames(agentFqName, scratchNames);
+  }
+  // Don't add llm to module attrs if it wasn't originally specified
+  const agent = addAgent(def.name, attrs, moduleName);
+  if (ispub) {
+    agent.setPublic(true);
+  }
+  return agent;
+}
+
+function processAgentArray(array: ArrayLiteral, attrName: string): string {
+  return array.vals
+    .map((stmt: Statement) => {
+      const expr = stmt.pattern.expr;
+      return processAgentArrayValue(expr, attrName);
+    })
+    .join(',');
+}
+
+function processAgentArrayValue(expr: Expr | undefined, attrName: string): string {
+  if (expr && isLiteral(expr)) {
+    const s = expr.str || expr.id || expr.ref || expr.bool;
+    if (s !== undefined) {
+      return s;
+    }
+    if (expr.array) {
+      return processAgentArray(expr.array, attrName);
+    } else if (expr.map) {
+      const m = new Array<string>();
+      expr.map.entries.forEach((me: MapEntry) => {
+        m.push(
+          `${me.key.str || me.key.num || me.key.bool || ''}: ${processAgentArrayValue(me.value, attrName)}`
+        );
+      });
+      return `{${m.join(',')}}`;
+    } else {
+      throw new Error(`Type not supprted in agent-arrays - ${attrName}`);
+    }
+  } else {
+    throw new Error(`Invalid value in array passed to agent ${attrName}`);
+  }
+}
+
+function addFlowDefinition(def: FlowDefinition, moduleName: string) {
+  const m = fetchModule(moduleName);
+  const sdef = def.$cstNode?.text;
+  let f = '';
+  if (sdef) {
+    const idx = sdef.indexOf('{');
+    if (idx > 0) {
+      f = sdef.substring(idx + 1, sdef.lastIndexOf('}')).trim();
+    } else {
+      f = sdef;
+    }
+  }
+  m.addFlow(def.name, f);
+  registerFlow(`${moduleName}/${def.name}`, f);
+}
+
+function addDecisionDefinition(def: DecisionDefinition, moduleName: string) {
+  if (def.body) {
+    const m = fetchModule(moduleName);
+    const cases = def.body.cases.map((ce: CaseEntry) => {
+      return ce.$cstNode?.text;
+    });
+    m.addRawDecision(def.name, cases as string[]);
+  }
+}
+
+function agentXtraAttributesAsMap(xtras: AgentXtraAttribute[] | undefined): Map<string, string> {
+  const result = new Map<string, string>();
+  xtras?.forEach((v: AgentXtraAttribute) => {
+    result.set(v.name, v.value);
+  });
+  return result;
+}
+
+function scenarioConditionAsMap(cond: If | undefined) {
+  const result = new Map<string, any>();
+  if (cond) {
+    if (isLiteral(cond.cond)) {
+      const s = cond.cond.str;
+      if (s === undefined) {
+        throw new Error(`scenario condition must be a string - ${cond.cond.$cstNode?.text}`);
+      }
+      const stmt = cond.statements[0];
+      const v = stmt ? stmt.pattern.$cstNode?.text : '';
+      if (v === undefined) {
+        throw new Error(
+          `scenario consequent must be a string or name - ${cond.cond.$cstNode?.text}`
+        );
+      }
+      result.set('user', s).set('ai', v).set('if', introspectIf(cond));
+    }
+  }
+  return result;
+}
+
+function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
+  if (def.body || def.scn) {
+    let n = rootRef(def.name);
+    if (!isFqName(n)) {
+      n = makeFqName(moduleName, n);
+    }
+    const m = def.body ? asStringLiteralsMap(def.body) : scenarioConditionAsMap(def.scn);
+    const user = m.get('user');
+    const ai = m.get('ai');
+    const ifPattern = m.get('if');
+    if (user !== undefined && ai !== undefined) {
+      const scn = { user: user, ai: ai, internal: false, ifPattern };
+      addAgentScenario(n, scn);
+      fetchModule(moduleName).addScenario(def.name, scn);
+    } else throw new Error(`scenario ${def.name} requires both user and ai entries`);
+  }
+}
+
+function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
+  if (def.body || def.dir) {
+    let n = rootRef(def.name);
+    if (!isFqName(n)) {
+      n = makeFqName(moduleName, n);
+    }
+    if (def.body) {
+      const m = asStringLiteralsMap(def.body);
+      const cond = m.get('if');
+      const then = m.get('then');
+      if (cond && then) {
+        const dir = { if: cond, then: then, internal: false, ifPattern: undefined };
+        addAgentDirective(n, dir);
+        fetchModule(moduleName).addDirective(def.name, dir);
+      } else throw new Error(`directive ${def.name} requires both if and then entries`);
+    } else if (def.dir) {
+      const cond = def.dir.$cstNode?.text;
+      if (cond) {
+        const ifPattern = introspectIf(def.dir);
+        const dir = { if: cond, then: '', internal: false, ifPattern };
+        addAgentDirective(n, dir);
+        fetchModule(moduleName).addDirective(def.name, dir);
+      } else {
+        throw new Error(`directive ${def.name} requires a valid if expression`);
+      }
+    }
+  }
+}
+
+function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: string) {
+  if (def.body || def.glos) {
+    let n = rootRef(def.name);
+    if (!isFqName(n)) {
+      n = makeFqName(moduleName, n);
+    }
+    const m = def.body
+      ? asStringLiteralsMap(def.body)
+      : agentXtraAttributesAsMap(def.glos?.attributes);
+    const name = m.get('name') || m.get('word');
+    const meaning = m.get('meaning');
+    const syn = m.get('synonyms');
+    if (name && meaning) {
+      const ge = {
+        name: name,
+        meaning: meaning,
+        synonyms: syn,
+        internal: false,
+      };
+      addAgentGlossaryEntry(n, ge);
+      fetchModule(moduleName).addGlossaryEntry(def.name, ge);
+    } else throw new Error(`glossaryEntry ${def.name} requires both name and meaning keys`);
+  }
 }
 
 function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
@@ -565,12 +967,20 @@ function asResolverFn(fname: string): Function {
 export async function addFromDef(def: Definition, moduleName: string) {
   if (isEntityDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isEventDefinition(def)) addSchemaFromDef(def, moduleName);
+  else if (isPublicEventDefinition(def)) addSchemaFromDef(def.def, moduleName, true);
   else if (isRecordDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isRelationshipDefinition(def)) addRelationshipFromDef(def, moduleName);
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
+  else if (isPublicWorkflowDefinition(def)) addWorkflowFromDef(def.def, moduleName, true);
   else if (isAgentDefinition(def)) await addAgentDefinition(def, moduleName);
+  else if (isPublicAgentDefinition(def)) await addAgentDefinition(def.def, moduleName, true);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
   else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);
+  else if (isFlowDefinition(def)) addFlowDefinition(def, moduleName);
+  else if (isDecisionDefinition(def)) addDecisionDefinition(def, moduleName);
+  else if (isScenarioDefinition(def)) addScenarioDefintion(def, moduleName);
+  else if (isDirectiveDefinition(def)) addDirectiveDefintion(def, moduleName);
+  else if (isGlossaryEntryDefinition(def)) addGlossaryEntryDefintion(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {
@@ -578,12 +988,7 @@ export async function parseAndIntern(code: string, moduleName?: string) {
     throw new Error(`Module not found - ${moduleName}`);
   }
   const r = await parse(moduleName ? `module ${moduleName} ${code}` : code);
-  if (r.parseResult.lexerErrors.length > 0) {
-    throw new Error(`Lexer errors: ${r.parseResult.lexerErrors.join('\n')}`);
-  }
-  if (r.parseResult.parserErrors.length > 0) {
-    throw new Error(`Parser errors: ${r.parseResult.parserErrors.join('\n')}`);
-  }
+  maybeRaiseParserErrors(r);
   await internModule(r.parseResult.value);
 }
 

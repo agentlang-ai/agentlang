@@ -5,52 +5,18 @@ const Providers = new Map().set('openai', OpenAIProvider).set('anthropic', Anthr
 
 export function provider(service: string) {
   const requestedService = service.toLowerCase();
-  let p = Providers.get(requestedService);
+  const p = Providers.get(requestedService);
 
   if (p) {
-    // Check if the requested provider has its API key available
-    if (isProviderAvailable(requestedService)) {
-      return p;
-    } else {
-      // Try to find an alternative available provider
-      const availableService = getAvailableProvider();
-      if (availableService && availableService !== requestedService) {
-        p = Providers.get(availableService);
-        if (p) return p;
-      }
-      throw new Error(
-        `${service} provider requested but ${service.toUpperCase()}_API_KEY not found. Available providers: ${getAvailableProviders().join(', ') || 'none'}`
-      );
-    }
+    // Return the requested provider - let it handle API key validation
+    return p;
   } else {
     throw new Error(`No provider found for ${service}`);
   }
 }
 
-function isProviderAvailable(service: string): boolean {
-  switch (service) {
-    case 'openai':
-      return !!process.env.OPENAI_API_KEY;
-    case 'anthropic':
-      return !!process.env.ANTHROPIC_API_KEY;
-    default:
-      return false;
-  }
-}
-
-function getAvailableProvider(): string | null {
-  if (process.env.ANTHROPIC_API_KEY) {
-    return 'anthropic';
-  }
-  if (process.env.OPENAI_API_KEY) {
-    return 'openai';
-  }
-  return null;
-}
-
-function getAvailableProviders(): string[] {
-  const available: string[] = [];
-  if (process.env.ANTHROPIC_API_KEY) available.push('anthropic');
-  if (process.env.OPENAI_API_KEY) available.push('openai');
-  return available;
+export function getDefaultLLMService(): string {
+  // Always default to OpenAI when no service is explicitly specified
+  // This is the DEFAULT service, not based on available API keys
+  return 'openai';
 }

@@ -6,7 +6,7 @@ import {
   OwnersSuffix,
   VectorSuffix,
 } from './dbutil.js';
-import { DefaultAuthInfo, ResolverAuthInfo } from '../interface.js';
+import { DefaultAuthInfo, ResolverAuthInfo } from '../authinfo.js';
 import { canUserCreate, canUserDelete, canUserRead, canUserUpdate } from '../../modules/auth.js';
 import { Environment, GlobalEnvironment } from '../../interpreter.js';
 import {
@@ -17,7 +17,6 @@ import {
   RbacSpecification,
   Relationship,
 } from '../../module.js';
-import pgvector from 'pgvector';
 import { isString } from '../../util.js';
 import {
   DeletedFlagAttributeName,
@@ -49,7 +48,7 @@ export class DbContext {
     this.authInfo = authInfo;
     this.activeEnv = activeEnv;
     this.txnId = txnId;
-    if (inKernelMode != undefined) {
+    if (inKernelMode !== undefined) {
       this.inKernelMode = inKernelMode;
     }
     this.rbacRules = rbacRules;
@@ -57,7 +56,7 @@ export class DbContext {
   private static GlobalDbContext: DbContext | undefined;
 
   static getGlobalContext(): DbContext {
-    if (DbContext.GlobalDbContext == undefined) {
+    if (DbContext.GlobalDbContext === undefined) {
       DbContext.GlobalDbContext = new DbContext(
         '',
         DefaultAuthInfo,
@@ -194,10 +193,60 @@ function makeSqliteDataSource(
   });
 }
 
+function isBrowser(): boolean {
+  // window for DOM pages, self+importScripts for web workers
+  return (
+    (typeof window !== 'undefined' && typeof (window as any).document !== 'undefined') ||
+    (typeof self !== 'undefined' && typeof (self as any).importScripts === 'function')
+  );
+}
+
+function defaultLocateFile(file: string): string {
+  // Out-of-the-box: use the official CDN in browsers.
+  if (isBrowser()) {
+    return `https://sql.js.org/dist/${file}`;
+  }
+  // Node: resolve from node_modules/sql.js/dist
+  try {
+    /* eslint-disable-next-line @typescript-eslint/no-require-imports */
+    const path = require('path');
+
+    const base = require.resolve('sql.js/dist/sql-wasm.js');
+    return path.join(path.dirname(base), file);
+  } catch {
+    return file;
+  }
+}
+
+function makeSqljsDataSource(
+  entities: EntitySchema[],
+  _config: DatabaseConfig | undefined,
+  synchronize: boolean = true
+): DataSource {
+  return new DataSource({
+    type: 'sqljs',
+    autoSave: false,
+    sqlJsConfig: {
+      locateFile: defaultLocateFile,
+    },
+    synchronize: synchronize,
+    entities: entities,
+  });
+}
+
 const DbType = 'sqlite';
 
 function getDbType(config?: DatabaseConfig): string {
-  return process.env.AL_DB_TYPE || config?.type || DbType;
+  if (config?.type) return config.type;
+  let envType: string | undefined;
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      envType = process.env.AL_DB_TYPE;
+    }
+  } catch {}
+  if (envType) return envType;
+  if (isBrowser()) return 'sqljs';
+  return DbType;
 }
 
 function getDsFunction(
@@ -212,6 +261,8 @@ function getDsFunction(
       return makeSqliteDataSource;
     case 'postgres':
       return makePostgresDataSource;
+    case 'sqljs':
+      return makeSqljsDataSource;
     default:
       throw new Error(`Unsupported database type - ${config?.type}`);
   }
@@ -221,8 +272,17 @@ export function isUsingSqlite(): boolean {
   return getDbType() == 'sqlite';
 }
 
+export function isUsingSqljs(): boolean {
+  return getDbType() == 'sqljs';
+}
+
+export function isVectorStoreSupported(): boolean {
+  // Only Postgres supports pgvector
+  return getDbType() === 'postgres';
+}
+
 export async function initDatabase(config: DatabaseConfig | undefined) {
-  if (defaultDataSource == undefined) {
+  if (defaultDataSource === undefined) {
     const mkds = getDsFunction(config);
     if (mkds) {
       const ormScm = modulesAsOrmSchema();
@@ -241,7 +301,7 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
 }
 
 export async function resetDefaultDatabase() {
-  if (defaultDataSource) {
+  if (defaultDataSource && defaultDataSource.isInitialized) {
     await defaultDataSource.destroy();
     defaultDataSource = undefined;
   }
@@ -268,9 +328,11 @@ export async function addRowForFullTextSearch(
   vect: number[],
   ctx: DbContext
 ) {
+  if (!isVectorStoreSupported()) return;
   try {
     const vecTableName = tableName + VectorSuffix;
     const qb = getDatasourceForTransaction(ctx.txnId).createQueryBuilder();
+    const { default: pgvector } = await import('pgvector');
     await qb
       .insert()
       .into(vecTableName)
@@ -282,6 +344,10 @@ export async function addRowForFullTextSearch(
 }
 
 export async function initVectorStore(tableNames: string[], ctx: DbContext) {
+  if (!isVectorStoreSupported()) {
+    logger.info(`Vector store not supported for ${getDbType()}, skipping init...`);
+    return;
+  }
   let notInited = true;
   tableNames.forEach(async (vecTableName: string) => {
     const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
@@ -312,9 +378,14 @@ export async function vectorStoreSearch(
   limit: number,
   ctx: DbContext
 ): Promise<any> {
+  if (!isVectorStoreSupported()) {
+    // Not supported on sqljs/sqlite
+    return [];
+  }
   try {
     const vecTableName = tableName + VectorSuffix;
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
+    const { default: pgvector } = await import('pgvector');
     return await qb.query(
       `select id from ${vecTableName} order by embedding <-> $1 LIMIT ${limit}`,
       [pgvector.toSql(searchVec)]
@@ -329,11 +400,12 @@ export async function vectorStoreSearchEntryExists(
   id: string,
   ctx: DbContext
 ): Promise<boolean> {
+  if (!isVectorStoreSupported()) return false;
   try {
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const vecTableName = tableName + VectorSuffix;
     const result: any[] = await qb.query(`select id from ${vecTableName} where id = $1`, [id]);
-    return result != null && result.length > 0;
+    return result !== null && result.length > 0;
   } catch (err: any) {
     logger.error(`Vector store search failed - ${err}`);
   }
@@ -341,6 +413,7 @@ export async function vectorStoreSearchEntryExists(
 }
 
 export async function deleteFullTextSearchEntry(tableName: string, id: string, ctx: DbContext) {
+  if (!isVectorStoreSupported()) return;
   try {
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const vecTableName = tableName + VectorSuffix;
@@ -375,7 +448,7 @@ async function checkUserPerm(
       default:
         f = undefined;
     }
-    if (f != undefined) {
+    if (f !== undefined) {
       hasPerm = await f(userId, ctx.resourceFqName, ctx.activeEnv);
     }
   }
@@ -569,7 +642,7 @@ async function isOwner(parentName: string, instPath: string, ctx: DbContext): Pr
   } catch (reason: any) {
     logger.error(`Failed to check ownership on parent ${parentName} - ${reason}`);
   }
-  if (result == undefined || result.length == 0) {
+  if (result === undefined || result.length === 0) {
     return false;
   }
   return true;
@@ -687,7 +760,7 @@ export async function getMany(
   const alias: string = tableName.toLowerCase();
   const queryStr: string = withNotDeletedClause(
     alias,
-    queryObj != undefined ? objectToWhereClause(queryObj, queryVals, alias) : ''
+    queryObj !== undefined ? objectToWhereClause(queryObj, queryVals, alias) : ''
   );
   let ownersJoinCond: string[] | undefined;
   let ot: string = '';
@@ -746,7 +819,7 @@ export async function getManyByJoin(
   const alias: string = tableName.toLowerCase();
   const queryStr: string = withNotDeletedClause(
     alias,
-    queryObj != undefined ? objectToRawWhereClause(queryObj, queryVals, alias) : ''
+    queryObj !== undefined ? objectToRawWhereClause(queryObj, queryVals, alias) : ''
   );
   let ot: string = '';
   let otAlias: string = '';
@@ -855,7 +928,7 @@ export async function getAllConnected(
 const transactionsDb: Map<string, QueryRunner> = new Map<string, QueryRunner>();
 
 export async function startDbTransaction(): Promise<string> {
-  if (defaultDataSource != undefined) {
+  if (defaultDataSource !== undefined) {
     const queryRunner = defaultDataSource.createQueryRunner();
     await queryRunner.startTransaction();
     const txnId: string = crypto.randomUUID();
@@ -869,13 +942,13 @@ export async function startDbTransaction(): Promise<string> {
 function getDatasourceForTransaction(txnId: string | undefined): DataSource | EntityManager {
   if (txnId) {
     const qr: QueryRunner | undefined = transactionsDb.get(txnId);
-    if (qr == undefined) {
+    if (qr === undefined) {
       throw new Error(`Transaction not found - ${txnId}`);
     } else {
       return qr.manager;
     }
   } else {
-    if (defaultDataSource != undefined) return defaultDataSource;
+    if (defaultDataSource !== undefined) return defaultDataSource;
     else throw new Error('No default datasource is initialized');
   }
 }

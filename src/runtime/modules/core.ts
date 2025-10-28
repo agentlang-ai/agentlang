@@ -7,12 +7,13 @@ import {
   evaluate,
   evaluateStatements,
   parseAndEvaluateStatement,
+  restartFlow,
 } from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Statement } from '../../language/generated/ast.js';
 import { parseStatements } from '../../language/parser.js';
 import { Resolver } from '../resolvers/interface.js';
-import { ForceReadPermFlag, PathAttributeName } from '../defs.js';
+import { FlowSuspensionTag, ForceReadPermFlag, PathAttributeName } from '../defs.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
@@ -60,7 +61,7 @@ workflow createSuspension {
      createdBy createSuspension.createdBy}}
 }
 
-workflow restartSuspension {
+@public workflow restartSuspension {
   await Core.restartSuspension(restartSuspension.id, restartSuspension.data)
 }
 
@@ -98,7 +99,7 @@ export function setTimerRunning(timerInst: Instance) {
 export async function maybeCancelTimer(name: string, timer: NodeJS.Timeout, env: Environment) {
   await parseAndEvaluateStatement(`{agentlang/timer {name? "${name}"}}`, undefined, env).then(
     (result: any) => {
-      if (result == null || (result instanceof Array && result.length == 0)) {
+      if (result === null || (result instanceof Array && result.length == 0)) {
         clearInterval(timer);
       }
     }
@@ -180,8 +181,13 @@ export async function createSuspension(
 
 export type Suspension = {
   continuation: Statement[];
+  flowContext?: string[];
   env: Environment;
 };
+
+function isFlowSuspension(cont: string[]): boolean {
+  return cont.length > 0 && cont[0] == FlowSuspensionTag;
+}
 
 async function loadSuspension(suspId: string, env?: Environment): Promise<Suspension | undefined> {
   const newEnv = new Environment('auditlog', env).setInKernelMode(true);
@@ -193,12 +199,14 @@ async function loadSuspension(suspId: string, env?: Environment): Promise<Suspen
   if (r instanceof Array && r.length > 0) {
     const inst: Instance = r[0];
     const cont = inst.lookup('continuation');
-    const stmts: Statement[] = await parseStatements(cont);
+    const ifs = isFlowSuspension(cont);
+    const stmts: Statement[] = ifs ? new Array<Statement>() : await parseStatements(cont);
     const envStr = inst.lookup('env');
     const suspEnv: Environment = Environment.FromSerializableObject(JSON.parse(envStr));
     return {
       continuation: stmts,
       env: suspEnv,
+      flowContext: ifs ? cont : undefined,
     };
   }
   return undefined;
@@ -225,8 +233,12 @@ export async function restartSuspension(
 ): Promise<any> {
   const susp = await loadSuspension(suspId, env);
   if (susp) {
-    susp.env.bindSuspensionUserData(userData);
-    await evaluateStatements(susp.continuation, susp.env);
+    if (susp.flowContext) {
+      await restartFlow(susp.flowContext, userData, susp.env);
+    } else {
+      susp.env.bindSuspensionUserData(userData);
+      await evaluateStatements(susp.continuation, susp.env);
+    }
     await deleteSuspension(suspId, env);
     return susp.env.getLastResult();
   } else {

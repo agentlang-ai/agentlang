@@ -4,12 +4,13 @@ entry ModuleDefinition: 'module' name=QualifiedName (imports+=Import)* (defs+=De
 
 Import: 'import' path=STRING '@as' name=ID;
 
-Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
-| AgentDefinition | ResolverDefinition ;
+Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | PublicWorkflowDefinition | StandaloneStatement 
+| AgentDefinition | PublicAgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition | ScenarioDefinition 
+| DirectiveDefinition | GlossaryEntryDefinition;
 
 StandaloneStatement: stmt=Statement;
 
-SchemaDefinition: EntityDefinition | EventDefinition | RecordDefinition;
+SchemaDefinition: EntityDefinition | EventDefinition | PublicEventDefinition | RecordDefinition;
 
 PropertyDefinition: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 
@@ -26,6 +27,7 @@ fragment RecDef: name=QualifiedName extends=ExtendsClause? schema=RecordSchemaDe
 
 EntityDefinition: 'entity' RecDef;
 EventDefinition: 'event' RecDef;
+PublicEventDefinition: '@public' def=EventDefinition;
 RecordDefinition: 'record' RecDef;
 
 ExtendsClause: 'extends' parentName=QualifiedName;
@@ -100,7 +102,10 @@ WorkflowHeaderTag returns string: '@after' | '@before';
 
 WorkflowHeaderPrefix returns string: 'create' | 'update' | 'delete';
 
-Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge | fullTextSearch=FullTextSearch | return=Return;
+PublicWorkflowDefinition: '@public' def=WorkflowDefinition;
+
+Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
+| fullTextSearch=FullTextSearch | return=Return;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 
@@ -127,13 +132,39 @@ SelectIntoEntry: alias=ID attribute=Ref;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
-Return: 'return' pat=Pattern;
+Return: 'return' pattern=Pattern;
 
-AgentDefinition: 'agent' name=GenericName (body=AgentDefBody? | '{''}');
+AgentDefinition: 'agent' name=GenericName (body=GenericDefBody? | '{''}');
 
-AgentDefBody: '{' (attributes+=AgentPropertyDef (',' attributes+=AgentPropertyDef)*)+ '}';
+PublicAgentDefinition: '@public' def=AgentDefinition;
 
-AgentPropertyDef: name=ID value=Literal;
+GenericDefBody: '{' (attributes+=GenericPropertyDef (',' attributes+=GenericPropertyDef)*)+ '}';
+
+GenericPropertyDef: name=ID value=Literal;
+
+FlowDefinition: 'flow' name=GenericName (body=FlowDefBody? | '{''}');
+
+FlowDefBody: '{' (entries+=FlowEntry (entries+=FlowEntry)*)+ '}';
+
+FlowEntry: root=GenericName '-->' (cond=ConditionalFlowStep | next=GenericName);
+
+ConditionalFlowStep: expr=STRING next=GenericName;
+
+DecisionDefinition: 'decision' name=GenericName (body=DecisionDefBody? | '{''}');
+
+DecisionDefBody: '{' (cases+=CaseEntry (cases+=CaseEntry)*)+ '}';
+
+CaseEntry: 'case' '(' cond=Expr ')' Body;
+
+AgentXtraSpec: '{' (attributes+=AgentXtraAttribute (',' attributes+=AgentXtraAttribute)*)+ '}';
+
+AgentXtraAttribute: name=ID value=STRING|Ref;
+
+ScenarioDefinition: 'scenario' name=Ref (body=MapLiteral? | '{' scn=If? '}' | '{''}');
+
+DirectiveDefinition: 'directive' name=Ref (body=MapLiteral? | '{' dir=If? '}' | '{''}');
+
+GlossaryEntryDefinition: 'glossaryEntry' name=Ref (body=MapLiteral? | glos=AgentXtraSpec? | '{''}');
 
 ResolverDefinition: 'resolver' name=GenericName '[' (paths+=GenericName (',' paths+=GenericName)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
@@ -142,7 +173,7 @@ ResolverMethodSpec: key=ResolverMethodName fn=ResolverFnName;
 
 ResolverFnName: name=(ID | Ref | STRING);
 
-ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe' | 'onSubscription');
+ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe' | 'onSubscription' | 'startTransaction' | 'commitTransaction' | 'rollbackTransaction');
 
 RelationshipPattern: name=QualifiedName pattern=Pattern;
 
@@ -176,7 +207,7 @@ Logical infers Expr:
     Comparison ({infer BinExpr.e1=current} op=('or'|'and') e2=Comparison)*;
 
 Comparison infers Expr:
-    PrimExpr ({infer BinExpr.e1=current} op=('=' | '!=' | '<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=PrimExpr)*;
+    PrimExpr ({infer BinExpr.e1=current} op=('==' | '!=' | '<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=PrimExpr)*;
 
 PrimExpr: Literal | Group | NegExpr | NotExpr;
 

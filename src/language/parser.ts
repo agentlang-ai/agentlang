@@ -132,7 +132,25 @@ export function maybeGetValidationErrors(document: LangiumDocument): string[] | 
   }
 }
 
-function maybeRaiseParserErrors(document: LangiumDocument) {
+export function maybeRaiseParserErrors(document: LangiumDocument) {
+  if (document.parseResult.lexerErrors.length > 0) {
+    throw new Error(
+      `Lexer errors: ${document.parseResult.lexerErrors
+        .map((err: any) => {
+          return err.message;
+        })
+        .join('\n')}`
+    );
+  }
+  if (document.parseResult.parserErrors.length > 0) {
+    throw new Error(
+      `Parser errors: ${document.parseResult.parserErrors
+        .map((err: any) => {
+          return err.message;
+        })
+        .join('\n')}`
+    );
+  }
   const errs = maybeGetValidationErrors(document);
   if (errs) {
     throw new Error(errs.join('\n'));
@@ -142,24 +160,7 @@ function maybeRaiseParserErrors(document: LangiumDocument) {
 export async function introspect(s: string): Promise<BasePattern[]> {
   let result: BasePattern[] = [];
   const v: LangiumDocument<ModuleDefinition> = await parse(`module Temp workflow Test {${s}}`);
-  if (v.parseResult.lexerErrors.length > 0) {
-    throw new Error(
-      `Lexer errors: ${v.parseResult.lexerErrors
-        .map((err: any) => {
-          return err.message;
-        })
-        .join('\n')}`
-    );
-  }
-  if (v.parseResult.parserErrors.length > 0) {
-    throw new Error(
-      `Parser errors: ${v.parseResult.parserErrors
-        .map((err: any) => {
-          return err.message;
-        })
-        .join('\n')}`
-    );
-  }
+  maybeRaiseParserErrors(v);
   if (isWorkflowDefinition(v.parseResult.value.defs[0])) {
     result = introspectHelper(v.parseResult.value.defs[0].statements);
   } else {
@@ -292,6 +293,7 @@ function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
       cp.addRelationship(rp.name, introspectPattern(rp.pattern) as CrudPattern | CrudPattern[]);
     });
     cp.isCreate = false;
+    cp.isQueryUpdate = false;
     cp.isQuery = true;
     return cp;
   }
@@ -302,17 +304,24 @@ function introspectCreatePattern(crudMap: CrudMap): CrudPattern {
   if (crudMap) {
     const cp: CrudPattern = new CrudPattern(crudMap.name);
     cp.isCreate = false;
+    cp.isQuery = false;
+    let qup = false;
     crudMap.body?.attributes.forEach((sa: SetAttribute) => {
-      if (!cp.isQueryUpdate && sa.name.endsWith(QuerySuffix)) {
-        cp.isQueryUpdate = true;
+      if (!qup && sa.name.endsWith(QuerySuffix)) {
+        qup = true;
       }
       cp.addAttribute(sa.name, introspectExpression(sa.value), sa.op);
     });
     crudMap.relationships.forEach((rp: RelationshipPattern) => {
       cp.addRelationship(rp.name, introspectPattern(rp.pattern) as CrudPattern | CrudPattern[]);
     });
-    if (!cp.isQueryUpdate) {
+    cp.isQueryUpdate = qup;
+    if (!qup) {
       cp.isCreate = true;
+      cp.isQuery = false;
+    } else {
+      cp.isCreate = false;
+      cp.isQuery = false;
     }
     return cp;
   }
@@ -339,7 +348,7 @@ function introspectLiteral(lit: Literal): BasePattern {
     return LiteralPattern.Number(lit.num);
   } else if (lit.ref) {
     return LiteralPattern.Reference(lit.ref);
-  } else if (lit.str) {
+  } else if (lit.str !== undefined) {
     return LiteralPattern.String(lit.str);
   } else if (lit.bool) {
     return LiteralPattern.Boolean(lit.bool == 'true' ? true : false);
@@ -372,7 +381,7 @@ function introspectForEach(forEach: ForEach): ForEachPattern {
   return fp;
 }
 
-function introspectIf(ifpat: If): IfPattern {
+export function introspectIf(ifpat: If): IfPattern {
   const ifp: IfPattern = new IfPattern(introspectExpression(ifpat.cond));
   ifpat.statements.forEach((stmt: Statement) => {
     ifp.addPattern(introspectStatement(stmt));

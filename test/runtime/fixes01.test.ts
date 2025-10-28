@@ -1,11 +1,11 @@
 import { assert, describe, test } from "vitest"
 import { doInternModule } from "../util.js"
 import { fetchModule, Instance, isInstanceOfType, isModule } from "../../src/runtime/module.js"
-import { parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
+import { lookupAllInstances, parseAndEvaluateStatement } from "../../src/runtime/interpreter.js"
 import { isUsingSqlite } from "../../src/runtime/resolvers/sqldb/database.js"
 
 describe('Issue 92', () => {
-    test('test01', async () => {
+    test('Refresh modules on reload', async () => {
         await doInternModule('I92', `entity E { id Int @id, x Int }`)
         const chk = (ent: string) => {
             assert(isModule('I92'))
@@ -225,7 +225,7 @@ describe('Issue 179 - @from', () => {
 
 if (isUsingSqlite()) { // Postgres will rollback transaction on SQL error
     describe('Issue-197', () => {
-        test('test01', async () => {
+        test('Catch handler should execute', async () => {
             await doInternModule(
                 'I197',
                 `entity E {
@@ -243,8 +243,7 @@ if (isUsingSqlite()) { // Postgres will rollback transaction on SQL error
       workflow HandleError {
         {F {id 2, y 20}}
       }
-      `
-            );
+      `);
             const cre = (async (id: number, x: number): Promise<any> => {
                 await parseAndEvaluateStatement(`{I197/E {id ${id}, x ${x}}}
             @catch {error {I197/HandleError {}}}`)
@@ -312,7 +311,7 @@ workflow DistinctResourcesForAllocations {
                 assert(isInstanceOfType(a, 'I209/Allocation'))
                 return a
             } else {
-                assert(rels != undefined)
+                assert(rels !== undefined)
                 return undefined
             }
         }
@@ -449,7 +448,7 @@ workflow GetOneAllocationResource {
                 assert(rrs.length == 1)
                 assert(isInstanceOfType(rrs[0], 'I233/Allocation'))
             } else {
-                assert(rrs != undefined)
+                assert(rrs !== undefined)
             }
         }
 
@@ -494,7 +493,7 @@ workflow GetOneAllocationResource {
                 if (r) {
                     chkresId(r, resId)
                 } else {
-                    assert(r != undefined)
+                    assert(r !== undefined)
                 }
             }
             chka(101, 1)
@@ -598,12 +597,80 @@ describe('Issue-297', () => {
                 {E {id 3}}
             }
             `)
-            await parseAndEvaluateStatement(`{I297/B {}}`)
-            const rs: Instance[] = await parseAndEvaluateStatement(`{I297/E? {}}`)
-            assert(rs.length == 2)
-            const ids = new Set([1, 3])
-            rs.forEach((inst: Instance) => {
-                assert(ids.has(inst.lookup('id')))
-            })
+        await parseAndEvaluateStatement(`{I297/B {}}`)
+        const rs: Instance[] = await parseAndEvaluateStatement(`{I297/E? {}}`)
+        assert(rs.length == 2)
+        const ids = new Set([1, 3])
+        rs.forEach((inst: Instance) => {
+            assert(ids.has(inst.lookup('id')))
         })
     })
+})
+
+describe('Issue-339', () => {
+    test('Block-structure test', async () => {
+        await doInternModule('I339',
+            `entity E {
+                id Int @id,
+                x Int
+            }
+            workflow EF {
+                EF.e @as e;
+                if (EF.mode == 1) {
+                    100 @as e
+                    {E {id 1, x e}}
+                } else {
+                    {E {id 2, x e}}
+                } @as r;
+                {E {id EF.mode+10, x e}} @as s
+                [r, s]
+            }
+            `)
+        const chk = (inst: Instance, id: number, x: number) => {
+            assert(isInstanceOfType(inst, 'I339/E'))
+            assert(id == inst.lookup('id'))
+            assert(x == inst.lookup('x'))
+        }
+        const [e1, e2]: Instance[] = await parseAndEvaluateStatement(`{I339/EF {mode 1, e 10}}`)
+        chk(e1, 1, 100); chk(e2, 11, 10)
+        const [e3, e4]: Instance[] = await parseAndEvaluateStatement(`{I339/EF {mode 0, e 10}}`)
+        chk(e3, 2, 10); chk(e4, 10, 10)
+        const es: Instance[] = await parseAndEvaluateStatement(`{I339/E? {}}`)
+        assert(es.length == 4)
+        let ids = 0
+        let xs = 0
+        es.forEach((inst: Instance) => {
+            ids += inst.lookup('id')
+            xs += inst.lookup('x')
+        })
+        assert(ids == (1 + 11 + 2 + 10))
+        assert(xs == (100 + 10 + 10 + 10))
+    })
+})
+
+describe('Float type', () => {
+    test('Float numeric type', async () => {
+        await doInternModule('FType',
+            `entity E {
+                id Int @id,
+                x Float,
+                y Decimal
+            }`)
+        await parseAndEvaluateStatement("{FType/E {id 1, x 100.9, y 19838.435565}}")
+        const rs: Instance[] = await parseAndEvaluateStatement("{FType/E? {}}")
+        assert(rs[0].lookup('x') === 100.9)
+        assert(rs[0].lookup('y') === 19838.435565)
+        const rs2 = await lookupAllInstances('FType/E')
+        assert(rs2[0].lookup('id') == rs[0].lookup('id'))
+        const s = fetchModule('FType').toString()
+        assert(s == `module FType
+
+entity E
+{
+    id Int @id,
+    x Float,
+    y Decimal
+}
+`)// no @object tags added to Float and Decimal
+    })
+})

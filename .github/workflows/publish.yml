@@ -1,0 +1,89 @@
+name: Publish Package
+
+on:
+  # Manual trigger from Actions tab
+  workflow_dispatch:
+
+  # Automatic trigger when you create a release
+  release:
+    types: [published]
+
+  # Automatic trigger when you push a version tag (without 'v' prefix)
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*' # Matches 0.0.64, 1.2.3, etc.
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      # Step 1: Checkout your code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Setup pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      # Step 3: Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org/'
+
+      # Step 4: Install dependencies
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          # Auto-approve build scripts for esbuild and sqlite3 if needed
+          if pnpm approve-builds --help >/dev/null 2>&1; then
+            echo -e "\ny\ny\n" | pnpm approve-builds || true
+          fi
+
+      # Step 5: Generate Langium files
+      - name: Generate Langium files
+        run: pnpm run langium:generate
+
+      # Step 6: Build package
+      - name: Build package
+        run: pnpm run build
+
+      # Step 7: Run tests
+      - name: Run tests
+        run: NODE_ENV=test pnpm test
+
+      # Step 8: Publish to npm Registry
+      - name: Publish to npm
+        run: pnpm publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Step 9: Create GitHub Release (if triggered by tag)
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          body: |
+            ## agentlang v${{ github.ref_name }}
+
+            Published to npm: https://www.npmjs.com/package/agentlang
+
+            ### Installation
+            ```bash
+            npm install agentlang@${{ github.ref_name }}
+            ```
+          draft: false
+          prerelease: false

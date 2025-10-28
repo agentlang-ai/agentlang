@@ -30,6 +30,7 @@ import { assert, describe, test } from 'vitest';
 import { doInternModule, doPreInit, expectError } from '../util.js';
 import { testLogger } from '../test-logger.js';
 import { PathAttributeName } from '../../src/runtime/defs.js';
+import { FlowStepPattern } from '../../src/language/syntax.js';
 
 function createTestModule(): Module | undefined {
   addModule('Acme');
@@ -64,8 +65,8 @@ function addTestRecords(mod: Module) {
 describe('Basic module operations', () => {
   test('check create module', async () => {
     const m: Module | undefined = createTestModule();
-    assert(m != undefined, 'Failed to create test module');
-    if (m != undefined) {
+    assert(m !== undefined, 'Failed to create test module');
+    if (m !== undefined) {
       assert(m.name == 'Acme', 'Not the expected module`');
       addTestRecords(m);
       assert(arrayEquals(m.getRecordNames(), ['A']), 'Mismatch in record names');
@@ -90,9 +91,10 @@ describe('Basic loader test', () => {
       try {
         assert(m.name == 'Blog.Core', 'Failed to load Blog module');
         let re: Record = m.getEntry('UserPost') as Record;
-        assert(re != undefined, 'UserPost entry not found');
+        assert(re !== undefined, 'UserPost entry not found');
         const attrs: Set<string> = new Set(['User', 'Post']);
-        re.schema.keys().forEach((k: string) => {
+        // Convert iterator to array for compatibility with Node.js 20.x
+        Array.from(re.schema.keys()).forEach((k: string) => {
           assert(attrs.has(k), `Attribute ${k} not found in UserProfile`);
         });
         assert(re.getUserAttributes().size == 0, 'UserProfile has no user-attributes');
@@ -118,14 +120,14 @@ describe('Basic loader test', () => {
           'Blog.Core',
           node.edges
         );
-        assert(edge != undefined, 'Edge for UserProfile not found');
-        if (edge != undefined) {
+        assert(edge !== undefined, 'Edge for UserProfile not found');
+        if (edge !== undefined) {
           assert(edge.node.entity.getEntryName() == 'Profile', 'Profile not found in relationship');
           assert(edge.node.edges.length == 0, 'Profile does not have relationships');
         }
         edge = findEdgeForRelationship('UserPost', 'Blog.Core', node.edges);
-        assert(edge != undefined, 'Edge for UserPost not found');
-        if (edge != undefined) {
+        assert(edge !== undefined, 'Edge for UserPost not found');
+        if (edge !== undefined) {
           assert(edge.node.entity.getEntryName() == 'Post', 'Post not found in relationship');
           assert(edge.node.edges.length == 1, 'POst has exactly one relationships');
           assert(
@@ -410,13 +412,13 @@ describe('Pre-Post trigger tests', () => {
       }
      `
     );
-    const m = fetchModule('PrePostEvents')
-    const events = m.getEventNames()
-    let c = 0
+    const m = fetchModule('PrePostEvents');
+    const events = m.getEventNames();
+    let c = 0;
     events.forEach((n: string) => {
-      if (m.isPrePostEvent(n)) ++c
-    })
-    assert(c == 1)
+      if (m.isPrePostEvent(n)) ++c;
+    });
+    assert(c == 1);
     await parseAndEvaluateStatement(`{PrePostEvents/CrE {id 1, v 10}}`).then((result: Instance) => {
       assert(isInstanceOfType(result, 'PrePostEvents/E'));
     });
@@ -437,11 +439,13 @@ describe('Pre-Post trigger tests', () => {
       assert(isInstanceOfType(result[0], 'PrePostEvents/F'));
       assert(result[0].lookup('w') == 200);
     });
-    await parseAndEvaluateStatement(`{PrePostEvents/E {id? 2, v 30}}`).then((result: Instance[]) => {
-      assert(result.length == 1)
-      assert(isInstanceOfType(result[0], 'PrePostEvents/E'));
-      assert(result[0].lookup('v') == 30);
-    });
+    await parseAndEvaluateStatement(`{PrePostEvents/E {id? 2, v 30}}`).then(
+      (result: Instance[]) => {
+        assert(result.length == 1);
+        assert(isInstanceOfType(result[0], 'PrePostEvents/E'));
+        assert(result[0].lookup('v') == 30);
+      }
+    );
     await parseAndEvaluateStatement(`{PrePostEvents/F {id? 2}}`).then((result: Instance[]) => {
       assert(result.length == 1);
       assert(isInstanceOfType(result[0], 'PrePostEvents/F'));
@@ -608,29 +612,29 @@ describe('Multiple module loading tests', () => {
         assert(blogModule.hasEntry('Post'), 'Blog module missing Post entity');
 
         // Load second module and verify if Blog is still accessible
-        await flushAllAndLoad('example/family/family.al').then(
-          async (erpAppSpec: ApplicationSpec) => {
-            assert(erpAppSpec.name, 'Invalid Family application spec');
-            const familyModule: Module = fetchModule('Family');
-            assert(familyModule.name == 'Family', 'Failed to load Family module');
-            assert(familyModule.hasEntry('Member'), 'Family module missing Member entity');
+        await flushAllAndLoad('example/pets/src/core.al').then(
+          async (appSpec: ApplicationSpec) => {
+            assert(appSpec.name, 'Invalid application spec');
+            const m: Module = fetchModule('pets.core');
+            assert(m.name == 'pets.core', 'Failed to load pets.core module');
+            assert(m.hasEntry('createPet'), 'pets.core module missing createPet');
 
             // Critical test: Blog module should not still be accessible after Family load
-            assert(!isModule('Blog.Core'), 'Blog.Core module not removed before ErpCore load');
-            assert(isModule('Family'), 'Family module not registered');
+            assert(!isModule('Blog.Core'), 'Blog.Core module not removed before pets.core load');
+            assert(isModule('pets.core'), 'pets.core module not registered');
 
-            removeModule('Family');
-            assert(!isModule('Family'), 'Family module not removed');
+            removeModule('pets.core');
+            assert(!isModule('pets.core'), 'pets.core module not removed');
           }
         );
       });
     } finally {
       try {
         removeModule('Blog.Core');
-      } catch { }
+      } catch {}
       try {
         removeModule('Family');
-      } catch { }
+      } catch {}
     }
   });
 });
@@ -784,21 +788,21 @@ describe('Between operator test', () => {
   });
 });
 
-describe("Test string append", () => {
+describe('Test string append', () => {
   test('test01', async () => {
     await doInternModule(
       'TestExpr',
       `workflow T {
         T.a + ", " + T.b @as result;
         result
-      }`)
-    const r = await parseAndEvaluateStatement(`{TestExpr/T {a "hello", b "world"}}`)
-    assert(r == "hello, world")
-  })
-})
+      }`
+    );
+    const r = await parseAndEvaluateStatement(`{TestExpr/T {a "hello", b "world"}}`);
+    assert(r == 'hello, world');
+  });
+});
 
-
-describe("Return from Workflow", () => {
+describe('Return from Workflow', () => {
   test('test01', async () => {
     await doInternModule(
       'Ret',
@@ -806,50 +810,54 @@ describe("Return from Workflow", () => {
        record Y {y Int}
        entity Z {z Int}
        workflow T {
-        if (T.v = 1) {
+        if (T.v == 1) {
           return {X {x 10}}
         } else {
           {Z {z T.z}}
         }
         {Y {y 200}}
-      }`)
+      }`
+    );
     const t = async (v: number, z: number) => {
-      return await parseAndEvaluateStatement(`{Ret/T {v ${v}, z ${z}}}`)
-    }
-    const r1 = await t(1, 0)
-    assert(isInstanceOfType(r1, 'Ret/X'))
-    const r2 = await t(0, 1)
-    assert(isInstanceOfType(r2, 'Ret/Y'))
-    const zs = await parseAndEvaluateStatement(`{Ret/Z? {}}`)
-    assert(zs.length == 1)
-    assert(isInstanceOfType(zs[0], 'Ret/Z'))
-  })
-})
+      return await parseAndEvaluateStatement(`{Ret/T {v ${v}, z ${z}}}`);
+    };
+    const r1 = await t(1, 0);
+    assert(isInstanceOfType(r1, 'Ret/X'));
+    const r2 = await t(0, 1);
+    assert(isInstanceOfType(r2, 'Ret/Y'));
+    const zs = await parseAndEvaluateStatement(`{Ret/Z? {}}`);
+    assert(zs.length == 1);
+    assert(isInstanceOfType(zs[0], 'Ret/Z'));
+  });
+});
 
-describe("Not-equals", () => {
+describe('Not-equals', () => {
   test('test01', async () => {
-    await doInternModule('neq',
+    await doInternModule(
+      'neq',
       `workflow test {
         if (test.x != 100) {
           return 200
         } else {
           return test.x
         }
-      }`)
+      }`
+    );
     const t = async (x: number) => {
-      return await parseAndEvaluateStatement(`{neq/test {x ${x}}}`)
-    }
+      return await parseAndEvaluateStatement(`{neq/test {x ${x}}}`);
+    };
 
-    const a = await t(100)
-    assert(a == 100)
-    const b = await t(300)
-    assert(b == 200)
-  })
-})
+    const a = await t(100);
+    assert(a == 100);
+    const b = await t(300);
+    assert(b == 200);
+  });
+});
 
-describe("Config entity", () => {
+describe('Config entity', () => {
   test('test01', async () => {
-    await doInternModule('cfge',
+    await doInternModule(
+      'cfge',
       `entity A {
         id Int @id, x Int
       }
@@ -861,24 +869,27 @@ describe("Config entity", () => {
       entity C {
         id Int @id, y Int
       }
-      `)
-    const m = fetchModule('cfge')
-    const e = m.getConfigEntity()
+      `
+    );
+    const m = fetchModule('cfge');
+    const e = m.getConfigEntity();
     if (e) {
-      assert(e.getFqName() == 'cfge/B')
+      assert(e.getFqName() == 'cfge/B');
       e.getUserAttributes().forEach((attr: AttributeSpec, n: string) => {
-        const c = attr.properties?.get('comment')
+        const c = attr.properties?.get('comment');
         if (n == 'key') {
-          assert(c == 'Secret key')
+          assert(c == 'Secret key');
         } else if (n == 'host') {
-          assert(c == 'Host name')
+          assert(c == 'Host name');
         }
-      })
+      });
     } else {
-      assert(e != undefined)
+      assert(e !== undefined);
     }
-    const s = m.toString()
-    assert(s == `module cfge
+    const s = m.toString();
+    assert(
+      s ==
+        `module cfge
 
 entity A
 {
@@ -898,16 +909,18 @@ entity C
     id Int @id,
     y Int
 }
-`)
-    const idx = s.indexOf('entity')
-    await doInternModule('cfge2', s.substring(idx))
-    assert(fetchModule('cfge2'))
-  })
-})
+`
+    );
+    const idx = s.indexOf('entity');
+    await doInternModule('cfge2', s.substring(idx));
+    assert(fetchModule('cfge2'));
+  });
+});
 
-describe("Fetch rels for entity", () => {
+describe('Fetch rels for entity', () => {
   test('test01', async () => {
-    await doInternModule('FRels',
+    await doInternModule(
+      'FRels',
       `entity A {
         id Int @id, x Int
       }
@@ -920,24 +933,27 @@ describe("Fetch rels for entity", () => {
       relationship AB between(A, B)
       relationship AC between(A, C)
       relationship BC contains(B, C)
-    `)
-    let rels = getAllBetweenRelationshipsForEntity('FRels', 'A')
+    `
+    );
+    let rels = getAllBetweenRelationshipsForEntity('FRels', 'A');
     const chk = (rels: Relationship[], names: string[]) => {
-      assert(rels.length == names.length)
-      const s1 = new Set(rels.map((r: Relationship) => {
-        return r.getFqName()
-      }))
+      assert(rels.length == names.length);
+      const s1 = new Set(
+        rels.map((r: Relationship) => {
+          return r.getFqName();
+        })
+      );
       names.forEach((n: string) => {
-        assert(s1.has(n))
-      })
-    }
-    chk(rels, ["FRels/AB", "FRels/AC"])
-    rels = getAllBetweenRelationshipsForEntity('FRels', 'C')
-    chk(rels, ['FRels/AC'])
-    rels = getAllBetweenRelationshipsForEntity('FRels', 'B')
-    chk(rels, ['FRels/AB'])
-  })
-})
+        assert(s1.has(n));
+      });
+    };
+    chk(rels, ['FRels/AB', 'FRels/AC']);
+    rels = getAllBetweenRelationshipsForEntity('FRels', 'C');
+    chk(rels, ['FRels/AC']);
+    rels = getAllBetweenRelationshipsForEntity('FRels', 'B');
+    chk(rels, ['FRels/AB']);
+  });
+});
 
 describe('Destructuring', () => {
   test('test01', async () => {
@@ -960,29 +976,84 @@ describe('Destructuring', () => {
         {Des/Employee {salary?> 5000}} @as [e1, _, e2, __, es];
         [e1, e2, es]
       }
-      `)
+      `
+    );
     const isemp = (obj: any) => {
-      return isInstanceOfType(obj, 'Des/Employee')
-    }
+      return isInstanceOfType(obj, 'Des/Employee');
+    };
     const cre = async (id: number, name: string, salary: number) => {
-      const e = await parseAndEvaluateStatement(`{Des/Employee {id ${id}, name "${name}", salary ${salary}}}`)
-      assert(isemp(e))
+      const e = await parseAndEvaluateStatement(
+        `{Des/Employee {id ${id}, name "${name}", salary ${salary}}}`
+      );
+      assert(isemp(e));
+    };
+    await cre(1, 'a', 2000);
+    await cre(2, 'b', 5001);
+    await cre(3, 'c', 5600);
+    await cre(4, 'd', 2600);
+    await cre(5, 'e', 6800);
+    await cre(6, 'f', 9000);
+    const r1: Instance[] = await parseAndEvaluateStatement(`{Des/Test1 {}}`);
+    assert(r1.length == 4);
+    assert(
+      r1.every((inst: Instance) => {
+        return isemp(inst);
+      })
+    );
+    const r2 = await parseAndEvaluateStatement(`{Des/Test2 {}}`);
+    assert(isemp(r2));
+    const r3: any[] = await parseAndEvaluateStatement(`{Des/Test3 {}}`);
+    assert(isemp(r3[0]) && isemp(r3[1]));
+    assert(isemp(r3[2][0]));
+  });
+});
+
+describe('Flow API', () => {
+  test('test01', async () => {
+    await doInternModule(
+      'flowApi',
+      `entity E {
+        id Int @id
+      }
+
+      flow orchestrator {
+        incidentTriager --> "DNS" findManagerForCategory
+        incidentTriager --> "WLAN" findManagerForCategory
+        incidentTriager --> "Other" incidentStatusUpdater
+        findManagerForCategory --> managerRequestHandler
+        managerRequestHandler --> "approve" incidentProvisioner
+        managerRequestHandler --> "reject" incidentStatusUpdater
+        incidentProvisioner --> incidentStatusUpdater
     }
-    await cre(1, 'a', 2000)
-    await cre(2, 'b', 5001)
-    await cre(3, 'c', 5600)
-    await cre(4, 'd', 2600)
-    await cre(5, 'e', 6800)
-    await cre(6, 'f', 9000)
-    const r1: Instance[] = await parseAndEvaluateStatement(`{Des/Test1 {}}`)
-    assert(r1.length == 4)
-    assert(r1.every((inst: Instance) => {
-      return isemp(inst)
-    }))
-    const r2 = await parseAndEvaluateStatement(`{Des/Test2 {}}`)
-    assert(isemp(r2))
-    const r3: any[] = await parseAndEvaluateStatement(`{Des/Test3 {}}`)
-    assert(isemp(r3[0]) && isemp(r3[1]))
-    assert(isemp(r3[2][0]))
-    })
-  })
+
+    flow analyser {
+      analyseEmail --> "OK" sendConfirmation
+      analyseEmail --> "SPAM" deleteEmail
+    }`
+    );
+    const mod = fetchModule('flowApi');
+    let flows = mod.getAllFlows();
+    assert(flows.length == 2);
+    mod.removeFlow('orchestrator');
+    flows = mod.getAllFlows();
+    assert(flows.length == 1);
+    const s0 = new FlowStepPattern('analyseEmail', 'archiveEmail', 'ARC');
+    flows[0].appendStep(s0.toString());
+    const s = mod.toString();
+    assert(
+      s ==
+        `module flowApi
+
+entity E
+{
+    id Int @id
+}
+
+flow analyser {
+      analyseEmail --> "OK" sendConfirmation
+analyseEmail --> "SPAM" deleteEmail
+analyseEmail --> "ARC" archiveEmail
+    }`
+    );
+  });
+});
