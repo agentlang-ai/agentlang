@@ -13,7 +13,13 @@ import {
   Statement,
 } from '../language/generated/ast.js';
 import { parseModule, parseStatement } from '../language/parser.js';
-import { ExecGraph, ExecGraphNode, ExecGraphWalker, SubGraphType } from './defs.js';
+import {
+  ExecGraph,
+  ExecGraphNode,
+  ExecGraphWalker,
+  isMonitoringEnabled,
+  SubGraphType,
+} from './defs.js';
 import {
   DocEventName,
   Environment,
@@ -50,7 +56,7 @@ export async function generateExecutionGraph(eventName: string): Promise<ExecGra
   const parts = nameToPath(eventName);
   const moduleName = parts.hasModule() ? parts.getModuleName() : undefined;
   if (!isEmptyWorkflow(wf)) {
-    const g = await graphFromStatements(wf.statements, moduleName);
+    const g = (await graphFromStatements(wf.statements, moduleName)).setEventName(eventName);
     if (g.canCache()) GraphCache.set(eventName, g);
     return g;
   }
@@ -194,6 +200,7 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
   if (activeModuleName) {
     oldModule = env.switchActiveModuleName(activeModuleName);
   }
+  const monitoringEnabled = isMonitoringEnabled();
   try {
     const walker = new ExecGraphWalker(execGraph);
     while (walker.hasNext()) {
@@ -201,16 +208,21 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
         break;
       }
       const node = walker.nextNode();
+      if (node.codeStr && monitoringEnabled) env.appendToMonitor(node.codeStr);
       if (node.subGraphIndex == -1) {
         await evaluateStatement(node.code as Statement, env);
       } else {
         if (node.subGraphType == SubGraphType.AGENT) {
+          if (monitoringEnabled) env.incrementMonitor();
           await executeAgent(node, execGraph, env);
+          if (monitoringEnabled) env.decrementMonitor();
         } else {
           const subg = execGraph.fetchSubGraphAt(node.subGraphIndex);
           switch (node.subGraphType) {
             case SubGraphType.EVENT:
+              if (monitoringEnabled) env.incrementMonitor();
               await evaluateStatement(node.code as Statement, env);
+              if (monitoringEnabled) env.decrementMonitor();
               break;
             case SubGraphType.IF: {
               const newEnv = new Environment(`${env.name}-if`, env);

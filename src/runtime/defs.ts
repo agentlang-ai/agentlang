@@ -134,6 +134,7 @@ export class ExecGraph {
   private rootNodes: ExecGraphNode[];
   private subGraphs: ExecGraph[];
   private parentGraph: ExecGraph | undefined = undefined;
+  private eventName: string | undefined;
   private activeModuleName: string | undefined;
   private hasAgentsFlag: boolean = false;
   private loopBody: boolean = false;
@@ -210,6 +211,17 @@ export class ExecGraph {
 
   getParentGraph(): ExecGraph | undefined {
     return this.parentGraph;
+  }
+
+  setEventName(eventName: string | undefined): ExecGraph {
+    if (eventName !== undefined) {
+      this.eventName = eventName;
+    }
+    return this;
+  }
+
+  getEventName(): string | undefined {
+    return this.eventName;
   }
 
   setHasAgents(flag: boolean): ExecGraph {
@@ -298,5 +310,110 @@ export class ExecGraphWalker {
   reset(): ExecGraphWalker {
     this.offset = 0;
     return this;
+  }
+}
+
+const monitoringEnabled = false;
+
+export function isMonitoringEnabled(): boolean {
+  return monitoringEnabled;
+}
+
+export class MonitorEntry {
+  private statement: string;
+  private result: any = undefined;
+  private error: string | undefined = undefined;
+
+  constructor(statement: string) {
+    this.statement = statement;
+  }
+
+  getStatement(): string {
+    return this.statement;
+  }
+
+  setResult(result: any): MonitorEntry {
+    if (this.error === undefined) {
+      this.result = result;
+    }
+    return this;
+  }
+
+  getResult(): any {
+    return this.result;
+  }
+
+  setError(error: string): MonitorEntry {
+    this.error = error;
+    this.result = undefined;
+    return this;
+  }
+
+  getError(): string | undefined {
+    return this.error;
+  }
+
+  asObject(): object {
+    const obj: any = {
+      statement: this.statement,
+    };
+    if (this.error !== undefined) {
+      obj.error = this.error;
+    } else if (this.result !== undefined) {
+      obj.result = this.result;
+    }
+    return obj;
+  }
+}
+
+export class Monitor {
+  private entries: (MonitorEntry | Monitor)[] = new Array<MonitorEntry | Monitor>();
+  private parent: Monitor | undefined = undefined;
+  private lastEntry: MonitorEntry | undefined = undefined;
+
+  addEntry(entry: MonitorEntry): Monitor {
+    this.entries.push(entry);
+    this.lastEntry = entry;
+    return this;
+  }
+
+  setLastResult(result: any): Monitor {
+    if (this.lastEntry !== undefined) {
+      this.lastEntry.setResult(result);
+    }
+    return this;
+  }
+
+  setLastError(reason: string): Monitor {
+    if (this.lastEntry !== undefined) {
+      this.lastEntry.setError(reason);
+    }
+    return this;
+  }
+
+  increment(): Monitor {
+    const m = new Monitor();
+    m.parent = this;
+    this.entries.push(m);
+    return m;
+  }
+
+  decrement(): Monitor {
+    if (this.parent !== undefined) {
+      return this.parent;
+    }
+    return this;
+  }
+
+  asObject(): object {
+    const objs = new Array<object>();
+    this.entries.forEach((entry: Monitor | MonitorEntry) => {
+      if (entry instanceof MonitorEntry) {
+        objs.push(entry.asObject());
+      } else {
+        objs.push({ entries: entry.asObject() });
+      }
+    });
+    return objs;
   }
 }
