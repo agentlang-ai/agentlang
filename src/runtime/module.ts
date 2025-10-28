@@ -1794,10 +1794,15 @@ export class Module {
     return false;
   }
 
-  addDecision(name: string, cases: string[]): Decision {
+  addRawDecision(name: string, cases: string[]): Decision {
     const d = new Decision(name, this.name, cases);
     this.addEntry(d);
     return d;
+  }
+
+  addDecision(decision: Decision): Module {
+    this.addEntry(decision);
+    return this;
   }
 
   getDecision(name: string): Decision | undefined {
