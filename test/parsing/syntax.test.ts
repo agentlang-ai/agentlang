@@ -8,12 +8,14 @@ import {
   ForEachPattern,
   IfPattern,
   isCreatePattern,
+  isExpressionPattern,
+  isLiteralPattern,
   isQueryPattern,
   isQueryUpdatePattern,
   LiteralPattern,
   ReferencePattern,
 } from '../../src/language/syntax.js';
-import { introspect } from '../../src/language/parser.js';
+import { introspect, introspectCase } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
 import { addBeforeDeleteWorkflow, Decision, Directive, fetchModule, flowGraphNext, isModule, Record, removeModule, Scenario } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
@@ -700,6 +702,16 @@ describe('case-generation', () => {
     const c1 = new CasePattern(LiteralPattern.String("salary is greater than 1000"), LiteralPattern.Id('Accept'))
     const c2 = new CasePattern(new ExpressionPattern("salary < 1000"), LiteralPattern.Id("Reject"))
     const d = new Decision('acceptOrRejectOffer', "acme.core", [c1.toString(), c2.toString()])
+    const obj1 = await introspectCase(d.cases[0])
+    assert(isLiteralPattern(obj1.condition))
+    assert(obj1.condition.toString() === `"salary is greater than 1000"`)
+    assert(isLiteralPattern(obj1.body))
+    assert(obj1.body.toString() === 'Accept')
+    const obj2 = await introspectCase(d.cases[1])
+    assert(isExpressionPattern(obj2.condition))
+    assert(obj2.condition.toString() === "salary < 1000")
+    assert(isLiteralPattern(obj2.body))
+    assert(obj2.body.toString() === 'Reject')
     const s = d.toString()
     assert(s === `decision acceptOrRejectOffer {
       case ("salary is greater than 1000") {
