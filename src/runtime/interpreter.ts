@@ -76,9 +76,6 @@ import { AgentInstance, AgentEntityName, AgentFqName, findAgentByName } from './
 import { logger } from './logger.js';
 import {
   FlowSuspensionTag,
-  isMonitoringEnabled,
-  Monitor,
-  MonitorEntry,
   ParentAttributeName,
   PathAttributeName,
   PathAttributeNameQuery,
@@ -95,6 +92,8 @@ import { invokeModuleFn } from './jsmodules.js';
 import { invokeOpenApiEvent, isOpenApiEventInstance } from './openapi.js';
 import { fetchDoc } from './docs.js';
 import { FlowSpec, FlowStep, getAgentFlow } from './agents/flows.js';
+import { isMonitoringEnabled } from './state.js';
+import { Monitor, MonitorEntry } from './monitor.js';
 
 export type Result = any;
 
@@ -723,12 +722,10 @@ export class Environment extends Instance {
   }
 
   appendToMonitor(stmt: string): Environment {
-    if (isMonitoringEnabled()) {
-      if (this.monitor === undefined) {
-        this.monitor = new Monitor();
-      }
-      this.monitor.addEntry(new MonitorEntry(stmt));
+    if (this.monitor === undefined) {
+      this.monitor = new Monitor(this.activeEventInstance?.getId());
     }
+    this.monitor.addEntry(new MonitorEntry(stmt));
     return this;
   }
 
@@ -1706,6 +1703,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   const stmtsExec = env.getStatementsExecutor();
   if (result) {
     if (isPlanner) {
+      env.incrementMonitor();
       let retries = 0;
       while (true) {
         try {
@@ -1734,7 +1732,8 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           } else {
             if (stmtsExec) {
               const stmt = await parseStatement(rs);
-              env.setLastResult(await stmtsExec([stmt], env));
+              const r = await stmtsExec([stmt], env);
+              env.setLastResult(r);
             } else {
               env.setLastResult(await parseAndEvaluateStatement(rs, undefined, env));
             }
@@ -1758,6 +1757,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           }
         }
       }
+      env.decrementMonitor();
     } else {
       let retries = 0;
       while (true) {
@@ -1902,7 +1902,7 @@ async function iterateOnFlow(
     if (isfxc || agent.isDecisionExecutor()) env.setFlowContext(context);
     else env.setFlowContext(initContext);
     if (monitoringEnabled) {
-      env.appendToMonitor(`{${agent.getFqName()} {message ${context}}}`);
+      env.appendToMonitor(`{${step} {message ${context}}}`);
     }
     await agentInvoke(agent, '', env);
     if (monitoringEnabled) env.setMonitorResult(env.getLastResult());

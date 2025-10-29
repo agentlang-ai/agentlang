@@ -14,6 +14,7 @@ import { Statement } from '../../language/generated/ast.js';
 import { parseStatements } from '../../language/parser.js';
 import { Resolver } from '../resolvers/interface.js';
 import { FlowSuspensionTag, ForceReadPermFlag, PathAttributeName } from '../defs.js';
+import { getMonitor } from '../monitor.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
@@ -63,6 +64,11 @@ workflow createSuspension {
 
 @public workflow restartSuspension {
   await Core.restartSuspension(restartSuspension.id, restartSuspension.data)
+}
+
+entity Monitor {
+  id String @id,
+  data String
 }
 `;
 
@@ -249,5 +255,24 @@ export async function lookupActiveSuspension(
     }
   } else {
     return [];
+  }
+}
+
+export async function flushMonitoringData(monitorId: string) {
+  const m = getMonitor(monitorId);
+  try {
+    if (m) {
+      const data = JSON.stringify(m.asObject());
+      const env = new Environment(`monitor-${monitorId}-env`);
+      await parseAndEvaluateStatement(
+        `{agentlang/Monitor {id "${monitorId}", data "${data}"}}`,
+        undefined,
+        env
+      );
+    } else {
+      logger.warn(`Failed to locate monitor with id ${monitorId}`);
+    }
+  } catch (reason: any) {
+    logger.error(`Failed to flush monitor ${monitorId} - ${reason}`);
   }
 }

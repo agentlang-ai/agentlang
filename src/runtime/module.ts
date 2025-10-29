@@ -3016,6 +3016,7 @@ export class Instance {
   queryAttributeValues: InstanceAttributes | undefined;
   relatedInstances: Map<string, Instance[]> | undefined;
   private contextData: Map<string, any> | undefined;
+  private id: string;
 
   constructor(
     record: Record,
@@ -3025,6 +3026,7 @@ export class Instance {
     queryAttributes?: InstanceAttributes,
     queryAttributeValues?: InstanceAttributes
   ) {
+    this.id = crypto.randomUUID();
     this.record = record;
     this.name = name;
     this.moduleName = moduleName;
@@ -3053,6 +3055,10 @@ export class Instance {
       attrs.set(k, v);
     });
     return Instance.newWithAttributes(inst, attrs);
+  }
+
+  getId(): string {
+    return this.id;
   }
 
   normalizeAttributes(attrs: InstanceAttributes): InstanceAttributes {
