@@ -36,6 +36,7 @@ entity User {
     email Email @unique @indexed,
     firstName String,
     lastName String,
+    lastLoginTime DateTime @default(now()),
     @rbac [(allow: [read, delete, update, create], where: auth.user = this.id)],
     @after {delete AfterDeleteUser}
 }
@@ -83,6 +84,10 @@ workflow AfterDeleteUser {
   {User {id UpdateUser.id,
          firstName UpdateUser.firstName,
          lastName UpdateUser.lastName}, @upsert}
+}
+
+workflow UpdateUserLastLogin {
+  {User {id? UpdateUserLastLogin.id, lastLoginTime UpdateUserLastLogin.loginTime}}
 }
 
 @public workflow FindUser {
@@ -427,6 +432,17 @@ export async function updateUser(
       id: userId,
       firstName: firstName,
       lastName: lastName,
+    },
+    env
+  );
+}
+
+export async function updateUserLastLogin(id: string, env: Environment): Promise<Result> {
+  return await evalEvent(
+    'UpdateUserLastLogin',
+    {
+      id: id,
+      loginTime: new Date().toISOString(),
     },
     env
   );
@@ -889,6 +905,7 @@ export async function loginUser(
   try {
     await fetchAuthImpl().login(username.toLowerCase(), password, env, (r: SessionInfo) => {
       UserRoleCache.set(r.userId, null);
+      updateUserLastLogin(r.userId, env);
       // Check if Cognito is configured by checking if we have the tokens
       if (r.idToken && r.accessToken && r.refreshToken) {
         // Return full token response for Cognito
@@ -918,6 +935,7 @@ export async function callbackUser(code: string, env: Environment): Promise<stri
   try {
     await fetchAuthImpl().callback(code, env, (r: SessionInfo) => {
       UserRoleCache.set(r.userId, null);
+      updateUserLastLogin(r.userId, env);
       if (r.idToken && r.accessToken && r.refreshToken) {
         result = {
           id_token: r.idToken,
