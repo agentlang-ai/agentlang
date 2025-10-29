@@ -399,3 +399,15 @@ export function introspectIf(ifpat: If): IfPattern {
 function introspectDelete(deletePat: Delete): DeletePattern {
   return new DeletePattern(introspectPattern(deletePat.pattern));
 }
+
+export type CasePattern = {
+  condition: BasePattern;
+  body: BasePattern;
+};
+
+export async function introspectCase(caseStr: string): Promise<CasePattern> {
+  const s = `if ${caseStr.trim().substring(4).trimStart()}`;
+  const pat = await introspect(s);
+  const ifPat = pat[0] as IfPattern;
+  return { condition: ifPat.condition, body: ifPat.body[0] };
+}
