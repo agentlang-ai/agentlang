@@ -805,13 +805,13 @@ function addFlowDefinition(def: FlowDefinition, moduleName: string) {
 }
 
 function addDecisionDefinition(def: DecisionDefinition, moduleName: string) {
-  if (def.body) {
-    const m = fetchModule(moduleName);
-    const cases = def.body.cases.map((ce: CaseEntry) => {
-      return ce.$cstNode?.text;
-    });
-    m.addRawDecision(def.name, cases as string[]);
-  }
+  const m = fetchModule(moduleName);
+  const cases = def.body
+    ? def.body.cases.map((ce: CaseEntry) => {
+        return ce.$cstNode?.text;
+      })
+    : new Array<string>();
+  m.addRawDecision(def.name, cases as string[]);
 }
 
 function agentXtraAttributesAsMap(xtras: AgentXtraAttribute[] | undefined): Map<string, string> {
