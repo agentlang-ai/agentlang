@@ -1,4 +1,4 @@
-import { isFqName, makeCoreModuleName, makeFqName, nameToPath, splitFqName } from '../util.js';
+import { escapeSpecialChars, isFqName, makeCoreModuleName, makeFqName, nameToPath, sleepMilliseconds, splitFqName } from '../util.js';
 import {
   Environment,
   GlobalEnvironment,
@@ -16,6 +16,7 @@ import {
   makeInstance,
   newInstanceAttributes,
   Record,
+  Retry,
 } from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
@@ -122,8 +123,9 @@ export class AgentInstance {
   private withSession = true;
   private fqName: string | undefined;
   private decisionExecutor = false;
+  private retryObj: Retry | undefined
 
-  private constructor() {}
+  private constructor() { }
 
   static FromInstance(agentInstance: Instance): AgentInstance {
     const agent: AgentInstance = instanceToObject<AgentInstance>(
@@ -153,6 +155,15 @@ export class AgentInstance {
         }
         if (agent.hasModuleTools) break;
       }
+    }
+    if (agent.retry) {
+      let n = agent.retry
+      if (!isFqName(n)) {
+        n = `${agent.moduleName}/${n}`
+      }
+      const parts = splitFqName(n)
+      const m = fetchModule(parts[0])
+      agent.retryObj = m.getRetry(parts[1])
     }
     return agent;
   }
@@ -408,7 +419,11 @@ Only return a pure JSON object with no extra text, annotations etc.`;
             })
             .join('\n')}`
         );
-        const response: AIResponse = await p.invoke(msgs, externalToolSpecs);
+        let response: AIResponse = await p.invoke(msgs, externalToolSpecs);
+        const v = this.getValidationEvent()
+        if (v) {
+          response = await this.handleValidation(response, v, msgs, p)
+        }
         msgs.push(assistantMessage(response.content));
         if (isplnr) {
           msgs[0] = sysMsg;
@@ -424,6 +439,48 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     } else {
       throw new Error(`failed to initialize messages for agent ${agentName}`);
     }
+  }
+
+  private async handleValidation(response: AIResponse, validationEventName: string, msgs: BaseMessage[],
+    provider: AgentServiceProvider): Promise<AIResponse> {
+    let r: Instance = await parseAndEvaluateStatement(`{${validationEventName} {data "${escapeSpecialChars(response.content)}"}}`)
+    const status = r.lookup('status')
+    if (status === 'ok') {
+      return response
+    } else {
+      if (this.retryObj) {
+        let resp = response
+        let attempt = 0
+        let delay = this.retryObj.getNextDelayMs(attempt)
+        while (delay) {
+          msgs.push(assistantMessage(resp.content))
+          const vs = JSON.stringify(r.asSerializableObject())
+          msgs.push(humanMessage(`Validation for your last response failed with this result: \n${vs}\n\nFix the errors.`))
+          sleepMilliseconds(delay)
+          // TODO: add proper log messages
+          resp = provider.invoke(msgs, undefined)
+          r = await parseAndEvaluateStatement(`{${validationEventName} {data "${escapeSpecialChars(resp.content)}"}}`)
+          if (r.lookup('status') === 'ok') {
+            return resp
+          }
+          delay = this.retryObj.getNextDelayMs(++attempt)
+        }
+        throw new Error(`Agent ${this.name} failed to generate a valid response after ${attempt} attempts`)
+      } else {
+        return response
+      }
+    }
+  }
+
+  private getValidationEvent(): string | undefined {
+    if (this.validate) {
+      if (isFqName(this.validate)) {
+        return this.validate
+      } else {
+        return `${this.moduleName}/${this.validate}`
+      }
+    }
+    return undefined
   }
 
   private getExternalToolSpecs(): any[] | undefined {

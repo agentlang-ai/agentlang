@@ -64,6 +64,15 @@ workflow createSuspension {
 @public workflow restartSuspension {
   await Core.restartSuspension(restartSuspension.id, restartSuspension.data)
 }
+
+record ValidationRequest {
+    data Any
+}
+
+record ValidationResult {
+    status @enum("ok", "error"),
+    reason String @optional
+}
 `;
 
 export const CoreModules: string[] = [];

@@ -1748,7 +1748,7 @@ export class Retry extends ModuleEntry {
     return this
   }
 
-  setBackoffMagnitudeToMilliseconds(): Retry {
+  setBackoffMagnitudeAsMilliseconds(): Retry {
     this.backoff.magnitude = 'ms'
     return this
   }
@@ -1757,7 +1757,7 @@ export class Retry extends ModuleEntry {
     return this.backoff.magnitude === 'ms'
   }
 
-  setBackoffMagnitudeToSeconds(): Retry {
+  setBackoffMagnitudeAsSeconds(): Retry {
     this.backoff.magnitude = 's'
     return this
   }
@@ -1766,7 +1766,7 @@ export class Retry extends ModuleEntry {
     return this.backoff.magnitude === 's'
   }
 
-  setBackoffMagnitudeToMinutes(): Retry {
+  setBackoffMagnitudeAsMinutes(): Retry {
     this.backoff.magnitude = 'm'
     return this
   }
@@ -1781,7 +1781,7 @@ export class Retry extends ModuleEntry {
     return this
   }
 
-  getNextDelay(attempt: number): number {
+  getNextDelayMs(attempt: number): number {
     if (attempt >= this.attempts) {
       return 0
     }
@@ -1803,7 +1803,12 @@ export class Retry extends ModuleEntry {
         ++i
       }
     }
-    return d
+    if (this.backoffMagnitudeIsMilliseconds())
+      return d
+    else if (this.backoffMagnitudeIsSeconds())
+      return d * 1000
+    else
+      return d * 60 * 1000
   }
 
   private backoffToString(): string | undefined {

@@ -950,13 +950,13 @@ function addRetryDefinition(def: RetryDefinition, moduleName: string) {
           case "magnitude":
             switch (attr.value.id || attr.value.str) {
               case "milliseconds":
-                retry.setBackoffMagnitudeToMilliseconds()
+                retry.setBackoffMagnitudeAsMilliseconds()
                 break
               case "seconds":
-                retry.setBackoffMagnitudeToSeconds()
+                retry.setBackoffMagnitudeAsSeconds()
                 break
               case "minutes":
-                retry.setBackoffMagnitudeToMinutes()
+                retry.setBackoffMagnitudeAsMinutes()
                 break
               default:
                 throw new Error(`Invalid backoff magnitude ${attr.value} set for ${def.name}`)
