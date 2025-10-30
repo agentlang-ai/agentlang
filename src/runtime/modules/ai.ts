@@ -68,6 +68,8 @@ entity ${AgentEntityName} {
     channels String @optional, // comma-separated list of channel names
     role String @optional,
     flows String @optional,
+    validate String @optional,
+    retry String @optional,
     llm String
 }
 
@@ -113,6 +115,8 @@ export class AgentInstance {
   runWorkflows: boolean = true;
   role: string | undefined;
   flows: string | undefined;
+  validate: string | undefined;
+  retry: string | undefined
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;

@@ -44,6 +44,9 @@ import {
   isPublicEventDefinition,
   AgentXtraAttribute,
   If,
+  isRetryDefinition,
+  RetryDefinition,
+  SetAttribute,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -64,6 +67,7 @@ import {
   newInstanceAttributes,
   addAgent,
   fetchModule,
+  Retry,
 } from './module.js';
 import {
   asStringLiteralsMap,
@@ -808,8 +812,8 @@ function addDecisionDefinition(def: DecisionDefinition, moduleName: string) {
   const m = fetchModule(moduleName);
   const cases = def.body
     ? def.body.cases.map((ce: CaseEntry) => {
-        return ce.$cstNode?.text;
-      })
+      return ce.$cstNode?.text;
+    })
     : new Array<string>();
   m.addRawDecision(def.name, cases as string[]);
 }
@@ -915,6 +919,67 @@ function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: str
   }
 }
 
+function addRetryDefinition(def: RetryDefinition, moduleName: string) {
+  const retry = new Retry(def.name, moduleName, def.attempts !== undefined ? def.attempts : 0)
+  if (def.backoff) {
+    def.backoff.attributes.forEach((attr: SetAttribute) => {
+      if (isLiteral(attr.value)) {
+        switch (attr.name) {
+          case "strategy":
+            switch (attr.value.id || attr.value.str) {
+              case 'exponential':
+                retry.setExponentialBackoff()
+                break
+              case 'linear':
+                retry.setLinearBackoff()
+                break
+              case 'constant':
+                retry.setConstantBackoff()
+                break
+              default:
+                throw new Error(`Invalid backoff strategy ${attr.value} specified for ${def.name}`)
+            }
+            break
+          case "delay":
+            if (attr.value.num) {
+              retry.setBackoffDelay(attr.value.num)
+            } else {
+              throw new Error(`Backoff delay must be a numeric value for ${def.name}`)
+            }
+            break
+          case "magnitude":
+            switch (attr.value.id || attr.value.str) {
+              case "milliseconds":
+                retry.setBackoffMagnitudeToMilliseconds()
+                break
+              case "seconds":
+                retry.setBackoffMagnitudeToSeconds()
+                break
+              case "minutes":
+                retry.setBackoffMagnitudeToMinutes()
+                break
+              default:
+                throw new Error(`Invalid backoff magnitude ${attr.value} set for ${def.name}`)
+            }
+            break
+          case "factor":
+            if (attr.value.num) {
+              retry.setBackoffFactor(attr.value.num)
+            } else {
+              throw new Error(`Backoff factor must be a number for ${def.name}`)
+            }
+            break
+          default:
+            throw new Error(`Invalid backoff option ${attr.name} specified for ${def.name}`)
+        }
+      } else {
+        throw new Error(`strategy must be a string in ${def.name}`)
+      }
+    })
+  }
+  fetchModule(moduleName).addRetry(retry)
+}
+
 function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
   const resolverName = `${moduleName}/${def.name}`;
   const paths = def.paths;
@@ -981,6 +1046,7 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isScenarioDefinition(def)) addScenarioDefintion(def, moduleName);
   else if (isDirectiveDefinition(def)) addDirectiveDefintion(def, moduleName);
   else if (isGlossaryEntryDefinition(def)) addGlossaryEntryDefintion(def, moduleName);
+  else if (isRetryDefinition(def)) addRetryDefinition(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {
