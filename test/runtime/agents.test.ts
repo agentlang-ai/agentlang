@@ -259,11 +259,11 @@ if (process.env.AL_TEST === 'true') {
           }
         }
          agent createCustomer {
-            instruction "Using the data provided by the user, create a new customer.",
+            instruction "Based on the user request, create a new customer.",
             tools "FlowTest/Customer"
          }
         agent createProduct {
-            instruction "Using the data provided by the user, create a product.",
+            instruction "Based on the user request, create a product.",
             tools "FlowTest/Product"
          }
         event reportFailure {

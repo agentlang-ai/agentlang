@@ -42,7 +42,14 @@ import {
 } from './module.js';
 import { isOpenApiEventInstance, isOpenApiModule } from './openapi.js';
 import { isMonitoringEnabled } from './state.js';
-import { escapeQueryName, isCoreDefinition, makeFqName, nameToPath } from './util.js';
+import {
+  escapeQueryName,
+  isCoreDefinition,
+  isCoreModule,
+  isFqName,
+  makeFqName,
+  nameToPath,
+} from './util.js';
 
 const GraphCache = new Map<string, ExecGraph>();
 
@@ -197,7 +204,8 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
   if (activeModuleName) {
     oldModule = env.switchActiveModuleName(activeModuleName);
   }
-  const monitoringEnabled = isMonitoringEnabled();
+  const coreMod = activeModuleName ? isCoreModule(activeModuleName) : false;
+  const monitoringEnabled = !coreMod && isMonitoringEnabled();
   try {
     const walker = new ExecGraphWalker(execGraph);
     while (walker.hasNext()) {
@@ -206,7 +214,7 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
       }
       const node = walker.nextNode();
       if (node.codeStr && monitoringEnabled) {
-        if (!isSystemCrudPattern(node.code)) {
+        if (!isSystemCrudPattern(node.code, activeModuleName)) {
           env.appendToMonitor(node.codeStr);
         }
       }
@@ -267,13 +275,17 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
   }
 }
 
-function isSystemCrudPattern(code: Statement | Pattern | Expr): boolean {
+function isSystemCrudPattern(
+  code: Statement | Pattern | Expr,
+  activeModuleName: string | undefined
+): boolean {
   if (isStatement(code)) {
-    return isSystemCrudPattern(code.pattern);
+    return isSystemCrudPattern(code.pattern, activeModuleName);
   } else if (isPattern(code)) {
     const crud = code.crudMap;
     if (crud) {
-      return isCoreDefinition(crud.name);
+      if (isFqName(crud.name)) return isCoreDefinition(crud.name);
+      else if (activeModuleName) return isCoreModule(activeModuleName);
     }
   }
   return false;

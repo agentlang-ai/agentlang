@@ -1,3 +1,5 @@
+import { Instance } from './module.js';
+
 export class MonitorEntry {
   private statement: string;
   private result: any = undefined;
@@ -47,17 +49,28 @@ export class MonitorEntry {
 
 export class Monitor {
   private id: string;
+  private eventInstance: Instance | undefined;
   private entries: (MonitorEntry | Monitor)[] = new Array<MonitorEntry | Monitor>();
   private parent: Monitor | undefined = undefined;
   private lastEntry: MonitorEntry | undefined = undefined;
 
-  constructor(id?: string) {
-    this.id = id ? id : crypto.randomUUID();
+  private static MAX_REGISTRY_SIZE = 25;
+
+  constructor(eventInstance?: Instance | undefined) {
+    this.eventInstance = eventInstance;
+    this.id = eventInstance ? eventInstance.getId() : crypto.randomUUID();
+    while (monitorRegistry.length >= Monitor.MAX_REGISTRY_SIZE) {
+      monitorRegistry.shift();
+    }
     monitorRegistry.push(this);
   }
 
   getId(): string {
     return this.id;
+  }
+
+  getEventInstance(): Instance | undefined {
+    return this.eventInstance;
   }
 
   addEntry(entry: MonitorEntry): Monitor {
@@ -100,7 +113,10 @@ export class Monitor {
       if (entry instanceof MonitorEntry) {
         objs.push(entry.asObject());
       } else {
-        objs.push({ entries: entry.asObject() });
+        objs.push({
+          entries: entry.asObject(),
+          id: entry.id,
+        });
       }
     });
     return objs;
@@ -113,4 +129,10 @@ export function getMonitor(id: string): Monitor | undefined {
   return monitorRegistry.filter((m: Monitor) => {
     return m.getId() === id;
   })[0];
+}
+
+export function getMonitorsForEvent(eventName: string): Monitor[] {
+  return monitorRegistry.filter((m: Monitor) => {
+    return m.getEventInstance()?.getFqName() === eventName;
+  });
 }

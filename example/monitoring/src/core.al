@@ -31,13 +31,13 @@ decision classifyUserRequest {
 }
 
 agent createCustomer {
-    instruction "Using the data provided by the user, create a new customer.",
-    tools "FlowTest/Customer"
+    instruction "Based on the user request, create a new customer.",
+    tools [acme.core/Customer]
 }
 
 agent createProduct {
-    instruction "Using the data provided by the user, create a product.",
-    tools "FlowTest/Product"
+    instruction "Based on the user request, create a product.",
+    tools [acme.core/Product]
 }
 
 event reportFailure {

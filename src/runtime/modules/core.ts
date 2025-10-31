@@ -14,7 +14,7 @@ import { Statement } from '../../language/generated/ast.js';
 import { parseStatements } from '../../language/parser.js';
 import { Resolver } from '../resolvers/interface.js';
 import { FlowSuspensionTag, ForceReadPermFlag, PathAttributeName } from '../defs.js';
-import { getMonitor } from '../monitor.js';
+import { getMonitor, getMonitorsForEvent } from '../monitor.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
@@ -68,7 +68,16 @@ workflow createSuspension {
 
 entity Monitor {
   id String @id,
+  eventInstance Any,
   data String
+}
+
+@public event fetchMonitor {
+  eventName String
+}
+
+workflow fetchMonitor {
+  await Core.fetchLatestMonitorForEvent(fetchMonitor.eventName)
 }
 `;
 
@@ -263,9 +272,11 @@ export async function flushMonitoringData(monitorId: string) {
   try {
     if (m) {
       const data = JSON.stringify(m.asObject());
+      const inst = m.getEventInstance();
+      const eventInstance = inst ? JSON.stringify(inst.asSerializableObject()) : '';
       const env = new Environment(`monitor-${monitorId}-env`);
       await parseAndEvaluateStatement(
-        `{agentlang/Monitor {id "${monitorId}", data "${data}"}}`,
+        `{agentlang/Monitor {id "${monitorId}", eventInstance "${eventInstance}", data "${data}"}}`,
         undefined,
         env
       );
@@ -275,4 +286,13 @@ export async function flushMonitoringData(monitorId: string) {
   } catch (reason: any) {
     logger.error(`Failed to flush monitor ${monitorId} - ${reason}`);
   }
+}
+
+export async function fetchLatestMonitorForEvent(eventName: string): Promise<any> {
+  const monitors = getMonitorsForEvent(eventName);
+  const len = monitors.length;
+  if (len > 0) {
+    return [monitors[len - 1].asObject()];
+  }
+  return [];
 }

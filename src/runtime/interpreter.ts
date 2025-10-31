@@ -68,6 +68,7 @@ import {
   restoreSpecialChars,
   nameToPath,
   splitRefs,
+  isCoreModule,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
@@ -723,7 +724,10 @@ export class Environment extends Instance {
 
   appendToMonitor(stmt: string): Environment {
     if (this.monitor === undefined) {
-      this.monitor = new Monitor(this.activeEventInstance?.getId());
+      if (this.activeEventInstance && isCoreModule(this.activeEventInstance.moduleName)) {
+        return this;
+      }
+      this.monitor = new Monitor(this.activeEventInstance);
     }
     this.monitor.addEntry(new MonitorEntry(stmt));
     return this;
