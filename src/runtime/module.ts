@@ -1689,174 +1689,174 @@ export function flowGraphNext(
   return undefined;
 }
 
-type BackoffStrategy = 'e' | 'l' | 'c' // exponential, linear, constant
+type BackoffStrategy = 'e' | 'l' | 'c'; // exponential, linear, constant
 type BackoffMagnitude = 'ms' | 's' | 'm'; // milliseconds, seconds, minutes
 
 export type RetryBackoff = {
   strategy: BackoffStrategy | undefined;
-  delay: number | undefined
-  magnitude: BackoffMagnitude | undefined
-  factor: number | undefined
-}
+  delay: number | undefined;
+  magnitude: BackoffMagnitude | undefined;
+  factor: number | undefined;
+};
 
 export class Retry extends ModuleEntry {
   attempts: number;
-  private backoff: RetryBackoff
+  private backoff: RetryBackoff;
 
   constructor(name: string, moduleName: string, attempts: number) {
-    super(name, moduleName)
-    this.attempts = (attempts <= 0) ? 0 : attempts
+    super(name, moduleName);
+    this.attempts = attempts <= 0 ? 0 : attempts;
     this.backoff = {
       strategy: undefined,
       delay: undefined,
       magnitude: undefined,
-      factor: undefined
-    }
+      factor: undefined,
+    };
   }
 
   setExponentialBackoff(): Retry {
-    this.backoff.strategy = 'e'
-    return this
+    this.backoff.strategy = 'e';
+    return this;
   }
 
   isExponentialBackoff(): boolean {
-    return this.backoff.strategy === 'e'
+    return this.backoff.strategy === 'e';
   }
 
   setLinearBackoff(): Retry {
-    this.backoff.strategy = 'l'
-    return this
+    this.backoff.strategy = 'l';
+    return this;
   }
 
   isLinearBackoff(): boolean {
-    return this.backoff.strategy === 'l'
+    return this.backoff.strategy === 'l';
   }
 
   setConstantBackoff(): Retry {
-    this.backoff.strategy = 'c'
-    return this
+    this.backoff.strategy = 'c';
+    return this;
   }
 
   isConstantBackoff(): boolean {
-    return this.backoff.strategy === undefined || this.backoff.strategy === 'c'
+    return this.backoff.strategy === undefined || this.backoff.strategy === 'c';
   }
 
   setBackoffDelay(n: number): Retry {
     if (n > 0) {
-      this.backoff.delay = n
+      this.backoff.delay = n;
     }
-    return this
+    return this;
   }
 
   setBackoffMagnitudeAsMilliseconds(): Retry {
-    this.backoff.magnitude = 'ms'
-    return this
+    this.backoff.magnitude = 'ms';
+    return this;
   }
 
   backoffMagnitudeIsMilliseconds(): boolean {
-    return this.backoff.magnitude === 'ms'
+    return this.backoff.magnitude === 'ms';
   }
 
   setBackoffMagnitudeAsSeconds(): Retry {
-    this.backoff.magnitude = 's'
-    return this
+    this.backoff.magnitude = 's';
+    return this;
   }
 
   backoffMagnitudeIsSeconds(): boolean {
-    return this.backoff.magnitude === 's'
+    return this.backoff.magnitude === 's';
   }
 
   setBackoffMagnitudeAsMinutes(): Retry {
-    this.backoff.magnitude = 'm'
-    return this
+    this.backoff.magnitude = 'm';
+    return this;
   }
 
   backoffMagnitudeIsMinutes(): boolean {
-    return this.backoff.magnitude === 'm'
+    return this.backoff.magnitude === 'm';
   }
 
   setBackoffFactor(n: number): Retry {
-    if (n !== 0)
-      this.backoff.factor = n
-    return this
+    if (n !== 0) this.backoff.factor = n;
+    return this;
   }
 
   getNextDelayMs(attempt: number): number {
     if (attempt >= this.attempts) {
-      return 0
+      return 0;
     }
-    const delay = this.backoff.delay === undefined ? 2 : this.backoff.delay
+    const delay = this.backoff.delay === undefined ? 2 : this.backoff.delay;
     if (attempt <= 0 || this.isConstantBackoff()) {
-      return delay
+      return this.normalizeDelay(delay);
     }
-    let d = delay
-    let i = 0
-    const factor = this.backoff.factor === undefined ? 1 : this.backoff.factor
+    let d = delay;
+    let i = 0;
+    const factor = this.backoff.factor === undefined ? 1 : this.backoff.factor;
     if (this.isExponentialBackoff()) {
       while (i < attempt) {
-        d *= factor
-        ++i
+        d *= factor;
+        ++i;
       }
     } else {
       while (i < attempt) {
-        d += factor
-        ++i
+        d += factor;
+        ++i;
       }
     }
-    if (this.backoffMagnitudeIsMilliseconds())
-      return d
-    else if (this.backoffMagnitudeIsSeconds())
-      return d * 1000
-    else
-      return d * 60 * 1000
+    return this.normalizeDelay(d);
+  }
+
+  private normalizeDelay(d: number): number {
+    if (this.backoffMagnitudeIsMilliseconds()) return d;
+    else if (this.backoffMagnitudeIsSeconds()) return d * 1000;
+    else return d * 60 * 1000;
   }
 
   private backoffToString(): string | undefined {
-    const strat = this.backoff.strategy
-    const delay = this.backoff.delay
-    const mag = this.backoff.magnitude
-    const fact = this.backoff.factor
+    const strat = this.backoff.strategy;
+    const delay = this.backoff.delay;
+    const mag = this.backoff.magnitude;
+    const fact = this.backoff.factor;
     if (strat === undefined && delay === undefined && mag === undefined && fact === undefined) {
-      return undefined
+      return undefined;
     }
-    const ss = new Array<string>()
+    const ss = new Array<string>();
     if (strat !== undefined) {
-      let s = 'constant'
+      let s = 'constant';
       if (this.isExponentialBackoff()) {
-        s = 'exponential'
+        s = 'exponential';
       } else if (this.isLinearBackoff()) {
-        s = 'linear'
+        s = 'linear';
       }
-      ss.push(`strategy ${s}`)
+      ss.push(`strategy ${s}`);
     }
     if (delay !== undefined) {
-      ss.push(`delay ${delay}`)
+      ss.push(`delay ${delay}`);
     }
     if (mag !== undefined) {
-      let s = 'milliseconds'
+      let s = 'milliseconds';
       if (this.backoffMagnitudeIsSeconds()) {
-        s = 'seconds'
+        s = 'seconds';
       } else if (this.backoffMagnitudeIsMinutes()) {
-        s = 'minutes'
+        s = 'minutes';
       }
-      ss.push(`magnitude ${s}`)
+      ss.push(`magnitude ${s}`);
     }
     if (fact !== undefined) {
-      ss.push(`factor ${fact}`)
+      ss.push(`factor ${fact}`);
     }
     return `backoff {
        ${ss.join(',\n       ')}    
-    }`
+    }`;
   }
 
   override toString(): string {
     const s = `agentlang/retry ${this.name} {
-    attempts ${this.attempts}`
-    const b = this.backoffToString()
+    attempts ${this.attempts}`;
+    const b = this.backoffToString();
     if (b) {
-      return `${s},\n    ${b}\n}`
+      return `${s},\n    ${b}\n}`;
     } else {
-      return `${s}\n}`
+      return `${s}\n}`;
     }
   }
 }

@@ -812,8 +812,8 @@ function addDecisionDefinition(def: DecisionDefinition, moduleName: string) {
   const m = fetchModule(moduleName);
   const cases = def.body
     ? def.body.cases.map((ce: CaseEntry) => {
-      return ce.$cstNode?.text;
-    })
+        return ce.$cstNode?.text;
+      })
     : new Array<string>();
   m.addRawDecision(def.name, cases as string[]);
 }
@@ -920,64 +920,64 @@ function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: str
 }
 
 function addRetryDefinition(def: RetryDefinition, moduleName: string) {
-  const retry = new Retry(def.name, moduleName, def.attempts !== undefined ? def.attempts : 0)
+  const retry = new Retry(def.name, moduleName, def.attempts !== undefined ? def.attempts : 0);
   if (def.backoff) {
     def.backoff.attributes.forEach((attr: SetAttribute) => {
       if (isLiteral(attr.value)) {
         switch (attr.name) {
-          case "strategy":
+          case 'strategy':
             switch (attr.value.id || attr.value.str) {
               case 'exponential':
-                retry.setExponentialBackoff()
-                break
+                retry.setExponentialBackoff();
+                break;
               case 'linear':
-                retry.setLinearBackoff()
-                break
+                retry.setLinearBackoff();
+                break;
               case 'constant':
-                retry.setConstantBackoff()
-                break
+                retry.setConstantBackoff();
+                break;
               default:
-                throw new Error(`Invalid backoff strategy ${attr.value} specified for ${def.name}`)
+                throw new Error(`Invalid backoff strategy ${attr.value} specified for ${def.name}`);
             }
-            break
-          case "delay":
+            break;
+          case 'delay':
             if (attr.value.num) {
-              retry.setBackoffDelay(attr.value.num)
+              retry.setBackoffDelay(attr.value.num);
             } else {
-              throw new Error(`Backoff delay must be a numeric value for ${def.name}`)
+              throw new Error(`Backoff delay must be a numeric value for ${def.name}`);
             }
-            break
-          case "magnitude":
+            break;
+          case 'magnitude':
             switch (attr.value.id || attr.value.str) {
-              case "milliseconds":
-                retry.setBackoffMagnitudeAsMilliseconds()
-                break
-              case "seconds":
-                retry.setBackoffMagnitudeAsSeconds()
-                break
-              case "minutes":
-                retry.setBackoffMagnitudeAsMinutes()
-                break
+              case 'milliseconds':
+                retry.setBackoffMagnitudeAsMilliseconds();
+                break;
+              case 'seconds':
+                retry.setBackoffMagnitudeAsSeconds();
+                break;
+              case 'minutes':
+                retry.setBackoffMagnitudeAsMinutes();
+                break;
               default:
-                throw new Error(`Invalid backoff magnitude ${attr.value} set for ${def.name}`)
+                throw new Error(`Invalid backoff magnitude ${attr.value} set for ${def.name}`);
             }
-            break
-          case "factor":
+            break;
+          case 'factor':
             if (attr.value.num) {
-              retry.setBackoffFactor(attr.value.num)
+              retry.setBackoffFactor(attr.value.num);
             } else {
-              throw new Error(`Backoff factor must be a number for ${def.name}`)
+              throw new Error(`Backoff factor must be a number for ${def.name}`);
             }
-            break
+            break;
           default:
-            throw new Error(`Invalid backoff option ${attr.name} specified for ${def.name}`)
+            throw new Error(`Invalid backoff option ${attr.name} specified for ${def.name}`);
         }
       } else {
-        throw new Error(`strategy must be a string in ${def.name}`)
+        throw new Error(`strategy must be a string in ${def.name}`);
       }
-    })
+    });
   }
-  fetchModule(moduleName).addRetry(retry)
+  fetchModule(moduleName).addRetry(retry);
 }
 
 function addResolverDefinition(def: ResolverDefinition, moduleName: string) {

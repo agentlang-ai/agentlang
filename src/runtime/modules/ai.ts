@@ -1,4 +1,13 @@
-import { escapeSpecialChars, isFqName, makeCoreModuleName, makeFqName, nameToPath, sleepMilliseconds, splitFqName } from '../util.js';
+import {
+  escapeSpecialChars,
+  isFqName,
+  isString,
+  makeCoreModuleName,
+  makeFqName,
+  nameToPath,
+  sleepMilliseconds,
+  splitFqName,
+} from '../util.js';
 import {
   Environment,
   GlobalEnvironment,
@@ -117,15 +126,15 @@ export class AgentInstance {
   role: string | undefined;
   flows: string | undefined;
   validate: string | undefined;
-  retry: string | undefined
+  retry: string | undefined;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;
   private fqName: string | undefined;
   private decisionExecutor = false;
-  private retryObj: Retry | undefined
+  private retryObj: Retry | undefined;
 
-  private constructor() { }
+  private constructor() {}
 
   static FromInstance(agentInstance: Instance): AgentInstance {
     const agent: AgentInstance = instanceToObject<AgentInstance>(
@@ -157,13 +166,13 @@ export class AgentInstance {
       }
     }
     if (agent.retry) {
-      let n = agent.retry
+      let n = agent.retry;
       if (!isFqName(n)) {
-        n = `${agent.moduleName}/${n}`
+        n = `${agent.moduleName}/${n}`;
       }
-      const parts = splitFqName(n)
-      const m = fetchModule(parts[0])
-      agent.retryObj = m.getRetry(parts[1])
+      const parts = splitFqName(n);
+      const m = fetchModule(parts[0]);
+      agent.retryObj = m.getRetry(parts[1]);
     }
     return agent;
   }
@@ -420,9 +429,9 @@ Only return a pure JSON object with no extra text, annotations etc.`;
             .join('\n')}`
         );
         let response: AIResponse = await p.invoke(msgs, externalToolSpecs);
-        const v = this.getValidationEvent()
+        const v = this.getValidationEvent();
         if (v) {
-          response = await this.handleValidation(response, v, msgs, p)
+          response = await this.handleValidation(response, v, msgs, p);
         }
         msgs.push(assistantMessage(response.content));
         if (isplnr) {
@@ -441,33 +450,58 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     }
   }
 
-  private async handleValidation(response: AIResponse, validationEventName: string, msgs: BaseMessage[],
-    provider: AgentServiceProvider): Promise<AIResponse> {
-    let r: Instance = await parseAndEvaluateStatement(`{${validationEventName} {data "${escapeSpecialChars(response.content)}"}}`)
-    const status = r.lookup('status')
+  private async invokeValidator(
+    response: AIResponse,
+    validationEventName: string
+  ): Promise<Instance> {
+    let isstr = false;
+    try {
+      const c = JSON.parse(response.content);
+      isstr = isString(c);
+    } catch (reason: any) {
+      logger.debug(`invokeValidator json/parse - ${reason}`);
+    }
+    const d = isstr ? `"${escapeSpecialChars(response.content)}"` : response.content;
+    const r: Instance = await parseAndEvaluateStatement(`{${validationEventName} {data ${d}}}`);
+    return r;
+  }
+
+  private async handleValidation(
+    response: AIResponse,
+    validationEventName: string,
+    msgs: BaseMessage[],
+    provider: AgentServiceProvider
+  ): Promise<AIResponse> {
+    let r: Instance = await this.invokeValidator(response, validationEventName);
+    const status = r.lookup('status');
     if (status === 'ok') {
-      return response
+      return response;
     } else {
       if (this.retryObj) {
-        let resp = response
-        let attempt = 0
-        let delay = this.retryObj.getNextDelayMs(attempt)
+        let resp = response;
+        let attempt = 0;
+        let delay = this.retryObj.getNextDelayMs(attempt);
         while (delay) {
-          msgs.push(assistantMessage(resp.content))
-          const vs = JSON.stringify(r.asSerializableObject())
-          msgs.push(humanMessage(`Validation for your last response failed with this result: \n${vs}\n\nFix the errors.`))
-          sleepMilliseconds(delay)
-          // TODO: add proper log messages
-          resp = provider.invoke(msgs, undefined)
-          r = await parseAndEvaluateStatement(`{${validationEventName} {data "${escapeSpecialChars(resp.content)}"}}`)
+          msgs.push(assistantMessage(resp.content));
+          const vs = JSON.stringify(r.asSerializableObject());
+          msgs.push(
+            humanMessage(
+              `Validation for your last response failed with this result: \n${vs}\n\nFix the errors.`
+            )
+          );
+          await sleepMilliseconds(delay);
+          resp = await provider.invoke(msgs, undefined);
+          r = await this.invokeValidator(resp, validationEventName);
           if (r.lookup('status') === 'ok') {
-            return resp
+            return resp;
           }
-          delay = this.retryObj.getNextDelayMs(++attempt)
+          delay = this.retryObj.getNextDelayMs(++attempt);
         }
-        throw new Error(`Agent ${this.name} failed to generate a valid response after ${attempt} attempts`)
+        throw new Error(
+          `Agent ${this.name} failed to generate a valid response after ${attempt} attempts`
+        );
       } else {
-        return response
+        return response;
       }
     }
   }
@@ -475,12 +509,12 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   private getValidationEvent(): string | undefined {
     if (this.validate) {
       if (isFqName(this.validate)) {
-        return this.validate
+        return this.validate;
       } else {
-        return `${this.moduleName}/${this.validate}`
+        return `${this.moduleName}/${this.validate}`;
       }
     }
-    return undefined
+    return undefined;
   }
 
   private getExternalToolSpecs(): any[] | undefined {
