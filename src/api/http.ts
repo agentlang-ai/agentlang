@@ -92,6 +92,9 @@ export function startServer(appSpec: ApplicationSpec, port: number, host?: strin
       app.put(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
         handleEntityPut(moduleName, n, req, res);
       });
+      app.patch(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
+        handleEntityPut(moduleName, n, req, res);
+      });
       app.delete(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
         handleEntityDelete(moduleName, n, req, res);
       });
