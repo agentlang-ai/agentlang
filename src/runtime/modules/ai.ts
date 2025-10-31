@@ -12,6 +12,7 @@ import {
   getDecision,
   Instance,
   instanceToObject,
+  isAgent,
   isModule,
   makeInstance,
   newInstanceAttributes,
@@ -159,8 +160,12 @@ export class AgentInstance {
       return AgentInstance.FromDecision(desc, flowAgent, context);
     }
     const fqs = isFqName(step) ? step : `${flowAgent.moduleName}/${step}`;
-    const instruction = `Analyse the context and generate the pattern required to invoke ${fqs}.
+    const isagent = isAgent(fqs);
+    const i0 = `Analyse the context and generate the pattern required to invoke ${fqs}.
     Never include references in the pattern. All attribute values must be literals derived from the context.`;
+    const instruction = isagent
+      ? `${i0} ${fqs} is an agent, so generate the message as a text instruction, if possible.`
+      : i0;
     const inst = makeInstance(
       CoreAIModuleName,
       AgentEntityName,

@@ -3582,6 +3582,12 @@ export function isTimer(eventInst: Instance): boolean {
   return eventInst.getFqName() == 'agentlang/timer';
 }
 
+export function isAgent(fqName: string): boolean {
+  const parts = splitFqName(fqName);
+  const m = fetchModule(parts[0]);
+  return m.getAgent(parts[1]) !== undefined;
+}
+
 export function isAgentEvent(record: Record): boolean {
   const flag = record.getMeta(IsAgentEventMeta);
   return flag !== undefined && flag == 'y';
