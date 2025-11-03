@@ -974,7 +974,7 @@ agentlang/retry r1 {
     backoff {
        strategy exponential,
        delay 2,
-       magnitude seconds    
+       magnitude seconds
     }
 }
 
