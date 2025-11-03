@@ -1845,7 +1845,7 @@ export class Retry extends ModuleEntry {
       ss.push(`factor ${fact}`);
     }
     return `backoff {
-       ${ss.join(',\n       ')}    
+       ${ss.join(',\n       ')}
     }`;
   }
 

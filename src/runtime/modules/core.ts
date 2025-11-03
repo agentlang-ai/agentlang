@@ -54,7 +54,7 @@ resolver suspensionResolver ["${DefaultModuleName}/activeSuspension"] {
 }
 
 workflow createSuspension {
-  {suspension 
+  {suspension
     {id createSuspension.id
      continuation createSuspension.continuation,
      env createSuspension.env,

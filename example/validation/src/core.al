@@ -73,7 +73,7 @@ workflow markRequestCompleted {
         requestedBy markRequestCompleted.requestedBy
     }}
 }
-        
+
 agent provisionDNS {
     instruction "Provision DNS with ipaddress={{classifyNetworkProvisioningRequest.IPAddress}} and cname={{classifyNetworkProvisioningRequest.CNAME}}",
     tools [net.core/doProvisionDNS],
@@ -124,7 +124,7 @@ agent markTicketAsDone {
     instruction "Use type={{classifyNetworkProvisioningRequest.type}}, requestedBy={{classifyNetworkProvisioningRequest.requestedBy}} and provisioningId={{provisioningId}} to mark the request as completed",
     tools [net.core/markRequestCompleted]
 }
-        
+
 flow networkProvisioningRequestManager {
     classifyNetworkProvisioningRequest --> "type is DNS" provisionDNS
     classifyNetworkProvisioningRequest --> "type is WLAN" provisionWLAN
