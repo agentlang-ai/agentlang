@@ -6,7 +6,7 @@ Import: 'import' path=STRING '@as' name=ID;
 
 Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | PublicWorkflowDefinition | StandaloneStatement 
 | AgentDefinition | PublicAgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition | ScenarioDefinition 
-| DirectiveDefinition | GlossaryEntryDefinition;
+| DirectiveDefinition | GlossaryEntryDefinition | RetryDefinition;
 
 StandaloneStatement: stmt=Statement;
 
@@ -165,6 +165,10 @@ ScenarioDefinition: 'scenario' name=Ref (body=MapLiteral? | '{' scn=If? '}' | '{
 DirectiveDefinition: 'directive' name=Ref (body=MapLiteral? | '{' dir=If? '}' | '{''}');
 
 GlossaryEntryDefinition: 'glossaryEntry' name=Ref (body=MapLiteral? | glos=AgentXtraSpec? | '{''}');
+
+RetryDefinition: 'agentlang/retry' name=ID '{' ('attempts' attempts=Decimal)? (',' backoff=BackoffSpec)? '}';
+
+BackoffSpec: 'backoff' '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ '}';
 
 ResolverDefinition: 'resolver' name=GenericName '[' (paths+=GenericName (',' paths+=GenericName)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';

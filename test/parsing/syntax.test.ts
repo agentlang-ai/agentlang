@@ -931,3 +931,66 @@ flow Agent4 {
     assert(mdef === s1)
   })
 })
+
+describe('retry-construct', () => {
+  test('load retry construct', async () => {
+    const mname = 'retryTest'
+    await doInternModule(mname, `entity A {
+      id Int @id,
+      x Int
+      }
+      
+      agentlang/retry r1 {
+        attempts 3,
+        backoff {
+            strategy exponential,
+            delay 2,
+            magnitude seconds
+        }
+      }
+      
+      workflow v1 {
+         
+      }
+
+      agent a1 {
+        instruction "test agent",
+        validate v1,
+        retry r1
+      }
+      `)
+    const m = fetchModule(mname)
+    const s = m.toString()
+    assert(s === `module retryTest
+
+entity A
+{
+    id Int @id,
+    x Int
+}
+
+agentlang/retry r1 {
+    attempts 3,
+    backoff {
+       strategy exponential,
+       delay 2,
+       magnitude seconds
+    }
+}
+
+workflow v1 {
+
+}
+agent a1
+{
+    instruction "test agent",
+    validate "v1",
+    retry "r1"
+}`)
+    const s1 = s.substring(s.indexOf('entity')).trim()
+    await doInternModule(`${mname}1`, s1)
+    const m2 = fetchModule(`${mname}1`)
+    const s2 = m2.toString()
+    assert(s1 === s2.substring(s2.indexOf('entity')).trim())
+  })
+})
