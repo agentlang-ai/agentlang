@@ -48,7 +48,7 @@ import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
 import { FetchModuleFn, PathAttributeName } from './defs.js';
 import { logger } from './logger.js';
-import { FlowStepPattern } from '../language/syntax.js';
+import { CasePattern, FlowStepPattern } from '../language/syntax.js';
 import {
   AgentCondition,
   AgentGlossaryEntry,
@@ -1867,6 +1867,14 @@ export class Decision extends ModuleEntry {
   constructor(name: string, moduleName: string, cases: string[]) {
     super(name, moduleName);
     this.cases = cases;
+  }
+
+  async casePatterns(): Promise<CasePattern[]> {
+    const pats = new Array<CasePattern>();
+    for (let i = 0; i < this.cases.length; ++i) {
+      pats.push(await CasePattern.FromString(this.cases[i]));
+    }
+    return pats;
   }
 
   joinedCases(): string {

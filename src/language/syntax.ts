@@ -1,8 +1,9 @@
 import { parseHelper } from 'langium/test';
 import { escapeQueryName, trimQuotes } from '../runtime/util.js';
-import { ModuleDefinition } from './generated/ast.js';
+import { isDecisionDefinition, ModuleDefinition } from './generated/ast.js';
 import { createAgentlangServices } from './agentlang-module.js';
 import { EmptyFileSystem } from 'langium';
+import { introspect, parseModule } from './parser.js';
 
 export class BasePattern {
   alias: string | undefined;
@@ -686,6 +687,22 @@ export class CasePattern extends BasePattern {
     super();
     this.condition = condition;
     this.body = body;
+  }
+
+  static async FromString(s: string): Promise<CasePattern> {
+    const ss = s.trimStart();
+    if (ss.startsWith('case')) {
+      const m = await parseModule(`module T\ndecision D {\n${ss}}`);
+      const d = m.defs[0];
+      if (isDecisionDefinition(d) && d.body) {
+        const c = d.body.cases[0];
+        const b = await introspect(c.statements[0].$cstNode?.text || '');
+        return new CasePattern(new ExpressionPattern(c.cond), b[0]);
+      } else {
+        throw new Error(`Failed to parse ${s}`);
+      }
+    }
+    throw new Error(`Not a case expression - ${s}`);
   }
 
   override toString(): string {
