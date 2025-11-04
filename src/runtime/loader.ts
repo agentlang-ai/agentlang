@@ -213,6 +213,17 @@ async function getAllModules(
   return alFiles;
 }
 
+let dependenciesCallback: Function | undefined = undefined;
+
+export function setDependenciesCallback(cb: Function) {
+  dependenciesCallback = cb;
+}
+
+export type DependencyInfo = {
+  appName: string;
+  url: string;
+};
+
 async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Promise<string> {
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
@@ -220,6 +231,20 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   const appJsonFile = `${appDir}${path.sep}package.json`;
   const s: string = await fs.readFile(appJsonFile);
   const appSpec: ApplicationSpec = JSON.parse(s);
+  if (dependenciesCallback !== undefined && appSpec.dependencies) {
+    const aldeps = new Array<DependencyInfo>();
+    for (const [k, v] of Object.entries(appSpec.dependencies)) {
+      if (typeof v === 'string' && v.startsWith('git+http')) {
+        aldeps.push({
+          appName: k,
+          url: v,
+        });
+      }
+    }
+    if (aldeps.length > 0) {
+      await dependenciesCallback(aldeps);
+    }
+  }
   let lastModuleLoaded: string = '';
   async function cont2() {
     const fls01 = await getAllModules(appDir, fs, false);
@@ -237,7 +262,13 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   if (appSpec.dependencies !== undefined) {
     for (const [depName, _] of Object.entries(appSpec.dependencies)) {
       try {
-        const depDirName = `./node_modules/${depName}`;
+        // In browser (with virtual filesystem), use absolute path relative to appDir
+        // In Node.js, use relative path from current working directory
+        const isBrowser = fsOptions && fsOptions.name;
+        const depDirName = isBrowser
+          ? `${appDir}${path.sep}node_modules${path.sep}${depName}`
+          : `./node_modules/${depName}`;
+
         const fls01 = await fs.readdir(depDirName);
         const srcDir = depDirName + path.sep + 'src';
         const hasSrc = await fs.exists(srcDir);
@@ -279,6 +310,12 @@ export async function load(
   return { name: result, version: '0.0.1' };
 }
 
+export function flushAllModules() {
+  getUserModuleNames().forEach((n: string) => {
+    removeModule(n);
+  });
+}
+
 /**
  * Removes all existing user-modules and loads the specified module-file.
  * @param fileName Path to the file containing the module
@@ -291,9 +328,7 @@ export async function flushAllAndLoad(
   fsOptions?: any,
   callback?: Function
 ): Promise<ApplicationSpec> {
-  getUserModuleNames().forEach((n: string) => {
-    removeModule(n);
-  });
+  flushAllModules();
   return await load(fileName, fsOptions, callback);
 }
 
@@ -457,7 +492,7 @@ function addSchemaFromDef(
   } else if (isRecordDefinition(def)) {
     result = addRecord(def.name, moduleName, def.schema, maybeExtends(def.extends));
   } else {
-    throw new Error(`Cannot add schema defintiion in module ${moduleName} for ${def}`);
+    throw new Error(`Cannot add schema definition in module ${moduleName} for ${def}`);
   }
   if (ispub) {
     result.setPublic(true);
@@ -785,7 +820,7 @@ function processAgentArrayValue(expr: Expr | undefined, attrName: string): strin
       });
       return `{${m.join(',')}}`;
     } else {
-      throw new Error(`Type not supprted in agent-arrays - ${attrName}`);
+      throw new Error(`Type not supported in agent-arrays - ${attrName}`);
     }
   } else {
     throw new Error(`Invalid value in array passed to agent ${attrName}`);
