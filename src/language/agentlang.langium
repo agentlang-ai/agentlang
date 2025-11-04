@@ -42,7 +42,7 @@ RelNodes: '(' node1=NodeDefinition ',' node2=NodeDefinition ')';
 AttributeDefinition: name=ID (type=QualifiedName | arrayType=QualifiedName '['']' | oneOfSpec=OneOfSpec | enumSpec=EnumSpec 
 | refSpec=RefSpec) ('@expr' '(' expr=Expr ')')? properties+=PropertyDefinition*;
 
-EnumSpec: '@enum' '(' values+=STRING (',' values+=STRING)* ')';
+EnumSpec: (type=QualifiedName)? '@enum' '(' values+=STRING (',' values+=STRING)* ')';
 
 OneOfSpec: '@oneof' '(' ref=Ref ')';
 
