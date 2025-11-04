@@ -727,7 +727,7 @@ export class Environment extends Instance {
       if (this.activeEventInstance && isCoreModule(this.activeEventInstance.moduleName)) {
         return this;
       }
-      this.monitor = new Monitor(this.activeEventInstance);
+      this.monitor = new Monitor(this.activeEventInstance, this.activeUser);
     }
     this.monitor.addEntry(new MonitorEntry(stmt));
     return this;
@@ -1906,7 +1906,7 @@ async function iterateOnFlow(
     if (isfxc || agent.isDecisionExecutor()) env.setFlowContext(context);
     else env.setFlowContext(initContext);
     if (monitoringEnabled) {
-      env.appendToMonitor(`{${step} {message ${context}}}`);
+      env.appendToMonitor(`{flowStep ${step}, message "${context}"}`);
     }
     await agentInvoke(agent, '', env);
     if (monitoringEnabled) env.setMonitorResult(env.getLastResult());

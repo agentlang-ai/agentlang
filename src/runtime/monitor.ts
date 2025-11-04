@@ -1,16 +1,20 @@
 import { Instance } from './module.js';
 
 export class MonitorEntry {
-  private statement: string;
+  private input: string;
   private result: any = undefined;
   private error: string | undefined = undefined;
+  private timestamp: number;
+  private latencyMs: number;
 
   constructor(statement: string) {
-    this.statement = statement;
+    this.input = statement;
+    this.timestamp = Date.now();
+    this.latencyMs = -1;
   }
 
   getStatement(): string {
-    return this.statement;
+    return this.input;
   }
 
   setResult(result: any): MonitorEntry {
@@ -34,14 +38,32 @@ export class MonitorEntry {
     return this.error;
   }
 
+  setLatencyMs(ms: number): MonitorEntry {
+    this.latencyMs = ms;
+    return this;
+  }
+
+  private static resultAsObject(result: any): object {
+    if (result instanceof Instance) return result.asSerializableObject();
+    else if (result instanceof Array)
+      return result.map((v: any) => {
+        return MonitorEntry.resultAsObject(v);
+      });
+    else return result;
+  }
+
   asObject(): object {
     const obj: any = {
-      statement: this.statement,
+      input: this.input,
+      timestamp: this.timestamp,
     };
+    if (this.latencyMs >= 0) {
+      obj.latencyMs = this.latencyMs;
+    }
     if (this.error !== undefined) {
       obj.error = this.error;
     } else if (this.result !== undefined) {
-      obj.result = this.result;
+      obj.result = MonitorEntry.resultAsObject(this.result);
     }
     return obj;
   }
@@ -50,15 +72,19 @@ export class MonitorEntry {
 export class Monitor {
   private id: string;
   private eventInstance: Instance | undefined;
+  private user: string | undefined;
   private entries: (MonitorEntry | Monitor)[] = new Array<MonitorEntry | Monitor>();
   private parent: Monitor | undefined = undefined;
   private lastEntry: MonitorEntry | undefined = undefined;
+  private lastEntrySetAtMs: number = 0;
+  private totalLatency: number = 0;
 
   private static MAX_REGISTRY_SIZE = 25;
 
-  constructor(eventInstance?: Instance | undefined) {
+  constructor(eventInstance?: Instance | undefined, user?: string | undefined) {
     this.eventInstance = eventInstance;
     this.id = eventInstance ? eventInstance.getId() : crypto.randomUUID();
+    this.user = user;
     while (monitorRegistry.length >= Monitor.MAX_REGISTRY_SIZE) {
       monitorRegistry.shift();
     }
@@ -73,15 +99,25 @@ export class Monitor {
     return this.eventInstance;
   }
 
+  getUser(): string | undefined {
+    return this.user;
+  }
+
+  getTotalLatencyMs(): number {
+    return this.totalLatency;
+  }
+
   addEntry(entry: MonitorEntry): Monitor {
     this.entries.push(entry);
     this.lastEntry = entry;
+    this.lastEntrySetAtMs = Date.now();
     return this;
   }
 
   setLastResult(result: any): Monitor {
     if (this.lastEntry !== undefined) {
       this.lastEntry.setResult(result);
+      this.finalizeLastEntry();
     }
     return this;
   }
@@ -89,8 +125,18 @@ export class Monitor {
   setLastError(reason: string): Monitor {
     if (this.lastEntry !== undefined) {
       this.lastEntry.setError(reason);
+      this.finalizeLastEntry();
     }
     return this;
+  }
+
+  private finalizeLastEntry(): void {
+    if (this.lastEntry) {
+      const ms = Date.now() - this.lastEntrySetAtMs;
+      this.lastEntry.setLatencyMs(ms);
+      this.lastEntry = undefined;
+      this.totalLatency += ms;
+    }
   }
 
   increment(): Monitor {
@@ -110,16 +156,16 @@ export class Monitor {
   asObject(): object {
     const objs = new Array<object>();
     this.entries.forEach((entry: Monitor | MonitorEntry) => {
-      if (entry instanceof MonitorEntry) {
-        objs.push(entry.asObject());
-      } else {
-        objs.push({
-          entries: entry.asObject(),
-          id: entry.id,
-        });
-      }
+      objs.push(entry.asObject());
     });
-    return objs;
+    const r: any = { id: this.id, totalLatencyMs: this.totalLatency, graph: objs };
+    if (this.eventInstance) {
+      r.event = this.eventInstance.getFqName();
+    }
+    if (this.user) {
+      r.user = this.user;
+    }
+    return r;
   }
 }
 

@@ -69,6 +69,8 @@ workflow createSuspension {
 entity Monitor {
   id String @id,
   eventInstance Any,
+  user String @optional,
+  totalLatencyMs Int,
   data String
 }
 
@@ -283,9 +285,11 @@ export async function flushMonitoringData(monitorId: string) {
       const data = JSON.stringify(m.asObject());
       const inst = m.getEventInstance();
       const eventInstance = inst ? JSON.stringify(inst.asSerializableObject()) : '';
+      const user = m.getUser() || 'admin';
+      const latency = m.getTotalLatencyMs();
       const env = new Environment(`monitor-${monitorId}-env`);
       await parseAndEvaluateStatement(
-        `{agentlang/Monitor {id "${monitorId}", eventInstance "${eventInstance}", data "${data}"}}`,
+        `{agentlang/Monitor {id "${monitorId}", eventInstance "${eventInstance}", user "${user}", totalLatencyMs ${latency}, data "${data}"}}`,
         undefined,
         env
       );
