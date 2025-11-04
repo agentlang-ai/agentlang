@@ -282,9 +282,11 @@ export async function flushMonitoringData(monitorId: string) {
   const m = getMonitor(monitorId);
   try {
     if (m) {
-      const data = JSON.stringify(m.asObject());
+      const data = escapeSpecialChars(JSON.stringify(m.asObject()));
       const inst = m.getEventInstance();
-      const eventInstance = inst ? JSON.stringify(inst.asSerializableObject()) : '';
+      const eventInstance = inst
+        ? escapeSpecialChars(JSON.stringify(inst.asSerializableObject()))
+        : '';
       const user = m.getUser() || 'admin';
       const latency = m.getTotalLatencyMs();
       const env = new Environment(`monitor-${monitorId}-env`);
