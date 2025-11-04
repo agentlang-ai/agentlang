@@ -702,6 +702,12 @@ describe('case-generation', () => {
     const c1 = new CasePattern(LiteralPattern.String("salary is greater than 1000"), LiteralPattern.Id('Accept'))
     const c2 = new CasePattern(new ExpressionPattern("salary < 1000"), LiteralPattern.Id("Reject"))
     const d = new Decision('acceptOrRejectOffer', "acme.core", [c1.toString(), c2.toString()])
+    const cps = await d.casePatterns()
+    const tags = cps.map((cp: CasePattern) => {
+      return cp.body.toString()
+    })
+    assert(tags.length == 2)
+    assert(tags.join(',') === 'Accept,Reject')
     const obj1 = await introspectCase(d.cases[0])
     assert(isLiteralPattern(obj1.condition))
     assert(obj1.condition.toString() === `"salary is greater than 1000"`)
