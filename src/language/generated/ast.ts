@@ -539,6 +539,7 @@ export function isEntityDefinition(item: unknown): item is EntityDefinition {
 export interface EnumSpec extends langium.AstNode {
     readonly $container: AttributeDefinition;
     readonly $type: 'EnumSpec';
+    type?: QualifiedName;
     values: Array<string>;
 }
 
@@ -1806,6 +1807,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: EnumSpec,
                     properties: [
+                        { name: 'type' },
                         { name: 'values', defaultValue: [] }
                     ]
                 };
