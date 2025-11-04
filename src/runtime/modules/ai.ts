@@ -1,4 +1,13 @@
-import { isFqName, makeCoreModuleName, makeFqName, nameToPath, splitFqName } from '../util.js';
+import {
+  escapeSpecialChars,
+  isFqName,
+  isString,
+  makeCoreModuleName,
+  makeFqName,
+  nameToPath,
+  sleepMilliseconds,
+  splitFqName,
+} from '../util.js';
 import {
   Environment,
   GlobalEnvironment,
@@ -17,6 +26,7 @@ import {
   makeInstance,
   newInstanceAttributes,
   Record,
+  Retry,
 } from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
@@ -69,6 +79,8 @@ entity ${AgentEntityName} {
     channels String @optional, // comma-separated list of channel names
     role String @optional,
     flows String @optional,
+    validate String @optional,
+    retry String @optional,
     llm String
 }
 
@@ -114,11 +126,14 @@ export class AgentInstance {
   runWorkflows: boolean = true;
   role: string | undefined;
   flows: string | undefined;
+  validate: string | undefined;
+  retry: string | undefined;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;
   private fqName: string | undefined;
   private decisionExecutor = false;
+  private retryObj: Retry | undefined;
 
   private constructor() {}
 
@@ -150,6 +165,15 @@ export class AgentInstance {
         }
         if (agent.hasModuleTools) break;
       }
+    }
+    if (agent.retry) {
+      let n = agent.retry;
+      if (!isFqName(n)) {
+        n = `${agent.moduleName}/${n}`;
+      }
+      const parts = splitFqName(n);
+      const m = fetchModule(parts[0]);
+      agent.retryObj = m.getRetry(parts[1]);
     }
     return agent;
   }
@@ -409,7 +433,11 @@ Only return a pure JSON object with no extra text, annotations etc.`;
             })
             .join('\n')}`
         );
-        const response: AIResponse = await p.invoke(msgs, externalToolSpecs);
+        let response: AIResponse = await p.invoke(msgs, externalToolSpecs);
+        const v = this.getValidationEvent();
+        if (v) {
+          response = await this.handleValidation(response, v, msgs, p);
+        }
         msgs.push(assistantMessage(response.content));
         if (isplnr) {
           msgs[0] = sysMsg;
@@ -425,6 +453,73 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     } else {
       throw new Error(`failed to initialize messages for agent ${agentName}`);
     }
+  }
+
+  private async invokeValidator(
+    response: AIResponse,
+    validationEventName: string
+  ): Promise<Instance> {
+    let isstr = false;
+    try {
+      const c = JSON.parse(response.content);
+      isstr = isString(c);
+    } catch (reason: any) {
+      logger.debug(`invokeValidator json/parse - ${reason}`);
+    }
+    const d = isstr ? `"${escapeSpecialChars(response.content)}"` : response.content;
+    const r: Instance = await parseAndEvaluateStatement(`{${validationEventName} {data ${d}}}`);
+    return r;
+  }
+
+  private async handleValidation(
+    response: AIResponse,
+    validationEventName: string,
+    msgs: BaseMessage[],
+    provider: AgentServiceProvider
+  ): Promise<AIResponse> {
+    let r: Instance = await this.invokeValidator(response, validationEventName);
+    const status = r.lookup('status');
+    if (status === 'ok') {
+      return response;
+    } else {
+      if (this.retryObj) {
+        let resp = response;
+        let attempt = 0;
+        let delay = this.retryObj.getNextDelayMs(attempt);
+        while (delay) {
+          msgs.push(assistantMessage(resp.content));
+          const vs = JSON.stringify(r.asSerializableObject());
+          msgs.push(
+            humanMessage(
+              `Validation for your last response failed with this result: \n${vs}\n\nFix the errors.`
+            )
+          );
+          await sleepMilliseconds(delay);
+          resp = await provider.invoke(msgs, undefined);
+          r = await this.invokeValidator(resp, validationEventName);
+          if (r.lookup('status') === 'ok') {
+            return resp;
+          }
+          delay = this.retryObj.getNextDelayMs(++attempt);
+        }
+        throw new Error(
+          `Agent ${this.name} failed to generate a valid response after ${attempt} attempts`
+        );
+      } else {
+        return response;
+      }
+    }
+  }
+
+  private getValidationEvent(): string | undefined {
+    if (this.validate) {
+      if (isFqName(this.validate)) {
+        return this.validate;
+      } else {
+        return `${this.moduleName}/${this.validate}`;
+      }
+    }
+    return undefined;
   }
 
   private getExternalToolSpecs(): any[] | undefined {

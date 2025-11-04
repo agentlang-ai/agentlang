@@ -702,6 +702,12 @@ describe('case-generation', () => {
     const c1 = new CasePattern(LiteralPattern.String("salary is greater than 1000"), LiteralPattern.Id('Accept'))
     const c2 = new CasePattern(new ExpressionPattern("salary < 1000"), LiteralPattern.Id("Reject"))
     const d = new Decision('acceptOrRejectOffer', "acme.core", [c1.toString(), c2.toString()])
+    const cps = await d.casePatterns()
+    const tags = cps.map((cp: CasePattern) => {
+      return cp.body.toString()
+    })
+    assert(tags.length == 2)
+    assert(tags.join(',') === 'Accept,Reject')
     const obj1 = await introspectCase(d.cases[0])
     assert(isLiteralPattern(obj1.condition))
     assert(obj1.condition.toString() === `"salary is greater than 1000"`)
@@ -929,5 +935,68 @@ flow Agent4 {
     const idx = s.indexOf('record')
     const s1 = s.substring(idx)
     assert(mdef === s1)
+  })
+})
+
+describe('retry-construct', () => {
+  test('load retry construct', async () => {
+    const mname = 'retryTest'
+    await doInternModule(mname, `entity A {
+      id Int @id,
+      x Int
+      }
+      
+      agentlang/retry r1 {
+        attempts 3,
+        backoff {
+            strategy exponential,
+            delay 2,
+            magnitude seconds
+        }
+      }
+      
+      workflow v1 {
+         
+      }
+
+      agent a1 {
+        instruction "test agent",
+        validate v1,
+        retry r1
+      }
+      `)
+    const m = fetchModule(mname)
+    const s = m.toString()
+    assert(s === `module retryTest
+
+entity A
+{
+    id Int @id,
+    x Int
+}
+
+agentlang/retry r1 {
+    attempts 3,
+    backoff {
+       strategy exponential,
+       delay 2,
+       magnitude seconds
+    }
+}
+
+workflow v1 {
+
+}
+agent a1
+{
+    instruction "test agent",
+    validate "v1",
+    retry "r1"
+}`)
+    const s1 = s.substring(s.indexOf('entity')).trim()
+    await doInternModule(`${mname}1`, s1)
+    const m2 = fetchModule(`${mname}1`)
+    const s2 = m2.toString()
+    assert(s1 === s2.substring(s2.indexOf('entity')).trim())
   })
 })

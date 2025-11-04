@@ -61,9 +61,12 @@ export type AgentlangKeywordNames =
     | "["
     | "]"
     | "agent"
+    | "agentlang/retry"
     | "allow"
     | "and"
+    | "attempts"
     | "await"
+    | "backoff"
     | "between"
     | "case"
     | "commitTransaction"
@@ -132,7 +135,7 @@ export function isDecimal(item: unknown): item is Decimal {
     return typeof item === 'number';
 }
 
-export type Definition = AgentDefinition | DecisionDefinition | DirectiveDefinition | FlowDefinition | GlossaryEntryDefinition | PublicAgentDefinition | PublicWorkflowDefinition | RelationshipDefinition | ResolverDefinition | ScenarioDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
+export type Definition = AgentDefinition | DecisionDefinition | DirectiveDefinition | FlowDefinition | GlossaryEntryDefinition | PublicAgentDefinition | PublicWorkflowDefinition | RelationshipDefinition | ResolverDefinition | RetryDefinition | ScenarioDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = 'Definition';
 
@@ -323,6 +326,18 @@ export const AttributeDefinition = 'AttributeDefinition';
 
 export function isAttributeDefinition(item: unknown): item is AttributeDefinition {
     return reflection.isInstance(item, AttributeDefinition);
+}
+
+export interface BackoffSpec extends langium.AstNode {
+    readonly $container: RetryDefinition;
+    readonly $type: 'BackoffSpec';
+    attributes: Array<SetAttribute>;
+}
+
+export const BackoffSpec = 'BackoffSpec';
+
+export function isBackoffSpec(item: unknown): item is BackoffSpec {
+    return reflection.isInstance(item, BackoffSpec);
 }
 
 export interface BeforeTriggerDefinition extends langium.AstNode {
@@ -1216,6 +1231,20 @@ export function isResolverMethodSpec(item: unknown): item is ResolverMethodSpec 
     return reflection.isInstance(item, ResolverMethodSpec);
 }
 
+export interface RetryDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'RetryDefinition';
+    attempts?: Decimal;
+    backoff?: BackoffSpec;
+    name: string;
+}
+
+export const RetryDefinition = 'RetryDefinition';
+
+export function isRetryDefinition(item: unknown): item is RetryDefinition {
+    return reflection.isInstance(item, RetryDefinition);
+}
+
 export interface Return extends langium.AstNode {
     readonly $container: Pattern;
     readonly $type: 'Return';
@@ -1282,7 +1311,7 @@ export function isSelectIntoSpec(item: unknown): item is SelectIntoSpec {
 }
 
 export interface SetAttribute extends langium.AstNode {
-    readonly $container: CrudMapBody;
+    readonly $container: BackoffSpec | CrudMapBody;
     readonly $type: 'SetAttribute';
     name: QueryId;
     op?: '!=' | '<' | '<=' | '<>' | '=' | '>' | '>=' | 'between' | 'in' | 'like';
@@ -1397,6 +1426,7 @@ export type AgentlangAstType = {
     AsyncFnCall: AsyncFnCall
     AttributeDefinition: AttributeDefinition
     AttributeValueExpression: AttributeValueExpression
+    BackoffSpec: BackoffSpec
     BeforeTriggerDefinition: BeforeTriggerDefinition
     BinExpr: BinExpr
     CaseEntry: CaseEntry
@@ -1468,6 +1498,7 @@ export type AgentlangAstType = {
     ResolverFnName: ResolverFnName
     ResolverMethodName: ResolverMethodName
     ResolverMethodSpec: ResolverMethodSpec
+    RetryDefinition: RetryDefinition
     Return: Return
     RuntimeHint: RuntimeHint
     ScenarioDefinition: ScenarioDefinition
@@ -1487,7 +1518,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AgentXtraAttribute, AgentXtraSpec, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicAgentDefinition, PublicEventDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AgentXtraAttribute, AgentXtraSpec, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BackoffSpec, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicAgentDefinition, PublicEventDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RetryDefinition, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1501,6 +1532,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case PublicWorkflowDefinition:
             case RelationshipDefinition:
             case ResolverDefinition:
+            case RetryDefinition:
             case ScenarioDefinition:
             case SchemaDefinition:
             case StandaloneStatement:
@@ -1623,6 +1655,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'properties', defaultValue: [] },
                         { name: 'refSpec' },
                         { name: 'type' }
+                    ]
+                };
+            }
+            case BackoffSpec: {
+                return {
+                    name: BackoffSpec,
+                    properties: [
+                        { name: 'attributes', defaultValue: [] }
                     ]
                 };
             }
@@ -2243,6 +2283,16 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'fn' },
                         { name: 'key' }
+                    ]
+                };
+            }
+            case RetryDefinition: {
+                return {
+                    name: RetryDefinition,
+                    properties: [
+                        { name: 'attempts' },
+                        { name: 'backoff' },
+                        { name: 'name' }
                     ]
                 };
             }

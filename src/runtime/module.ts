@@ -48,7 +48,7 @@ import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
 import { FetchModuleFn, PathAttributeName } from './defs.js';
 import { logger } from './logger.js';
-import { FlowStepPattern } from '../language/syntax.js';
+import { CasePattern, FlowStepPattern } from '../language/syntax.js';
 import {
   AgentCondition,
   AgentGlossaryEntry,
@@ -1689,12 +1689,192 @@ export function flowGraphNext(
   return undefined;
 }
 
+type BackoffStrategy = 'e' | 'l' | 'c'; // exponential, linear, constant
+type BackoffMagnitude = 'ms' | 's' | 'm'; // milliseconds, seconds, minutes
+
+export type RetryBackoff = {
+  strategy: BackoffStrategy | undefined;
+  delay: number | undefined;
+  magnitude: BackoffMagnitude | undefined;
+  factor: number | undefined;
+};
+
+export class Retry extends ModuleEntry {
+  attempts: number;
+  private backoff: RetryBackoff;
+
+  constructor(name: string, moduleName: string, attempts: number) {
+    super(name, moduleName);
+    this.attempts = attempts <= 0 ? 0 : attempts;
+    this.backoff = {
+      strategy: undefined,
+      delay: undefined,
+      magnitude: undefined,
+      factor: undefined,
+    };
+  }
+
+  setExponentialBackoff(): Retry {
+    this.backoff.strategy = 'e';
+    return this;
+  }
+
+  isExponentialBackoff(): boolean {
+    return this.backoff.strategy === 'e';
+  }
+
+  setLinearBackoff(): Retry {
+    this.backoff.strategy = 'l';
+    return this;
+  }
+
+  isLinearBackoff(): boolean {
+    return this.backoff.strategy === 'l';
+  }
+
+  setConstantBackoff(): Retry {
+    this.backoff.strategy = 'c';
+    return this;
+  }
+
+  isConstantBackoff(): boolean {
+    return this.backoff.strategy === undefined || this.backoff.strategy === 'c';
+  }
+
+  setBackoffDelay(n: number): Retry {
+    if (n > 0) {
+      this.backoff.delay = n;
+    }
+    return this;
+  }
+
+  setBackoffMagnitudeAsMilliseconds(): Retry {
+    this.backoff.magnitude = 'ms';
+    return this;
+  }
+
+  backoffMagnitudeIsMilliseconds(): boolean {
+    return this.backoff.magnitude === 'ms';
+  }
+
+  setBackoffMagnitudeAsSeconds(): Retry {
+    this.backoff.magnitude = 's';
+    return this;
+  }
+
+  backoffMagnitudeIsSeconds(): boolean {
+    return this.backoff.magnitude === 's';
+  }
+
+  setBackoffMagnitudeAsMinutes(): Retry {
+    this.backoff.magnitude = 'm';
+    return this;
+  }
+
+  backoffMagnitudeIsMinutes(): boolean {
+    return this.backoff.magnitude === 'm';
+  }
+
+  setBackoffFactor(n: number): Retry {
+    if (n !== 0) this.backoff.factor = n;
+    return this;
+  }
+
+  getNextDelayMs(attempt: number): number {
+    if (attempt >= this.attempts) {
+      return 0;
+    }
+    const delay = this.backoff.delay === undefined ? 2 : this.backoff.delay;
+    if (attempt <= 0 || this.isConstantBackoff()) {
+      return this.normalizeDelay(delay);
+    }
+    let d = delay;
+    let i = 0;
+    const factor = this.backoff.factor === undefined ? 1 : this.backoff.factor;
+    if (this.isExponentialBackoff()) {
+      while (i < attempt) {
+        d *= factor;
+        ++i;
+      }
+    } else {
+      while (i < attempt) {
+        d += factor;
+        ++i;
+      }
+    }
+    return this.normalizeDelay(d);
+  }
+
+  private normalizeDelay(d: number): number {
+    if (this.backoffMagnitudeIsMilliseconds()) return d;
+    else if (this.backoffMagnitudeIsSeconds()) return d * 1000;
+    else return d * 60 * 1000;
+  }
+
+  private backoffToString(): string | undefined {
+    const strat = this.backoff.strategy;
+    const delay = this.backoff.delay;
+    const mag = this.backoff.magnitude;
+    const fact = this.backoff.factor;
+    if (strat === undefined && delay === undefined && mag === undefined && fact === undefined) {
+      return undefined;
+    }
+    const ss = new Array<string>();
+    if (strat !== undefined) {
+      let s = 'constant';
+      if (this.isExponentialBackoff()) {
+        s = 'exponential';
+      } else if (this.isLinearBackoff()) {
+        s = 'linear';
+      }
+      ss.push(`strategy ${s}`);
+    }
+    if (delay !== undefined) {
+      ss.push(`delay ${delay}`);
+    }
+    if (mag !== undefined) {
+      let s = 'milliseconds';
+      if (this.backoffMagnitudeIsSeconds()) {
+        s = 'seconds';
+      } else if (this.backoffMagnitudeIsMinutes()) {
+        s = 'minutes';
+      }
+      ss.push(`magnitude ${s}`);
+    }
+    if (fact !== undefined) {
+      ss.push(`factor ${fact}`);
+    }
+    return `backoff {
+       ${ss.join(',\n       ')}
+    }`;
+  }
+
+  override toString(): string {
+    const s = `agentlang/retry ${this.name} {
+    attempts ${this.attempts}`;
+    const b = this.backoffToString();
+    if (b) {
+      return `${s},\n    ${b}\n}`;
+    } else {
+      return `${s}\n}`;
+    }
+  }
+}
+
 export class Decision extends ModuleEntry {
   cases: string[];
 
   constructor(name: string, moduleName: string, cases: string[]) {
     super(name, moduleName);
     this.cases = cases;
+  }
+
+  async casePatterns(): Promise<CasePattern[]> {
+    const pats = new Array<CasePattern>();
+    for (let i = 0; i < this.cases.length; ++i) {
+      pats.push(await CasePattern.FromString(this.cases[i]));
+    }
+    return pats;
   }
 
   joinedCases(): string {
@@ -1957,6 +2137,21 @@ export class Module {
       }
     }
     return this;
+  }
+
+  addRetry(retry: Retry): Module {
+    this.addEntry(retry);
+    return this;
+  }
+
+  getRetry(name: string): Retry | undefined {
+    if (this.hasEntry(name)) {
+      const e = this.getEntry(name);
+      if (e instanceof Retry) {
+        return e as Retry;
+      }
+    }
+    return undefined;
   }
 
   addStandaloneStatement(stmt: Statement): StandaloneStatement {

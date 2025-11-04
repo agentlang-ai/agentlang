@@ -180,6 +180,8 @@ importers:
 
   example/customer_support_system: {}
 
+  example/employee_chat: {}
+
   example/mcpdemo: {}
 
   example/pets: {}
@@ -187,6 +189,8 @@ importers:
   example/suspension: {}
 
   example/timer: {}
+
+  example/validation: {}
 
 packages:
 

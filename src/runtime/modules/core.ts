@@ -55,7 +55,7 @@ resolver suspensionResolver ["${DefaultModuleName}/activeSuspension"] {
 }
 
 workflow createSuspension {
-  {suspension 
+  {suspension
     {id createSuspension.id
      continuation createSuspension.continuation,
      env createSuspension.env,
@@ -78,6 +78,15 @@ entity Monitor {
 
 workflow fetchMonitor {
   await Core.fetchLatestMonitorForEvent(fetchMonitor.eventName)
+}
+
+record ValidationRequest {
+    data Any
+}
+
+record ValidationResult {
+    status @enum("ok", "error"),
+    reason String @optional
 }
 `;
 
