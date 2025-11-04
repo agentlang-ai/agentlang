@@ -482,7 +482,7 @@ export async function inactivateUser(userId: string, env: Environment): Promise<
     try {
       // Update user status to 'Inactive'
       await updateUserStatus(userId, 'Inactive', env);
-      
+
       // Disable user in Cognito
       const user = await findUser(userId, env);
       if (user) {
@@ -491,7 +491,7 @@ export async function inactivateUser(userId: string, env: Environment): Promise<
           await fetchAuthImpl().disableUser(email, env);
         }
       }
-      
+
       return {
         status: 'ok',
         message: 'User inactivated successfully',
@@ -515,7 +515,7 @@ export async function activateUser(userId: string, env: Environment): Promise<Re
     try {
       // Update user status to 'Active'
       await updateUserStatus(userId, 'Active', env);
-      
+
       // Enable user in Cognito
       const user = await findUser(userId, env);
       if (user) {
@@ -524,7 +524,7 @@ export async function activateUser(userId: string, env: Environment): Promise<Re
           await fetchAuthImpl().enableUser(email, env);
         }
       }
-      
+
       return {
         status: 'ok',
         message: 'User activated successfully',
@@ -568,7 +568,14 @@ export async function ensureUser(
     });
     return user;
   }
-  return await createUser(crypto.randomUUID(), email.toLowerCase(), firstName, lastName, env, status);
+  return await createUser(
+    crypto.randomUUID(),
+    email.toLowerCase(),
+    firstName,
+    lastName,
+    env,
+    status
+  );
 }
 
 export async function ensureUserRoles(userid: string, userRoles: string[], env: Environment) {
@@ -1184,13 +1191,13 @@ async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveS
 
       // Use the local user's ID for consistency
       const localUserId = localUser.lookup('id');
-      
+
       // Check if user status is 'Active'
       const userStatus = localUser.lookup('status');
       if (userStatus !== 'Active') {
         throw new UnauthorisedError(`User account is not active. Status: ${userStatus}`);
       }
-      
+
       const sess = await findUserSession(localUserId, env);
       if (!sess) {
         throw new UnauthorisedError(`No session found for user ${email}, UserId: ${userId}`);
@@ -1231,7 +1238,7 @@ async function verifySessionToken(token: string, env?: Environment): Promise<Act
           throw new UnauthorisedError(`User account is not active. Status: ${userStatus}`);
         }
       }
-      
+
       const sess: Instance = await findSession(sessId, env);
       if (sess !== undefined) {
         await fetchAuthImpl().verifyToken(sess.lookup('authToken'), env);
@@ -1370,14 +1377,14 @@ export async function acceptInvitationUser(
   const f = async () => {
     try {
       await fetchAuthImpl().acceptInvitation(email, tempPassword, newPassword, env);
-      
+
       // Update user status to 'Active' after accepting invitation
       const user = await findUserByEmail(email.toLowerCase(), env);
       if (user) {
         const userId = user.lookup('id');
         await updateUserStatus(userId, 'Active', env);
       }
-      
+
       return {
         email: email,
         message: 'Invitation accepted successfully',
