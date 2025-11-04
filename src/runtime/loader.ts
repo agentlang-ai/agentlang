@@ -232,16 +232,15 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   const s: string = await fs.readFile(appJsonFile);
   const appSpec: ApplicationSpec = JSON.parse(s);
   if (dependenciesCallback !== undefined && appSpec.dependencies) {
-    const dmap = appSpec.dependencies as Map<string, string>;
     const aldeps = new Array<DependencyInfo>();
-    dmap.forEach((v: string, k: string) => {
-      if (v.startsWith('git+http')) {
+    for (const [k, v] of Object.entries(appSpec.dependencies)) {
+      if (typeof v === 'string' && v.startsWith('git+http')) {
         aldeps.push({
           appName: k,
           url: v,
         });
       }
-    });
+    }
     if (aldeps.length > 0) {
       await dependenciesCallback(aldeps);
     }
@@ -263,7 +262,13 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   if (appSpec.dependencies !== undefined) {
     for (const [depName, _] of Object.entries(appSpec.dependencies)) {
       try {
-        const depDirName = `./node_modules/${depName}`;
+        // In browser (with virtual filesystem), use absolute path relative to appDir
+        // In Node.js, use relative path from current working directory
+        const isBrowser = fsOptions && fsOptions.name;
+        const depDirName = isBrowser
+          ? `${appDir}${path.sep}node_modules${path.sep}${depName}`
+          : `./node_modules/${depName}`;
+
         const fls01 = await fs.readdir(depDirName);
         const srcDir = depDirName + path.sep + 'src';
         const hasSrc = await fs.exists(srcDir);
@@ -487,7 +492,7 @@ function addSchemaFromDef(
   } else if (isRecordDefinition(def)) {
     result = addRecord(def.name, moduleName, def.schema, maybeExtends(def.extends));
   } else {
-    throw new Error(`Cannot add schema defintiion in module ${moduleName} for ${def}`);
+    throw new Error(`Cannot add schema definition in module ${moduleName} for ${def}`);
   }
   if (ispub) {
     result.setPublic(true);
@@ -815,7 +820,7 @@ function processAgentArrayValue(expr: Expr | undefined, attrName: string): strin
       });
       return `{${m.join(',')}}`;
     } else {
-      throw new Error(`Type not supprted in agent-arrays - ${attrName}`);
+      throw new Error(`Type not supported in agent-arrays - ${attrName}`);
     }
   } else {
     throw new Error(`Invalid value in array passed to agent ${attrName}`);
