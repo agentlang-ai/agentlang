@@ -36,7 +36,11 @@ import {
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
 import { Config } from '../runtime/state.js';
-import { findFileByFilename, createFileRecord, deleteFileRecord } from '../runtime/modules/files.js';
+import {
+  findFileByFilename,
+  createFileRecord,
+  deleteFileRecord,
+} from '../runtime/modules/files.js';
 
 export async function startServer(
   appSpec: ApplicationSpec,
@@ -969,9 +973,9 @@ async function handleFileDelete(
 
     logger.info(`File deleted: ${sanitizedFilename}`);
 
-    res.status(200).send({ 
+    res.status(200).send({
       message: 'File deleted successfully',
-      filename: sanitizedFilename
+      filename: sanitizedFilename,
     });
   } catch (err: any) {
     logger.error(`File delete error: ${err}`);
