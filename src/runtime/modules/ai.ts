@@ -773,3 +773,19 @@ function processScenarioResponse(resp: string): string {
   }
   return resp;
 }
+
+export function trimGeneratedCode(code: string | undefined): string {
+  if (code !== undefined) {
+    let s = code.trim();
+    if (s.startsWith('```')) {
+      const idx = s.indexOf('\n');
+      s = s.substring(idx).trimStart();
+    }
+    if (s.endsWith('```')) {
+      s = s.substring(0, s.length - 3);
+    }
+    return s;
+  } else {
+    return '';
+  }
+}

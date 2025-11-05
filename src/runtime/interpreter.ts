@@ -73,7 +73,13 @@ import {
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
-import { AgentInstance, AgentEntityName, AgentFqName, findAgentByName } from './modules/ai.js';
+import {
+  AgentInstance,
+  AgentEntityName,
+  AgentFqName,
+  findAgentByName,
+  trimGeneratedCode,
+} from './modules/ai.js';
 import { logger } from './logger.js';
 import {
   FlowSuspensionTag,
@@ -1711,7 +1717,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       let retries = 0;
       while (true) {
         try {
-          let rs: string = result ? result.trim() : '';
+          let rs: string = result ? trimGeneratedCode(result) : '';
           let isWf = rs.startsWith('workflow');
           if (isWf && !agent.runWorkflows) {
             await parseWorkflow(rs);
@@ -1766,6 +1772,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       let retries = 0;
       while (true) {
         try {
+          result = trimGeneratedCode(result);
           const obj = agent.maybeValidateJsonResponse(result);
           if (obj !== undefined) {
             env.setLastResult(obj);
