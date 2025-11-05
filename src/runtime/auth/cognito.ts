@@ -43,6 +43,8 @@ let ConfirmForgotPasswordCommand: any = undefined;
 let AdminGetUserCommand: any = undefined;
 let InitiateAuthCommand: any = undefined;
 let AdminCreateUserCommand: any = undefined;
+let AdminDisableUserCommand: any = undefined;
+let AdminEnableUserCommand: any = undefined;
 let RespondToAuthChallengeCommand: any = undefined;
 let AuthenticationDetails: any = undefined;
 let CognitoUser: any = undefined;
@@ -66,6 +68,8 @@ if (isNodeEnv) {
   AdminGetUserCommand = cip.AdminGetUserCommand;
   InitiateAuthCommand = cip.InitiateAuthCommand;
   AdminCreateUserCommand = cip.AdminCreateUserCommand;
+  AdminDisableUserCommand = cip.AdminDisableUserCommand;
+  AdminEnableUserCommand = cip.AdminEnableUserCommand;
   RespondToAuthChallengeCommand = cip.RespondToAuthChallengeCommand;
 
   const ci = await import('amazon-cognito-identity-js');
@@ -384,7 +388,7 @@ export class CognitoAuth implements AgentlangAuth {
 
       if (response.$metadata.httpStatusCode == 200) {
         logger.info(`Signup successful for user: ${username}`);
-        const user = await ensureUser(username, firstName, lastName, env);
+        const user = await ensureUser(username, firstName, lastName, env, 'Active');
         const userInfo: UserInfo = {
           username: username,
           firstName: firstName,
@@ -1088,7 +1092,7 @@ export class CognitoAuth implements AgentlangAuth {
       if (response.$metadata.httpStatusCode === 200) {
         logger.info(`User invitation successful for: ${email}`);
 
-        await ensureUser(email, firstName, lastName, env);
+        await ensureUser(email, firstName, lastName, env, 'Invited');
 
         const invitationInfo: InvitationInfo = {
           email: email,
@@ -1268,6 +1272,52 @@ export class CognitoAuth implements AgentlangAuth {
     } catch (err) {
       logger.error(`Failed to decode JWT payload: ${err}`);
       throw new Error('Invalid JWT token');
+    }
+  }
+
+  async disableUser(email: string, _env: Environment): Promise<void> {
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+      });
+
+      const command = new AdminDisableUserCommand({
+        UserPoolId: this.fetchUserPoolId(),
+        Username: email,
+      });
+
+      logger.debug(`Attempting to disable user: ${email}`);
+      await client.send(command);
+      logger.info(`User disabled successfully: ${email}`);
+    } catch (err: any) {
+      logger.error(`Failed to disable user ${email}:`, {
+        errorName: err.name,
+        errorMessage: sanitizeErrorMessage(err.message),
+      });
+      handleCognitoError(err, 'disableUser');
+    }
+  }
+
+  async enableUser(email: string, _env: Environment): Promise<void> {
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+      });
+
+      const command = new AdminEnableUserCommand({
+        UserPoolId: this.fetchUserPoolId(),
+        Username: email,
+      });
+
+      logger.debug(`Attempting to enable user: ${email}`);
+      await client.send(command);
+      logger.info(`User enabled successfully: ${email}`);
+    } catch (err: any) {
+      logger.error(`Failed to enable user ${email}:`, {
+        errorName: err.name,
+        errorMessage: sanitizeErrorMessage(err.message),
+      });
+      handleCognitoError(err, 'enableUser');
     }
   }
 }
