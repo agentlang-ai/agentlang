@@ -1,3 +1,6 @@
+import { IfPattern, LiteralPattern } from '../../language/syntax.js';
+import { trimQuotes } from '../util.js';
+
 export const PlannerInstructions = `Agentlang is a very-high-level declarative language that makes it easy to define business applications as 'models'.
 The model of a business application consists of entity definitions and workflows defined in "modules". 
 A module is be encoded in a syntax inspired by JavaScript and JSON. Example of a simple module follows:
@@ -354,11 +357,26 @@ Now apply the same analysis to the following context and cases provided by the u
 `;
 
 export type AgentCondition = {
-  cond: string;
+  if: string;
   then: string;
+  internal: boolean;
+  ifPattern: IfPattern | undefined;
 };
 
 const AgentDirectives = new Map<string, AgentCondition[]>();
+
+export function newAgentDirective(
+  cond: string,
+  then: string = '',
+  internal: boolean = false,
+  ifPattern: IfPattern | undefined = undefined
+): AgentCondition {
+  return { if: cond, then, internal, ifPattern };
+}
+
+export function newAgentDirectiveFromIf(ifPattern: IfPattern): AgentCondition {
+  return newAgentDirective(ifPattern.toString(), '', false, ifPattern);
+}
 
 export function registerAgentDirectives(agentFqName: string, conds: AgentCondition[]) {
   AgentDirectives.set(agentFqName, conds);
@@ -368,11 +386,21 @@ export function getAgentDirectives(agentFqName: string): AgentCondition[] | unde
   return AgentDirectives.get(agentFqName);
 }
 
+export function getAgentDirectivesInternal(agentFqName: string): AgentCondition[] | undefined {
+  return AgentDirectives.get(agentFqName)?.filter((ac: AgentCondition) => {
+    return ac.internal;
+  });
+}
+
 export function getAgentDirectivesJson(agentFqName: string): string | undefined {
-  const conds = AgentDirectives.get(agentFqName);
-  if (conds) {
+  const conds = getAgentDirectivesInternal(agentFqName);
+  if (conds && conds.length > 0) {
     const fmted = conds.map((c: AgentCondition) => {
-      return { if: c.cond, then: c.then };
+      if (c.ifPattern) {
+        return c.ifPattern.toString();
+      } else {
+        return { if: c.if, then: c.then };
+      }
     });
     return JSON.stringify(fmted);
   }
@@ -383,10 +411,38 @@ export function removeAgentDirectives(agentFqName: string) {
   AgentDirectives.delete(agentFqName);
 }
 
+export function addAgentDirective(agentFqName: string, newDirective: AgentCondition) {
+  const dirs = getAgentDirectives(agentFqName) || new Array<AgentCondition>();
+  dirs.push(newDirective);
+  registerAgentDirectives(agentFqName, dirs);
+}
+
 export type AgentScenario = {
   user: string;
   ai: string;
+  internal: boolean;
+  ifPattern: IfPattern | undefined;
 };
+
+export function newAgentScenario(
+  user: string,
+  ai: string,
+  internal: boolean = false,
+  ifPattern: IfPattern | undefined = undefined
+): AgentScenario {
+  return { user, ai, internal, ifPattern };
+}
+
+export function newAgentScenarioFromIf(ifPattern: IfPattern): AgentScenario {
+  if (ifPattern.isEmpty()) {
+    ifPattern.condition = LiteralPattern.String('');
+    return newAgentScenario('', '', false, ifPattern);
+  } else {
+    const user = trimQuotes(ifPattern.condition.toString());
+    const ai = trimQuotes(ifPattern.body[0].toString());
+    return newAgentScenario(user, ai, false, ifPattern);
+  }
+}
 
 const AgentScenarios = new Map<string, AgentScenario[]>();
 
@@ -398,15 +454,51 @@ export function getAgentScenarios(agentFqName: string): AgentScenario[] | undefi
   return AgentScenarios.get(agentFqName);
 }
 
+export function getAgentScenariosJson(agentFqName: string): string | undefined {
+  const scns = getAgentScenariosInternal(agentFqName);
+  if (scns && scns.length > 0) {
+    const fmtd = scns.map((scn: AgentScenario) => {
+      return {
+        user: scn.user,
+        ai: scn.ai,
+      };
+    });
+    return JSON.stringify(fmtd);
+  }
+  return undefined;
+}
+
+export function getAgentScenariosInternal(agentFqName: string): AgentScenario[] | undefined {
+  return AgentScenarios.get(agentFqName)?.filter((asc: AgentScenario) => {
+    return asc.internal;
+  });
+}
+
 export function removeAgentScenarios(agentFqName: string) {
   AgentScenarios.delete(agentFqName);
+}
+
+export function addAgentScenario(agentFqName: string, newScn: AgentScenario) {
+  const scns = getAgentScenarios(agentFqName) || new Array<AgentScenario>();
+  scns.push(newScn);
+  registerAgentScenarios(agentFqName, scns);
 }
 
 export type AgentGlossaryEntry = {
   name: string;
   meaning: string;
   synonyms: string | undefined;
+  internal: boolean;
 };
+
+export function newAgentGlossaryEntry(
+  name: string,
+  meaning: string,
+  synonyms: string | undefined,
+  internal: boolean = false
+): AgentGlossaryEntry {
+  return { name, meaning, synonyms, internal };
+}
 
 const AgentGlossary = new Map<string, AgentGlossaryEntry[]>();
 
@@ -418,8 +510,35 @@ export function getAgentGlossary(agentFqName: string): AgentGlossaryEntry[] | un
   return AgentGlossary.get(agentFqName);
 }
 
+export function getAgentGlossaryInternal(agentFqName: string): AgentGlossaryEntry[] | undefined {
+  return AgentGlossary.get(agentFqName)?.filter((age: AgentGlossaryEntry) => {
+    return age.internal;
+  });
+}
+
+export function getAgentGlossaryJson(agentFqName: string): string | undefined {
+  const gls = getAgentGlossaryInternal(agentFqName);
+  if (gls && gls.length > 0) {
+    const fmtd = gls.map((ge: AgentGlossaryEntry) => {
+      return {
+        name: ge.name,
+        meaning: ge.meaning,
+        synonyms: ge.synonyms,
+      };
+    });
+    return JSON.stringify(fmtd);
+  }
+  return undefined;
+}
+
 export function removeAgentGlossary(agentFqName: string) {
   AgentGlossary.delete(agentFqName);
+}
+
+export function addAgentGlossaryEntry(agentFqName: string, newEntry: AgentGlossaryEntry) {
+  const entries = getAgentGlossary(agentFqName) || new Array<AgentGlossaryEntry>();
+  entries.push(newEntry);
+  registerAgentGlossary(agentFqName, entries);
 }
 
 const AgentResponseSchema = new Map<string, string>();

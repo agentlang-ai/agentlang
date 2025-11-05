@@ -4,6 +4,6 @@ module pets.core
 // paramaters - Object. query paramaters like petId
 // data - Object. POST/PUT data
 // config - Object. auth-headers, etc
-workflow createPet {
+@public workflow createPet {
     {pets/addPet {data createPet.data}}
 }

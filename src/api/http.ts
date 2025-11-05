@@ -132,10 +132,12 @@ export async function startServer(
   }
 
   getAllEventNames().forEach((eventNames: string[], moduleName: string) => {
+    const m = fetchModule(moduleName);
     eventNames.forEach((n: string) => {
-      app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
-        handleEventPost(moduleName, n, req, res);
-      });
+      if (m.eventIsPublic(n))
+        app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+          handleEventPost(moduleName, n, req, res);
+        });
     });
   });
 
@@ -154,6 +156,9 @@ export async function startServer(
         handleEntityPost(moduleName, n, req, res);
       });
       app.put(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
+        handleEntityPut(moduleName, n, req, res);
+      });
+      app.patch(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
         handleEntityPut(moduleName, n, req, res);
       });
       app.delete(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
@@ -353,7 +358,7 @@ function queryPatternFromPath(path: string, req: Request): string {
   let entityName = r[1];
   const id = r[2];
   const parts = r[3];
-  if (parts.length == 2 && id == undefined) {
+  if (parts.length == 2 && id === undefined) {
     if (req.query && Object.keys(req.query).length > 0) {
       const pat = objectAsAttributesPattern(req.query);
       return `{${moduleName}/${entityName} ${pat}}`;
@@ -372,7 +377,7 @@ function queryPatternFromPath(path: string, req: Request): string {
       return `{${pm}/${pe} {${PathAttributeNameQuery} "${p}"}, ${relName} {${moduleName}/${entityName}? {}}}`;
     }
     entityName = restoreFqName(entityName);
-    if (id == undefined) {
+    if (id === undefined) {
       return `{${moduleName}/${entityName} {${PathAttributeNameQuery}like "${path}%"}}`;
     } else {
       return `{${moduleName}/${entityName} {${PathAttributeNameQuery} "${path}"}}`;

@@ -1,22 +1,25 @@
 import { assert, describe, test } from 'vitest';
 import {
   BasePattern,
+  CasePattern,
   CrudPattern,
   DeletePattern,
   ExpressionPattern,
   ForEachPattern,
   IfPattern,
   isCreatePattern,
+  isExpressionPattern,
+  isLiteralPattern,
   isQueryPattern,
   isQueryUpdatePattern,
   LiteralPattern,
   ReferencePattern,
 } from '../../src/language/syntax.js';
-import { introspect } from '../../src/language/parser.js';
+import { introspect, introspectCase } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
-import { addBeforeDeleteWorkflow, fetchModule, flowGraphNext, isModule, Record, removeModule } from '../../src/runtime/module.js';
+import { addBeforeDeleteWorkflow, Decision, Directive, fetchModule, flowGraphNext, isModule, Record, removeModule, Scenario } from '../../src/runtime/module.js';
 import { parseAndIntern } from '../../src/runtime/loader.js';
-import { AgentCondition } from '../../src/runtime/agents/common.js';
+import { AgentCondition, newAgentDirective, newAgentDirectiveFromIf, newAgentGlossaryEntry, newAgentScenarioFromIf } from '../../src/runtime/agents/common.js';
 
 describe('Pattern generation using the syntax API', () => {
   test('test01', async () => {
@@ -258,7 +261,7 @@ describe('Relationship and `into` introspection', () => {
     assert(p.isQuery)
     assert(!p.isCreate)
     assert(!p.isQueryUpdate)
-    assert(p.into != undefined)
+    assert(p.into !== undefined)
     assert(p.into.get('Project') == 'Allocation.Project')
     assert(p.into.get('AllocationEntered') == 'Allocation.AllocationEntered')
     assert(p.into.get('Duration') == 'Allocation.Duration')
@@ -275,10 +278,10 @@ AllocationEntered Allocation.AllocationEntered,
 ActualsEntered Allocation.ActualsEntered,
 Notes Allocation.Notes }}`)
     pats = await introspect(s)
-    assert(p.into != undefined)
+    assert(p.into !== undefined)
     assert(p.into.get('Project') == 'Allocation.Project')
     assert(p.into.get('AllocationEntered') == 'Allocation.AllocationEntered')
-    assert(p.into.get('Duration') == undefined)
+    assert(p.into.get('Duration') === undefined)
     pats = await introspect(` {Resource {id? CreateAllocation.id},
     ResAlloc {Allocation {name CreateAllocation.name}}}`)
     p = pats[0] as CrudPattern
@@ -311,6 +314,9 @@ describe('Pre/Post workflow syntax', () => {
       workflow @after create:incident {
         {orchestratorAgent {message this}}
       }
+      @public event onIncident {
+          incident Any
+      }
       workflow onIncident {
         {orchestratorAgent {message onIncident.incident}}
       }`
@@ -330,6 +336,10 @@ entity incident
 
 workflow @after create:WfSyntaxGen/incident {
     {orchestratorAgent {message this}}
+}
+@public event onIncident
+{
+    incident Any
 }
 
 workflow onIncident {
@@ -355,6 +365,10 @@ entity incident
 
 workflow @after create:WfSyntaxGen/incident {
     {orchestratorAgent {message this}}
+}
+@public event onIncident
+{
+    incident Any
 }
 
 workflow onIncident {
@@ -414,7 +428,7 @@ in the incident's description."
         incidentProvisioner --> incidentStatusUpdater
     }
 
-    agent orchestratorAgent {
+    @public agent orchestratorAgent {
         llm "ticketflow_llm",
         role "You are an incident manager.",
         flows [orchestrator]
@@ -437,7 +451,7 @@ in the incident's description."
     const n2 = flowGraphNext(fg, n0, 'Other')
     assert(n2?.label == 'incidentStatusUpdater')
     const n3 = flowGraphNext(fg, n2)
-    assert(n3 == undefined)
+    assert(n3 === undefined)
     const n4 = flowGraphNext(fg, n1)
     assert(n4?.label == 'managerRequestHandler')
     const s = mod.toString()
@@ -486,7 +500,7 @@ managerRequestHandler --> "approve" incidentProvisioner
 managerRequestHandler --> "reject" incidentStatusUpdater
 incidentProvisioner --> incidentStatusUpdater
     }
-agent orchestratorAgent
+@public agent orchestratorAgent
 {
     llm "ticketflow_llm",
     role "You are an incident manager.",
@@ -517,23 +531,26 @@ describe('Extra agent attributes', () => {
     const agent = m.getAgent('xaaAgent')
     const conds = new Array<AgentCondition>()
     conds.push({
-      cond: "Employee sales exceeded 5000",
-      then: "Give a salary hike of 5 percent"
+      if: "Employee sales exceeded 5000",
+      then: "Give a salary hike of 5 percent",
+      internal: true, ifPattern: undefined
     })
     conds.push({
-      cond: "sales is more than 2000 but less than 5000",
-      then: "hike salary by 2 percent"
+      if: "sales is more than 2000 but less than 5000",
+      then: "hike salary by 2 percent",
+      internal: true, ifPattern: undefined
     })
     agent?.setDirectives(conds)
     const scns = agent?.getScenarios()
     scns?.push({
-      user: "hello", ai: "unknown request"
+      user: "hello", ai: "unknown request", internal: true, ifPattern: undefined
     })
     agent?.setResponseSchema('acme/response')
     agent?.getGlossary()?.push({
       name: "hit",
       meaning: "sales above 400",
-      synonyms: "block-buster"
+      synonyms: "block-buster",
+      internal: true
     })
     const s = m.toString();
     assert(s == `module XtraAgentAttrs
@@ -596,5 +613,390 @@ entity B extends A
     email Email
 }
 `)
+  })
+})
+
+describe('agent-xtras-to-string', () => {
+  test('standalone scenarios, directives', async () => {
+    const mname = 'StdAloneAgentXtras'
+    await doInternModule(mname,
+      `workflow scenario01 {
+             {GA/Employee {name? "Jake"}} @as [employee];
+             {GA/Employee {id? employee.id, salary employee.salary + employee.salary * 0.5}}
+         }
+         agent ga
+          {instruction "Create appropriate patterns for managing Employee information",
+           tools "GA",
+           directives [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
+                       {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
+           scenarios  [{"user": "Jake hit a jackpot!", "ai": "GuidedAgent/scenario01"}],
+           glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
+         scenario ga.scn01 { if ("Kiran had a block-buster") { GuidedAgent/scenario01 } }
+         directive GuidedAgent/ga.dir01 { if ("sales is less than 2000") { "hike salary by 0.5 percent"} }
+         glossaryEntry ga.ge {meaning "low-sales", name "down", synonyms "bad"}
+         workflow chat {{ga {message chat.msg}}}`
+    )
+    const m = fetchModule(mname)
+    m.addDirective('ga.dir02', newAgentDirective("sales equals 500", "no hike"))
+    const cond1 = new IfPattern(LiteralPattern.String("Sam hits jackpot"))
+      .addPattern(LiteralPattern.Id("GuidedAgent/scenario01"))
+    m.addScenario('ga.scn02', newAgentScenarioFromIf(cond1))
+    m.addGlossaryEntry('ga.ge02', newAgentGlossaryEntry("up", "high-sales", "ok"))
+    const s = m.toString()
+    assert(s ===
+      `module StdAloneAgentXtras
+
+
+workflow scenario01 {
+    {GA/Employee {name? "Jake"}} @as [employee];
+    {GA/Employee {id? employee.id, salary employee.salary + employee.salary * 0.5}}
+}
+agent ga
+{
+    instruction "Create appropriate patterns for managing Employee information",
+    tools "GA",
+    directives [{"if":"Employee sales exceeded 5000","then":"Give a salary hike of 5 percent"},{"if":"sales is more than 2000 but less than 5000","then":"hike salary by 2 percent"}],
+    scenarios [{"user":"Jake hit a jackpot!","ai":"GuidedAgent/scenario01"}],
+    glossary [{"name":"jackpot","meaning":"sales of 5000 or above","synonyms":"high sales, block-buster"}]
+}
+scenario ga.scn01 {
+    if("Kiran had a block-buster") {GuidedAgent/scenario01}
+}
+
+directive GuidedAgent/ga.dir01 {
+        if ("sales is less than 2000") { "hike salary by 0.5 percent"}
+      }
+glossaryEntry ga.ge 
+{
+    name "down",
+    meaning "low-sales",
+    synonyms "bad"
+}
+
+workflow chat {
+    {ga {message chat.msg}}
+}
+directive ga.dir02 {"if":"sales equals 500","then":"no hike"}
+scenario ga.scn02 {
+    if("Sam hits jackpot") {GuidedAgent/scenario01}
+}
+
+glossaryEntry ga.ge02 
+{
+    name "up",
+    meaning "high-sales",
+    synonyms "ok"
+}`)
+    const mname2 = `${mname}2`
+    const idx = s.indexOf('workflow')
+    const s2 = s.substring(idx).trim()
+    await doInternModule(mname2, s2)
+    const m2 = fetchModule(mname2)
+    const s3 = m2.toString().substring(idx).trim()
+    assert(s2 === s3)
+  })
+})
+
+describe('case-generation', () => {
+  test('decsion-cases generated from pattern objects', async () => {
+    const c1 = new CasePattern(LiteralPattern.String("salary is greater than 1000"), LiteralPattern.Id('Accept'))
+    const c2 = new CasePattern(new ExpressionPattern("salary < 1000"), LiteralPattern.Id("Reject"))
+    const d = new Decision('acceptOrRejectOffer', "acme.core", [c1.toString(), c2.toString()])
+    const cps = await d.casePatterns()
+    const tags = cps.map((cp: CasePattern) => {
+      return cp.body.toString()
+    })
+    assert(tags.length == 2)
+    assert(tags.join(',') === 'Accept,Reject')
+    const obj1 = await introspectCase(d.cases[0])
+    assert(isLiteralPattern(obj1.condition))
+    assert(obj1.condition.toString() === `"salary is greater than 1000"`)
+    assert(isLiteralPattern(obj1.body))
+    assert(obj1.body.toString() === 'Accept')
+    const obj2 = await introspectCase(d.cases[1])
+    assert(isExpressionPattern(obj2.condition))
+    assert(obj2.condition.toString() === "salary < 1000")
+    assert(isLiteralPattern(obj2.body))
+    assert(obj2.body.toString() === 'Reject')
+    const s = d.toString()
+    assert(s === `decision acceptOrRejectOffer {
+      case ("salary is greater than 1000") {
+    Accept
+  }
+case (salary < 1000) {
+    Reject
+  }
+    }`)
+    await doInternModule(`caseGen`,
+      `${s}
+  
+  agent offerAccept {
+      instruction "Accept the incoming offer"
+  }
+
+  agent offerReject {
+      instruction "Reject the incoming offer"
+  }
+
+  flow offerReviewer {
+      acceptOrRejectOffer --> "Accept" offerAccept
+      acceptOrRejectOffer --> "Reject" offerReject
+  }    
+  `
+    )
+    const mods = fetchModule('caseGen').toString()
+    assert(mods === `module caseGen
+
+decision acceptOrRejectOffer {
+      case ("salary is greater than 1000") {
+    Accept
+  }
+case (salary < 1000) {
+    Reject
+  }
+    }
+agent offerAccept
+{
+    instruction "Accept the incoming offer"
+}
+agent offerReject
+{
+    instruction "Reject the incoming offer"
+}
+flow offerReviewer {
+      acceptOrRejectOffer --> "Accept" offerAccept
+acceptOrRejectOffer --> "Reject" offerReject
+    }`)
+  })
+})
+
+describe('directive-generation', () => {
+  test('directives generated from pattern objects', async () => {
+    const cond1 = new IfPattern(LiteralPattern.String("salary > 1000"))
+      .addPattern(LiteralPattern.String("accept the offer"))
+    const d = new Directive('A.dir01', 'dirGen', newAgentDirectiveFromIf(cond1))
+    const s = d.toString()
+    assert(s === `directive A.dir01 {
+        if("salary > 1000") {"accept the offer"}
+      }`)
+    await doInternModule('dirGen',
+      `agent A {instruction "OK"}
+      ${s}`
+    )
+    const ms = fetchModule('dirGen').toString()
+    assert(ms === `module dirGen
+
+agent A
+{
+    instruction "OK"
+}
+directive A.dir01 {
+        if("salary > 1000") {"accept the offer"}
+      }`)
+  })
+})
+
+describe('scenario-generation', () => {
+  test('scenarios generated from pattern objects', async () => {
+    const cond1 = new IfPattern(LiteralPattern.String("salary > 1000"))
+      .addPattern(LiteralPattern.Id("acme.core/incrementSalary"))
+    const scn01 = new Scenario('A.scn01', 'scnGen', newAgentScenarioFromIf(cond1))
+    const s1 = scn01.toString()
+    assert(s1 === `scenario A.scn01 {
+    if("salary > 1000") {acme.core/incrementSalary}
+}
+`)
+    // empty scenario
+    const scn02 = new Scenario('A.scn02', 'scnGen', newAgentScenarioFromIf(new IfPattern()))
+    const s2 = scn02.toString()
+    assert(s2 === `scenario A.scn02 {
+    if("") {}
+}
+`)
+    await doInternModule('dirGen',
+      `agent A {instruction "OK"}
+      ${s1}
+      ${s2}`
+    )
+    const ms = fetchModule('dirGen').toString()
+    assert(ms === `module dirGen
+
+agent A
+{
+    instruction "OK"
+}
+scenario A.scn01 {
+    if("salary > 1000") {acme.core/incrementSalary}
+}
+
+scenario A.scn02 {
+    if("") {}
+}
+`)
+  })
+})
+
+describe('flow-load-fix', () => {
+  test('flow should load', async () => {
+    const mname = 'expaugust.core'
+    const mdef = `record RecordOne
+{
+
+}
+
+record RecordB
+{
+
+}
+
+event EventA
+{
+    Name String
+}
+
+workflow EventA {
+    {EntityA {}};
+    {Agent1 {}};
+    {EventA {}}
+}
+event EventB
+{
+
+}
+
+workflow EventB {
+
+}
+entity EntityA
+{
+    id String @id,
+    Name String,
+    Age Int
+}
+
+entity EntityB
+{
+    make String
+}
+
+entity EntityC
+{
+
+}
+
+
+workflow @after create:expaugust.core/EntityA {
+
+}
+record RecordD
+{
+
+}
+
+record RecordE
+{
+
+}
+
+agent Agent4
+{
+    llm "llm01",
+    flows [Agent4],
+   responseSchema expaugust.core/RecordOne
+}
+agent Agent1
+{
+    llm "llm01"
+}
+event id
+{
+
+}
+
+workflow id {
+
+}
+agent Agent2
+{
+    type "chat",
+    llm "llm01"
+}
+agent Agent5
+{
+    type "chat",
+    llm "llm01"
+}
+flow Agent4 {
+      
+    }`
+    await doInternModule(mname, mdef)
+    const m = fetchModule(mname)
+    const s = m.toString()
+    const idx = s.indexOf('record')
+    const s1 = s.substring(idx)
+    assert(mdef === s1)
+  })
+})
+
+describe('retry-construct', () => {
+  test('load retry construct', async () => {
+    const mname = 'retryTest'
+    await doInternModule(mname, `entity A {
+      id Int @id,
+      x Int
+      }
+      
+      agentlang/retry r1 {
+        attempts 3,
+        backoff {
+            strategy exponential,
+            delay 2,
+            magnitude seconds
+        }
+      }
+      
+      workflow v1 {
+         
+      }
+
+      agent a1 {
+        instruction "test agent",
+        validate v1,
+        retry r1
+      }
+      `)
+    const m = fetchModule(mname)
+    const s = m.toString()
+    assert(s === `module retryTest
+
+entity A
+{
+    id Int @id,
+    x Int
+}
+
+agentlang/retry r1 {
+    attempts 3,
+    backoff {
+       strategy exponential,
+       delay 2,
+       magnitude seconds
+    }
+}
+
+workflow v1 {
+
+}
+agent a1
+{
+    instruction "test agent",
+    validate "v1",
+    retry "r1"
+}`)
+    const s1 = s.substring(s.indexOf('entity')).trim()
+    await doInternModule(`${mname}1`, s1)
+    const m2 = fetchModule(`${mname}1`)
+    const s2 = m2.toString()
+    assert(s1 === s2.substring(s2.indexOf('entity')).trim())
   })
 })

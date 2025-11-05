@@ -1,4 +1,13 @@
-import { isFqName, makeCoreModuleName, makeFqName, nameToPath, splitFqName } from '../util.js';
+import {
+  escapeSpecialChars,
+  isFqName,
+  isString,
+  makeCoreModuleName,
+  makeFqName,
+  nameToPath,
+  sleepMilliseconds,
+  splitFqName,
+} from '../util.js';
 import {
   Environment,
   GlobalEnvironment,
@@ -12,10 +21,12 @@ import {
   getDecision,
   Instance,
   instanceToObject,
+  isInstanceOfType,
   isModule,
   makeInstance,
   newInstanceAttributes,
   Record,
+  Retry,
 } from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
@@ -68,6 +79,8 @@ entity ${AgentEntityName} {
     channels String @optional, // comma-separated list of channel names
     role String @optional,
     flows String @optional,
+    validate String @optional,
+    retry String @optional,
     llm String
 }
 
@@ -105,7 +118,6 @@ export class AgentInstance {
   llm: string = '';
   name: string = '';
   moduleName: string = CoreAIModuleName;
-  chatId: string | undefined;
   instruction: string = '';
   type: string = 'chat';
   tools: string | undefined;
@@ -114,11 +126,14 @@ export class AgentInstance {
   runWorkflows: boolean = true;
   role: string | undefined;
   flows: string | undefined;
+  validate: string | undefined;
+  retry: string | undefined;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;
   private fqName: string | undefined;
   private decisionExecutor = false;
+  private retryObj: Retry | undefined;
 
   private constructor() {}
 
@@ -150,6 +165,15 @@ export class AgentInstance {
         }
         if (agent.hasModuleTools) break;
       }
+    }
+    if (agent.retry) {
+      let n = agent.retry;
+      if (!isFqName(n)) {
+        n = `${agent.moduleName}/${n}`;
+      }
+      const parts = splitFqName(n);
+      const m = fetchModule(parts[0]);
+      agent.retryObj = m.getRetry(parts[1]);
     }
     return agent;
   }
@@ -229,7 +253,11 @@ export class AgentInstance {
         '\nUse the following guidelines to take more accurate decisions in relevant scenarios.\n'
       );
       conds.forEach((ac: AgentCondition) => {
-        ss.push(`if ${ac.cond}, then ${ac.then}`);
+        if (ac.ifPattern) {
+          ss.push(ac.if);
+        } else {
+          ss.push(`if ${ac.if}, then ${ac.then}`);
+        }
       });
       return `${ss.join('\n')}\n`;
     }
@@ -238,7 +266,8 @@ export class AgentInstance {
 
   private getFullInstructions(env: Environment): string {
     const fqName = this.getFqName();
-    let finalInstruction = `${this.instruction || ''} ${this.directivesAsString(fqName)}`;
+    const ins = this.role ? `${this.role}\n${this.instruction || ''}` : this.instruction || '';
+    let finalInstruction = `${ins} ${this.directivesAsString(fqName)}`;
     const gls = getAgentGlossary(fqName);
     if (gls) {
       const glss = new Array<string>();
@@ -269,7 +298,7 @@ export class AgentInstance {
 Only return a pure JSON object with no extra text, annotations etc.`;
     }
     const spad = env.getScratchPad();
-    if (spad != undefined) {
+    if (spad !== undefined) {
       if (finalInstruction.indexOf('{{') > 0) {
         return AgentInstance.maybeRewriteTemplatePatterns(spad, finalInstruction);
       } else {
@@ -310,7 +339,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   }
 
   getFqName(): string {
-    if (this.fqName == undefined) {
+    if (this.fqName === undefined) {
       this.fqName = makeFqName(this.moduleName, this.name);
     }
     return this.fqName;
@@ -327,6 +356,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
 
   maybeAddScratchData(env: Environment): AgentInstance {
     const obj: any = env.getLastResult();
+    if (obj === null || obj === undefined) return this;
     let r: Instance | Instance[] | undefined = undefined;
     if (
       obj instanceof Instance ||
@@ -334,6 +364,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     ) {
       r = obj;
     } else {
+      env.addToScratchPad(this.name, obj);
       return this;
     }
     const scratchNames = this.getScratchNames();
@@ -355,14 +386,20 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   async invoke(message: string, env: Environment) {
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
-    const chatId = this.chatId || agentName;
-    const isplnr = this.isPlanner();
+    const chatId = env.getAgentChatId() || agentName;
+    let isplnr = this.isPlanner();
     const isflow = !isplnr && this.isFlowExecutor();
     if (isplnr && this.withSession) {
       this.withSession = false;
     }
     if (isflow) {
       this.withSession = false;
+    }
+    if (!this.withSession && env.isAgentModeSet()) {
+      this.withSession = true;
+      if (env.isInAgentChatMode()) {
+        isplnr = false;
+      }
     }
     const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
     let msgs: BaseMessage[] | undefined;
@@ -392,7 +429,11 @@ Only return a pure JSON object with no extra text, annotations etc.`;
             })
             .join('\n')}`
         );
-        const response: AIResponse = await p.invoke(msgs, externalToolSpecs);
+        let response: AIResponse = await p.invoke(msgs, externalToolSpecs);
+        const v = this.getValidationEvent();
+        if (v) {
+          response = await this.handleValidation(response, v, msgs, p);
+        }
         msgs.push(assistantMessage(response.content));
         if (isplnr) {
           msgs[0] = sysMsg;
@@ -410,13 +451,96 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     }
   }
 
+  private async invokeValidator(
+    response: AIResponse,
+    validationEventName: string
+  ): Promise<Instance> {
+    let isstr = true;
+    try {
+      const c = JSON.parse(response.content);
+      isstr = isString(c);
+    } catch (reason: any) {
+      logger.debug(`invokeValidator json/parse - ${reason}`);
+    }
+    const d = isstr ? `"${escapeSpecialChars(response.content)}"` : response.content;
+    const r: Instance | Instance[] = await parseAndEvaluateStatement(
+      `{${validationEventName} {data ${d}}}`
+    );
+    if (r instanceof Array) {
+      const i = r.find((inst: Instance) => {
+        return isInstanceOfType(inst, 'agentlang/ValidationResult');
+      });
+      if (i) {
+        return i;
+      } else {
+        throw new Error('Validation failed to produce result');
+      }
+    } else {
+      if (!isInstanceOfType(r, 'agentlang/ValidationResult')) {
+        throw new Error('Invalid validation result');
+      }
+      return r;
+    }
+  }
+
+  private async handleValidation(
+    response: AIResponse,
+    validationEventName: string,
+    msgs: BaseMessage[],
+    provider: AgentServiceProvider
+  ): Promise<AIResponse> {
+    let r: Instance = await this.invokeValidator(response, validationEventName);
+    const status = r.lookup('status');
+    if (status === 'ok') {
+      return response;
+    } else {
+      if (this.retryObj) {
+        let resp = response;
+        let attempt = 0;
+        let delay = this.retryObj.getNextDelayMs(attempt);
+        while (delay) {
+          msgs.push(assistantMessage(resp.content));
+          const vs = JSON.stringify(r.asSerializableObject());
+          msgs.push(
+            humanMessage(
+              `Validation for your last response failed with this result: \n${vs}\n\nFix the errors.`
+            )
+          );
+          await sleepMilliseconds(delay);
+          resp = await provider.invoke(msgs, undefined);
+          r = await this.invokeValidator(resp, validationEventName);
+          if (r.lookup('status') === 'ok') {
+            return resp;
+          }
+          delay = this.retryObj.getNextDelayMs(++attempt);
+        }
+        throw new Error(
+          `Agent ${this.name} failed to generate a valid response after ${attempt} attempts`
+        );
+      } else {
+        return response;
+      }
+    }
+  }
+
+  private getValidationEvent(): string | undefined {
+    if (this.validate) {
+      if (isFqName(this.validate)) {
+        return this.validate;
+      } else {
+        return `${this.moduleName}/${this.validate}`;
+      }
+    }
+    return undefined;
+  }
+
   private getExternalToolSpecs(): any[] | undefined {
     let result: any[] | undefined = undefined;
     if (this.toolsArray) {
       this.toolsArray.forEach((n: string) => {
         const v = GlobalEnvironment.lookup(n);
         if (v) {
-          if (result == undefined) {
+          if (result === undefined) {
             result = new Array<any>();
           }
           result.push(v);
@@ -539,7 +663,7 @@ export async function findProviderForLLM(
   env: Environment
 ): Promise<AgentServiceProvider> {
   let p: AgentServiceProvider | undefined = ProviderDb.get(llmName);
-  if (p == undefined) {
+  if (p === undefined) {
     const result: Instance[] = await parseAndEvaluateStatement(
       `{${CoreAIModuleName}/${LlmEntityName} {name? "${llmName}"}}`,
       undefined,
@@ -633,10 +757,14 @@ function processScenarioResponse(resp: string): string {
     const parts = splitFqName(r);
     const m = fetchModule(parts[0]);
     const wf = m.getWorkflowForEvent(parts[1]);
-    const ss = wf.statements.map((stmt: Statement) => {
-      return stmt.$cstNode?.text;
-    });
-    return `[${ss.join(';\n')}]`;
+    if (wf) {
+      const ss = wf.statements.map((stmt: Statement) => {
+        return stmt.$cstNode?.text;
+      });
+      return `[${ss.join(';\n')}]`;
+    } else {
+      return resp;
+    }
   }
   return resp;
 }

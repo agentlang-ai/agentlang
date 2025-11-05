@@ -33,6 +33,20 @@ import {
   isDecisionDefinition,
   DecisionDefinition,
   CaseEntry,
+  isScenarioDefinition,
+  ScenarioDefinition,
+  DirectiveDefinition,
+  GlossaryEntryDefinition,
+  isDirectiveDefinition,
+  isGlossaryEntryDefinition,
+  isPublicWorkflowDefinition,
+  isPublicAgentDefinition,
+  isPublicEventDefinition,
+  AgentXtraAttribute,
+  If,
+  isRetryDefinition,
+  RetryDefinition,
+  SetAttribute,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -53,8 +67,10 @@ import {
   newInstanceAttributes,
   addAgent,
   fetchModule,
+  Retry,
 } from './module.js';
 import {
+  asStringLiteralsMap,
   escapeSpecialChars,
   findRbacSchema,
   isFqName,
@@ -62,6 +78,7 @@ import {
   makeFqName,
   maybeExtends,
   registerInitFunction,
+  rootRef,
 } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
@@ -69,6 +86,7 @@ import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules, registerCoreModules } from './modules/core.js';
 import {
+  introspectIf,
   maybeGetValidationErrors,
   maybeRaiseParserErrors,
   parse,
@@ -89,6 +107,9 @@ import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
 import z from 'zod';
 import { registerAgentFlow, registerFlow } from './agents/flows.js';
 import {
+  addAgentDirective,
+  addAgentGlossaryEntry,
+  addAgentScenario,
   AgentCondition,
   AgentGlossaryEntry,
   AgentScenario,
@@ -192,6 +213,17 @@ async function getAllModules(
   return alFiles;
 }
 
+let dependenciesCallback: Function | undefined = undefined;
+
+export function setDependenciesCallback(cb: Function) {
+  dependenciesCallback = cb;
+}
+
+export type DependencyInfo = {
+  appName: string;
+  url: string;
+};
+
 async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Promise<string> {
   // Initialize filesystem if not already done
   const fs = await getFileSystem(fsOptions);
@@ -199,6 +231,20 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   const appJsonFile = `${appDir}${path.sep}package.json`;
   const s: string = await fs.readFile(appJsonFile);
   const appSpec: ApplicationSpec = JSON.parse(s);
+  if (dependenciesCallback !== undefined && appSpec.dependencies) {
+    const aldeps = new Array<DependencyInfo>();
+    for (const [k, v] of Object.entries(appSpec.dependencies)) {
+      if (typeof v === 'string' && v.startsWith('git+http')) {
+        aldeps.push({
+          appName: k,
+          url: v,
+        });
+      }
+    }
+    if (aldeps.length > 0) {
+      await dependenciesCallback(aldeps);
+    }
+  }
   let lastModuleLoaded: string = '';
   async function cont2() {
     const fls01 = await getAllModules(appDir, fs, false);
@@ -213,10 +259,16 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
     }
     if (callback) await callback(appSpec);
   }
-  if (appSpec.dependencies != undefined) {
+  if (appSpec.dependencies !== undefined) {
     for (const [depName, _] of Object.entries(appSpec.dependencies)) {
       try {
-        const depDirName = `./node_modules/${depName}`;
+        // In browser (with virtual filesystem), use absolute path relative to appDir
+        // In Node.js, use relative path from current working directory
+        const isBrowser = fsOptions && fsOptions.name;
+        const depDirName = isBrowser
+          ? `${appDir}${path.sep}node_modules${path.sep}${depName}`
+          : `./node_modules/${depName}`;
+
         const fls01 = await fs.readdir(depDirName);
         const srcDir = depDirName + path.sep + 'src';
         const hasSrc = await fs.exists(srcDir);
@@ -258,6 +310,12 @@ export async function load(
   return { name: result, version: '0.0.1' };
 }
 
+export function flushAllModules() {
+  getUserModuleNames().forEach((n: string) => {
+    removeModule(n);
+  });
+}
+
 /**
  * Removes all existing user-modules and loads the specified module-file.
  * @param fileName Path to the file containing the module
@@ -270,9 +328,7 @@ export async function flushAllAndLoad(
   fsOptions?: any,
   callback?: Function
 ): Promise<ApplicationSpec> {
-  getUserModuleNames().forEach((n: string) => {
-    removeModule(n);
-  });
+  flushAllModules();
   return await load(fileName, fsOptions, callback);
 }
 
@@ -341,7 +397,7 @@ async function loadModule(fileName: string, fsOptions?: any, callback?: Function
 let cachedFsAdapter: any = null;
 
 function getFsAdapter(fs: any) {
-  if (cachedFsAdapter == null) {
+  if (cachedFsAdapter === null) {
     // Create an adapter to make our filesystem compatible with Langium
     cachedFsAdapter = {
       // Read file contents as text
@@ -423,14 +479,23 @@ function addEntityFromDef(def: EntityDefinition, moduleName: string): Entity {
   return entity;
 }
 
-export function addSchemaFromDef(def: SchemaDefinition, moduleName: string): Record {
+function addSchemaFromDef(
+  def: SchemaDefinition,
+  moduleName: string,
+  ispub: boolean = false
+): Record {
   let result: Record | undefined;
   if (isEntityDefinition(def)) {
     result = addEntityFromDef(def, moduleName);
   } else if (isEventDefinition(def)) {
     result = addEvent(def.name, moduleName, def.schema, maybeExtends(def.extends));
-  } else {
+  } else if (isRecordDefinition(def)) {
     result = addRecord(def.name, moduleName, def.schema, maybeExtends(def.extends));
+  } else {
+    throw new Error(`Cannot add schema definition in module ${moduleName} for ${def}`);
+  }
+  if (ispub) {
+    result.setPublic(true);
   }
   return result;
 }
@@ -442,15 +507,19 @@ export function addRelationshipFromDef(
   return addRelationship(def.name, def.type, def.nodes, moduleName, def.schema, def.properties);
 }
 
-export function addWorkflowFromDef(def: WorkflowDefinition, moduleName: string): Workflow {
-  return addWorkflow(def.name || '', moduleName, def.statements, def.header);
+export function addWorkflowFromDef(
+  def: WorkflowDefinition,
+  moduleName: string,
+  ispub: boolean = false
+): Workflow {
+  return addWorkflow(def.name || '', moduleName, def.statements, def.header, ispub);
 }
 
 const StandaloneStatements = new Map<string, Statement[]>();
 
 function addStandaloneStatement(stmt: Statement, moduleName: string, userDefined = true) {
   let stmts: Array<Statement> | undefined = StandaloneStatements.get(moduleName);
-  if (stmts == undefined) {
+  if (stmts === undefined) {
     stmts = new Array<Statement>();
   }
   stmts.push(stmt);
@@ -501,7 +570,7 @@ function processAgentDirectives(agentName: string, value: Literal): AgentConditi
           }
         });
         if (cond && then) {
-          conds?.push({ cond, then });
+          conds?.push({ if: cond, then, internal: true, ifPattern: undefined });
         } else {
           throw new Error(`Invalid condition spec in agent ${agentName}`);
         }
@@ -531,7 +600,8 @@ function processAgentScenarios(agentName: string, value: Literal): AgentScenario
           }
         });
         if (user && ai) {
-          scenarios.push({ user, ai });
+          const internal = true;
+          scenarios.push({ user, ai, internal, ifPattern: undefined });
         } else {
           throw new Error(`Invalid glossary spec in agent ${agentName}`);
         }
@@ -564,7 +634,8 @@ function processAgentGlossary(agentName: string, value: Literal): AgentGlossaryE
           }
         });
         if (name && meaning) {
-          gls.push({ name, meaning, synonyms });
+          const internal = true;
+          gls.push({ name, meaning, synonyms, internal });
         } else {
           throw new Error(`Invalid glossary spec in agent ${agentName}`);
         }
@@ -589,7 +660,11 @@ function processAgentScratchNames(agentName: string, value: Literal): string[] |
   return undefined;
 }
 
-async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
+async function addAgentDefinition(
+  def: AgentDefinition,
+  moduleName: string,
+  ispub: boolean = false
+) {
   let llmName: string | undefined = undefined;
   const name = def.name;
   const attrsStrs = new Array<string>();
@@ -648,11 +723,11 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
         v = processAgentArray(apdef.value.array, name);
       } else {
         v = apdef.value.str || apdef.value.id || apdef.value.ref || apdef.value.num;
-        if (v == undefined) {
+        if (v === undefined) {
           v = apdef.value.bool;
         }
       }
-      if (v == undefined) {
+      if (v === undefined) {
         throw new Error(`Cannot initialize agent ${name}, only literals can be set for attributes`);
       }
       if (apdef.name == 'llm') {
@@ -712,7 +787,11 @@ async function addAgentDefinition(def: AgentDefinition, moduleName: string) {
     registerAgentScratchNames(agentFqName, scratchNames);
   }
   // Don't add llm to module attrs if it wasn't originally specified
-  addAgent(def.name, attrs, moduleName);
+  const agent = addAgent(def.name, attrs, moduleName);
+  if (ispub) {
+    agent.setPublic(true);
+  }
+  return agent;
 }
 
 function processAgentArray(array: ArrayLiteral, attrName: string): string {
@@ -727,7 +806,7 @@ function processAgentArray(array: ArrayLiteral, attrName: string): string {
 function processAgentArrayValue(expr: Expr | undefined, attrName: string): string {
   if (expr && isLiteral(expr)) {
     const s = expr.str || expr.id || expr.ref || expr.bool;
-    if (s != undefined) {
+    if (s !== undefined) {
       return s;
     }
     if (expr.array) {
@@ -741,7 +820,7 @@ function processAgentArrayValue(expr: Expr | undefined, attrName: string): strin
       });
       return `{${m.join(',')}}`;
     } else {
-      throw new Error(`Type not supprted in agent-arrays - ${attrName}`);
+      throw new Error(`Type not supported in agent-arrays - ${attrName}`);
     }
   } else {
     throw new Error(`Invalid value in array passed to agent ${attrName}`);
@@ -749,29 +828,191 @@ function processAgentArrayValue(expr: Expr | undefined, attrName: string): strin
 }
 
 function addFlowDefinition(def: FlowDefinition, moduleName: string) {
-  if (def.body && def.$cstNode) {
-    const m = fetchModule(moduleName);
-    const sdef = def.$cstNode.text;
+  const m = fetchModule(moduleName);
+  const sdef = def.$cstNode?.text;
+  let f = '';
+  if (sdef) {
     const idx = sdef.indexOf('{');
-    let f = '';
     if (idx > 0) {
       f = sdef.substring(idx + 1, sdef.lastIndexOf('}')).trim();
     } else {
       f = sdef;
     }
-    m.addFlow(def.name, f);
-    registerFlow(`${moduleName}/${def.name}`, f);
   }
+  m.addFlow(def.name, f);
+  registerFlow(`${moduleName}/${def.name}`, f);
 }
 
 function addDecisionDefinition(def: DecisionDefinition, moduleName: string) {
-  if (def.body) {
-    const m = fetchModule(moduleName);
-    const cases = def.body.cases.map((ce: CaseEntry) => {
-      return ce.$cstNode?.text;
-    });
-    m.addDecision(def.name, cases as string[]);
+  const m = fetchModule(moduleName);
+  const cases = def.body
+    ? def.body.cases.map((ce: CaseEntry) => {
+        return ce.$cstNode?.text;
+      })
+    : new Array<string>();
+  m.addRawDecision(def.name, cases as string[]);
+}
+
+function agentXtraAttributesAsMap(xtras: AgentXtraAttribute[] | undefined): Map<string, string> {
+  const result = new Map<string, string>();
+  xtras?.forEach((v: AgentXtraAttribute) => {
+    result.set(v.name, v.value);
+  });
+  return result;
+}
+
+function scenarioConditionAsMap(cond: If | undefined) {
+  const result = new Map<string, any>();
+  if (cond) {
+    if (isLiteral(cond.cond)) {
+      const s = cond.cond.str;
+      if (s === undefined) {
+        throw new Error(`scenario condition must be a string - ${cond.cond.$cstNode?.text}`);
+      }
+      const stmt = cond.statements[0];
+      const v = stmt ? stmt.pattern.$cstNode?.text : '';
+      if (v === undefined) {
+        throw new Error(
+          `scenario consequent must be a string or name - ${cond.cond.$cstNode?.text}`
+        );
+      }
+      result.set('user', s).set('ai', v).set('if', introspectIf(cond));
+    }
   }
+  return result;
+}
+
+function addScenarioDefintion(def: ScenarioDefinition, moduleName: string) {
+  if (def.body || def.scn) {
+    let n = rootRef(def.name);
+    if (!isFqName(n)) {
+      n = makeFqName(moduleName, n);
+    }
+    const m = def.body ? asStringLiteralsMap(def.body) : scenarioConditionAsMap(def.scn);
+    const user = m.get('user');
+    const ai = m.get('ai');
+    const ifPattern = m.get('if');
+    if (user !== undefined && ai !== undefined) {
+      const scn = { user: user, ai: ai, internal: false, ifPattern };
+      addAgentScenario(n, scn);
+      fetchModule(moduleName).addScenario(def.name, scn);
+    } else throw new Error(`scenario ${def.name} requires both user and ai entries`);
+  }
+}
+
+function addDirectiveDefintion(def: DirectiveDefinition, moduleName: string) {
+  if (def.body || def.dir) {
+    let n = rootRef(def.name);
+    if (!isFqName(n)) {
+      n = makeFqName(moduleName, n);
+    }
+    if (def.body) {
+      const m = asStringLiteralsMap(def.body);
+      const cond = m.get('if');
+      const then = m.get('then');
+      if (cond && then) {
+        const dir = { if: cond, then: then, internal: false, ifPattern: undefined };
+        addAgentDirective(n, dir);
+        fetchModule(moduleName).addDirective(def.name, dir);
+      } else throw new Error(`directive ${def.name} requires both if and then entries`);
+    } else if (def.dir) {
+      const cond = def.dir.$cstNode?.text;
+      if (cond) {
+        const ifPattern = introspectIf(def.dir);
+        const dir = { if: cond, then: '', internal: false, ifPattern };
+        addAgentDirective(n, dir);
+        fetchModule(moduleName).addDirective(def.name, dir);
+      } else {
+        throw new Error(`directive ${def.name} requires a valid if expression`);
+      }
+    }
+  }
+}
+
+function addGlossaryEntryDefintion(def: GlossaryEntryDefinition, moduleName: string) {
+  if (def.body || def.glos) {
+    let n = rootRef(def.name);
+    if (!isFqName(n)) {
+      n = makeFqName(moduleName, n);
+    }
+    const m = def.body
+      ? asStringLiteralsMap(def.body)
+      : agentXtraAttributesAsMap(def.glos?.attributes);
+    const name = m.get('name') || m.get('word');
+    const meaning = m.get('meaning');
+    const syn = m.get('synonyms');
+    if (name && meaning) {
+      const ge = {
+        name: name,
+        meaning: meaning,
+        synonyms: syn,
+        internal: false,
+      };
+      addAgentGlossaryEntry(n, ge);
+      fetchModule(moduleName).addGlossaryEntry(def.name, ge);
+    } else throw new Error(`glossaryEntry ${def.name} requires both name and meaning keys`);
+  }
+}
+
+function addRetryDefinition(def: RetryDefinition, moduleName: string) {
+  const retry = new Retry(def.name, moduleName, def.attempts !== undefined ? def.attempts : 0);
+  if (def.backoff) {
+    def.backoff.attributes.forEach((attr: SetAttribute) => {
+      if (isLiteral(attr.value)) {
+        switch (attr.name) {
+          case 'strategy':
+            switch (attr.value.id || attr.value.str) {
+              case 'exponential':
+                retry.setExponentialBackoff();
+                break;
+              case 'linear':
+                retry.setLinearBackoff();
+                break;
+              case 'constant':
+                retry.setConstantBackoff();
+                break;
+              default:
+                throw new Error(`Invalid backoff strategy ${attr.value} specified for ${def.name}`);
+            }
+            break;
+          case 'delay':
+            if (attr.value.num) {
+              retry.setBackoffDelay(attr.value.num);
+            } else {
+              throw new Error(`Backoff delay must be a numeric value for ${def.name}`);
+            }
+            break;
+          case 'magnitude':
+            switch (attr.value.id || attr.value.str) {
+              case 'milliseconds':
+                retry.setBackoffMagnitudeAsMilliseconds();
+                break;
+              case 'seconds':
+                retry.setBackoffMagnitudeAsSeconds();
+                break;
+              case 'minutes':
+                retry.setBackoffMagnitudeAsMinutes();
+                break;
+              default:
+                throw new Error(`Invalid backoff magnitude ${attr.value} set for ${def.name}`);
+            }
+            break;
+          case 'factor':
+            if (attr.value.num) {
+              retry.setBackoffFactor(attr.value.num);
+            } else {
+              throw new Error(`Backoff factor must be a number for ${def.name}`);
+            }
+            break;
+          default:
+            throw new Error(`Invalid backoff option ${attr.name} specified for ${def.name}`);
+        }
+      } else {
+        throw new Error(`strategy must be a string in ${def.name}`);
+      }
+    });
+  }
+  fetchModule(moduleName).addRetry(retry);
 }
 
 function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
@@ -826,14 +1067,21 @@ function asResolverFn(fname: string): Function {
 export async function addFromDef(def: Definition, moduleName: string) {
   if (isEntityDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isEventDefinition(def)) addSchemaFromDef(def, moduleName);
+  else if (isPublicEventDefinition(def)) addSchemaFromDef(def.def, moduleName, true);
   else if (isRecordDefinition(def)) addSchemaFromDef(def, moduleName);
   else if (isRelationshipDefinition(def)) addRelationshipFromDef(def, moduleName);
   else if (isWorkflowDefinition(def)) addWorkflowFromDef(def, moduleName);
+  else if (isPublicWorkflowDefinition(def)) addWorkflowFromDef(def.def, moduleName, true);
   else if (isAgentDefinition(def)) await addAgentDefinition(def, moduleName);
+  else if (isPublicAgentDefinition(def)) await addAgentDefinition(def.def, moduleName, true);
   else if (isStandaloneStatement(def)) addStandaloneStatement(def.stmt, moduleName);
   else if (isResolverDefinition(def)) addResolverDefinition(def, moduleName);
   else if (isFlowDefinition(def)) addFlowDefinition(def, moduleName);
   else if (isDecisionDefinition(def)) addDecisionDefinition(def, moduleName);
+  else if (isScenarioDefinition(def)) addScenarioDefintion(def, moduleName);
+  else if (isDirectiveDefinition(def)) addDirectiveDefintion(def, moduleName);
+  else if (isGlossaryEntryDefinition(def)) addGlossaryEntryDefintion(def, moduleName);
+  else if (isRetryDefinition(def)) addRetryDefinition(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {

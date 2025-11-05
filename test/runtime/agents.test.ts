@@ -244,7 +244,20 @@ if (process.env.AL_TEST === 'true') {
          }
          entity Failure {
           message String
-         } 
+         }
+         decision classifyUserRequest {
+          case ("request refers to customer") {
+            Customer
+          }
+
+          case ("request refers to product") {
+            Product
+          }
+
+          case ("request refers to employee, or anything other than customer or product") {
+            Other
+          }
+        }
          agent classifyUserRequest {
             instruction "Analyse the user request and classify it as either 'Customer', 'Product' or 'Other'. Return one of Customer, Product or Other and nothing else"
          }
@@ -309,6 +322,12 @@ if (process.env.AL_TEST === 'true') {
                        {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
            scenarios  [{"user": "Jake hit a jackpot!", "ai": "GuidedAgent/scenario01"}],
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
+         scenario ga.scn01 {
+             if ("Kiran had a block-buster") { GuidedAgent/scenario01 }
+         }
+         directive GuidedAgent/ga.dir01 {
+             if("sales is less than 2000") { "hike salary by 0.5 percent" }
+         }
          workflow chat {{ga {message chat.msg}}}
           `
       );

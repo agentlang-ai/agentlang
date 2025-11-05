@@ -33,11 +33,6 @@ export default defineConfig({
       output: {
         // Make sure to use es modules
         format: 'es',
-        // Manual chunking for specific dependencies
-        manualChunks: {
-          'monaco-editor': ['monaco-editor'],
-          // Removed monaco-languageclient from manual chunks to let Vite handle it
-        },
       },
       // Mark problematic dependencies as external
       external: ['vscode', 'vscode-languageserver-protocol'],
@@ -58,14 +53,10 @@ export default defineConfig({
         find: 'buffer',
         replacement: 'buffer/',
       },
-      {
-        find: /^monaco-editor\/esm\/vs\/editor\/editor.api$/,
-        replacement: 'monaco-editor/esm/vs/editor/editor.api.js',
-      },
     ],
   },
   optimizeDeps: {
-    include: ['@isomorphic-git/lightning-fs', 'isomorphic-git', 'buffer', 'monaco-editor'],
+    include: ['@isomorphic-git/lightning-fs', 'isomorphic-git', 'buffer'],
     exclude: [
       'vscode',
       'vscode-languageclient',
@@ -73,7 +64,6 @@ export default defineConfig({
       'vscode-languageclient/node',
       'vscode-languageserver',
       'vscode-languageserver-protocol',
-      'monaco-languageclient',
     ],
     esbuildOptions: {
       plugins: [importMetaUrlPlugin],
@@ -96,6 +86,6 @@ export default defineConfig({
     port: 5173,
   },
   ssr: {
-    noExternal: ['monaco-editor', 'monaco-languageclient'],
+    noExternal: [],
   },
 });

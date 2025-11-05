@@ -12,7 +12,7 @@ import {
 } from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Statement } from '../../language/generated/ast.js';
-import { parseStatements } from '../../language/parser.js';
+import { parseModule, parseStatements } from '../../language/parser.js';
 import { Resolver } from '../resolvers/interface.js';
 import { FlowSuspensionTag, ForceReadPermFlag, PathAttributeName } from '../defs.js';
 
@@ -55,15 +55,31 @@ resolver suspensionResolver ["${DefaultModuleName}/activeSuspension"] {
 }
 
 workflow createSuspension {
-  {suspension 
+  {suspension
     {id createSuspension.id
      continuation createSuspension.continuation,
      env createSuspension.env,
      createdBy createSuspension.createdBy}}
 }
 
-workflow restartSuspension {
+@public workflow restartSuspension {
   await Core.restartSuspension(restartSuspension.id, restartSuspension.data)
+}
+
+record ValidationRequest {
+    data Any
+}
+
+record ValidationResult {
+    status @enum("ok", "error"),
+    reason String @optional
+}
+
+event validateModule extends ValidationRequest {
+}
+
+workflow validateModule {
+  await Core.validateModule(validateModule.data)
 }
 `;
 
@@ -85,7 +101,7 @@ export function setTimerRunning(timerInst: Instance) {
 export async function maybeCancelTimer(name: string, timer: NodeJS.Timeout, env: Environment) {
   await parseAndEvaluateStatement(`{agentlang/timer {name? "${name}"}}`, undefined, env).then(
     (result: any) => {
-      if (result == null || (result instanceof Array && result.length == 0)) {
+      if (result === null || (result instanceof Array && result.length == 0)) {
         clearInterval(timer);
       }
     }
@@ -250,5 +266,22 @@ export async function lookupActiveSuspension(
     }
   } else {
     return [];
+  }
+}
+
+export async function validateModule(moduleDef: string): Promise<Instance> {
+  try {
+    await parseModule(moduleDef);
+    return makeInstance(
+      'agentlang',
+      'ValidationResult',
+      newInstanceAttributes().set('status', 'ok')
+    );
+  } catch (reason: any) {
+    return makeInstance(
+      'agentlang',
+      'ValidationResult',
+      newInstanceAttributes().set('status', 'error').set('reason', `${reason}`)
+    );
   }
 }

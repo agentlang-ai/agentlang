@@ -1,8 +1,8 @@
 export let chalk: any;
 
 // Environment detection
-export const isNodeEnv =
-  typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+// Check if we're in a Node.js environment by verifying process.versions.node exists
+export const isNodeEnv = typeof process !== 'undefined' && !!process.versions?.node;
 
 if (isNodeEnv) {
   // Only import Node.js modules in Node environment
@@ -15,7 +15,7 @@ if (isNodeEnv) {
 export function isExecGraphEnabled(): boolean {
   if (isNodeEnv) {
     const flag = process.env['AL_EXEC_GRAPH_ENABLED'];
-    if (flag != undefined && flag == 'false') {
+    if (flag !== undefined && flag === 'false') {
       return false;
     }
   }

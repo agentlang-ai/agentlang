@@ -4,12 +4,13 @@ entry ModuleDefinition: 'module' name=QualifiedName (imports+=Import)* (defs+=De
 
 Import: 'import' path=STRING '@as' name=ID;
 
-Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | StandaloneStatement 
-| AgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition;
+Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | PublicWorkflowDefinition | StandaloneStatement 
+| AgentDefinition | PublicAgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition | ScenarioDefinition 
+| DirectiveDefinition | GlossaryEntryDefinition | RetryDefinition;
 
 StandaloneStatement: stmt=Statement;
 
-SchemaDefinition: EntityDefinition | EventDefinition | RecordDefinition;
+SchemaDefinition: EntityDefinition | EventDefinition | PublicEventDefinition | RecordDefinition;
 
 PropertyDefinition: (name=TaggedId '(' value=KvPairs ')') | name=TaggedId;
 
@@ -26,6 +27,7 @@ fragment RecDef: name=QualifiedName extends=ExtendsClause? schema=RecordSchemaDe
 
 EntityDefinition: 'entity' RecDef;
 EventDefinition: 'event' RecDef;
+PublicEventDefinition: '@public' def=EventDefinition;
 RecordDefinition: 'record' RecDef;
 
 ExtendsClause: 'extends' parentName=QualifiedName;
@@ -40,7 +42,7 @@ RelNodes: '(' node1=NodeDefinition ',' node2=NodeDefinition ')';
 AttributeDefinition: name=ID (type=QualifiedName | arrayType=QualifiedName '['']' | oneOfSpec=OneOfSpec | enumSpec=EnumSpec 
 | refSpec=RefSpec) ('@expr' '(' expr=Expr ')')? properties+=PropertyDefinition*;
 
-EnumSpec: '@enum' '(' values+=STRING (',' values+=STRING)* ')';
+EnumSpec: (type=QualifiedName)? '@enum' '(' values+=STRING (',' values+=STRING)* ')';
 
 OneOfSpec: '@oneof' '(' ref=Ref ')';
 
@@ -100,6 +102,8 @@ WorkflowHeaderTag returns string: '@after' | '@before';
 
 WorkflowHeaderPrefix returns string: 'create' | 'update' | 'delete';
 
+PublicWorkflowDefinition: '@public' def=WorkflowDefinition;
+
 Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
 | fullTextSearch=FullTextSearch | return=Return;
 
@@ -132,6 +136,8 @@ Return: 'return' pattern=Pattern;
 
 AgentDefinition: 'agent' name=GenericName (body=GenericDefBody? | '{''}');
 
+PublicAgentDefinition: '@public' def=AgentDefinition;
+
 GenericDefBody: '{' (attributes+=GenericPropertyDef (',' attributes+=GenericPropertyDef)*)+ '}';
 
 GenericPropertyDef: name=ID value=Literal;
@@ -149,6 +155,20 @@ DecisionDefinition: 'decision' name=GenericName (body=DecisionDefBody? | '{''}')
 DecisionDefBody: '{' (cases+=CaseEntry (cases+=CaseEntry)*)+ '}';
 
 CaseEntry: 'case' '(' cond=Expr ')' Body;
+
+AgentXtraSpec: '{' (attributes+=AgentXtraAttribute (',' attributes+=AgentXtraAttribute)*)+ '}';
+
+AgentXtraAttribute: name=ID value=STRING|Ref;
+
+ScenarioDefinition: 'scenario' name=Ref (body=MapLiteral? | '{' scn=If? '}' | '{''}');
+
+DirectiveDefinition: 'directive' name=Ref (body=MapLiteral? | '{' dir=If? '}' | '{''}');
+
+GlossaryEntryDefinition: 'glossaryEntry' name=Ref (body=MapLiteral? | glos=AgentXtraSpec? | '{''}');
+
+RetryDefinition: 'agentlang/retry' name=ID '{' ('attempts' attempts=Decimal)? (',' backoff=BackoffSpec)? '}';
+
+BackoffSpec: 'backoff' '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ '}';
 
 ResolverDefinition: 'resolver' name=GenericName '[' (paths+=GenericName (',' paths+=GenericName)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';

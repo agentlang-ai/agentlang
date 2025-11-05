@@ -311,7 +311,7 @@ workflow DistinctResourcesForAllocations {
                 assert(isInstanceOfType(a, 'I209/Allocation'))
                 return a
             } else {
-                assert(rels != undefined)
+                assert(rels !== undefined)
                 return undefined
             }
         }
@@ -448,7 +448,7 @@ workflow GetOneAllocationResource {
                 assert(rrs.length == 1)
                 assert(isInstanceOfType(rrs[0], 'I233/Allocation'))
             } else {
-                assert(rrs != undefined)
+                assert(rrs !== undefined)
             }
         }
 
@@ -493,7 +493,7 @@ workflow GetOneAllocationResource {
                 if (r) {
                     chkresId(r, resId)
                 } else {
-                    assert(r != undefined)
+                    assert(r !== undefined)
                 }
             }
             chka(101, 1)

@@ -1,8 +1,9 @@
 import { parseHelper } from 'langium/test';
 import { escapeQueryName, trimQuotes } from '../runtime/util.js';
-import { ModuleDefinition } from './generated/ast.js';
+import { isDecisionDefinition, ModuleDefinition } from './generated/ast.js';
 import { createAgentlangServices } from './agentlang-module.js';
 import { EmptyFileSystem } from 'langium';
+import { introspect, parseModule } from './parser.js';
 
 export class BasePattern {
   alias: string | undefined;
@@ -20,7 +21,7 @@ export class BasePattern {
   }
 
   addAlias(alias: string) {
-    if (this.aliases == undefined) {
+    if (this.aliases === undefined) {
       this.aliases = [];
     }
     this.aliases.push(alias);
@@ -31,7 +32,7 @@ export class BasePattern {
   }
 
   addHandler(k: 'not_found' | 'error', handler: BasePattern) {
-    if (this.handlers == undefined) {
+    if (this.handlers === undefined) {
       this.handlers = new Map();
     }
     this.handlers.set(k, handler);
@@ -150,12 +151,12 @@ export class LiteralPattern extends BasePattern {
         const arr = new Array<string>();
         m.forEach((v: BasePattern, key: any) => {
           let k: any = key.str;
-          if (k == undefined) {
+          if (k === undefined) {
             k = key.num;
           } else {
             k = `"${k}"`;
           }
-          if (k == undefined) {
+          if (k === undefined) {
             k = key.bool;
           }
           arr.push(`${k}: ${v.toString()}`);
@@ -407,7 +408,7 @@ export class CrudPattern extends BasePattern {
   }
 
   addInto(alias: string, attr: string): CrudPattern {
-    if (this.into == undefined) {
+    if (this.into === undefined) {
       this.into = new Map();
     }
     this.into.set(alias, attr);
@@ -459,7 +460,7 @@ export class CrudPattern extends BasePattern {
   }
 
   addRelationship(n: string, p: CrudPattern[] | CrudPattern) {
-    if (this.relationships == undefined) {
+    if (this.relationships === undefined) {
       this.relationships = new Map();
     }
     this.relationships.set(n, p);
@@ -483,7 +484,7 @@ export class CrudPattern extends BasePattern {
   }
 
   private relationshipsAsString(): string | undefined {
-    if (this.relationships != undefined) {
+    if (this.relationships !== undefined) {
       const result: Array<string> = [];
       this.relationships.forEach((p: CrudPattern | CrudPattern[], n: string) => {
         const ps = p instanceof Array ? `[${patternsToString(p, ',')}]` : p.toString();
@@ -587,7 +588,7 @@ export class ForEachPattern extends BasePattern {
   }
 
   override toString(): string {
-    if (this.source == undefined || this.variable == undefined) {
+    if (this.source === undefined || this.variable === undefined) {
       throw new Error('`for` requires variable and source-pattern');
     }
     let s = `for ${this.variable} in ${this.source.toString()}`;
@@ -611,6 +612,14 @@ export class IfPattern extends BasePattern {
     super();
     this.condition = condition ? condition : IfPattern.True;
     this.body = [];
+  }
+
+  isEmpty(): boolean {
+    if (this.condition === IfPattern.True && this.body.length === 0) {
+      return true;
+    } else {
+      return false;
+    }
   }
 
   addPattern(p: BasePattern): IfPattern {
@@ -668,6 +677,43 @@ export class IfPattern extends BasePattern {
 
 export function isIfPattern(p: BasePattern): boolean {
   return p instanceof IfPattern;
+}
+
+export class CasePattern extends BasePattern {
+  condition: BasePattern;
+  body: BasePattern;
+
+  constructor(condition: BasePattern, body: BasePattern) {
+    super();
+    this.condition = condition;
+    this.body = body;
+  }
+
+  static async FromString(s: string): Promise<CasePattern> {
+    const ss = s.trimStart();
+    if (ss.startsWith('case')) {
+      const m = await parseModule(`module T\ndecision D {\n${ss}}`);
+      const d = m.defs[0];
+      if (isDecisionDefinition(d) && d.body) {
+        const c = d.body.cases[0];
+        const b = await introspect(c.statements[0].$cstNode?.text || '');
+        return new CasePattern(new ExpressionPattern(c.cond), b[0]);
+      } else {
+        throw new Error(`Failed to parse ${s}`);
+      }
+    }
+    throw new Error(`Not a case expression - ${s}`);
+  }
+
+  override toString(): string {
+    return `case (${this.condition.toString()}) {
+    ${this.body.toString()}
+  }`;
+  }
+}
+
+export function isCasePattern(p: BasePattern): boolean {
+  return p instanceof CasePattern;
 }
 
 export function newCreatePattern(recName: string): CrudPattern {

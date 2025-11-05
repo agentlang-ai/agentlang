@@ -36,6 +36,7 @@ entity User {
     email Email @unique @indexed,
     firstName String,
     lastName String,
+    lastLoginTime DateTime @default(now()),
     @rbac [(allow: [read, delete, update, create], where: auth.user = this.id)],
     @after {delete AfterDeleteUser}
 }
@@ -44,25 +45,57 @@ workflow AfterDeleteUser {
   {RemoveUserSession {id AfterDeleteUser.User.id}}
 }
 
-workflow CreateUser {
+@public workflow CreateUser {
   {User {id CreateUser.id,
          email CreateUser.email,
          firstName CreateUser.firstName,
          lastName CreateUser.lastName}}
 }
 
-workflow UpdateUser {
+@public workflow CreateUsers {
+  for user in CreateUsers.users {
+      {User {email? user.email}} @as [u];
+      if (u) {
+        {User {id? u.id,
+               firstName user.firstName,
+               lastName user.lastName}} 
+         @as [um]
+        um
+      }
+      else {
+        {User {email user.email,
+               firstName user.firstName,
+               lastName user.lastName}}
+         @as [um]
+        {Role {name? user.role}}
+         @as [r];
+        if (r) {
+          {UserRole {User um, Role r}}
+        } else {
+          {Role {name user.role}} @as [rnew]
+          {UserRole {User um, Role rnew}}
+        }
+        um
+      }
+  }
+}
+
+@public workflow UpdateUser {
   {User {id UpdateUser.id,
          firstName UpdateUser.firstName,
          lastName UpdateUser.lastName}, @upsert}
 }
 
-workflow FindUser {
+workflow UpdateUserLastLogin {
+  {User {id? UpdateUserLastLogin.id, lastLoginTime UpdateUserLastLogin.loginTime}}
+}
+
+@public workflow FindUser {
   {User {id? FindUser.id}} @as [user];
   user
 }
 
-workflow FindUserByEmail {
+@public workflow FindUserByEmail {
   {User {email? FindUserByEmail.email}} @as [user];
   user
 }
@@ -84,20 +117,20 @@ entity Permission {
 
 relationship RolePermission between(Role, Permission)
 
-workflow CreateRole {
+@public workflow CreateRole {
     {Role {name CreateRole.name}, @upsert}
 }
 
-workflow FindRole {
+@public workflow FindRole {
     {Role {name? FindRole.name}} @as [role];
     role
 }
 
-workflow ListRoles {
+@public workflow ListRoles {
     {Role? {}}
 }
 
-workflow ListUserRoles {
+@public workflow ListUserRoles {
     if (ListUserRoles.Role and ListUserRoles.User) {
         {UserRole {User? ListUserRoles.User, Role? ListUserRoles.Role}}
     }
@@ -112,11 +145,11 @@ workflow ListUserRoles {
     }
 }
 
-workflow ListPermissions {
+@public workflow ListPermissions {
     {Permission? {}}
 }
 
-workflow ListRolePermissions {
+@public workflow ListRolePermissions {
     if (ListRolePermissions.Role and ListRolePermissions.Permission) {
         {RolePermission {Role? ListRolePermissions.Role, Permission? ListRolePermissions.Permission}}
     }
@@ -131,24 +164,24 @@ workflow ListRolePermissions {
     }
 }
 
-workflow AssignUserToRole {
+@public workflow AssignUserToRole {
     {User {id? AssignUserToRole.userId}} @as [user];
     {Role {name? AssignUserToRole.roleName}} @as [role];
     {UserRole {User user, Role role}, @upsert}
 }
 
-workflow AssignUserToRoleByEmail {
+@public workflow AssignUserToRoleByEmail {
     {User {email? AssignUserToRoleByEmail.email}} @as [user];
     {Role {name? AssignUserToRoleByEmail.roleName}} @as [role];
     {UserRole {User user, Role role}, @upsert}
 }
 
-workflow FindUserRoles {
+@public workflow FindUserRoles {
   {User {id? FindUserRoles.userId},
    UserRole {Role? {}}}
 }
 
-workflow CreatePermission {
+@public workflow CreatePermission {
      {Permission {id CreatePermission.id,
                   resourceFqName CreatePermission.resourceFqName,
                   c CreatePermission.c,
@@ -159,13 +192,13 @@ workflow CreatePermission {
       @upsert}
 }
 
-workflow AddPermissionToRole {
+@public workflow AddPermissionToRole {
     {Role {name? AddPermissionToRole.roleName}} @as [role];
     {Permission {id? AddPermissionToRole.permissionId}} @as [perm];
     {RolePermission {Role role, Permission perm}, @upsert}
 }
 
-workflow FindRolePermissions {
+@public workflow FindRolePermissions {
     {Role {name? FindRolePermissions.role},
      RolePermission {Permission? {}}}
 }
@@ -180,8 +213,7 @@ entity Session {
   @rbac [(allow: [read, delete, update, create], where: auth.user = this.userId)]
 }
 
-
-workflow CreateSession {
+@public workflow CreateSession {
   {Session {id CreateSession.id, userId CreateSession.userId,
             authToken CreateSession.authToken,
             accessToken CreateSession.accessToken,
@@ -189,7 +221,7 @@ workflow CreateSession {
             isActive true}}
 }
 
-workflow UpdateSession {
+@public workflow UpdateSession {
   {Session {id? UpdateSession.id,
             authToken UpdateSession.authToken,
             accessToken UpdateSession.accessToken,
@@ -197,44 +229,44 @@ workflow UpdateSession {
             isActive true}, @upsert}
 }
 
-workflow FindSession {
+@public workflow FindSession {
   {Session {id? FindSession.id}} @as [session];
   session
 }
 
-workflow FindUserSession {
+@public workflow FindUserSession {
   {Session {userId? FindUserSession.userId}} @as [session];
   session
 }
 
-workflow RemoveSession {
+@public workflow RemoveSession {
   purge {Session {id? RemoveSession.id}}
 }
 
-workflow RemoveUserSession {
+@public workflow RemoveUserSession {
   {Session {userId? RemoveUserSession.id}} @as [session];
   purge {Session {id? session.id}}
 }
 
-workflow DeleteRole {
+@public workflow DeleteRole {
   purge {UserRole {Role? DeleteRole.name}}
   purge {Role {name? DeleteRole.name}}
 }
 
-workflow DeleteUserRole {
+@public workflow DeleteUserRole {
   purge {UserRole {User? DeleteUserRole.User, Role? DeleteUserRole.Role}}
 }
 
-workflow DeletePermission {
+@public workflow DeletePermission {
   purge {RolePermission {Permission? DeletePermission.id}}
   purge {Permission {id? DeletePermission.id}}
 }
 
-workflow DeleteRolePermission {
+@public workflow DeleteRolePermission {
   purge {RolePermission {Role? DeleteRolePermission.Role, Permission? DeleteRolePermission.Permission}}
 }
 
-workflow UpdateRoleAssignment {
+@public workflow UpdateRoleAssignment {
   {User {id? UpdateRoleAssignment.userId}} @as [user]
   {Role {name? UpdateRoleAssignment.roleName}} @as [role]
   if (user and role) {
@@ -248,7 +280,7 @@ workflow UpdateRoleAssignment {
   }
 }
 
-workflow UpdatePermissionAssignment {
+@public workflow UpdatePermissionAssignment {
   {Role {name? UpdatePermissionAssignment.roleName}} @as [role]
   {Permission {id? UpdatePermissionAssignment.permissionId}} @as [permission]
   if (role and permission) {
@@ -262,7 +294,7 @@ workflow UpdatePermissionAssignment {
   }
 }
 
-workflow UpdatePermission {
+@public workflow UpdatePermission {
   if (UpdatePermission.resourceFqName and UpdatePermission.c != undefined and UpdatePermission.r != undefined and UpdatePermission.u != undefined and UpdatePermission.d != undefined) {
     {Permission {id? UpdatePermission.id,
                 resourceFqName UpdatePermission.resourceFqName,
@@ -285,27 +317,27 @@ workflow UpdatePermission {
   }
 }
 
-workflow signup {
+@public workflow signup {
   await Auth.signUpUser(signup.firstName, signup.lastName, signup.email, signup.password, signup.userData)
 }
 
-workflow confirmSignup {
+@public workflow confirmSignup {
   await Auth.confirmSignupUser(confirmSignup.email, confirmSignup.confirmationCode)
 }
 
-workflow resendConfirmationCode {
+@public workflow resendConfirmationCode {
   await Auth.resendConfirmationCodeUser(resendConfirmationCode.email)
 }
 
-workflow login {
+@public workflow login {
   await Auth.loginUser(login.email, login.password)
 }
 
-workflow forgotPassword {
+@public workflow forgotPassword {
   await Auth.forgotPasswordUser(forgotPassword.email)
 }
 
-workflow confirmForgotPassword {
+@public workflow confirmForgotPassword {
   await Auth.confirmForgotPasswordUser(
     confirmForgotPassword.email,
     confirmForgotPassword.confirmationCode,
@@ -313,33 +345,37 @@ workflow confirmForgotPassword {
   )
 }
 
-workflow logout {
+@public workflow logout {
   await Auth.logoutUser()
 }
 
-workflow changePassword {
+@public workflow changePassword {
   await Auth.changePassword(changePassword.newPassword, changePassword.password)
 }
 
-workflow refreshToken {
+@public workflow refreshToken {
   await Auth.refreshUserToken(refreshToken.refreshToken)
 }
 
-workflow getUser {
+@public workflow getUser {
   await Auth.getUserInfo(getUser.userId)
 }
 
-workflow getUserByEmail {
+@public workflow getUserByEmail {
   await Auth.getUserInfoByEmail(getUserByEmail.email)
 }
 
-workflow inviteUser {
+@public workflow inviteUser {
   await Auth.inviteUser(inviteUser.email, inviteUser.firstName, inviteUser.lastName, inviteUser.userData)
 }
 
 
-workflow acceptInvitation {
+@public workflow acceptInvitation {
   await Auth.acceptInvitationUser(acceptInvitation.email, acceptInvitation.tempPassword, acceptInvitation.newPassword)
+}
+
+@public workflow callback {
+  await Auth.callbackUser(callback.code)
 }
 `;
 
@@ -396,6 +432,17 @@ export async function updateUser(
       id: userId,
       firstName: firstName,
       lastName: lastName,
+    },
+    env
+  );
+}
+
+export async function updateUserLastLogin(id: string, env: Environment): Promise<Result> {
+  return await evalEvent(
+    'UpdateUserLastLogin',
+    {
+      id: id,
+      loginTime: new Date().toISOString(),
     },
     env
   );
@@ -608,10 +655,10 @@ export async function findUserRoles(userId: string, env: Environment): Promise<R
   const inst: Instance | undefined = result ? (result[0] as Instance) : undefined;
   if (inst) {
     let roles: Instance[] | undefined = inst.getRelatedInstances('UserRole');
-    if (roles == undefined) {
+    if (roles === undefined) {
       roles = [];
     }
-    if (DefaultRoleInstance == undefined) {
+    if (DefaultRoleInstance === undefined) {
       DefaultRoleInstance = makeInstance(
         CoreAuthModuleName,
         'Role',
@@ -665,7 +712,7 @@ export async function userHasPermissions(
     return true;
   }
   let userRoles: string[] | null | undefined = UserRoleCache.get(userId);
-  if (userRoles == undefined) {
+  if (!userRoles) {
     const roles: any = await findUserRoles(userId, env);
     userRoles = [];
     if (roles) {
@@ -681,6 +728,7 @@ export async function userHasPermissions(
     UserRoleCache.set(userId, userRoles);
   }
   if (
+    userRoles &&
     userRoles.find((role: string) => {
       return role === 'admin';
     })
@@ -693,21 +741,23 @@ export async function userHasPermissions(
     perms.has(RbacPermissionFlag.UPDATE),
     perms.has(RbacPermissionFlag.DELETE),
   ];
-  for (let i = 0; i < userRoles.length; ++i) {
-    const permInsts: RbacPermission[] | undefined = RolePermissionsCache.get(userRoles[i]);
-    if (permInsts) {
-      if (
-        permInsts.find((p: RbacPermission) => {
-          return (
-            p.resourceFqName == resourceFqName &&
-            (c ? isSqlTrue(p.c) : true) &&
-            (r ? isSqlTrue(p.r) : true) &&
-            (u ? isSqlTrue(p.u) : true) &&
-            (d ? isSqlTrue(p.d) : true)
-          );
-        })
-      )
-        return true;
+  if (userRoles !== null) {
+    for (let i = 0; i < userRoles.length; ++i) {
+      const permInsts: RbacPermission[] | undefined = RolePermissionsCache.get(userRoles[i]);
+      if (permInsts) {
+        if (
+          permInsts.find((p: RbacPermission) => {
+            return (
+              p.resourceFqName == resourceFqName &&
+              (c ? isSqlTrue(p.c) : true) &&
+              (r ? isSqlTrue(p.r) : true) &&
+              (u ? isSqlTrue(p.u) : true) &&
+              (d ? isSqlTrue(p.d) : true)
+            );
+          })
+        )
+          return true;
+      }
     }
   }
   return false;
@@ -855,6 +905,7 @@ export async function loginUser(
   try {
     await fetchAuthImpl().login(username.toLowerCase(), password, env, (r: SessionInfo) => {
       UserRoleCache.set(r.userId, null);
+      updateUserLastLogin(r.userId, env);
       // Check if Cognito is configured by checking if we have the tokens
       if (r.idToken && r.accessToken && r.refreshToken) {
         // Return full token response for Cognito
@@ -876,6 +927,33 @@ export async function loginUser(
   } catch (err: any) {
     logger.error(`Login failed for ${username}: ${err.message}`);
     throw err; // Re-throw to preserve error type for HTTP status mapping
+  }
+}
+
+export async function callbackUser(code: string, env: Environment): Promise<string | object> {
+  let result: string | object = '';
+  try {
+    await fetchAuthImpl().callback(code, env, (r: SessionInfo) => {
+      UserRoleCache.set(r.userId, null);
+      updateUserLastLogin(r.userId, env);
+      if (r.idToken && r.accessToken && r.refreshToken) {
+        result = {
+          id_token: r.idToken,
+          access_token: r.accessToken,
+          refresh_token: r.refreshToken,
+          token_type: 'Bearer',
+          expires_in: 3600,
+          userId: r.userId,
+          sessionId: r.sessionId,
+        };
+      } else {
+        result = `${r.userId}/${r.sessionId}`;
+      }
+    });
+    return result;
+  } catch (err: any) {
+    logger.error(`Callback failed for ${code}: ${err.message}`);
+    throw err;
   }
 }
 
@@ -1031,7 +1109,7 @@ async function verifySessionToken(token: string, env?: Environment): Promise<Act
   const f = async () => {
     try {
       const sess: Instance = await findSession(sessId, env);
-      if (sess != undefined) {
+      if (sess !== undefined) {
         await fetchAuthImpl().verifyToken(sess.lookup('authToken'), env);
         return { sessionId: sessId, userId: parts[0] };
       } else {
@@ -1195,7 +1273,8 @@ export function requireAuth(moduleName: string, eventName: string): boolean {
         eventName == 'forgotPassword' ||
         eventName == 'confirmForgotPassword' ||
         eventName == 'refreshToken' ||
-        eventName == 'acceptInvitation');
+        eventName == 'acceptInvitation' ||
+        eventName == 'callback');
     return !f;
   } else {
     return false;

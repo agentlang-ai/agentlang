@@ -348,7 +348,7 @@ function introspectLiteral(lit: Literal): BasePattern {
     return LiteralPattern.Number(lit.num);
   } else if (lit.ref) {
     return LiteralPattern.Reference(lit.ref);
-  } else if (lit.str) {
+  } else if (lit.str !== undefined) {
     return LiteralPattern.String(lit.str);
   } else if (lit.bool) {
     return LiteralPattern.Boolean(lit.bool == 'true' ? true : false);
@@ -381,7 +381,7 @@ function introspectForEach(forEach: ForEach): ForEachPattern {
   return fp;
 }
 
-function introspectIf(ifpat: If): IfPattern {
+export function introspectIf(ifpat: If): IfPattern {
   const ifp: IfPattern = new IfPattern(introspectExpression(ifpat.cond));
   ifpat.statements.forEach((stmt: Statement) => {
     ifp.addPattern(introspectStatement(stmt));
@@ -398,4 +398,16 @@ function introspectIf(ifpat: If): IfPattern {
 
 function introspectDelete(deletePat: Delete): DeletePattern {
   return new DeletePattern(introspectPattern(deletePat.pattern));
+}
+
+export type CasePattern = {
+  condition: BasePattern;
+  body: BasePattern;
+};
+
+export async function introspectCase(caseStr: string): Promise<CasePattern> {
+  const s = `if ${caseStr.trim().substring(4).trimStart()}`;
+  const pat = await introspect(s);
+  const ifPat = pat[0] as IfPattern;
+  return { condition: ifPat.condition, body: ifPat.body[0] };
 }

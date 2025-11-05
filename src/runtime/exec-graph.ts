@@ -114,7 +114,7 @@ class GraphGenerator extends PatternHandler {
     const cond = handler.getGraph();
     const conseq = await graphFromStatements(ifStmt.statements, env.getActiveModuleName());
     cond.pushSubGraph(conseq);
-    if (ifStmt.else != undefined) {
+    if (ifStmt.else !== undefined) {
       const alter = await graphFromStatements(ifStmt.else.statements, env.getActiveModuleName());
       cond.pushSubGraph(alter);
     } else {
@@ -175,12 +175,6 @@ async function graphFromStatements(
   return handler.getGraph().setActiveModuleName(activeModuleName);
 }
 
-async function eventExecutor(eventInst: Instance, env: Environment) {
-  const newEnv = new Environment(`${eventInst.name}-env`, env);
-  await executeEventHelper(eventInst, newEnv);
-  env.setLastResult(newEnv.getLastResult());
-}
-
 function makeStatementsExecutor(execGraph: ExecGraph, triggeringNode: ExecGraphNode): Function {
   return async (stmts: Statement[], env: Environment): Promise<any> => {
     const g = await graphFromStatements(stmts, env.getActiveModuleName());
@@ -195,7 +189,7 @@ function makeStatementsExecutor(execGraph: ExecGraph, triggeringNode: ExecGraphN
 
 export async function executeGraph(execGraph: ExecGraph, env: Environment): Promise<any> {
   const activeModuleName = execGraph.getActiveModuleName();
-  env.setEventExecutor(eventExecutor);
+  env.setEventExecutor(executeEventHelper);
   let oldModule: string | undefined = undefined;
   if (activeModuleName) {
     oldModule = env.switchActiveModuleName(activeModuleName);
@@ -339,10 +333,10 @@ export async function executeEvent(
   let txnRolledBack: boolean = false;
   try {
     if (isEventInstance(eventInstance)) {
-      env.setActiveEvent(eventInstance);
       if (kernelCall) {
         env.setInKernelMode(true);
       }
+      env.setActiveEvent(eventInstance);
       await executeEventHelper(eventInstance, env);
     } else if (isAgentEventInstance(eventInstance)) {
       env.setStatementsExecutor(executeStatements);
@@ -355,7 +349,7 @@ export async function executeEvent(
     if (env && env.hasHandlers()) {
       throw err;
     } else {
-      if (env != undefined && activeEnv == undefined) {
+      if (env !== undefined && activeEnv === undefined) {
         await env.rollbackAllTransactions().then(() => {
           txnRolledBack = true;
         });
@@ -363,7 +357,7 @@ export async function executeEvent(
       throw err;
     }
   } finally {
-    if (!txnRolledBack && env != undefined && activeEnv == undefined) {
+    if (!txnRolledBack && env !== undefined && activeEnv === undefined) {
       await env.commitAllTransactions();
     }
   }
@@ -377,7 +371,7 @@ export async function executeEventHelper(eventInstance: Instance, env?: Environm
   }
   const fqn = eventInstance.getFqName();
   let isLocalEnv = false;
-  if (env == undefined) {
+  if (env === undefined) {
     env = new Environment(`${fqn}-env`);
     isLocalEnv = true;
   }
@@ -440,7 +434,7 @@ async function executeStatementsHelper(
 ): Promise<any> {
   const g = await graphFromStatements(stmts);
   let isLocalEnv = false;
-  if (env == undefined) {
+  if (env === undefined) {
     env = new Environment(`stmt-exec-env`);
     isLocalEnv = true;
   }
