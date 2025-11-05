@@ -17,11 +17,11 @@ entity File {
     uploadedBy String @optional,
     uploadedAt DateTime @default(now()),
     path String @optional,
-    @rbac [(roles: [*], allow: [create])
+    @rbac [(roles: [*], allow: [create]),
            (allow: [read, delete], where: auth.user = this.uploadedBy)]
 }
 
-workflow CreateFile {
+@public workflow CreateFile {
   {File {id CreateFile.id,
          filename CreateFile.filename,
          originalName CreateFile.originalName,
@@ -33,33 +33,33 @@ workflow CreateFile {
   @upsert}
 }
 
-workflow FindFile {
+@public workflow FindFile {
   {File {id? FindFile.id}} @as [file];
   file
 }
 
-workflow FindFileByFilename {
+@public workflow FindFileByFilename {
   {File {filename? FindFileByFilename.filename}} @as [file];
   file
 }
 
-workflow ListFiles {
+@public workflow ListFiles {
   {File? {}}
 }
 
-workflow ListUserFiles {
+@public workflow ListUserFiles {
   {File {uploadedBy? ListUserFiles.userId}}
 }
 
-workflow DeleteFile {
+@public workflow DeleteFile {
   delete {File {id? DeleteFile.id}}
 }
 
-workflow DeleteFileByFilename {
+@public workflow DeleteFileByFilename {
   delete {File {filename? DeleteFileByFilename.filename}}
 }
 
-workflow UpdateFile {
+@public workflow UpdateFile {
   {File {id? UpdateFile.id,
          originalName UpdateFile.originalName,
          mimetype UpdateFile.mimetype,
