@@ -1,4 +1,5 @@
 import { Instance, isAgentEventInstance } from './module.js';
+import { disableInternalMonitoring, enableInternalMonitoring } from './state.js';
 
 export class MonitorEntry {
   private input: string;
@@ -69,6 +70,18 @@ export class MonitorEntry {
   }
 }
 
+let MonitoringCallback: Function | undefined = undefined;
+
+export function setMonitoringCallback(f: Function) {
+  MonitoringCallback = f;
+  enableInternalMonitoring();
+}
+
+export function resetMonitoringCallback() {
+  MonitoringCallback = undefined;
+  disableInternalMonitoring();
+}
+
 export class Monitor {
   private id: string;
   private eventInstance: Instance | undefined;
@@ -134,6 +147,9 @@ export class Monitor {
     if (this.lastEntry) {
       const ms = Date.now() - this.lastEntrySetAtMs;
       this.lastEntry.setLatencyMs(ms);
+      if (MonitoringCallback !== undefined) {
+        MonitoringCallback(this.lastEntry);
+      }
       this.lastEntry = undefined;
       this.totalLatency += ms;
     }

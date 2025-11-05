@@ -120,6 +120,16 @@ export function setAppConfig(config: Config): Config {
   return AppConfig;
 }
 
+let internalMonitoringEnabled = false;
+
+export function enableInternalMonitoring() {
+  internalMonitoringEnabled = true;
+}
+
+export function disableInternalMonitoring() {
+  internalMonitoringEnabled = false;
+}
+
 export function isMonitoringEnabled(): boolean {
-  return AppConfig?.monitoring?.enabled === true;
+  return internalMonitoringEnabled || AppConfig?.monitoring?.enabled === true;
 }
