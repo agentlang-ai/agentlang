@@ -37,6 +37,7 @@ entity User {
     firstName String,
     lastName String,
     lastLoginTime DateTime @default(now()),
+    status @enum("Active", "Invited", "Inactive") @default("Active"),
     @rbac [(allow: [read, delete, update, create], where: auth.user = this.id)],
     @after {delete AfterDeleteUser}
 }
@@ -49,7 +50,8 @@ workflow AfterDeleteUser {
   {User {id CreateUser.id,
          email CreateUser.email,
          firstName CreateUser.firstName,
-         lastName CreateUser.lastName}}
+         lastName CreateUser.lastName,
+         status CreateUser.status}}
 }
 
 @public workflow CreateUsers {
@@ -84,6 +86,19 @@ workflow AfterDeleteUser {
   {User {id UpdateUser.id,
          firstName UpdateUser.firstName,
          lastName UpdateUser.lastName}, @upsert}
+}
+
+@public workflow UpdateUserStatus {
+  {User {id UpdateUserStatus.id,
+         status UpdateUserStatus.status}, @upsert}
+}
+
+@public workflow inactivateUser {
+  await Auth.inactivateUser(inactivateUser.userId)
+}
+
+@public workflow activateUser {
+  await Auth.activateUser(activateUser.userId)
 }
 
 workflow UpdateUserLastLogin {
@@ -369,6 +384,12 @@ entity Session {
   await Auth.inviteUser(inviteUser.email, inviteUser.firstName, inviteUser.lastName, inviteUser.userData)
 }
 
+@public workflow inviteUsers {
+  for u in inviteUsers.users {
+    {inviteUser {email u.email, firstName u.firstName, lastName u.lastName, userData u.userData}}
+  }
+}
+
 
 @public workflow acceptInvitation {
   await Auth.acceptInvitationUser(acceptInvitation.email, acceptInvitation.tempPassword, acceptInvitation.newPassword)
@@ -386,7 +407,8 @@ export async function createUser(
   email: string,
   firstName: string,
   lastName: string,
-  env: Environment
+  env: Environment,
+  status: string = 'Active'
 ): Promise<Result> {
   return await evalEvent(
     'CreateUser',
@@ -395,6 +417,7 @@ export async function createUser(
       email: email.toLowerCase(),
       firstName: firstName,
       lastName: lastName,
+      status: status,
     },
     env
   );
@@ -437,6 +460,87 @@ export async function updateUser(
   );
 }
 
+export async function updateUserStatus(
+  userId: string,
+  status: string,
+  env: Environment
+): Promise<Result> {
+  return await evalEvent(
+    'UpdateUserStatus',
+    {
+      id: userId,
+      status: status,
+    },
+    env
+  );
+}
+
+export async function inactivateUser(userId: string, env: Environment): Promise<Result> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    try {
+      // Update user status to 'Inactive'
+      await updateUserStatus(userId, 'Inactive', env);
+
+      // Disable user in Cognito
+      const user = await findUser(userId, env);
+      if (user) {
+        const email = user.lookup('email');
+        if (email) {
+          await fetchAuthImpl().disableUser(email, env);
+        }
+      }
+
+      return {
+        status: 'ok',
+        message: 'User inactivated successfully',
+      };
+    } catch (err: any) {
+      logger.error(`Failed to inactivate user ${userId}: ${err.message}`);
+      throw err;
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
+export async function activateUser(userId: string, env: Environment): Promise<Result> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    try {
+      // Update user status to 'Active'
+      await updateUserStatus(userId, 'Active', env);
+
+      // Enable user in Cognito
+      const user = await findUser(userId, env);
+      if (user) {
+        const email = user.lookup('email');
+        if (email) {
+          await fetchAuthImpl().enableUser(email, env);
+        }
+      }
+
+      return {
+        status: 'ok',
+        message: 'User activated successfully',
+      };
+    } catch (err: any) {
+      logger.error(`Failed to activate user ${userId}: ${err.message}`);
+      throw err;
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
 export async function updateUserLastLogin(id: string, env: Environment): Promise<Result> {
   return await evalEvent(
     'UpdateUserLastLogin',
@@ -452,7 +556,8 @@ export async function ensureUser(
   email: string,
   firstName: string,
   lastName: string,
-  env: Environment
+  env: Environment,
+  status: string = 'Active'
 ) {
   const user = await findUserByEmail(email.toLowerCase(), env);
   if (user) {
@@ -463,7 +568,14 @@ export async function ensureUser(
     });
     return user;
   }
-  return await createUser(crypto.randomUUID(), email.toLowerCase(), firstName, lastName, env);
+  return await createUser(
+    crypto.randomUUID(),
+    email.toLowerCase(),
+    firstName,
+    lastName,
+    env,
+    status
+  );
 }
 
 export async function ensureUserRoles(userid: string, userRoles: string[], env: Environment) {
@@ -933,9 +1045,11 @@ export async function loginUser(
 export async function callbackUser(code: string, env: Environment): Promise<string | object> {
   let result: string | object = '';
   try {
-    await fetchAuthImpl().callback(code, env, (r: SessionInfo) => {
+    await fetchAuthImpl().callback(code, env, async (r: SessionInfo) => {
       UserRoleCache.set(r.userId, null);
       updateUserLastLogin(r.userId, env);
+      // Update user status to 'Active' after successful callback
+      await updateUserStatus(r.userId, 'Active', env);
       if (r.idToken && r.accessToken && r.refreshToken) {
         result = {
           id_token: r.idToken,
@@ -1077,6 +1191,13 @@ async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveS
 
       // Use the local user's ID for consistency
       const localUserId = localUser.lookup('id');
+
+      // Check if user status is 'Active'
+      const userStatus = localUser.lookup('status');
+      if (userStatus !== 'Active') {
+        throw new UnauthorisedError(`User account is not active. Status: ${userStatus}`);
+      }
+
       const sess = await findUserSession(localUserId, env);
       if (!sess) {
         throw new UnauthorisedError(`No session found for user ${email}, UserId: ${userId}`);
@@ -1104,17 +1225,27 @@ async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveS
 async function verifySessionToken(token: string, env?: Environment): Promise<ActiveSessionInfo> {
   const parts = token.split('/');
   const sessId = parts[1];
+  const userId = parts[0];
   const needCommit = env ? false : true;
   env = env ? env : new Environment();
   const f = async () => {
     try {
+      // Check if user status is 'Active'
+      const user = await findUser(userId, env);
+      if (user) {
+        const userStatus = user.lookup('status');
+        if (userStatus !== 'Active') {
+          throw new UnauthorisedError(`User account is not active. Status: ${userStatus}`);
+        }
+      }
+
       const sess: Instance = await findSession(sessId, env);
       if (sess !== undefined) {
         await fetchAuthImpl().verifyToken(sess.lookup('authToken'), env);
-        return { sessionId: sessId, userId: parts[0] };
+        return { sessionId: sessId, userId: userId };
       } else {
-        logger.warn(`No active session found for user '${parts[0]}'`);
-        throw new UnauthorisedError(`No active session for user '${parts[0]}'`);
+        logger.warn(`No active session found for user '${userId}'`);
+        throw new UnauthorisedError(`No active session for user '${userId}'`);
       }
     } catch (err: any) {
       if (err instanceof UnauthorisedError) {
@@ -1246,6 +1377,14 @@ export async function acceptInvitationUser(
   const f = async () => {
     try {
       await fetchAuthImpl().acceptInvitation(email, tempPassword, newPassword, env);
+
+      // Update user status to 'Active' after accepting invitation
+      const user = await findUserByEmail(email.toLowerCase(), env);
+      if (user) {
+        const userId = user.lookup('id');
+        await updateUserStatus(userId, 'Active', env);
+      }
+
       return {
         email: email,
         message: 'Invitation accepted successfully',
