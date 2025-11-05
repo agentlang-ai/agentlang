@@ -1,4 +1,4 @@
-import { Instance } from './module.js';
+import { Instance, isAgentEventInstance } from './module.js';
 
 export class MonitorEntry {
   private input: string;
@@ -158,9 +158,17 @@ export class Monitor {
     this.entries.forEach((entry: Monitor | MonitorEntry) => {
       objs.push(entry.asObject());
     });
-    const r: any = { id: this.id, totalLatencyMs: this.totalLatency, graph: objs };
+    const r: any = { id: this.id, totalLatencyMs: this.totalLatency, flow: objs };
     if (this.eventInstance) {
-      r.event = this.eventInstance.getFqName();
+      const n = this.eventInstance.getFqName();
+      const inst = this.eventInstance.asSerializableObject();
+      if (isAgentEventInstance(this.eventInstance)) {
+        r.agent = n;
+        r.agentInstance = inst;
+      } else {
+        r.event = n;
+        r.eventInstance = inst;
+      }
     }
     if (this.user) {
       r.user = this.user;

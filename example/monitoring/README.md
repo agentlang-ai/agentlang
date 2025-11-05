@@ -145,7 +145,7 @@ A successful execution of the `customerProductManager` agent might produce monit
   {
     "id": "d4e0ec8e-7ce6-4f5a-ad2e-2a66850b3afe",
     "totalLatencyMs": 3548,
-    "graph": [
+    "flow": [
       {
         "input": "{flowStep classifyUserRequest, message \"Create a customer named Joe with email joe@acme.com and phone 77838838\"}",
         "timestamp": 1762245788012,
@@ -171,7 +171,7 @@ A successful execution of the `customerProductManager` agent might produce monit
       {
         "id": "8f6708c5-c3a1-4edf-9034-54b8949636c1",
         "totalLatencyMs": 1521,
-        "graph": [
+        "flow": [
           {
             "input": "{acme.core/createCustomer {message \"Create a customer named Joe with email joe@acme.com and phone 77838838\"}}",
             "timestamp": 1762245790624,
@@ -191,11 +191,11 @@ A successful execution of the `customerProductManager` agent might produce monit
           {
             "id": "66e4e74d-e37b-44be-b1da-93e98dfdaaf7",
             "totalLatencyMs": 0,
-            "graph": [
+            "flow": [
               {
                 "id": "3a75f3c2-2ee3-48b6-bcee-2afbbbf28e86",
                 "totalLatencyMs": 3,
-                "graph": [
+                "flow": [
                   {
                     "input": "{acme.core/Customer {email \"joe@acme.com\", name \"Joe\", phone \"77838838\"}}",
                     "timestamp": 1762245792142,
@@ -219,7 +219,15 @@ A successful execution of the `customerProductManager` agent might produce monit
         ]
       }
     ],
-    "event": "acme.core/customerProductManager",
+    "agent": "acme.core/customerProductManager",
+    "agentInstance": {
+      "AL_INSTANCE": true,
+      "name": "customerProductManager",
+      "moduleName": "acme.core",
+      "attributes": {
+        "message": "Create a customer named Joe with email joe@acme.com and phone 77838838"
+      }
+    },
     "user": "c33d2653-5d1f-4c17-b075-01a03d194a2b"
   }
 ]
@@ -232,10 +240,11 @@ A successful execution of the `customerProductManager` agent might produce monit
 | **id** | Unique identifier for the monitored agent execution. |
 | **totalLatencyMs** | Total time taken by this agent or sub-agent (in milliseconds). |
 | **timestamp** | Unix timestamp (in ms) indicating when the step started. |
-| **graph** | Array representing the hierarchical flow of sub-steps or nested agents. |
+| **flow** | Array representing the hierarchical flow of sub-steps or nested agents. |
 | **input** | The specific statement or agent invocation being monitored. |
 | **result** | The outcome of the step — may include entity data (`AL_INSTANCE`) or decision results. |
-| **event** | Name of the top-level event or agent invoked. |
+| **agent** or **event** | Name of the top-level agent or event invoked. |
+| **agentInstance** or **eventInstance** | Full instance of top-level agent or event invoked. |
 | **user** | Identifier for the user or request source that triggered this workflow. |
 
 ### Hierarchical Graph Structure
@@ -286,4 +295,3 @@ With monitoring enabled, you can:
 ---
 
 **In short**, Agentlang’s monitoring feature turns every agent execution into an inspectable, structured graph — enabling full transparency, debuggability, and accountability for autonomous workflows.
-
