@@ -11,7 +11,7 @@ import {
 } from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Statement } from '../../language/generated/ast.js';
-import { parseStatements } from '../../language/parser.js';
+import { parseModule, parseStatements } from '../../language/parser.js';
 import { Resolver } from '../resolvers/interface.js';
 import { FlowSuspensionTag, ForceReadPermFlag, PathAttributeName } from '../defs.js';
 import { getMonitor, getMonitorsForEvent } from '../monitor.js';
@@ -89,6 +89,13 @@ record ValidationRequest {
 record ValidationResult {
     status @enum("ok", "error"),
     reason String @optional
+}
+
+event validateModule extends ValidationRequest {
+}
+
+workflow validateModule {
+  await Core.validateModule(validateModule.data)
 }
 `;
 
@@ -310,4 +317,21 @@ export async function fetchLatestMonitorForEvent(eventName: string): Promise<any
     return [monitors[len - 1].asObject()];
   }
   return [];
+}
+
+export async function validateModule(moduleDef: string): Promise<Instance> {
+  try {
+    await parseModule(moduleDef);
+    return makeInstance(
+      'agentlang',
+      'ValidationResult',
+      newInstanceAttributes().set('status', 'ok')
+    );
+  } catch (reason: any) {
+    return makeInstance(
+      'agentlang',
+      'ValidationResult',
+      newInstanceAttributes().set('status', 'error').set('reason', `${reason}`)
+    );
+  }
 }

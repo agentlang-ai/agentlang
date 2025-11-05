@@ -22,6 +22,7 @@ import {
   Instance,
   instanceToObject,
   isAgent,
+  isInstanceOfType,
   isModule,
   makeInstance,
   newInstanceAttributes,
@@ -459,7 +460,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     response: AIResponse,
     validationEventName: string
   ): Promise<Instance> {
-    let isstr = false;
+    let isstr = true;
     try {
       const c = JSON.parse(response.content);
       isstr = isString(c);
@@ -467,8 +468,24 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       logger.debug(`invokeValidator json/parse - ${reason}`);
     }
     const d = isstr ? `"${escapeSpecialChars(response.content)}"` : response.content;
-    const r: Instance = await parseAndEvaluateStatement(`{${validationEventName} {data ${d}}}`);
-    return r;
+    const r: Instance | Instance[] = await parseAndEvaluateStatement(
+      `{${validationEventName} {data ${d}}}`
+    );
+    if (r instanceof Array) {
+      const i = r.find((inst: Instance) => {
+        return isInstanceOfType(inst, 'agentlang/ValidationResult');
+      });
+      if (i) {
+        return i;
+      } else {
+        throw new Error('Validation failed to produce result');
+      }
+    } else {
+      if (!isInstanceOfType(r, 'agentlang/ValidationResult')) {
+        throw new Error('Invalid validation result');
+      }
+      return r;
+    }
   }
 
   private async handleValidation(
