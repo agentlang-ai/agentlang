@@ -751,6 +751,37 @@ export class DeletePattern extends BasePattern {
   }
 }
 
+export class ReturnPattern extends BasePattern {
+  pattern: BasePattern;
+
+  constructor(pattern: BasePattern) {
+    super();
+    this.pattern = pattern;
+  }
+
+  override toString(): string {
+    return `return ${this.pattern.toString()}`.concat(this.hintsAsString());
+  }
+}
+
+export class FullTextSearchPattern extends BasePattern {
+  name: string;
+  query: BasePattern;
+  options: BasePattern | undefined;
+
+  constructor(name: string, query: BasePattern, options?: BasePattern) {
+    super();
+    this.name = name;
+    this.query = query;
+    this.options = options;
+  }
+
+  override toString(): string {
+    const ops = this.options ? this.options.toString() : '';
+    return `{${this.name} ${this.query.toString()} ${ops}}`;
+  }
+}
+
 export function isDeletePattern(p: BasePattern): boolean {
   return p instanceof DeletePattern;
 }
