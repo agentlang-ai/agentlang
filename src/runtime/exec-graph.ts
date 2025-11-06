@@ -382,6 +382,7 @@ export async function executeEvent(
   kernelCall?: boolean
 ): Promise<any> {
   const env: Environment = new Environment(eventInstance.name + '.env', activeEnv);
+  env.setStatementsExecutor(executeStatementsHelper);
   let txnRolledBack: boolean = false;
   try {
     if (isEventInstance(eventInstance)) {
@@ -391,7 +392,6 @@ export async function executeEvent(
       env.setActiveEvent(eventInstance);
       await executeEventHelper(eventInstance, env);
     } else if (isAgentEventInstance(eventInstance)) {
-      env.setStatementsExecutor(executeStatements);
       await handleAgentInvocation(eventInstance, env);
     }
     const r = env.getLastResult();

@@ -24,8 +24,9 @@ export class MonitorEntry {
   }
 
   setResult(result: any): MonitorEntry {
-    if (this.error === undefined && this.result === undefined) {
+    if (this.result === undefined) {
       this.result = result;
+      this.error = undefined;
     }
     return this;
   }

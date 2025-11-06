@@ -1953,7 +1953,7 @@ async function iterateOnFlow(
     if (isfxc || agent.isDecisionExecutor()) env.setFlowContext(context);
     else env.setFlowContext(initContext);
     if (monitoringEnabled) {
-      env.appendEntryToMonitor(`{${step} {message "${context}"}}`).flagMonitorEntryAsFlowStep();
+      env.appendEntryToMonitor(step).flagMonitorEntryAsFlowStep();
     }
     await agentInvoke(agent, '', env);
     if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());
