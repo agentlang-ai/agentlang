@@ -17,8 +17,7 @@ entity File {
     uploadedBy String @optional,
     uploadedAt DateTime @default(now()),
     path String @optional,
-    @rbac [(roles: [*], allow: [create]),
-           (allow: [read, delete], where: auth.user = this.uploadedBy)]
+    @rbac [(allow: [create, read, update, delete], where: auth.user = this.uploadedBy)]
 }
 
 @public workflow CreateFile {
