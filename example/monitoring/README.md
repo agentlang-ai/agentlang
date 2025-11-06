@@ -126,7 +126,7 @@ Monitoring data can be fetched using the special `agentlang/fetchMonitor` endpoi
 It returns the **execution tree** of the agent, showing all nested invocations, entities created, and any encountered errors.
 
 ```bash
-curl -X POST http://localhost:8080/agentlang/fetchMonitor \
+curl -X POST http://localhost:8080/agentlang/fetchEventMonitor \
   -H 'Content-Type: application/json' \
   -d '{"eventName": "acme.core/customerProductManager"}' | jq .
 ```
