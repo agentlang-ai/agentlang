@@ -6,6 +6,7 @@ import {
   Expr,
   FnCall,
   ForEach,
+  FullTextSearch,
   Group,
   Handler,
   If,
@@ -18,12 +19,14 @@ import {
   isWorkflowDefinition,
   Literal,
   MapEntry,
+  MapLiteral,
   ModuleDefinition,
   NegExpr,
   NotExpr,
   Pattern,
   PrimExpr,
   RelationshipPattern,
+  Return,
   SelectIntoEntry,
   SelectIntoSpec,
   SetAttribute,
@@ -37,12 +40,14 @@ import {
   DeletePattern,
   ExpressionPattern,
   ForEachPattern,
+  FullTextSearchPattern,
   FunctionCallPattern,
   GroupExpressionPattern,
   IfPattern,
   LiteralPattern,
   NegExpressionPattern,
   NotExpressionPattern,
+  ReturnPattern,
 } from './syntax.js';
 
 let nextDocumentId = 1;
@@ -215,6 +220,10 @@ function introspectPattern(pat: Pattern): BasePattern {
     r = introspectIf(pat.if);
   } else if (pat.delete) {
     r = introspectDelete(pat.delete);
+  } else if (pat.return) {
+    r = introspectReturn(pat.return);
+  } else if (pat.fullTextSearch) {
+    r = introspectFullTextSearch(pat.fullTextSearch);
   }
   if (r) return r;
   else {
@@ -363,14 +372,18 @@ function introspectLiteral(lit: Literal): BasePattern {
       })
     );
   } else if (lit.map) {
-    const m = new Map<any, BasePattern>();
-    lit.map.entries.forEach((me: MapEntry) => {
-      m.set(me.key, introspectExpression(me.value));
-    });
-    return LiteralPattern.Map(m);
+    return introspectMapLiteral(lit.map);
   } else {
     throw new Error(`Invalid literal - ${lit}`);
   }
+}
+
+function introspectMapLiteral(mapLit: MapLiteral): LiteralPattern {
+  const m = new Map<any, BasePattern>();
+  mapLit.entries.forEach((me: MapEntry) => {
+    m.set(me.key, introspectExpression(me.value));
+  });
+  return LiteralPattern.Map(m);
 }
 
 function introspectForEach(forEach: ForEach): ForEachPattern {
@@ -398,6 +411,22 @@ export function introspectIf(ifpat: If): IfPattern {
 
 function introspectDelete(deletePat: Delete): DeletePattern {
   return new DeletePattern(introspectPattern(deletePat.pattern));
+}
+
+function introspectReturn(returnPat: Return): ReturnPattern {
+  return new ReturnPattern(introspectPattern(returnPat.pattern));
+}
+
+function introspectFullTextSearch(fullTextSearch: FullTextSearch): FullTextSearchPattern {
+  let options: BasePattern | undefined = undefined;
+  if (fullTextSearch.options) {
+    options = introspectMapLiteral(fullTextSearch.options);
+  }
+  return new FullTextSearchPattern(
+    fullTextSearch.name,
+    introspectLiteral(fullTextSearch.query),
+    options
+  );
 }
 
 export type CasePattern = {
