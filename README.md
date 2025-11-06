@@ -15,7 +15,7 @@
 <div id="toc"> <!-- both work, toc or user-content-toc -->
   <ul style="list-style: none;">
     <summary>
-      <h1>Agentlang - Reliable Enterprise AI Agents</h1>
+      <h1>Agentlang - Reliable Agentic Teams as Code</h1>
     </summary>
   </ul>
 </div>
@@ -31,16 +31,28 @@
 <div id="toc"> <!-- both work, toc or user-content-toc -->
   <ul style="list-style: none;">
     <summary>
-      <h2>🎯 Agentic Reliability Modeling - Build AI Agents that actually work!</h2>
+      <h2>🎯 Agentic Reliability Modeling</h2>
     </summary>
   </ul>
 </div>
 
 </div>
 
-Build **teams of reliable AI Agents** that follow your organization's processes closely, while adapting to new scenarios. Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
+Build **teams of reliable AI Agents** that actually work - agents that follow your organization's processes closely, while adapting to new scenarios! Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
 
-* **Agentic:** Agentlang is a programming abstraction specifically designed for building anything involving agents. Agentlang is highly declarative - enabling you to focus on the business logic without getting bogged down in implementation details.
+<div align="center">
+
+<div id="toc"> <!-- both work, toc or user-content-toc -->
+  <ul style="list-style: none;">
+    <summary>
+      <h2>Teams as Code</h2>
+    </summary>
+  </ul>
+</div>
+
+</div>
+
+What Terraform was for Infrastructure (Infra-as-code), Agentlang is for AI Teams (Teams-as-code). Agentlang is a programming abstraction specifically designed for building anything involving agents. Agentlang is highly declarative - enabling you to focus on the business function of your team without getting bogged down in implementation details.
 
 * **Robust Integrations:** The Agentlang runtime integrates natively with a wide range of LLMs, databases, vector databases, and auth providers. Agentlang has a novel connector architecture, with a rapidly growing collection of prebuilt connectors for Enterprise tools. Plus, Agentlang programs run on NodeJS (and in the browser) and can leverage any existing JavaScript library.
 
