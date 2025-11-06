@@ -213,9 +213,18 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
         break;
       }
       const node = walker.nextNode();
+
+      const monitorIncr =
+        monitoringEnabled &&
+        node.subGraphIndex !== -1 &&
+        (node.subGraphType == SubGraphType.AGENT || node.subGraphType == SubGraphType.EVENT);
+
       if (node.codeStr && monitoringEnabled) {
         if (!isSystemCrudPattern(node.code, activeModuleName)) {
-          env.appendToMonitor(node.codeStr);
+          if (monitorIncr) {
+            env.incrementMonitor();
+          }
+          env.appendEntryToMonitor(node.codeStr);
         }
       }
       try {
@@ -223,16 +232,12 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
           await evaluateStatement(node.code as Statement, env);
         } else {
           if (node.subGraphType == SubGraphType.AGENT) {
-            if (monitoringEnabled) env.incrementMonitor();
             await executeAgent(node, execGraph, env);
-            if (monitoringEnabled) env.decrementMonitor();
           } else {
             const subg = execGraph.fetchSubGraphAt(node.subGraphIndex);
             switch (node.subGraphType) {
               case SubGraphType.EVENT:
-                if (monitoringEnabled) env.incrementMonitor();
                 await evaluateStatement(node.code as Statement, env);
-                if (monitoringEnabled) env.decrementMonitor();
                 break;
               case SubGraphType.IF: {
                 const newEnv = new Environment(`${env.name}-if`, env);
@@ -262,10 +267,13 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
           maybeSetAlias(node, env);
         }
       } catch (reason: any) {
-        env.setMonitorError(reason);
+        if (monitoringEnabled) env.setMonitorEntryError(reason);
         throw reason;
       } finally {
-        env.setMonitorResult(env.getLastResult());
+        if (monitoringEnabled) {
+          if (monitorIncr) env.decrementMonitor();
+          env.setMonitorEntryResult(env.getLastResult());
+        }
       }
     }
   } finally {

@@ -56,6 +56,7 @@ import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
 import Handlebars from 'handlebars';
 import { Statement } from '../../language/generated/ast.js';
+import { isMonitoringEnabled } from '../state.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -406,6 +407,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         isplnr = false;
       }
     }
+    const monitoringEnabled = isMonitoringEnabled();
     const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
     let msgs: BaseMessage[] | undefined;
     let cachedMsg: string | undefined = undefined;
@@ -427,12 +429,20 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         }
         msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
         const externalToolSpecs = this.getExternalToolSpecs();
+        const msgsContent = msgs
+          .slice(1)
+          .map((bm: BaseMessage) => {
+            return bm.content;
+          })
+          .join('\n');
+        if (monitoringEnabled) {
+          env.setMonitorEntryLlmPrompt(msgsContent);
+          if (this.isPlanner()) {
+            env.flagMonitorEntryAsPlanner();
+          }
+        }
         logger.debug(
-          `Invoking LLM ${this.llm} via agent ${this.fqName} with messages:\n${msgs
-            .map((bm: BaseMessage) => {
-              return bm.content;
-            })
-            .join('\n')}`
+          `Invoking LLM ${this.llm} via agent ${this.fqName} with messages:\n${msgsContent}`
         );
         let response: AIResponse = await p.invoke(msgs, externalToolSpecs);
         const v = this.getValidationEvent();
@@ -446,9 +456,11 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         if (this.withSession) {
           await saveAgentChatSession(chatId, msgs, env);
         }
+        if (monitoringEnabled) env.setMonitorEntryLlmResponse(response.content);
         env.setLastResult(response.content);
       } catch (err: any) {
         logger.error(`Error while invoking ${agentName} - ${err}`);
+        if (monitoringEnabled) env.setMonitorEntryError(`${err}`);
         env.setLastResult(undefined);
       }
     } else {

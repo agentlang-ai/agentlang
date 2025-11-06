@@ -7,6 +7,11 @@ export class MonitorEntry {
   private error: string | undefined = undefined;
   private timestamp: number;
   private latencyMs: number;
+  private llm: boolean = false;
+  private llmPrompt: string | undefined;
+  private llmResponse: string | undefined;
+  private planner: boolean = false;
+  private flowStep: boolean = false;
 
   constructor(statement: string) {
     this.input = statement;
@@ -19,7 +24,7 @@ export class MonitorEntry {
   }
 
   setResult(result: any): MonitorEntry {
-    if (this.error === undefined) {
+    if (this.error === undefined && this.result === undefined) {
       this.result = result;
     }
     return this;
@@ -44,6 +49,35 @@ export class MonitorEntry {
     return this;
   }
 
+  flagAsLlm(): MonitorEntry {
+    this.llm = true;
+    return this;
+  }
+
+  setLlmPrompt(s: string): MonitorEntry {
+    this.llm = true;
+    if (this.llmPrompt === undefined) this.llmPrompt = s;
+    return this;
+  }
+
+  setLlmResponse(s: string): MonitorEntry {
+    if (this.llmResponse === undefined) this.llmResponse = s;
+    return this;
+  }
+
+  flagAsPlanner(): MonitorEntry {
+    this.llm = true;
+    this.planner = true;
+    return this;
+  }
+
+  flagAsFlowStep(): MonitorEntry {
+    this.llm = true;
+    this.planner = false;
+    this.flowStep = true;
+    return this;
+  }
+
   private static resultAsObject(result: any): object {
     if (result instanceof Instance) return result.asSerializableObject();
     else if (result instanceof Array)
@@ -64,7 +98,19 @@ export class MonitorEntry {
     if (this.error !== undefined) {
       obj.error = this.error;
     } else if (this.result !== undefined) {
-      obj.result = MonitorEntry.resultAsObject(this.result);
+      obj.finalResult = MonitorEntry.resultAsObject(this.result);
+    }
+    if (this.llm === true) {
+      const llmObj: any = {};
+      if (this.llmPrompt !== undefined) {
+        llmObj.prompt = this.llmPrompt;
+      }
+      if (this.llmResponse !== undefined) {
+        llmObj.response = this.llmResponse;
+      }
+      llmObj.isPlanner = this.planner;
+      llmObj.isFlowStep = this.flowStep;
+      obj.llm = llmObj;
     }
     return obj;
   }
@@ -127,7 +173,7 @@ export class Monitor {
     return this;
   }
 
-  setLastResult(result: any): Monitor {
+  setEntryResult(result: any): Monitor {
     if (this.lastEntry !== undefined) {
       this.lastEntry.setResult(result);
       this.finalizeLastEntry();
@@ -135,10 +181,45 @@ export class Monitor {
     return this;
   }
 
-  setLastError(reason: string): Monitor {
+  setEntryError(reason: string): Monitor {
     if (this.lastEntry !== undefined) {
       this.lastEntry.setError(reason);
       this.finalizeLastEntry();
+    }
+    return this;
+  }
+
+  flagEntryAsLlm(): Monitor {
+    if (this.lastEntry !== undefined) {
+      this.lastEntry.flagAsLlm();
+    }
+    return this;
+  }
+
+  flagEntryAsPlanner(): Monitor {
+    if (this.lastEntry !== undefined) {
+      this.lastEntry.flagAsPlanner();
+    }
+    return this;
+  }
+
+  flagEntryAsFlowStep(): Monitor {
+    if (this.lastEntry !== undefined) {
+      this.lastEntry.flagAsFlowStep();
+    }
+    return this;
+  }
+
+  setEntryLlmPrompt(s: string): Monitor {
+    if (this.lastEntry !== undefined) {
+      this.lastEntry.setLlmPrompt(s);
+    }
+    return this;
+  }
+
+  setEntryLlmResponse(s: string): Monitor {
+    if (this.lastEntry !== undefined) {
+      this.lastEntry.setLlmResponse(s);
     }
     return this;
   }
@@ -150,7 +231,6 @@ export class Monitor {
       if (MonitoringCallback !== undefined) {
         MonitoringCallback(this.lastEntry);
       }
-      this.lastEntry = undefined;
       this.totalLatency += ms;
     }
   }
