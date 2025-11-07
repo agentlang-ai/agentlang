@@ -122,13 +122,31 @@ This triggers the `customerProductManager` agent, which classifies the request a
 
 ## 5. Fetching Monitoring Data
 
-Monitoring data can be fetched using the special `agentlang/fetchMonitor` endpoint.  
-It returns the **execution tree** of the agent, showing all nested invocations, entities created, and any encountered errors.
+Monitoring data can be fetched using the special `agentlang/fetchEventMonitor` endpoint.
+It returns the latest **execution tree** of the agent, showing all nested invocations, entities created, and any encountered errors.
 
 ```bash
 curl -X POST http://localhost:8080/agentlang/fetchEventMonitor \
   -H 'Content-Type: application/json' \
   -d '{"eventName": "acme.core/customerProductManager"}' | jq .
+```
+
+
+To fetch all monitoring data relevant to an event or agent, use the `agentlang/fetchEventMonitors` endpoint, which allows pagination.
+
+
+```bash
+curl -X POST http://localhost:8080/agentlang/fetchEventMonitors \
+  -H 'Content-Type: application/json' \
+  -d '{"eventName": "acme.core/customerProductManager", "limit": 5, "offset": 0}' | jq .
+```
+
+You can also fetch a particular instance of monitoring by `id`:
+
+```bash
+curl -X POST http://localhost:8080/agentlang/EventMonitor \
+  -H 'Content-Type: application/json' \
+  -d '{"id": "0c4d7831-0de5-4341-ab1d-eece7db78018"}' | jq .
 ```
 
 ---
@@ -141,127 +159,128 @@ This enables you to trace the complete lifecycle of a request, including every i
 A successful execution of the `customerProductManager` agent might produce monitoring data like the following:
 
 ```json
-[
-  {
-    "id": "f93c3514-7f62-44a1-970e-93f26e5faafb",
-    "totalLatencyMs": 4764,
-    "flow": [
-      {
-        "input": "{classifyUserRequest {message \"Create a customer named Joe with email joe@acme.com and phone 77838838\"}}",
-        "timestamp": 1762420652859,
-        "latencyMs": 647,
-        "finalResult": "Customer",
-        "llm": {
-          "prompt": "\nContext:\nCreate a customer named Joe with email joe@acme.com and phone 77838838",
-          "response": "Customer",
-          "isPlanner": false,
-          "isFlowStep": true
-        }
-      },
-      {
-        "input": "{createCustomer {message \"Create a customer named Joe with email joe@acme.com and phone 77838838\nclassifyUserRequest --> Customer\n\"}}",
-        "timestamp": 1762420654347,
-        "latencyMs": 4117,
-        "finalResult": {
-          "AL_INSTANCE": true,
-          "name": "Customer",
-          "moduleName": "acme.core",
-          "attributes": {
-            "email": "joe@acme.com",
-            "name": "Joe",
-            "phone": "77838838",
-            "__path__": "acme.core$Customer/joe@acme.com"
-          }
-        },
-        "llm": {
-          "prompt": "\nContext:\nCreate a customer named Joe with email joe@acme.com and phone 77838838",
-          "response": "{acme.core/createCustomer {message \"Create a customer named Joe with email joe@acme.com and phone 77838838\"}}",
-          "isPlanner": true,
-          "isFlowStep": true
-        }
-      },
-      {
-        "id": "ae595b21-0be9-4ee8-9ce6-ce33fdfd0aff",
-        "totalLatencyMs": 0,
-        "flow": [
-          {
-            "id": "d4ba938b-5846-4021-9075-9bb6da95a4e4",
-            "totalLatencyMs": 11,
-            "flow": [
-              {
-                "input": "{acme.core/createCustomer {message \"Create a customer named Joe with email joe@acme.com and phone 77838838\"}}",
-                "timestamp": 1762420656253,
-                "latencyMs": 7,
-                "finalResult": [
-                  {
-                    "AL_INSTANCE": true,
-                    "name": "Agent",
-                    "moduleName": "agentlang.ai",
-                    "attributes": {
-                      "name": "createCustomer",
-                      "moduleName": "acme.core",
-                      "type": "chat",
-                      "runWorkflows": true,
-                      "instruction": "Based on the user request, create a new customer.",
-                      "tools": "acme.core/Customer",
-                      "documents": null,
-                      "channels": null,
-                      "role": null,
-                      "flows": null,
-                      "validate": null,
-                      "retry": null,
-                      "llm": "createCustomer_llm",
-                      "__path__": "agentlang.ai$Agent/createCustomer",
-                      "__parent__": ""
-                    }
-                  }
-                ],
-                "llm": {
-                  "prompt": "Create a customer named Joe with email joe@acme.com and phone 77838838\nContext:\nCreate a customer named Joe with email joe@acme.com and phone 77838838",
-                  "response": "[{acme.core/Customer {email \"joe@acme.com\", name \"Joe\", phone \"77838838\"}}]",
-                  "isPlanner": true,
-                  "isFlowStep": false
-                }
-              },
-              {
-                "id": "437b245d-cdcf-4727-9d91-93380464f1bd",
-                "totalLatencyMs": 13,
-                "flow": [
-                  {
-                    "input": "{acme.core/Customer {email \"joe@acme.com\", name \"Joe\", phone \"77838838\"}}",
-                    "timestamp": 1762420658449,
-                    "latencyMs": 13,
-                    "finalResult": {
-                      "AL_INSTANCE": true,
-                      "name": "Customer",
-                      "moduleName": "acme.core",
-                      "attributes": {
-                        "email": "joe@acme.com",
-                        "name": "Joe",
-                        "phone": "77838838",
-                        "__path__": "acme.core$Customer/joe@acme.com"
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    ],
-    "agent": "acme.core/customerProductManager",
-    "agentInstance": {
-      "AL_INSTANCE": true,
-      "name": "customerProductManager",
-      "moduleName": "acme.core",
-      "attributes": {
-        "message": "Create a customer named Joe with email joe@acme.com and phone 77838838"
+{
+  "id": "0c4d7831-0de5-4341-ab1d-eece7db78018",
+  "totalLatencyMs": 4645,
+  "flow": [
+    {
+      "input": "classifyUserRequest",
+      "timestamp": 1762493601031,
+      "latencyMs": 910,
+      "finalResult": "Customer",
+      "llm": {
+        "prompt": "\nContext:\nCreate a customer named Joe with email joe@acme.com and phone 77838838",
+        "response": "Customer",
+        "isPlanner": false,
+        "isFlowStep": true,
+        "isDecision": false
       }
     },
-    "user": "c33d2653-5d1f-4c17-b075-01a03d194a2b"
-  }
-]
+    {
+      "input": "createCustomer",
+      "timestamp": 1762493603165,
+      "latencyMs": 3735,
+      "finalResult": {
+        "AL_INSTANCE": true,
+        "name": "Customer",
+        "moduleName": "acme.core",
+        "attributes": {
+          "email": "joe@acme.com",
+          "name": "Joe",
+          "phone": "77838838",
+          "__path__": "acme.core$Customer/joe@acme.com"
+        }
+      },
+      "llm": {
+        "prompt": "\nContext:\nCreate a customer named Joe with email joe@acme.com and phone 77838838",
+        "response": "[{acme.core/createCustomer {message \"Create a customer named Joe with email joe@acme.com and phone 77838838\"}}]",
+        "isPlanner": false,
+        "isFlowStep": true,
+        "isDecision": false
+      }
+    },
+    {
+      "id": "fe5e77da-5b73-4e32-83af-2bf47e51c676",
+      "totalLatencyMs": 0,
+      "flow": [
+        {
+          "id": "b7c2afbb-7836-4084-a3e8-b832e3569ede",
+          "totalLatencyMs": 9,
+          "flow": [
+            {
+              "input": "{acme.core/createCustomer {message \"Create a customer named Joe with email joe@acme.com and phone 77838838\"}}",
+              "timestamp": 1762493605899,
+              "latencyMs": 6,
+              "finalResult": [
+                {
+                  "AL_INSTANCE": true,
+                  "name": "Agent",
+                  "moduleName": "agentlang.ai",
+                  "attributes": {
+                    "name": "createCustomer",
+                    "moduleName": "acme.core",
+                    "type": "chat",
+                    "runWorkflows": true,
+                    "instruction": "Based on the user request, create a new customer.",
+                    "tools": "acme.core/Customer",
+                    "documents": null,
+                    "channels": null,
+                    "role": null,
+                    "flows": null,
+                    "validate": null,
+                    "retry": null,
+                    "llm": "createCustomer_llm",
+                    "__path__": "agentlang.ai$Agent/createCustomer",
+                    "__parent__": ""
+                  }
+                }
+              ],
+              "llm": {
+                "prompt": "Create a customer named Joe with email joe@acme.com and phone 77838838\nContext:\nCreate a customer named Joe with email joe@acme.com and phone 77838838",
+                "response": "[{acme.core/Customer {email \"joe@acme.com\", name \"Joe\", phone \"77838838\"}}]",
+                "isPlanner": true,
+                "isFlowStep": false,
+                "isDecision": false
+              }
+            },
+            {
+              "id": "3125457f-351f-478b-8480-0d9d7ab46cae",
+              "totalLatencyMs": 11,
+              "flow": [
+                {
+                  "input": "{acme.core/Customer {email \"joe@acme.com\", name \"Joe\", phone \"77838838\"}}",
+                  "timestamp": 1762493606888,
+                  "latencyMs": 11,
+                  "finalResult": {
+                    "AL_INSTANCE": true,
+                    "name": "Customer",
+                    "moduleName": "acme.core",
+                    "attributes": {
+                      "email": "joe@acme.com",
+                      "name": "Joe",
+                      "phone": "77838838",
+                      "__path__": "acme.core$Customer/joe@acme.com"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "agent": "acme.core/customerProductManager",
+  "agentInstance": {
+    "AL_INSTANCE": true,
+    "name": "customerProductManager",
+    "moduleName": "acme.core",
+    "attributes": {
+      "message": "Create a customer named Joe with email joe@acme.com and phone 77838838"
+    }
+  },
+  "user": "c33d2653-5d1f-4c17-b075-01a03d194a2b"
+}
 ```
 
 ### Explanation of Fields
@@ -274,7 +293,7 @@ A successful execution of the `customerProductManager` agent might produce monit
 | **flow** | Array representing the hierarchical flow of sub-steps or nested agents. |
 | **input** | The specific statement or agent invocation being monitored. |
 | **finalResult** | The final outcome of the step — may include entity data (`AL_INSTANCE`) or decision results. |
-| **llm** | If the step was executed by an agent — the prompt, response and some relevant flags. |
+| **llm** | If the step was executed by an agent — the prompt, response and `agent-type` flags (planner, flow, decision). |
 | **agent** or **event** | Name of the top-level agent or event invoked. |
 | **agentInstance** or **eventInstance** | Full instance of top-level agent or event invoked. |
 | **user** | Identifier for the user or request source that triggered this workflow. |

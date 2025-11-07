@@ -774,6 +774,13 @@ export class Environment extends Instance {
     return this;
   }
 
+  flagMonitorEntryAsDecision(): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.flagEntryAsDecision();
+    }
+    return this;
+  }
+
   setMonitorEntryLlmPrompt(s: string): Environment {
     if (this.monitor !== undefined) {
       this.monitor.setEntryLlmPrompt(s);
@@ -1953,7 +1960,7 @@ async function iterateOnFlow(
     if (isfxc || agent.isDecisionExecutor()) env.setFlowContext(context);
     else env.setFlowContext(initContext);
     if (monitoringEnabled) {
-      env.appendEntryToMonitor(step).flagMonitorEntryAsFlowStep();
+      env.appendEntryToMonitor(step);
     }
     await agentInvoke(agent, '', env);
     if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());

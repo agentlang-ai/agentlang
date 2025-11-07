@@ -12,6 +12,7 @@ export class MonitorEntry {
   private llmResponse: string | undefined;
   private planner: boolean = false;
   private flowStep: boolean = false;
+  private decision: boolean = false;
 
   constructor(statement: string) {
     this.input = statement;
@@ -68,14 +69,27 @@ export class MonitorEntry {
 
   flagAsPlanner(): MonitorEntry {
     this.llm = true;
-    this.planner = true;
+    if (this.flowStep || this.decision) {
+      this.planner = false;
+    } else {
+      this.planner = true;
+    }
     return this;
   }
 
   flagAsFlowStep(): MonitorEntry {
     this.llm = true;
     this.planner = false;
+    this.decision = false;
     this.flowStep = true;
+    return this;
+  }
+
+  flagAsDecision(): MonitorEntry {
+    this.llm = true;
+    this.planner = false;
+    this.flowStep = false;
+    this.decision = true;
     return this;
   }
 
@@ -111,6 +125,7 @@ export class MonitorEntry {
       }
       llmObj.isPlanner = this.planner;
       llmObj.isFlowStep = this.flowStep;
+      llmObj.isDecision = this.decision;
       obj.llm = llmObj;
     }
     return obj;
@@ -207,6 +222,13 @@ export class Monitor {
   flagEntryAsFlowStep(): Monitor {
     if (this.lastEntry !== undefined) {
       this.lastEntry.flagAsFlowStep();
+    }
+    return this;
+  }
+
+  flagEntryAsDecision(): Monitor {
+    if (this.lastEntry !== undefined) {
+      this.lastEntry.flagAsDecision();
     }
     return this;
   }

@@ -440,6 +440,12 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           if (this.isPlanner()) {
             env.flagMonitorEntryAsPlanner();
           }
+          if (this.isFlowExecutor()) {
+            env.flagMonitorEntryAsFlowStep();
+          }
+          if (this.isDecisionExecutor()) {
+            env.flagMonitorEntryAsDecision();
+          }
         }
         logger.debug(
           `Invoking LLM ${this.llm} via agent ${this.fqName} with messages:\n${msgsContent}`
