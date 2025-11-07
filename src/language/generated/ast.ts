@@ -1130,7 +1130,7 @@ export function isRecordSchemaDefinition(item: unknown): item is RecordSchemaDef
 export interface RefSpec extends langium.AstNode {
     readonly $container: AttributeDefinition;
     readonly $type: 'RefSpec';
-    ref: string;
+    ref: QualifiedName;
 }
 
 export const RefSpec = 'RefSpec';

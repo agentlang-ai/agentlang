@@ -1057,3 +1057,31 @@ analyseEmail --> "ARC" archiveEmail
     );
   });
 });
+
+describe('foreign-keys', () => {
+  test('refs as foreign keys', async () => {
+    await doInternModule(
+      'fkeys',
+      `entity Resource {
+        id Int @id,
+        email Email @unique
+      }
+
+      entity User {
+        id Int @id,
+        email @ref(fkeys/Resource.email) @optional,
+        name String
+      }`)
+      const r1 = await parseAndEvaluateStatement(`{fkeys/Resource {id 1, email "a@acme.com"}}`);
+      assert(isInstanceOfType(r1, 'fkeys/Resource'))
+      const u1 = await parseAndEvaluateStatement(`{fkeys/User {id 101, name "A", email "a@acme.com"}}`);
+      assert(isInstanceOfType(u1, 'fkeys/User'))
+      const u2 = await parseAndEvaluateStatement(`{fkeys/User {id 102, name "B"}}`);
+      assert(isInstanceOfType(u2, 'fkeys/User'))
+      const x = await parseAndEvaluateStatement(`{fkeys/User {id 103, name "C", email "c@acme.com"}}`)
+      .catch((reason: any) => {
+        assert(reason) // "FOREIGN KEY constraint failed"
+      })
+      assert(!x)
+    })
+  })
