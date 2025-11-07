@@ -612,21 +612,19 @@ describe('Multiple module loading tests', () => {
         assert(blogModule.hasEntry('Post'), 'Blog module missing Post entity');
 
         // Load second module and verify if Blog is still accessible
-        await flushAllAndLoad('example/pets/src/core.al').then(
-          async (appSpec: ApplicationSpec) => {
-            assert(appSpec.name, 'Invalid application spec');
-            const m: Module = fetchModule('pets.core');
-            assert(m.name == 'pets.core', 'Failed to load pets.core module');
-            assert(m.hasEntry('createPet'), 'pets.core module missing createPet');
+        await flushAllAndLoad('example/pets/src/core.al').then(async (appSpec: ApplicationSpec) => {
+          assert(appSpec.name, 'Invalid application spec');
+          const m: Module = fetchModule('pets.core');
+          assert(m.name == 'pets.core', 'Failed to load pets.core module');
+          assert(m.hasEntry('createPet'), 'pets.core module missing createPet');
 
-            // Critical test: Blog module should not still be accessible after Family load
-            assert(!isModule('Blog.Core'), 'Blog.Core module not removed before pets.core load');
-            assert(isModule('pets.core'), 'pets.core module not registered');
+          // Critical test: Blog module should not still be accessible after Family load
+          assert(!isModule('Blog.Core'), 'Blog.Core module not removed before pets.core load');
+          assert(isModule('pets.core'), 'pets.core module not registered');
 
-            removeModule('pets.core');
-            assert(!isModule('pets.core'), 'pets.core module not removed');
-          }
-        );
+          removeModule('pets.core');
+          assert(!isModule('pets.core'), 'pets.core module not removed');
+        });
       });
     } finally {
       try {
@@ -1071,17 +1069,48 @@ describe('foreign-keys', () => {
         id Int @id,
         email @ref(fkeys/Resource.email) @optional,
         name String
-      }`)
-      const r1 = await parseAndEvaluateStatement(`{fkeys/Resource {id 1, email "a@acme.com"}}`);
-      assert(isInstanceOfType(r1, 'fkeys/Resource'))
-      const u1 = await parseAndEvaluateStatement(`{fkeys/User {id 101, name "A", email "a@acme.com"}}`);
-      assert(isInstanceOfType(u1, 'fkeys/User'))
-      const u2 = await parseAndEvaluateStatement(`{fkeys/User {id 102, name "B"}}`);
-      assert(isInstanceOfType(u2, 'fkeys/User'))
-      const x = await parseAndEvaluateStatement(`{fkeys/User {id 103, name "C", email "c@acme.com"}}`)
-      .catch((reason: any) => {
-        assert(reason) // "FOREIGN KEY constraint failed"
-      })
-      assert(!x)
+      }
+
+      workflow Q1 {
+        {User? {},
+        @join Resource {email? User.email},
+        @into {email Resource.email, name User.name}}
+      }
+      `
+    );
+    const crr = async (id: number, email: string) => {
+      const r1 = await parseAndEvaluateStatement(`{fkeys/Resource {id ${id}, email "${email}"}}`);
+      assert(isInstanceOfType(r1, 'fkeys/Resource'));
+    };
+    await crr(1, 'a@acme.com');
+    await crr(2, 'b@acme.com');
+    const cru = async (id: number, name: string, email?: string) => {
+      const u1 = await parseAndEvaluateStatement(
+        email
+          ? `{fkeys/User {id ${id}, name "${name}", email "${email}"}}`
+          : `{fkeys/User {id ${id}, name "${name}"}}`
+      );
+      assert(isInstanceOfType(u1, 'fkeys/User'));
+    };
+    await cru(101, 'user1', 'a@acme.com');
+    await cru(102, 'user2');
+    await cru(103, 'user3', 'c@acme.com').catch((reason: any) => {
+      assert(reason); // "FOREIGN KEY constraint failed"
+    });
+    await cru(104, "user4", 'a@acme.com')
+    await cru(105, "user5", "b@acme.com")
+    const rs1 = await parseAndEvaluateStatement(`{fkeys/Q1 {}}`);
+    assert(rs1.length === 3)
+    rs1.forEach((entry: any) => {
+      const n = entry.name
+      const e = entry.email
+      if (e === 'a@acme.com') {
+        assert(n === 'user1' || n === 'user4')
+      } else if (e === 'b@acme.com') {
+        assert(n === 'user5')
+      } else {
+        assert(false)
+      }
     })
-  })
+  });
+});

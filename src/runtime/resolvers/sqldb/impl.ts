@@ -13,7 +13,15 @@ import {
   newInstanceAttributes,
   Relationship,
 } from '../../module.js';
-import { escapeFqName, makeFqName, nameToPath } from '../../util.js';
+import {
+  escapeFqName,
+  escapeQueryName,
+  isFqName,
+  makeFqName,
+  nameToPath,
+  splitFqName,
+  splitRefs,
+} from '../../util.js';
 import { JoinInfo, Resolver } from '../interface.js';
 import { asTableReference } from './dbutil.js';
 import {
@@ -41,6 +49,7 @@ import { OpenAIEmbeddings } from '@langchain/openai';
 import { Embeddings } from '@langchain/core/embeddings';
 import { DeletedFlagAttributeName, ParentAttributeName, PathAttributeName } from '../../defs.js';
 import { logger } from '../../logger.js';
+import { JoinSpec } from '../../../language/generated/ast.js';
 
 function maybeFindIdAttributeName(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
@@ -251,13 +260,18 @@ export class SqlDbResolver extends Resolver {
 
   public override async queryByJoin(
     inst: Instance,
-    joinsSpec: JoinInfo[],
+    joinInfo: JoinInfo[],
     intoSpec: Map<string, string>,
-    distinct: boolean = false
+    distinct: boolean = false,
+    rawJoinSpec?: JoinSpec
   ): Promise<any> {
     const tableName = asTableReference(inst.moduleName, inst.name);
     const joinClauses: JoinClause[] = [];
-    this.processJoinInfo(tableName, inst, joinsSpec, joinClauses);
+    if (rawJoinSpec) {
+      this.processRawJoinSpec(tableName, inst, rawJoinSpec, joinClauses);
+    } else {
+      this.processJoinInfo(tableName, inst, joinInfo, joinClauses);
+    }
     intoSpec.forEach((v: string, k: string) => {
       const p = nameToPath(v);
       const mn = p.hasModule() ? p.getModuleName() : inst.moduleName;
@@ -275,13 +289,45 @@ export class SqlDbResolver extends Resolver {
     return rslt;
   }
 
+  private processRawJoinSpec(
+    tableName: string,
+    inst: Instance,
+    rawJoinSpec: JoinSpec,
+    joinClauses: JoinClause[]
+  ) {
+    const n = rawJoinSpec.name;
+    let joinTableName = '';
+    if (isFqName(n)) {
+      const parts = splitFqName(n);
+      joinTableName = asTableReference(parts[0], parts[1]);
+    } else {
+      joinTableName = asTableReference(inst.moduleName, n);
+    }
+    const refParts = splitRefs(rawJoinSpec.rhs);
+    if (refParts.length != 2) {
+      throw new Error(`Invalid join referene - ${rawJoinSpec.rhs}`);
+    }
+    if (refParts[0] !== inst.name) {
+      throw new Error(`Invalid table name in join reference - ${rawJoinSpec.rhs}`);
+    }
+    const joinOn = makeJoinOn(
+      `${joinTableName}.${escapeQueryName(rawJoinSpec.lhs)}`,
+      `${tableName}.${escapeQueryName(refParts[1])}`,
+      rawJoinSpec.op
+    );
+    joinClauses.push({
+      tableName: joinTableName,
+      joinOn: joinOn,
+    });
+  }
+
   private processJoinInfo(
     joinParentTable: string,
     joinInst: Instance,
-    joinsSpec: JoinInfo[],
+    joinInfo: JoinInfo[],
     joinClauses: JoinClause[]
   ) {
-    joinsSpec.forEach((ji: JoinInfo) => {
+    joinInfo.forEach((ji: JoinInfo) => {
       const rel: Relationship = ji.relationship;
       const joinTableName = asTableReference(ji.queryInstance.moduleName, ji.queryInstance.name);
       let joinOn: JoinOn | JoinOn[] | undefined;

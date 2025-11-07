@@ -1,3 +1,4 @@
+import { JoinSpec } from '../../language/generated/ast.js';
 import {
   callPostEventOnSubscription,
   Environment,
@@ -127,11 +128,14 @@ export class Resolver {
 
   public async queryByJoin(
     inst: Instance,
-    joinsSpec: JoinInfo[],
+    joinInfo: JoinInfo[],
     intoSpec: Map<string, string>,
-    distinct: boolean = false
+    distinct: boolean = false,
+    rawJoinSpec?: JoinSpec
   ): Promise<any> {
-    return this.notImpl(`queryByJoin(${inst}, ${joinsSpec}, ${intoSpec}, ${distinct})`);
+    return this.notImpl(
+      `queryByJoin(${inst}, ${joinInfo}, ${intoSpec}, ${distinct} ${rawJoinSpec})`
+    );
   }
 
   /**
