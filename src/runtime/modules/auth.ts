@@ -380,16 +380,44 @@ entity Session {
   await Auth.getUserInfoByEmail(getUserByEmail.email)
 }
 
+@public workflow getUsersDetail {
+  {User? {},
+   UserRole {Role? {}},
+   @into {
+    id User.id,
+    email User.email,
+    firstName User.firstName,
+    lastName User.lastName,
+    lastLoginTime User.lastLoginTime,
+    status User.status,
+    role Role.name}
+  }
+}
+
 @public workflow inviteUser {
-  await Auth.inviteUser(inviteUser.email, inviteUser.firstName, inviteUser.lastName, inviteUser.userData)
+  await Auth.inviteUser(inviteUser.email, inviteUser.firstName, inviteUser.lastName, inviteUser.userData, inviteUser.role)
 }
 
 @public workflow inviteUsers {
   for u in inviteUsers.users {
-    {inviteUser {email u.email, firstName u.firstName, lastName u.lastName, userData u.userData}}
+    {inviteUser {email u.email, firstName u.firstName, lastName u.lastName, userData u.userData, role u.role}}
   }
 }
 
+record ResendInvitationResult {
+  message String
+}
+
+@public workflow resendInvitation {
+  {User {email? resendInvitation.email}} @as [u]
+  if (u and u.status == "Invited") {
+    await Auth.resendInvitationUser(u.email)
+  } else if (u) {
+    {ResendInvitationResult {message "User is not invited"}}
+  } else {
+    {ResendInvitationResult {message "User not found"}}
+  }
+}
 
 @public workflow acceptInvitation {
   await Auth.acceptInvitationUser(acceptInvitation.email, acceptInvitation.tempPassword, acceptInvitation.newPassword)
@@ -1336,6 +1364,7 @@ export async function inviteUser(
   firstName: string,
   lastName: string,
   userData: Map<string, any> | undefined,
+  role: string | undefined,
   env: Environment
 ): Promise<object> {
   const needCommit = env ? false : true;
@@ -1343,9 +1372,17 @@ export async function inviteUser(
   const f = async () => {
     try {
       let invitationInfo: any;
-      await fetchAuthImpl().inviteUser(email, firstName, lastName, userData, env, (info: any) => {
-        invitationInfo = info;
-      });
+      await fetchAuthImpl().inviteUser(
+        email,
+        firstName,
+        lastName,
+        userData,
+        role,
+        env,
+        (info: any) => {
+          invitationInfo = info;
+        }
+      );
 
       return {
         email: invitationInfo.email,
@@ -1356,6 +1393,28 @@ export async function inviteUser(
       };
     } catch (err: any) {
       logger.error(`User invitation failed: ${err.message}`);
+      throw err;
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
+export async function resendInvitationUser(email: string, env: Environment): Promise<object> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    try {
+      await fetchAuthImpl().resendInvitation(email, env);
+      return {
+        email: email,
+        message: 'Invitation resent successfully',
+      };
+    } catch (err: any) {
+      logger.error(`Invitation resend failed: ${err.message}`);
       throw err;
     }
   };
@@ -1413,6 +1472,7 @@ export function requireAuth(moduleName: string, eventName: string): boolean {
         eventName == 'confirmForgotPassword' ||
         eventName == 'refreshToken' ||
         eventName == 'acceptInvitation' ||
+        eventName == 'resendInvitation' ||
         eventName == 'callback');
     return !f;
   } else {

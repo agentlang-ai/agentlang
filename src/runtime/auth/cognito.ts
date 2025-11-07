@@ -1029,6 +1029,7 @@ export class CognitoAuth implements AgentlangAuth {
     firstName: string,
     lastName: string,
     userData: Map<string, any> | undefined,
+    role: string | undefined,
     env: Environment,
     cb: InviteUserCallback
   ): Promise<void> {
@@ -1092,7 +1093,9 @@ export class CognitoAuth implements AgentlangAuth {
       if (response.$metadata.httpStatusCode === 200) {
         logger.info(`User invitation successful for: ${email}`);
 
-        await ensureUser(email, firstName, lastName, env, 'Invited');
+        const localUser = await ensureUser(email, firstName, lastName, env, 'Invited');
+        const userId = localUser.lookup('id');
+        await ensureUserRoles(userId, [role || 'user'], env);
 
         const invitationInfo: InvitationInfo = {
           email: email,
@@ -1122,6 +1125,61 @@ export class CognitoAuth implements AgentlangAuth {
         errorMessage: sanitizeErrorMessage(err.message),
       });
       handleCognitoError(err, 'inviteUser');
+    }
+  }
+
+  async resendInvitation(email: string, _env: Environment): Promise<void> {
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+      });
+
+      try {
+        const getUserCommand = new AdminGetUserCommand({
+          UserPoolId: this.fetchUserPoolId(),
+          Username: email,
+        });
+        await client.send(getUserCommand);
+      } catch (err: any) {
+        if (err.name === 'UserNotFoundException') {
+          throw new UserNotFoundError(`User ${email} not found. Cannot resend invitation.`);
+        }
+        throw err;
+      }
+
+      const command = new AdminCreateUserCommand({
+        UserPoolId: this.fetchUserPoolId(),
+        Username: email,
+        DesiredDeliveryMediums: ['EMAIL'],
+        MessageAction: 'RESEND',
+      });
+
+      logger.debug(`Attempting to resend invitation for user: ${email}`);
+      const response = await client.send(command);
+
+      if (response.$metadata.httpStatusCode === 200) {
+        logger.info(`Invitation resent successfully for: ${email}`);
+      } else {
+        logger.error(
+          `Failed to resend invitation with HTTP status ${response.$metadata.httpStatusCode}`,
+          {
+            email: email,
+            statusCode: response.$metadata.httpStatusCode,
+          }
+        );
+        throw new BadRequestError(
+          `Failed to resend invitation with status ${response.$metadata.httpStatusCode}`
+        );
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestError || err instanceof UserNotFoundError) {
+        throw err;
+      }
+      logger.error(`Resend invitation error for ${email}:`, {
+        errorName: err.name,
+        errorMessage: sanitizeErrorMessage(err.message),
+      });
+      handleCognitoError(err, 'resendInvitation');
     }
   }
 
