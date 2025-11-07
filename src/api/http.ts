@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import express, { Request, Response } from 'express';
+import * as path from 'path';
 import {
   getAllChildRelationships,
   getAllEntityNames,
@@ -14,6 +15,7 @@ import {
   getModuleNames,
   Record,
 } from '../runtime/module.js';
+import { isNodeEnv } from '../utils/runtime.js';
 import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
@@ -29,13 +31,25 @@ import {
   restoreFqName,
   nameToPath,
   walkDownInstancePath,
+  DefaultFileHandlingDirectory,
 } from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
 import { isMonitoringEnabled } from '../runtime/state.js';
 import { flushMonitoringData } from '../runtime/modules/core.js';
+import { Config } from '../runtime/state.js';
+import {
+  findFileByFilename,
+  createFileRecord,
+  deleteFileRecord,
+} from '../runtime/modules/files.js';
 
-export function startServer(appSpec: ApplicationSpec, port: number, host?: string) {
+export async function startServer(
+  appSpec: ApplicationSpec,
+  port: number,
+  host?: string,
+  config?: Config
+) {
   const app = express();
   app.use(express.json());
 
@@ -54,6 +68,38 @@ export function startServer(appSpec: ApplicationSpec, port: number, host?: strin
     next();
   });
 
+  let uploadDir: string | null = null;
+  let upload: any = null;
+
+  if (isNodeEnv) {
+    const multer = (await import('multer')).default;
+    const fs = await import('fs');
+
+    uploadDir = path.join(process.cwd(), DefaultFileHandlingDirectory);
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const storage = multer.diskStorage({
+      destination: (req: any, file: any, cb: any) => {
+        cb(null, uploadDir!);
+      },
+      filename: (req: any, file: any, cb: any) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = path.extname(file.originalname);
+        const basename = path.basename(file.originalname, ext);
+        cb(null, `${basename}-${uniqueSuffix}${ext}`);
+      },
+    });
+
+    upload = multer({
+      storage: storage,
+      limits: {
+        fileSize: 1024 * 1024 * 1024,
+      },
+    });
+  }
+
   const appName: string = appSpec.name;
   const appVersion: string = appSpec.version;
 
@@ -64,6 +110,32 @@ export function startServer(appSpec: ApplicationSpec, port: number, host?: strin
   app.get('/meta', (req: Request, res: Response) => {
     handleMetaGet(req, res);
   });
+
+  if (isNodeEnv && upload && uploadDir) {
+    app.post('/uploadFile', upload.single('file'), (req: Request, res: Response) => {
+      handleFileUpload(req, res, config);
+    });
+
+    app.get('/downloadFile/:filename', (req: Request, res: Response) => {
+      handleFileDownload(req, res, uploadDir!, config);
+    });
+
+    app.post('/deleteFile/:filename', (req: Request, res: Response) => {
+      handleFileDelete(req, res, uploadDir!, config);
+    });
+  } else {
+    app.post('/uploadFile', (req: Request, res: Response) => {
+      res.status(501).send({ error: 'File upload is only supported in Node.js environment' });
+    });
+
+    app.get('/downloadFile/:filename', (req: Request, res: Response) => {
+      res.status(501).send({ error: 'File download is only supported in Node.js environment' });
+    });
+
+    app.post('/deleteFile/:filename', (req: Request, res: Response) => {
+      res.status(501).send({ error: 'File delete is only supported in Node.js environment' });
+    });
+  }
 
   getAllEventNames().forEach((eventNames: string[], moduleName: string) => {
     const m = fetchModule(moduleName);
@@ -670,5 +742,252 @@ async function handleMetaGet(req: Request, res: Response): Promise<void> {
   } catch (err: any) {
     logger.error(err);
     res.status(500).send(err.toString());
+  }
+}
+
+async function handleFileUpload(
+  req: Request & { file?: Express.Multer.File },
+  res: Response,
+  config?: Config
+): Promise<void> {
+  try {
+    if (!isNodeEnv) {
+      res.status(501).send({ error: 'File upload is only supported in Node.js environment' });
+      return;
+    }
+
+    if (!config?.service?.httpFileHandling) {
+      res
+        .status(403)
+        .send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
+      return;
+    }
+
+    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).send({ error: 'No file uploaded' });
+      return;
+    }
+
+    const file = req.file;
+
+    try {
+      await createFileRecord(
+        {
+          filename: file.filename,
+          originalName: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          path: file.path,
+          uploadedBy: sessionInfo.userId,
+        },
+        sessionInfo
+      );
+    } catch (dbErr: any) {
+      logger.error(`Failed to create file record in database: ${dbErr.message}`);
+    }
+
+    const fileInfo = {
+      success: true,
+      filename: file.filename,
+      originalName: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      path: file.path,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: sessionInfo.userId,
+    };
+
+    logger.info(`File uploaded successfully: ${file.originalname} -> ${file.filename}`);
+
+    res.contentType('application/json');
+    res.send(fileInfo);
+  } catch (err: any) {
+    logger.error(`File upload error: ${err}`);
+    res.status(500).send({ error: err.message || 'File upload failed' });
+  }
+}
+
+async function handleFileDownload(
+  req: Request,
+  res: Response,
+  uploadDir: string,
+  config?: Config
+): Promise<void> {
+  try {
+    if (!isNodeEnv) {
+      res.status(501).send({ error: 'File download is only supported in Node.js environment' });
+      return;
+    }
+
+    if (!config?.service?.httpFileHandling) {
+      res
+        .status(403)
+        .send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
+      return;
+    }
+
+    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+
+    const filename = req.params.filename;
+
+    if (!filename) {
+      res.status(400).send({ error: 'Filename is required' });
+      return;
+    }
+
+    const file = await findFileByFilename(filename, sessionInfo);
+
+    if (!file) {
+      res.status(404).send({ error: 'File not found' });
+      return;
+    }
+
+    const sanitizedFilename = path.basename(filename);
+
+    const fs = await import('fs');
+
+    const filePath = path.join(uploadDir, sanitizedFilename);
+
+    if (!fs.existsSync(filePath)) {
+      res.status(404).send({ error: 'File not found' });
+      return;
+    }
+
+    const realPath = fs.realpathSync(filePath);
+    const realUploadDir = fs.realpathSync(uploadDir);
+    if (!realPath.startsWith(realUploadDir)) {
+      res.status(403).send({ error: 'Access denied' });
+      return;
+    }
+
+    const stats = fs.statSync(filePath);
+
+    const ext = path.extname(sanitizedFilename).toLowerCase();
+    const mimeTypes: { [key: string]: string } = {
+      '.pdf': 'application/pdf',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.txt': 'text/plain',
+      '.json': 'application/json',
+      '.xml': 'application/xml',
+      '.zip': 'application/zip',
+      '.csv': 'text/csv',
+      '.doc': 'application/msword',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xls': 'application/vnd.ms-excel',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    };
+
+    const mimeType = mimeTypes[ext] || 'application/octet-stream';
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Length', stats.size);
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizedFilename}"`);
+    res.setHeader('Cache-Control', 'no-cache');
+
+    logger.info(`File download: ${sanitizedFilename}`);
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    fileStream.on('error', (err: any) => {
+      logger.error(`File stream error: ${err}`);
+      if (!res.headersSent) {
+        res.status(500).send({ error: 'Error streaming file' });
+      }
+    });
+  } catch (err: any) {
+    logger.error(`File download error: ${err}`);
+    if (!res.headersSent) {
+      res.status(500).send({ error: err.message || 'File download failed' });
+    }
+  }
+}
+
+async function handleFileDelete(
+  req: Request,
+  res: Response,
+  uploadDir: string,
+  config?: Config
+): Promise<void> {
+  try {
+    if (!isNodeEnv) {
+      res.status(501).send({ error: 'File delete is only supported in Node.js environment' });
+      return;
+    }
+
+    if (!config?.service?.httpFileHandling) {
+      res
+        .status(403)
+        .send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
+      return;
+    }
+
+    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+
+    const filename = req.params.filename;
+
+    if (!filename) {
+      res.status(400).send({ error: 'Filename is required' });
+      return;
+    }
+
+    const file = await findFileByFilename(filename, sessionInfo);
+
+    if (!file) {
+      res.status(404).send({ error: 'File not found' });
+      return;
+    }
+
+    const sanitizedFilename = path.basename(filename);
+
+    const fs = await import('fs');
+
+    const filePath = path.join(uploadDir, sanitizedFilename);
+
+    if (!fs.existsSync(filePath)) {
+      res.status(404).send({ error: 'File not found' });
+      return;
+    }
+
+    const realPath = fs.realpathSync(filePath);
+    const realUploadDir = fs.realpathSync(uploadDir);
+    if (!realPath.startsWith(realUploadDir)) {
+      res.status(403).send({ error: 'Access denied' });
+      return;
+    }
+
+    await deleteFileRecord(filename, sessionInfo);
+
+    fs.unlinkSync(filePath);
+
+    logger.info(`File deleted: ${sanitizedFilename}`);
+
+    res.status(200).send({
+      message: 'File deleted successfully',
+      filename: sanitizedFilename,
+    });
+  } catch (err: any) {
+    logger.error(`File delete error: ${err}`);
+    if (!res.headersSent) {
+      res.status(500).send({ error: err.message || 'File delete failed' });
+    }
   }
 }

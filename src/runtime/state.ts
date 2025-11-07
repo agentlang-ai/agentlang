@@ -6,10 +6,12 @@ export const ConfigSchema = z.object({
     .object({
       port: z.number(),
       host: z.string().optional(),
+      httpFileHandling: z.boolean().default(false),
     })
     .default({
       port: 8080,
       host: 'localhost',
+      httpFileHandling: false,
     }),
   store: z
     .discriminatedUnion('type', [
