@@ -68,9 +68,11 @@ export interface AgentlangAuth {
     firstName: string,
     lastName: string,
     userData: Map<string, any> | undefined,
+    role: string | undefined,
     env: Environment,
     cb: InviteUserCallback
   ): Promise<void>;
+  resendInvitation(email: string, env: Environment): Promise<void>;
   acceptInvitation(
     email: string,
     tempPassword: string,
