@@ -35,8 +35,6 @@ import {
 } from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
-import { isMonitoringEnabled } from '../runtime/state.js';
-import { flushMonitoringData } from '../runtime/modules/core.js';
 import { Config } from '../runtime/state.js';
 import {
   findFileByFilename,
@@ -187,12 +185,11 @@ export async function startServer(
   }
 }
 
-function ok(res: Response, monitorId?: string) {
+function ok(res: Response) {
   return (value: Result) => {
     const result: Result = normalizedResult(value);
     res.contentType('application/json');
     res.send(JSON.stringify(result));
-    if (monitorId) flushMonitoringData(monitorId);
   };
 }
 
@@ -206,11 +203,10 @@ function statusFromErrorType(err: any): number {
   }
 }
 
-function internalError(res: Response, monitorId?: string) {
+function internalError(res: Response) {
   return (reason: any) => {
     logger.error(reason);
     res.status(statusFromErrorType(reason)).send(reason.message);
-    if (monitorId) flushMonitoringData(monitorId);
   };
 }
 
@@ -277,7 +273,6 @@ async function handleEventPost(
   req: Request,
   res: Response
 ): Promise<void> {
-  let instId: string | undefined = undefined;
   try {
     const sessionInfo = await verifyAuth(moduleName, eventName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
@@ -289,12 +284,10 @@ async function handleEventPost(
       eventName,
       objectAsInstanceAttributes(req.body)
     ).setAuthContext(sessionInfo);
-    if (isMonitoringEnabled()) instId = inst.getId();
-    evaluate(inst, ok(res, instId)).catch(internalError(res, instId));
+    evaluate(inst, ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
     res.status(500).send(err.toString());
-    if (instId) flushMonitoringData(instId);
   }
 }
 

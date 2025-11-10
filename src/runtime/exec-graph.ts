@@ -40,6 +40,7 @@ import {
   isEventInstance,
   RecordType,
 } from './module.js';
+import { flushMonitoringData } from './modules/core.js';
 import { isOpenApiEventInstance, isOpenApiModule } from './openapi.js';
 import { isMonitoringEnabled } from './state.js';
 import {
@@ -411,6 +412,9 @@ export async function executeEvent(
   } finally {
     if (!txnRolledBack && env !== undefined && activeEnv === undefined) {
       await env.commitAllTransactions();
+    }
+    if (isMonitoringEnabled()) {
+      await flushMonitoringData(eventInstance.getId());
     }
   }
 }

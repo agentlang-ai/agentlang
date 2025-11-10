@@ -324,7 +324,7 @@ export async function flushMonitoringData(monitorId: string) {
         undefined,
         env
       );
-      env.commitAllTransactions();
+      await env.commitAllTransactions();
     } else {
       logger.warn(`Failed to locate monitor with id ${monitorId}`);
     }

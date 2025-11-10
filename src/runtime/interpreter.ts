@@ -92,6 +92,7 @@ import {
   addDeleteAudit,
   addUpdateAudit,
   createSuspension,
+  flushMonitoringData,
   maybeCancelTimer,
   setTimerRunning,
 } from './modules/core.js';
@@ -862,6 +863,9 @@ export let evaluate = async function (
   } finally {
     if (!txnRolledBack && env !== undefined && activeEnv === undefined) {
       await env.commitAllTransactions();
+    }
+    if (isMonitoringEnabled()) {
+      await flushMonitoringData(eventInstance.getId());
     }
   }
 };
