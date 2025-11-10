@@ -80,7 +80,6 @@ export class MonitorEntry {
   flagAsFlowStep(): MonitorEntry {
     this.llm = true;
     this.planner = false;
-    this.decision = false;
     this.flowStep = true;
     return this;
   }
@@ -88,7 +87,6 @@ export class MonitorEntry {
   flagAsDecision(): MonitorEntry {
     this.llm = true;
     this.planner = false;
-    this.flowStep = false;
     this.decision = true;
     return this;
   }
@@ -153,6 +151,7 @@ export class Monitor {
   private lastEntry: MonitorEntry | undefined = undefined;
   private lastEntrySetAtMs: number = 0;
   private totalLatency: number = 0;
+  private timestamp: number;
 
   private static MAX_REGISTRY_SIZE = 25;
 
@@ -160,6 +159,7 @@ export class Monitor {
     this.eventInstance = eventInstance;
     this.id = eventInstance ? eventInstance.getId() : crypto.randomUUID();
     this.user = user;
+    this.timestamp = Date.now();
     while (monitorRegistry.length >= Monitor.MAX_REGISTRY_SIZE) {
       monitorRegistry.shift();
     }
@@ -292,6 +292,7 @@ export class Monitor {
     if (this.user) {
       r.user = this.user;
     }
+    r.timestamp = this.timestamp;
     return r;
   }
 }
@@ -308,4 +309,18 @@ export function getMonitorsForEvent(eventName: string): Monitor[] {
   return monitorRegistry.filter((m: Monitor) => {
     return m.getEventInstance()?.getFqName() === eventName;
   });
+}
+
+export function identifyMonitorNode(monitorNode: any): 'event' | 'agent' | 'decision' | 'flow' {
+  if (monitorNode.agent) {
+    return 'agent';
+  } else if (monitorNode.llm?.isFlowStep) {
+    return 'flow';
+  } else if (monitorNode.llm?.isDecision) {
+    return 'decision';
+  } else if (monitorNode.llm) {
+    return 'agent';
+  } else {
+    return 'event';
+  }
 }

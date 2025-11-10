@@ -1957,10 +1957,14 @@ async function iterateOnFlow(
       `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
     );
     const isfxc = agent.isFlowExecutor();
-    if (isfxc || agent.isDecisionExecutor()) env.setFlowContext(context);
+    const isdec = agent.isDecisionExecutor();
+    if (isfxc || isdec) env.setFlowContext(context);
     else env.setFlowContext(initContext);
     if (monitoringEnabled) {
-      env.appendEntryToMonitor(step);
+      env.appendEntryToMonitor(step); /*.flagMonitorEntryAsFlowStep()
+      if (isdec) {
+        env.flagMonitorEntryAsDecision()
+      }*/
     }
     await agentInvoke(agent, '', env);
     if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());

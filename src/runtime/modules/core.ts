@@ -93,7 +93,7 @@ workflow fetchEventMonitor {
 
 workflow fetchEventMonitors {
   {Monitor {eventName? fetchEventMonitors.eventName}} @as result
-  Core.eventMonitorsData(result)
+  Core.eventMonitorsData(result, fetchEventMonitors.limit, fetchEventMonitors.offset)
 }
 
 @public event EventMonitor {
@@ -362,12 +362,19 @@ export function eventMonitorData(inst: Instance | null | undefined): any {
   else return null;
 }
 
-export function eventMonitorsData(insts: Instance[] | null | undefined): any {
-  if (insts)
+export function eventMonitorsData(
+  insts: Instance[] | null | undefined,
+  limit?: number,
+  offset?: number
+): any {
+  if (insts) {
+    if (limit !== undefined && offset !== undefined) {
+      insts = limit === 0 ? insts : insts.slice(offset, offset + limit);
+    }
     return insts.map((inst: Instance) => {
       return eventMonitorData(inst);
     });
-  else return null;
+  } else return null;
 }
 
 export async function validateModule(moduleDef: string): Promise<Instance> {

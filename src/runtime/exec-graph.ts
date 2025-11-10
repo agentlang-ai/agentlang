@@ -440,6 +440,11 @@ export async function executeEventHelper(eventInstance: Instance, env?: Environm
     if (g) {
       await executeGraph(g, env);
     } else {
+      if (isMonitoringEnabled()) {
+        env.appendEntryToMonitor(
+          `{${eventInstance.getFqName()} {message "${eventInstance.lookup('message')}}}`
+        );
+      }
       await handleAgentInvocation(eventInstance, env);
     }
     if (isLocalEnv) {
