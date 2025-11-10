@@ -176,6 +176,10 @@ function makePostgresDataSource(
     database: process.env.POSTGRES_DB || config?.dbname || 'postgres',
     synchronize: synchronize,
     entities: entities,
+    invalidWhereValuesBehavior: {
+      null: 'sql-null',
+      undefined: 'ignore',
+    },
   });
 }
 
@@ -198,6 +202,10 @@ function makeSqliteDataSource(
     database: config?.dbname || mkDbName(),
     synchronize: synchronize,
     entities: entities,
+    invalidWhereValuesBehavior: {
+      null: 'sql-null',
+      undefined: 'ignore',
+    },
   });
 }
 
@@ -738,13 +746,25 @@ function mkBetweenClause(tableName: string | undefined, k: string, queryVals: an
 function objectToWhereClause(queryObj: object, queryVals: any, tableName?: string): string {
   const clauses: Array<string> = new Array<string>();
   Object.entries(queryObj).forEach((value: [string, any]) => {
-    const op: string = value[1] as string;
+    let op: string = value[1] as string;
+    const k = value[0];
+    const isnullcheck = queryVals[k] === null;
+    if (isnullcheck) {
+      if (op === '=') {
+        op = 'IS';
+      } else if (op === '<>' || op === '!=') {
+        op = 'IS NOT';
+      } else {
+        throw new Error(`Operator ${op} cannot be appplied to SQL NULL`);
+      }
+    }
+    const v = isnullcheck ? 'NULL' : `:${k}`;
     const clause =
       op == 'between'
-        ? mkBetweenClause(tableName, value[0], queryVals)
+        ? mkBetweenClause(tableName, k, queryVals)
         : tableName
-          ? `"${tableName}"."${value[0]}" ${op} :${value[0]}`
-          : `"${value[0]}" ${op} :${value[0]}`;
+          ? `"${tableName}"."${k}" ${op} ${v}`
+          : `"${k}" ${op} ${v}`;
     clauses.push(clause);
   });
   return clauses.join(' AND ');
@@ -753,8 +773,17 @@ function objectToWhereClause(queryObj: object, queryVals: any, tableName?: strin
 function objectToRawWhereClause(queryObj: object, queryVals: any, tableName?: string): string {
   const clauses: Array<string> = new Array<string>();
   Object.entries(queryObj).forEach((value: [string, any]) => {
-    const op: string = value[1] as string;
+    let op: string = value[1] as string;
     const k: string = value[0];
+    if (queryVals[k] === null) {
+      if (op === '=') {
+        op = 'IS';
+      } else if (op === '<>' || op === '!=') {
+        op = 'IS NOT';
+      } else {
+        throw new Error(`Operator ${op} cannot be appplied to SQL NULL`);
+      }
+    }
     let clause = '';
     if (op == 'between') {
       clause = mkBetweenClause(tableName, k, queryVals);

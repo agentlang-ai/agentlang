@@ -224,6 +224,14 @@ describe('foreign-keys', () => {
         @join Resource {email? User.email},
         @into {email Resource.email, name User.name}}
       }
+
+      workflow UsersNotLinked {
+        {User {email? null}}
+      }
+
+      workflow UsersLinked {
+        {User {email? <> null}}
+      }
       `
     );
     const crr = async (id: number, email: string) => {
@@ -260,6 +268,16 @@ describe('foreign-keys', () => {
         assert(false)
       }
     })
+    const notLinked = await parseAndEvaluateStatement(`{fkeys/UsersNotLinked {}}`)
+    assert(notLinked.length == 1)
+    assert(notLinked.every((inst: Instance) => {
+        return isInstanceOfType(inst, 'fkeys/User')
+    }))
+    const linked = await parseAndEvaluateStatement(`{fkeys/UsersLinked {}}`)
+    assert(linked.length == 3)
+    assert(linked.every((inst: Instance) => {
+        return isInstanceOfType(inst, 'fkeys/User')
+    }))
     const au1 = await parseAndEvaluateStatement(`{agentlang.auth/User {email "kk@acme.com", firstName "Kay", lastName "K"}}`)
     assert(isInstanceOfType(au1, 'agentlang.auth/User'))
     const r1 = await parseAndEvaluateStatement(`{fkeys/R {id 1001, email "kk@acme.com"}}`)
