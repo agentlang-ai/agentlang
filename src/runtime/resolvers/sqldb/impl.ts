@@ -303,7 +303,11 @@ export class SqlDbResolver extends Resolver {
     } else {
       joinTableName = asTableReference(inst.moduleName, n);
     }
-    const refParts = splitRefs(rawJoinSpec.rhs);
+    let rhs = rawJoinSpec.rhs;
+    if (isFqName(rhs)) {
+      rhs = splitFqName(rhs)[1];
+    }
+    const refParts = splitRefs(rhs);
     if (refParts.length != 2) {
       throw new Error(`Invalid join referene - ${rawJoinSpec.rhs}`);
     }
