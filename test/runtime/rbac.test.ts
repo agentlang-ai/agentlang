@@ -225,6 +225,12 @@ describe('foreign-keys', () => {
         @into {email Resource.resEmail, name User.name}}
       }
 
+      workflow Q2 {
+        {User? {},
+        @left_join Resource {resEmail? User.email},
+        @into {email Resource.resEmail, name User.name}}
+      }
+
       workflow UsersNotLinked {
         {User {email? null}}
       }
@@ -268,6 +274,8 @@ describe('foreign-keys', () => {
         assert(false)
       }
     })
+    const rs2 = await parseAndEvaluateStatement(`{fkeys/Q2 {}}`);
+    assert(rs2.length == 4)
     const notLinked = await parseAndEvaluateStatement(`{fkeys/UsersNotLinked {}}`)
     assert(notLinked.length == 1)
     assert(notLinked.every((inst: Instance) => {

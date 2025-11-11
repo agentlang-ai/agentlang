@@ -146,6 +146,7 @@ export type JoinClause = {
   tableName: string;
   queryObject?: object;
   queryValues?: object;
+  joinType?: string; // 'join' | 'inner join' | 'left join' | 'right join' | 'full join'
   joinOn: JoinOn | JoinOn[];
 };
 
@@ -894,8 +895,9 @@ export async function getManyByJoin(
   }
   const joinSql = new Array<string>();
   joinClauses.forEach((jc: JoinClause) => {
+    const joinType = jc.joinType ? jc.joinType : 'inner join';
     joinSql.push(
-      `inner join ${jc.tableName} as ${jc.tableName} on ${joinOnAsSql(jc.joinOn)} AND ${jc.tableName}.${DeletedFlagAttributeName} = false`
+      `${joinType} ${jc.tableName} as ${jc.tableName} on ${joinOnAsSql(jc.joinOn)} AND ${jc.tableName}.${DeletedFlagAttributeName} = false`
     );
     if (jc.queryObject) {
       const q = objectToRawWhereClause(jc.queryObject, jc.queryValues, jc.tableName);

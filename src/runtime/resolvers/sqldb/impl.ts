@@ -318,6 +318,7 @@ export class SqlDbResolver extends Resolver {
     joinClauses.push({
       tableName: joinTableName,
       joinOn: joinOn,
+      joinType: rawJoinSpec.type.substring(1).replace('_', ' '),
     });
   }
 
