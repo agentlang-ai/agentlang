@@ -198,3 +198,101 @@ describe('Issue-350', () => {
         })
     })
 })
+
+describe('foreign-keys', () => {
+  test('refs as foreign keys', async () => {
+    await doInternModule(
+      'fkeys',
+      `entity Resource {
+        id Int @id,
+        resEmail Email @unique
+      }
+
+      entity User {
+        id Int @id,
+        email @ref(fkeys/Resource.resEmail) @optional,
+        name String
+      }
+
+      entity R {
+        id Int @id,
+        email @ref(agentlang.auth/User.email) @optional
+      }
+
+      workflow Q1 {
+        {User? {},
+        @join Resource {resEmail? User.email},
+        @into {email Resource.resEmail, name User.name}}
+      }
+
+      workflow Q2 {
+        {User? {},
+        @left_join Resource {resEmail? User.email},
+        @into {email Resource.resEmail, name User.name}}
+      }
+
+      workflow UsersNotLinked {
+        {User {email? null}}
+      }
+
+      workflow UsersLinked {
+        {User {email? <> null}}
+      }
+      `
+    );
+    const crr = async (id: number, email: string) => {
+      const r1 = await parseAndEvaluateStatement(`{fkeys/Resource {id ${id}, resEmail "${email}"}}`);
+      assert(isInstanceOfType(r1, 'fkeys/Resource'));
+    };
+    await crr(1, 'a@acme.com');
+    await crr(2, 'b@acme.com');
+    const cru = async (id: number, name: string, email?: string) => {
+      const u1 = await parseAndEvaluateStatement(
+        email
+          ? `{fkeys/User {id ${id}, name "${name}", email "${email}"}}`
+          : `{fkeys/User {id ${id}, name "${name}"}}`
+      );
+      assert(isInstanceOfType(u1, 'fkeys/User'));
+    };
+    await cru(101, 'user1', 'a@acme.com');
+    await cru(102, 'user2');
+    await cru(103, 'user3', 'c@acme.com').catch((reason: any) => {
+      assert(reason); // "FOREIGN KEY constraint failed"
+    });
+    await cru(104, "user4", 'a@acme.com')
+    await cru(105, "user5", "b@acme.com")
+    const rs1 = await parseAndEvaluateStatement(`{fkeys/Q1 {}}`);
+    assert(rs1.length === 3)
+    rs1.forEach((entry: any) => {
+      const n = entry.name
+      const e = entry.email
+      if (e === 'a@acme.com') {
+        assert(n === 'user1' || n === 'user4')
+      } else if (e === 'b@acme.com') {
+        assert(n === 'user5')
+      } else {
+        assert(false)
+      }
+    })
+    const rs2 = await parseAndEvaluateStatement(`{fkeys/Q2 {}}`);
+    assert(rs2.length == 4)
+    const notLinked = await parseAndEvaluateStatement(`{fkeys/UsersNotLinked {}}`)
+    assert(notLinked.length == 1)
+    assert(notLinked.every((inst: Instance) => {
+        return isInstanceOfType(inst, 'fkeys/User')
+    }))
+    const linked = await parseAndEvaluateStatement(`{fkeys/UsersLinked {}}`)
+    assert(linked.length == 3)
+    assert(linked.every((inst: Instance) => {
+        return isInstanceOfType(inst, 'fkeys/User')
+    }))
+    const au1 = await parseAndEvaluateStatement(`{agentlang.auth/User {email "kk@acme.com", firstName "Kay", lastName "K"}}`)
+    assert(isInstanceOfType(au1, 'agentlang.auth/User'))
+    const r1 = await parseAndEvaluateStatement(`{fkeys/R {id 1001, email "kk@acme.com"}}`)
+    assert(isInstanceOfType(r1, 'fkeys/R'))
+    const r2 = await parseAndEvaluateStatement(`{fkeys/R {id 1002, email "rk@acme.com"}}`).catch((reason: any) => {
+      assert(reason)
+    })
+    assert(r2 === undefined)
+  });
+});

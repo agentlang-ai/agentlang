@@ -1,7 +1,7 @@
 // Monarch syntax highlighting for the agentlang language.
 export default {
     keywords: [
-        '@actions','@after','@as','@async','@before','@catch','@distinct','@enum','@expr','@from','@into','@meta','@oneof','@public','@rbac','@ref','@then','@upsert','@with_unique','agent','agentlang/retry','allow','and','attempts','await','backoff','between','case','commitTransaction','contains','create','decision','delete','directive','else','entity','error','event','extends','false','flow','for','glossaryEntry','if','import','in','like','module','not','not_found','onSubscription','or','purge','query','read','record','relationship','resolver','return','roles','rollbackTransaction','scenario','startTransaction','subscribe','true','update','upsert','where','workflow'
+        '@actions','@after','@as','@async','@before','@catch','@distinct','@enum','@expr','@from','@full_join','@inner_join','@into','@join','@left_join','@meta','@oneof','@public','@rbac','@ref','@right_join','@then','@upsert','@with_unique','agent','agentlang/retry','allow','and','attempts','await','backoff','between','case','commitTransaction','contains','create','decision','delete','directive','else','entity','error','event','extends','false','flow','for','glossaryEntry','if','import','in','like','module','not','not_found','onSubscription','or','purge','query','read','record','relationship','resolver','return','roles','rollbackTransaction','scenario','startTransaction','subscribe','true','update','upsert','where','workflow'
     ],
     operators: [
         '!=','*','+',',','-','-->','.','/',':',';','<','<=','<>','=','==','>','>=','?','@'

@@ -49,12 +49,17 @@ export type AgentlangKeywordNames =
     | "@enum"
     | "@expr"
     | "@from"
+    | "@full_join"
+    | "@inner_join"
     | "@into"
+    | "@join"
+    | "@left_join"
     | "@meta"
     | "@oneof"
     | "@public"
     | "@rbac"
     | "@ref"
+    | "@right_join"
     | "@then"
     | "@upsert"
     | "@with_unique"
@@ -157,6 +162,12 @@ export function isGenericName(item: unknown): item is GenericName {
     return (typeof item === 'string' && (/(([_a-zA-Z][\w_]*)(\/([_a-zA-Z][\w_]*))?)/.test(item) || /("(((\\([\s\S]))|((?!(((\\|")|\r)|\n))[\s\S]*?))|(\r?\n))*")/.test(item)));
 }
 
+export type JoinType = '@full_join' | '@inner_join' | '@join' | '@left_join' | '@right_join';
+
+export function isJoinType(item: unknown): item is JoinType {
+    return item === '@join' || item === '@inner_join' || item === '@left_join' || item === '@right_join' || item === '@full_join';
+}
+
 export type PrimExpr = Group | Literal | NegExpr | NotExpr;
 
 export const PrimExpr = 'PrimExpr';
@@ -189,6 +200,12 @@ export const SchemaDefinition = 'SchemaDefinition';
 
 export function isSchemaDefinition(item: unknown): item is SchemaDefinition {
     return reflection.isInstance(item, SchemaDefinition);
+}
+
+export type SqlComparisonOpr = '!=' | '<' | '<=' | '<>' | '=' | '>' | '>=' | 'between' | 'in' | 'like';
+
+export function isSqlComparisonOpr(item: unknown): item is SqlComparisonOpr {
+    return item === '=' || item === '<>' || item === '!=' || item === '<' || item === '<=' || item === '>' || item === '>=' || item === 'in' || item === 'like' || item === 'between';
 }
 
 export type TaggedId = string;
@@ -422,6 +439,7 @@ export interface CrudMap extends langium.AstNode {
     body?: CrudMapBody;
     distinct: Array<'@distinct'>;
     into?: SelectIntoSpec;
+    join?: JoinSpec;
     name: QualifiedName | QueryId;
     relationships: Array<RelationshipPattern>;
     source?: Literal;
@@ -744,6 +762,22 @@ export const Import = 'Import';
 
 export function isImport(item: unknown): item is Import {
     return reflection.isInstance(item, Import);
+}
+
+export interface JoinSpec extends langium.AstNode {
+    readonly $container: CrudMap;
+    readonly $type: 'JoinSpec';
+    lhs: QueryId;
+    name: QualifiedName;
+    op?: SqlComparisonOpr;
+    rhs: Ref;
+    type: JoinType;
+}
+
+export const JoinSpec = 'JoinSpec';
+
+export function isJoinSpec(item: unknown): item is JoinSpec {
+    return reflection.isInstance(item, JoinSpec);
 }
 
 export interface KvPair extends langium.AstNode {
@@ -1130,7 +1164,8 @@ export function isRecordSchemaDefinition(item: unknown): item is RecordSchemaDef
 export interface RefSpec extends langium.AstNode {
     readonly $container: AttributeDefinition;
     readonly $type: 'RefSpec';
-    ref: string;
+    ref: QualifiedName;
+    type?: QualifiedName;
 }
 
 export const RefSpec = 'RefSpec';
@@ -1315,7 +1350,7 @@ export interface SetAttribute extends langium.AstNode {
     readonly $container: BackoffSpec | CrudMapBody;
     readonly $type: 'SetAttribute';
     name: QueryId;
-    op?: '!=' | '<' | '<=' | '<>' | '=' | '>' | '>=' | 'between' | 'in' | 'like';
+    op?: SqlComparisonOpr;
     value: AttributeValueExpression;
 }
 
@@ -1461,6 +1496,7 @@ export type AgentlangAstType = {
     Handler: Handler
     If: If
     Import: Import
+    JoinSpec: JoinSpec
     KvPair: KvPair
     KvPairs: KvPairs
     Literal: Literal
@@ -1519,7 +1555,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AgentXtraAttribute, AgentXtraSpec, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BackoffSpec, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, Handler, If, Import, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicAgentDefinition, PublicEventDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RetryDefinition, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AgentXtraAttribute, AgentXtraSpec, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BackoffSpec, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, Handler, If, Import, JoinSpec, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicAgentDefinition, PublicEventDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RetryDefinition, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1726,6 +1762,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'body' },
                         { name: 'distinct', defaultValue: [] },
                         { name: 'into' },
+                        { name: 'join' },
                         { name: 'name' },
                         { name: 'relationships', defaultValue: [] },
                         { name: 'source' },
@@ -1946,6 +1983,18 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'name' },
                         { name: 'path' }
+                    ]
+                };
+            }
+            case JoinSpec: {
+                return {
+                    name: JoinSpec,
+                    properties: [
+                        { name: 'lhs' },
+                        { name: 'name' },
+                        { name: 'op' },
+                        { name: 'rhs' },
+                        { name: 'type' }
                     ]
                 };
             }
@@ -2219,7 +2268,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: RefSpec,
                     properties: [
-                        { name: 'ref' }
+                        { name: 'ref' },
+                        { name: 'type' }
                     ]
                 };
             }

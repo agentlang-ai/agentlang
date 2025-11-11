@@ -14,6 +14,7 @@ import {
   isNegExpr,
   isNotExpr,
   isReturn,
+  JoinSpec,
   Literal,
   MapKey,
   MapLiteral,
@@ -1298,7 +1299,11 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (qattrs === undefined && !isQueryAll) {
       throw new Error(`Pattern for ${entryName} with 'into' clause must be a query`);
     }
-    await evaluateJoinQuery(crud.into, inst, crud.relationships, distinct, env);
+    if (crud.join) {
+      await evaluateJoinQuery(crud.join, crud.into, inst, distinct, env);
+    } else {
+      await evaluateJoinQueryWithRelationships(crud.into, inst, crud.relationships, distinct, env);
+    }
     return;
   }
   if (isEntityInstance(inst) || isBetweenRelationship(inst.name, inst.moduleName)) {
@@ -1576,6 +1581,25 @@ async function computeExprAttributes(
 }
 
 async function evaluateJoinQuery(
+  joinSpec: JoinSpec,
+  intoSpec: SelectIntoSpec,
+  inst: Instance,
+  distinct: boolean,
+  env: Environment
+): Promise<void> {
+  const normIntoSpec = new Map<string, string>();
+  intoSpec.entries.forEach((entry: SelectIntoEntry) => {
+    normIntoSpec.set(entry.alias, entry.attribute);
+  });
+  const resolver = await getResolverForPath(inst.name, inst.moduleName, env);
+  const result: Result = await resolver.queryByJoin(inst, [], normIntoSpec, distinct, joinSpec);
+
+  const transformedResult = transformDateFieldsInJoinResult(result);
+
+  env.setLastResult(transformedResult);
+}
+
+async function evaluateJoinQueryWithRelationships(
   intoSpec: SelectIntoSpec,
   inst: Instance,
   relationships: RelationshipPattern[],

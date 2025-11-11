@@ -300,3 +300,14 @@ export class ExecGraphWalker {
     return this;
   }
 }
+
+export type FkSpec = {
+  moduleName: string;
+  entityName: string;
+  columnName: string;
+  targetModuleName: string;
+  targetEntityName: string;
+  targetColumnName: string;
+  onDelete: 'CASCADE' | 'SET NULL' | 'SET DEFAULT' | undefined;
+  onUpdate: 'CASCADE' | 'SET NULL' | 'SET DEFAULT' | undefined;
+};
