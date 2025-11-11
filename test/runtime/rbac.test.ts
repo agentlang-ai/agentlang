@@ -205,12 +205,12 @@ describe('foreign-keys', () => {
       'fkeys',
       `entity Resource {
         id Int @id,
-        email Email @unique
+        resEmail Email @unique
       }
 
       entity User {
         id Int @id,
-        email @ref(fkeys/Resource.email) @optional,
+        email @ref(fkeys/Resource.resEmail) @optional,
         name String
       }
 
@@ -221,8 +221,8 @@ describe('foreign-keys', () => {
 
       workflow Q1 {
         {User? {},
-        @join Resource {email? User.email},
-        @into {email Resource.email, name User.name}}
+        @join Resource {resEmail? User.email},
+        @into {email Resource.resEmail, name User.name}}
       }
 
       workflow UsersNotLinked {
@@ -235,7 +235,7 @@ describe('foreign-keys', () => {
       `
     );
     const crr = async (id: number, email: string) => {
-      const r1 = await parseAndEvaluateStatement(`{fkeys/Resource {id ${id}, email "${email}"}}`);
+      const r1 = await parseAndEvaluateStatement(`{fkeys/Resource {id ${id}, resEmail "${email}"}}`);
       assert(isInstanceOfType(r1, 'fkeys/Resource'));
     };
     await crr(1, 'a@acme.com');

@@ -311,8 +311,8 @@ export class SqlDbResolver extends Resolver {
       throw new Error(`Invalid table name in join reference - ${rawJoinSpec.rhs}`);
     }
     const joinOn = makeJoinOn(
-      `${joinTableName}.${escapeQueryName(rawJoinSpec.lhs)}`,
-      `${tableName}.${escapeQueryName(refParts[1])}`,
+      `"${joinTableName}"."${escapeQueryName(rawJoinSpec.lhs)}"`,
+      `"${tableName}"."${escapeQueryName(refParts[1])}"`,
       rawJoinSpec.op
     );
     joinClauses.push({
