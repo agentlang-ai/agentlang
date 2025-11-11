@@ -1165,6 +1165,7 @@ export interface RefSpec extends langium.AstNode {
     readonly $container: AttributeDefinition;
     readonly $type: 'RefSpec';
     ref: QualifiedName;
+    type?: QualifiedName;
 }
 
 export const RefSpec = 'RefSpec';
@@ -2267,7 +2268,8 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: RefSpec,
                     properties: [
-                        { name: 'ref' }
+                        { name: 'ref' },
+                        { name: 'type' }
                     ]
                 };
             }

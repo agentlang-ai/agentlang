@@ -325,7 +325,7 @@ export class Record extends ModuleEntry {
             props = new Map();
           }
           props.set('ref', escapeFqName(fp));
-          t = 'Any';
+          t = a.refSpec.type === undefined ? 'Any' : a.refSpec.type;
         }
         const enumValues: string[] | undefined = a.enumSpec?.values;
         const oneOfRef: string | undefined = a.oneOfSpec?.ref;

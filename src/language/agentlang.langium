@@ -46,7 +46,7 @@ EnumSpec: (type=QualifiedName)? '@enum' '(' values+=STRING (',' values+=STRING)*
 
 OneOfSpec: '@oneof' '(' ref=Ref ')';
 
-RefSpec: '@ref' '(' ref=QualifiedName ')';
+RefSpec: (type=QualifiedName)? '@ref' '(' ref=QualifiedName ')';
 
 RbacSpecDefinition: '@rbac' '[' (specEntries+=RbacSpecEntries (',' specEntries+=RbacSpecEntries)*)+ ']';
 
