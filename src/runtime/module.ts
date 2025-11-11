@@ -43,10 +43,12 @@ import {
   escapeFqName,
   encryptPassword,
   splitFqName,
+  splitRefs,
+  forceAsFqName,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
-import { FetchModuleFn, PathAttributeName } from './defs.js';
+import { FetchModuleFn, FkSpec, PathAttributeName } from './defs.js';
 import { logger } from './logger.js';
 import { CasePattern, FlowStepPattern } from '../language/syntax.js';
 import {
@@ -323,7 +325,7 @@ export class Record extends ModuleEntry {
             props = new Map();
           }
           props.set('ref', escapeFqName(fp));
-          t = 'Path';
+          t = a.refSpec.type === undefined ? 'Any' : a.refSpec.type;
         }
         const enumValues: string[] | undefined = a.enumSpec?.values;
         const oneOfRef: string | undefined = a.oneOfSpec?.ref;
@@ -531,6 +533,37 @@ export class Record extends ModuleEntry {
       return e.name;
     }
     return undefined;
+  }
+
+  getFkAttributeSpecs(): FkSpec[] {
+    const result = new Array<FkSpec>();
+    this.schema.forEach((attrSpec: AttributeSpec, columnName: string) => {
+      const refSpec = getRefSpec(attrSpec);
+      if (refSpec) {
+        const targetNames = forceAsFqName(refSpec, this.moduleName);
+        const parts = splitFqName(targetNames);
+        const targetModuleName = parts[0];
+        const refs = splitRefs(parts[1]);
+        const targetEntityName = refs[0];
+        let targetColumnName = '';
+        if (refs.length <= 1) {
+          targetColumnName = PathAttributeName;
+        } else {
+          targetColumnName = refs[1];
+        }
+        result.push({
+          moduleName: this.moduleName,
+          entityName: this.name,
+          columnName,
+          targetModuleName,
+          targetEntityName,
+          targetColumnName,
+          onDelete: 'CASCADE',
+          onUpdate: 'CASCADE',
+        });
+      }
+    });
+    return result;
   }
 
   override toString(): string {

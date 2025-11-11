@@ -32,7 +32,7 @@ export default `module ${CoreAuthModuleName}
 import "./modules/auth.js" @as Auth
 
 entity User {
-    id UUID @id @default(uuid()),
+    id UUID @id @default(uuid()) @unique,
     email Email @unique @indexed,
     firstName String,
     lastName String,

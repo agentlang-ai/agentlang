@@ -1,6 +1,14 @@
-import { DataSource, EntityManager, EntitySchema, QueryRunner, SelectQueryBuilder } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  EntitySchema,
+  QueryRunner,
+  SelectQueryBuilder,
+  TableForeignKey,
+} from 'typeorm';
 import { logger } from '../../logger.js';
 import {
+  asTableReference,
   DefaultVectorDimension,
   modulesAsOrmSchema,
   OwnersSuffix,
@@ -138,6 +146,7 @@ export type JoinClause = {
   tableName: string;
   queryObject?: object;
   queryValues?: object;
+  joinType?: string; // 'join' | 'inner join' | 'left join' | 'right join' | 'full join'
   joinOn: JoinOn | JoinOn[];
 };
 
@@ -168,6 +177,10 @@ function makePostgresDataSource(
     database: process.env.POSTGRES_DB || config?.dbname || 'postgres',
     synchronize: synchronize,
     entities: entities,
+    invalidWhereValuesBehavior: {
+      null: 'sql-null',
+      undefined: 'ignore',
+    },
   });
 }
 
@@ -190,6 +203,10 @@ function makeSqliteDataSource(
     database: config?.dbname || mkDbName(),
     synchronize: synchronize,
     entities: entities,
+    invalidWhereValuesBehavior: {
+      null: 'sql-null',
+      undefined: 'ignore',
+    },
   });
 }
 
@@ -288,6 +305,20 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
       const ormScm = modulesAsOrmSchema();
       defaultDataSource = mkds(ormScm.entities, config) as DataSource;
       await defaultDataSource.initialize();
+      if (ormScm.fkSpecs.length > 0) {
+        const qr = defaultDataSource.createQueryRunner();
+        for (let i = 0; i < ormScm.fkSpecs.length; ++i) {
+          const fk = ormScm.fkSpecs[i];
+          const fkobj = new TableForeignKey({
+            columnNames: [fk.columnName],
+            referencedColumnNames: [fk.targetColumnName],
+            referencedTableName: asTableReference(fk.targetModuleName, fk.targetEntityName),
+            onDelete: fk.onDelete,
+            onUpdate: fk.onUpdate,
+          });
+          await qr.createForeignKey(asTableReference(fk.moduleName, fk.entityName), fkobj);
+        }
+      }
       const vectEnts = ormScm.vectorEntities.map((es: EntitySchema) => {
         return es.options.name;
       });
@@ -716,13 +747,25 @@ function mkBetweenClause(tableName: string | undefined, k: string, queryVals: an
 function objectToWhereClause(queryObj: object, queryVals: any, tableName?: string): string {
   const clauses: Array<string> = new Array<string>();
   Object.entries(queryObj).forEach((value: [string, any]) => {
-    const op: string = value[1] as string;
+    let op: string = value[1] as string;
+    const k = value[0];
+    const isnullcheck = queryVals[k] === null;
+    if (isnullcheck) {
+      if (op === '=') {
+        op = 'IS';
+      } else if (op === '<>' || op === '!=') {
+        op = 'IS NOT';
+      } else {
+        throw new Error(`Operator ${op} cannot be appplied to SQL NULL`);
+      }
+    }
+    const v = isnullcheck ? 'NULL' : `:${k}`;
     const clause =
       op == 'between'
-        ? mkBetweenClause(tableName, value[0], queryVals)
+        ? mkBetweenClause(tableName, k, queryVals)
         : tableName
-          ? `"${tableName}"."${value[0]}" ${op} :${value[0]}`
-          : `"${value[0]}" ${op} :${value[0]}`;
+          ? `"${tableName}"."${k}" ${op} ${v}`
+          : `"${k}" ${op} ${v}`;
     clauses.push(clause);
   });
   return clauses.join(' AND ');
@@ -731,8 +774,17 @@ function objectToWhereClause(queryObj: object, queryVals: any, tableName?: strin
 function objectToRawWhereClause(queryObj: object, queryVals: any, tableName?: string): string {
   const clauses: Array<string> = new Array<string>();
   Object.entries(queryObj).forEach((value: [string, any]) => {
-    const op: string = value[1] as string;
+    let op: string = value[1] as string;
     const k: string = value[0];
+    if (queryVals[k] === null) {
+      if (op === '=') {
+        op = 'IS';
+      } else if (op === '<>' || op === '!=') {
+        op = 'IS NOT';
+      } else {
+        throw new Error(`Operator ${op} cannot be appplied to SQL NULL`);
+      }
+    }
     let clause = '';
     if (op == 'between') {
       clause = mkBetweenClause(tableName, k, queryVals);
@@ -843,8 +895,9 @@ export async function getManyByJoin(
   }
   const joinSql = new Array<string>();
   joinClauses.forEach((jc: JoinClause) => {
+    const joinType = jc.joinType ? jc.joinType : 'inner join';
     joinSql.push(
-      `inner join ${jc.tableName} as ${jc.tableName} on ${joinOnAsSql(jc.joinOn)} AND ${jc.tableName}.${DeletedFlagAttributeName} = false`
+      `${joinType} ${jc.tableName} as ${jc.tableName} on ${joinOnAsSql(jc.joinOn)} AND ${jc.tableName}.${DeletedFlagAttributeName} = false`
     );
     if (jc.queryObject) {
       const q = objectToRawWhereClause(jc.queryObject, jc.queryValues, jc.tableName);

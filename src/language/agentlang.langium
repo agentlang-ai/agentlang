@@ -46,7 +46,7 @@ EnumSpec: (type=QualifiedName)? '@enum' '(' values+=STRING (',' values+=STRING)*
 
 OneOfSpec: '@oneof' '(' ref=Ref ')';
 
-RefSpec: '@ref' '(' ref=ID ')';
+RefSpec: (type=QualifiedName)? '@ref' '(' ref=QualifiedName ')';
 
 RbacSpecDefinition: '@rbac' '[' (specEntries+=RbacSpecEntries (',' specEntries+=RbacSpecEntries)*)+ ']';
 
@@ -119,7 +119,8 @@ CrudMap: '{' (name=QueryId '{''}'
              | (name=QualifiedName '{''}' ',' '@from' source=Literal (',' upsert+='@upsert')?)
              | name=QualifiedName body=CrudMapBody)
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)?
-             (',' into=SelectIntoSpec)? 
+             (',' join=JoinSpec)?
+             (',' into=SelectIntoSpec)?
              (',' upsert+='@upsert')?
              (',' distinct+='@distinct')?
              '}';
@@ -129,6 +130,10 @@ CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ pro
 SelectIntoSpec: '@into' '{' entries+=SelectIntoEntry (',' entries+=SelectIntoEntry)* '}';
 
 SelectIntoEntry: alias=ID attribute=Ref;
+
+JoinSpec: type=JoinType name=QualifiedName '{' lhs=QueryId op=SqlComparisonOpr? rhs=Ref '}';
+
+JoinType returns string: ('@join' | '@inner_join' | '@left_join' | '@right_join' | '@full_join');
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
@@ -195,7 +200,9 @@ Delete: 'delete' pattern=Pattern;
 
 Purge: 'purge' pattern=Pattern;
 
-SetAttribute: name=QueryId op=('='|'<>' | '!=' |'<'|'<='|'>'|'>='|'in'|'like'|'between')? value=AttributeValueExpression;
+SetAttribute: name=QueryId op=SqlComparisonOpr? value=AttributeValueExpression;
+
+SqlComparisonOpr returns string: ('='|'<>' | '!=' |'<'|'<='|'>'|'>='|'in'|'like'|'between');
 
 AttributeValueExpression: Expr;
 

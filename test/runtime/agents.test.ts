@@ -284,8 +284,6 @@ if (process.env.AL_TEST === 'true') {
         return await parseAndEvaluateStatement(`{FlowTest/customerProductManager {message "${ins}"}}`);
       };
       await k('A new customer named Joseph K needs to be added. His email is jk@acme.com and phone number is 8989893')
-      await k('A new product named X90 is added to the company. Its price is 789.22 and it should be assigned the id 1090')
-      await k('Add an employee named Joe with email j@acme.com and phone 9674763') // reportFailure
       await k('Add a customer named Joe with email j@acme.com and phone 9674763')
       const custs: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Customer? {}}`)
       assert(custs.length == 2)
@@ -293,10 +291,12 @@ if (process.env.AL_TEST === 'true') {
       assert(custs.every((inst: Instance) => {
         return isInstanceOfType(inst, 'FlowTest/Customer') && emails.has(inst.lookup('email'))
       }))
+      await k('A new product named X90 is added to the company. Its price is 789.22 and it should be assigned the id 1090')
       const prods: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Product? {}}`)
       assert(prods.length == 1)
       assert(isInstanceOfType(prods[0], 'FlowTest/Product'))
       assert(prods[0].lookup('price') == 789.22)
+      await k('Add an employee named Joe with email j@acme.com and phone 9674763') // reportFailure
       const fails: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Failure? {}}`)
       assert(fails.length == 1)
       assert(isInstanceOfType(fails[0], 'FlowTest/Failure'))
