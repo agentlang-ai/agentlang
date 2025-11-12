@@ -14,6 +14,8 @@ import {
   fetchModule,
   getModuleNames,
   Record,
+  fetchRefTarget,
+  getAttributeNames,
 } from '../runtime/module.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
@@ -32,6 +34,8 @@ import {
   nameToPath,
   walkDownInstancePath,
   DefaultFileHandlingDirectory,
+  splitRefs,
+  splitFqName,
 } from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
@@ -339,21 +343,54 @@ async function handleEntityGet(
   }
 }
 
-function objectAsAttributesPattern(obj: object): string {
+const joinTags = new Map()
+  .set('@joinOn', '@join')
+  .set('@leftJoinOn', '@left_join')
+  .set('@rightJoinOn', '@right_join');
+
+function objectAsAttributesPattern(entityFqName: string, obj: object): [string, boolean] {
   const attrs = new Array<string>();
+  let joinType: string | undefined;
+  let joinOnAttr: string | undefined;
   Object.keys(obj).forEach(key => {
     const s: string = obj[key as keyof object];
-    let v = s;
-    if (!s.startsWith('"')) {
-      if (!isStringNumeric(s) && s != 'true' && s != 'false') {
-        v = `"${s}"`;
+    if (joinTags.has(key)) {
+      joinType = joinTags.get(key);
+      joinOnAttr = s;
+    } else {
+      let v = s;
+      if (!s.startsWith('"')) {
+        if (!isStringNumeric(s) && s != 'true' && s != 'false') {
+          v = `"${s}"`;
+        }
       }
+      attrs.push(`${key}? ${v}`);
     }
-    attrs.push(`${key}? ${v}`);
   });
-  return `{
+  const hasQueryAttrs = attrs.length > 0;
+  const pat = `{
     ${attrs.join(',')}
   }`;
+  if (joinType && joinOnAttr) {
+    const [targetEntity, targetAttr, reverseJoin] = fetchRefTarget(entityFqName, joinOnAttr);
+    const intoSpec = new Array<string>();
+    const en1 = splitFqName(entityFqName)[1];
+    getAttributeNames(entityFqName).forEach((n: string) => {
+      intoSpec.push(`${en1}_${n} ${entityFqName}.${n}`);
+    });
+    const en2 = splitFqName(targetEntity)[1];
+    getAttributeNames(targetEntity).forEach((n: string) => {
+      intoSpec.push(`${en2}_${n} ${targetEntity}.${n}`);
+    });
+    const intoPat = `@into {${intoSpec.join(', ')}}`;
+    joinOnAttr = reverseJoin ? splitRefs(joinOnAttr)[1] : joinOnAttr;
+    return [
+      `${pat},\n${joinType} ${targetEntity} {${targetAttr}? ${entityFqName}.${joinOnAttr}}, \n${intoPat}`,
+      hasQueryAttrs,
+    ];
+  } else {
+    return [pat, hasQueryAttrs];
+  }
 }
 
 function queryPatternFromPath(path: string, req: Request): string {
@@ -362,12 +399,14 @@ function queryPatternFromPath(path: string, req: Request): string {
   let entityName = r[1];
   const id = r[2];
   const parts = r[3];
+  const fqName = `${moduleName}/${entityName}`;
   if (parts.length == 2 && id === undefined) {
     if (req.query && Object.keys(req.query).length > 0) {
-      const pat = objectAsAttributesPattern(req.query);
-      return `{${moduleName}/${entityName} ${pat}}`;
+      const [pat, hasQueryAttrs] = objectAsAttributesPattern(fqName, req.query);
+      const n = hasQueryAttrs ? fqName : `${fqName}?`;
+      return `{${n} ${pat}}`;
     } else {
-      return `{${moduleName}/${entityName}? {}}`;
+      return `{${fqName}? {}}`;
     }
   } else {
     moduleName = restoreFqName(moduleName);
