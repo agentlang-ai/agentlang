@@ -769,6 +769,13 @@ export class Environment extends Instance {
     return this;
   }
 
+  flagMonitorEntryAsFlow(): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.flagEntryAsFlow();
+    }
+    return this;
+  }
+
   flagMonitorEntryAsFlowStep(): Environment {
     if (this.monitor !== undefined) {
       this.monitor.flagEntryAsFlowStep();
@@ -1973,48 +1980,52 @@ async function iterateOnFlow(
   console.debug(`Starting iteration ${iterId} on flow: ${flow}`);
   const executedSteps = new Set<string>();
   const monitoringEnabled = isMonitoringEnabled();
-  while (step != 'DONE' && !executedSteps.has(step)) {
-    if (stepc > MaxFlowSteps) {
-      throw new Error(`Flow execution exceeded maximum steps limit`);
+  if (monitoringEnabled) {
+    env.appendEntryToMonitor(step).flagMonitorEntryAsFlow().incrementMonitor();
+  }
+  try {
+    while (step != 'DONE' && !executedSteps.has(step)) {
+      if (stepc > MaxFlowSteps) {
+        throw new Error(`Flow execution exceeded maximum steps limit`);
+      }
+      executedSteps.add(step);
+      ++stepc;
+      const agent = AgentInstance.FromFlowStep(step, rootAgent, context);
+      console.debug(`\n---------------------------------------------------\n`);
+      console.debug(
+        `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
+      );
+      const isfxc = agent.isFlowExecutor();
+      const isdec = agent.isDecisionExecutor();
+      if (isfxc || isdec) env.setFlowContext(context);
+      else env.setFlowContext(initContext);
+      if (monitoringEnabled && stepc > 1) {
+        env.appendEntryToMonitor(step);
+      }
+      await agentInvoke(agent, '', env);
+      if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());
+      if (env.isSuspended()) {
+        console.debug(`${iterId} suspending iteration on step ${step}`);
+        await saveFlowSuspension(rootAgent, context, step, env);
+        env.releaseSuspension();
+        return;
+      }
+      const r = env.getLastResult();
+      const rs = maybeInstanceAsString(r);
+      console.debug(
+        `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
+      );
+      context = `${context}\n${step} --> ${rs}\n`;
+      if (isfxc) {
+        step = rs.trim();
+      } else {
+        env.setFlowContext(context);
+        await agentInvoke(rootAgent, `${s}\n${context}`, env);
+        step = env.getLastResult().trim();
+      }
     }
-    executedSteps.add(step);
-    ++stepc;
-    const agent = AgentInstance.FromFlowStep(step, rootAgent, context);
-    console.debug(`\n---------------------------------------------------\n`);
-    console.debug(
-      `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
-    );
-    const isfxc = agent.isFlowExecutor();
-    const isdec = agent.isDecisionExecutor();
-    if (isfxc || isdec) env.setFlowContext(context);
-    else env.setFlowContext(initContext);
-    if (monitoringEnabled) {
-      env.appendEntryToMonitor(step); /*.flagMonitorEntryAsFlowStep()
-      if (isdec) {
-        env.flagMonitorEntryAsDecision()
-      }*/
-    }
-    await agentInvoke(agent, '', env);
-    if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());
-    if (env.isSuspended()) {
-      console.debug(`${iterId} suspending iteration on step ${step}`);
-      await saveFlowSuspension(rootAgent, context, step, env);
-      env.releaseSuspension();
-      return;
-    }
-    const r = env.getLastResult();
-    const rs = maybeInstanceAsString(r);
-    console.debug(
-      `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
-    );
-    context = `${context}\n${step} --> ${rs}\n`;
-    if (isfxc) {
-      step = rs.trim();
-    } else {
-      env.setFlowContext(context);
-      await agentInvoke(rootAgent, `${s}\n${context}`, env);
-      step = env.getLastResult().trim();
-    }
+  } finally {
+    env.decrementMonitor();
   }
   console.debug(`No more flow steps, completed iteration ${iterId} on flow:\n${flow}`);
 }
