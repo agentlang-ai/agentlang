@@ -1981,7 +1981,7 @@ async function iterateOnFlow(
   const executedSteps = new Set<string>();
   const monitoringEnabled = isMonitoringEnabled();
   if (monitoringEnabled) {
-    env.appendEntryToMonitor(step).flagMonitorEntryAsFlow().incrementMonitor();
+    env.flagMonitorEntryAsFlow().incrementMonitor();
   }
   try {
     while (step != 'DONE' && !executedSteps.has(step)) {
@@ -1999,7 +1999,7 @@ async function iterateOnFlow(
       const isdec = agent.isDecisionExecutor();
       if (isfxc || isdec) env.setFlowContext(context);
       else env.setFlowContext(initContext);
-      if (monitoringEnabled && stepc > 1) {
+      if (monitoringEnabled) {
         env.appendEntryToMonitor(step);
       }
       await agentInvoke(agent, '', env);
