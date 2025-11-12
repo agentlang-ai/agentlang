@@ -139,6 +139,7 @@ export class MonitorEntry {
       llmObj.isFlow = this.flow;
       obj.llm = llmObj;
     }
+    obj.label = this.input;
     return obj;
   }
 }
@@ -308,6 +309,7 @@ export class Monitor {
         r.event = n;
         r.eventInstance = inst;
       }
+      r.label = n;
     }
     if (this.user) {
       r.user = this.user;
