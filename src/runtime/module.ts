@@ -525,6 +525,17 @@ export class Record extends ModuleEntry {
     else return false;
   }
 
+  getRefOnAttribute(attrName: string): [string, string] | undefined {
+    const fkspecs = this.getFkAttributeSpecs();
+    const a = fkspecs.find((v: FkSpec) => {
+      return v.columnName === attrName;
+    });
+    if (a) {
+      return [makeFqName(a.targetModuleName, a.targetEntityName), a.targetColumnName];
+    }
+    return undefined;
+  }
+
   getIdAttributeName(): string | undefined {
     const e: AttributeEntry | undefined = this.findAttribute((attrSpec: AttributeSpec) => {
       return isIdAttribute(attrSpec);
@@ -3866,4 +3877,25 @@ export function getDecision(name: string, moduleName: string): Decision | undefi
   }
   const m = fetchModule(moduleName);
   return m.getDecision(name);
+}
+
+export function fetchRefTarget(entityFqName: string, attrName: string): [string, string, boolean] {
+  const parts = nameToPath(entityFqName);
+  if (attrName.indexOf('.') > 0) {
+    const rs = splitRefs(attrName);
+    const n = forceAsFqName(rs[0], parts.getModuleName());
+    return [n, rs[1], true];
+  }
+  const rec = fetchModule(parts.getModuleName()).getRecord(parts.getEntryName());
+  const r = rec.getRefOnAttribute(attrName);
+  if (r === undefined) {
+    throw new Error(`Failed to fetch reference via ${attrName}`);
+  }
+  return [r[0], r[1], false];
+}
+
+export function getAttributeNames(entityFqName: string): Array<string> {
+  const parts = nameToPath(entityFqName);
+  const scm = fetchModule(parts.getModuleName()).getRecord(parts.getEntryName()).schema;
+  return [...scm.keys()];
 }
