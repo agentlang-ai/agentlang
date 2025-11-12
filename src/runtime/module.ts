@@ -3255,6 +3255,7 @@ export class Instance {
   queryAttributeValues: InstanceAttributes | undefined;
   relatedInstances: Map<string, Instance[]> | undefined;
   private contextData: Map<string, any> | undefined;
+  private id: string;
 
   constructor(
     record: Record,
@@ -3264,6 +3265,7 @@ export class Instance {
     queryAttributes?: InstanceAttributes,
     queryAttributeValues?: InstanceAttributes
   ) {
+    this.id = crypto.randomUUID();
     this.record = record;
     this.name = name;
     this.moduleName = moduleName;
@@ -3292,6 +3294,10 @@ export class Instance {
       attrs.set(k, v);
     });
     return Instance.newWithAttributes(inst, attrs);
+  }
+
+  getId(): string {
+    return this.id;
   }
 
   normalizeAttributes(attrs: InstanceAttributes): InstanceAttributes {
@@ -3813,6 +3819,12 @@ export function defineAgentEvent(moduleName: string, agentName: string, instruct
 
 export function isTimer(eventInst: Instance): boolean {
   return eventInst.getFqName() == 'agentlang/timer';
+}
+
+export function isAgent(fqName: string): boolean {
+  const parts = splitFqName(fqName);
+  const m = fetchModule(parts[0]);
+  return m.getAgent(parts[1]) !== undefined;
 }
 
 export function isAgentEvent(record: Record): boolean {

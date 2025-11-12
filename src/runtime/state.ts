@@ -66,6 +66,11 @@ export const ConfigSchema = z.object({
       enabled: z.boolean().default(false),
     })
     .optional(),
+  monitoring: z
+    .object({
+      enabled: z.boolean().default(false),
+    })
+    .optional(),
   authentication: z
     .discriminatedUnion('service', [
       z.object({
@@ -115,4 +120,18 @@ export let AppConfig: Config | undefined;
 export function setAppConfig(config: Config): Config {
   AppConfig = config;
   return AppConfig;
+}
+
+let internalMonitoringEnabled = false;
+
+export function enableInternalMonitoring() {
+  internalMonitoringEnabled = true;
+}
+
+export function disableInternalMonitoring() {
+  internalMonitoringEnabled = false;
+}
+
+export function isMonitoringEnabled(): boolean {
+  return internalMonitoringEnabled || AppConfig?.monitoring?.enabled === true;
 }

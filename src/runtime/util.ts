@@ -228,6 +228,18 @@ export function makeCoreModuleName(n: string): string {
   return DefaultModuleName + '.' + n;
 }
 
+export function isCoreModule(n: string): boolean {
+  return n === DefaultModuleName || n.startsWith(`${DefaultModuleName}.`);
+}
+
+export function isCoreDefinition(n: string): boolean {
+  if (isFqName(n)) {
+    const parts = splitFqName(n);
+    return isCoreModule(parts[0]);
+  }
+  return false;
+}
+
 const InitFunctions: Function[] = [];
 
 export function registerInitFunction(f: Function) {

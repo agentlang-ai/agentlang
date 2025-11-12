@@ -134,6 +134,7 @@ export class ExecGraph {
   private rootNodes: ExecGraphNode[];
   private subGraphs: ExecGraph[];
   private parentGraph: ExecGraph | undefined = undefined;
+  private eventName: string | undefined;
   private activeModuleName: string | undefined;
   private hasAgentsFlag: boolean = false;
   private loopBody: boolean = false;
@@ -210,6 +211,17 @@ export class ExecGraph {
 
   getParentGraph(): ExecGraph | undefined {
     return this.parentGraph;
+  }
+
+  setEventName(eventName: string | undefined): ExecGraph {
+    if (eventName !== undefined) {
+      this.eventName = eventName;
+    }
+    return this;
+  }
+
+  getEventName(): string | undefined {
+    return this.eventName;
   }
 
   setHasAgents(flag: boolean): ExecGraph {

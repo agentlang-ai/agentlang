@@ -69,6 +69,7 @@ import {
   restoreSpecialChars,
   nameToPath,
   splitRefs,
+  isCoreModule,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
@@ -92,6 +93,7 @@ import {
   addDeleteAudit,
   addUpdateAudit,
   createSuspension,
+  flushMonitoringData,
   maybeCancelTimer,
   setTimerRunning,
 } from './modules/core.js';
@@ -99,6 +101,8 @@ import { invokeModuleFn } from './jsmodules.js';
 import { invokeOpenApiEvent, isOpenApiEventInstance } from './openapi.js';
 import { fetchDoc } from './docs.js';
 import { FlowSpec, FlowStep, getAgentFlow } from './agents/flows.js';
+import { isMonitoringEnabled } from './state.js';
+import { Monitor, MonitorEntry } from './monitor.js';
 
 export type Result = any;
 
@@ -151,6 +155,7 @@ export class Environment extends Instance {
   private scratchPad: any = undefined;
   private agentMode: 'chat' | 'planner' | undefined = undefined;
   private agentChatId: string | undefined = undefined;
+  private monitor: Monitor | undefined = undefined;
 
   private activeUserData: any = undefined;
 
@@ -176,6 +181,7 @@ export class Environment extends Instance {
       this.suspensionId = parent.suspensionId;
       this.eventExecutor = parent.eventExecutor;
       this.agentChatId = parent.agentChatId;
+      this.monitor = parent.monitor;
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
@@ -723,6 +729,94 @@ export class Environment extends Instance {
   getAgentChatId(): string | undefined {
     return this.agentChatId;
   }
+
+  appendEntryToMonitor(stmt: string): Environment {
+    if (this.monitor === undefined) {
+      if (this.activeEventInstance && isCoreModule(this.activeEventInstance.moduleName)) {
+        return this;
+      }
+      this.monitor = new Monitor(this.activeEventInstance, this.activeUser);
+    }
+    this.monitor.addEntry(new MonitorEntry(stmt));
+    return this;
+  }
+
+  setMonitorEntryError(reason: string): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.setEntryError(reason);
+    }
+    return this;
+  }
+
+  setMonitorEntryResult(result: any): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.setEntryResult(result);
+    }
+    return this;
+  }
+
+  flagMonitorEntryAsLlm(): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.flagEntryAsLlm();
+    }
+    return this;
+  }
+
+  flagMonitorEntryAsPlanner(): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.flagEntryAsPlanner();
+    }
+    return this;
+  }
+
+  flagMonitorEntryAsFlow(): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.flagEntryAsFlow();
+    }
+    return this;
+  }
+
+  flagMonitorEntryAsFlowStep(): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.flagEntryAsFlowStep();
+    }
+    return this;
+  }
+
+  flagMonitorEntryAsDecision(): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.flagEntryAsDecision();
+    }
+    return this;
+  }
+
+  setMonitorEntryLlmPrompt(s: string): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.setEntryLlmPrompt(s);
+    }
+    return this;
+  }
+
+  setMonitorEntryLlmResponse(s: string): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.setEntryLlmResponse(s);
+    }
+    return this;
+  }
+
+  incrementMonitor(): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor = this.monitor.increment();
+    }
+    return this;
+  }
+
+  decrementMonitor(): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor = this.monitor.decrement();
+    }
+    return this;
+  }
 }
 
 export const GlobalEnvironment = new Environment();
@@ -777,6 +871,9 @@ export let evaluate = async function (
   } finally {
     if (!txnRolledBack && env !== undefined && activeEnv === undefined) {
       await env.commitAllTransactions();
+    }
+    if (isMonitoringEnabled()) {
+      await flushMonitoringData(eventInstance.getId());
     }
   }
 };
@@ -1686,13 +1783,19 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   console.debug(invokeDebugMsg);
   //
 
+  const monitoringEnabled = isMonitoringEnabled();
+
   await agent.invoke(msg, env);
   let result: string | undefined = env.getLastResult();
   logger.debug(`Agent ${agent.name} result: ${result}`);
+
   const isPlanner = !env.isInAgentChatMode() && agent.isPlanner();
   const stmtsExec = env.getStatementsExecutor();
   if (result) {
     if (isPlanner) {
+      if (monitoringEnabled) {
+        env.incrementMonitor();
+      }
       let retries = 0;
       while (true) {
         try {
@@ -1721,7 +1824,8 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           } else {
             if (stmtsExec) {
               const stmt = await parseStatement(rs);
-              env.setLastResult(await stmtsExec([stmt], env));
+              const r = await stmtsExec([stmt], env);
+              env.setLastResult(r);
             } else {
               env.setLastResult(await parseAndEvaluateStatement(rs, undefined, env));
             }
@@ -1738,13 +1842,14 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
             result = r;
             ++retries;
           } else {
-            logger.error(
-              `Failed to evaluate pattern generated by agent ${agent.name} - ${result}, ${err}`
-            );
+            const reason = `Failed to evaluate pattern generated by agent ${agent.name} - ${result}, ${err}`;
+            logger.error(reason);
+            if (monitoringEnabled) env.setMonitorEntryError(reason);
             break;
           }
         }
       }
+      if (monitoringEnabled) env.decrementMonitor();
     } else {
       let retries = 0;
       while (true) {
@@ -1763,9 +1868,9 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
             result = r;
             ++retries;
           } else {
-            logger.error(
-              `Failed to validate JSON response generated by agent ${agent.name} - ${result}, ${err}`
-            );
+            const reason = `Failed to validate JSON response generated by agent ${agent.name} - ${result}, ${err}`;
+            logger.error(reason);
+            if (monitoringEnabled) env.setMonitorEntryError(reason);
             break;
           }
         }
@@ -1874,40 +1979,53 @@ async function iterateOnFlow(
   const iterId = crypto.randomUUID();
   console.debug(`Starting iteration ${iterId} on flow: ${flow}`);
   const executedSteps = new Set<string>();
-  while (step != 'DONE' && !executedSteps.has(step)) {
-    if (stepc > MaxFlowSteps) {
-      throw new Error(`Flow execution exceeded maximum steps limit`);
+  const monitoringEnabled = isMonitoringEnabled();
+  if (monitoringEnabled) {
+    env.flagMonitorEntryAsFlow().incrementMonitor();
+  }
+  try {
+    while (step != 'DONE' && !executedSteps.has(step)) {
+      if (stepc > MaxFlowSteps) {
+        throw new Error(`Flow execution exceeded maximum steps limit`);
+      }
+      executedSteps.add(step);
+      ++stepc;
+      const agent = AgentInstance.FromFlowStep(step, rootAgent, context);
+      console.debug(`\n---------------------------------------------------\n`);
+      console.debug(
+        `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
+      );
+      const isfxc = agent.isFlowExecutor();
+      const isdec = agent.isDecisionExecutor();
+      if (isfxc || isdec) env.setFlowContext(context);
+      else env.setFlowContext(initContext);
+      if (monitoringEnabled) {
+        env.appendEntryToMonitor(step);
+      }
+      await agentInvoke(agent, '', env);
+      if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());
+      if (env.isSuspended()) {
+        console.debug(`${iterId} suspending iteration on step ${step}`);
+        await saveFlowSuspension(rootAgent, context, step, env);
+        env.releaseSuspension();
+        return;
+      }
+      const r = env.getLastResult();
+      const rs = maybeInstanceAsString(r);
+      console.debug(
+        `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
+      );
+      context = `${context}\n${step} --> ${rs}\n`;
+      if (isfxc) {
+        step = rs.trim();
+      } else {
+        env.setFlowContext(context);
+        await agentInvoke(rootAgent, `${s}\n${context}`, env);
+        step = env.getLastResult().trim();
+      }
     }
-    executedSteps.add(step);
-    ++stepc;
-    const agent = AgentInstance.FromFlowStep(step, rootAgent, context);
-    console.debug(`\n---------------------------------------------------\n`);
-    console.debug(
-      `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
-    );
-    const isfxc = agent.isFlowExecutor();
-    if (isfxc || agent.isDecisionExecutor()) env.setFlowContext(context);
-    else env.setFlowContext(initContext);
-    await agentInvoke(agent, '', env);
-    if (env.isSuspended()) {
-      console.debug(`${iterId} suspending iteration on step ${step}`);
-      await saveFlowSuspension(rootAgent, context, step, env);
-      env.releaseSuspension();
-      return;
-    }
-    const r = env.getLastResult();
-    const rs = maybeInstanceAsString(r);
-    console.debug(
-      `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
-    );
-    context = `${context}\n${step} --> ${rs}\n`;
-    if (isfxc) {
-      step = rs.trim();
-    } else {
-      env.setFlowContext(context);
-      await agentInvoke(rootAgent, `${s}\n${context}`, env);
-      step = env.getLastResult().trim();
-    }
+  } finally {
+    env.decrementMonitor();
   }
   console.debug(`No more flow steps, completed iteration ${iterId} on flow:\n${flow}`);
 }

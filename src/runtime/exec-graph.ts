@@ -5,6 +5,8 @@ import {
   ForEach,
   FullTextSearch,
   If,
+  isPattern,
+  isStatement,
   isWorkflowDefinition,
   ModuleDefinition,
   Pattern,
@@ -38,8 +40,17 @@ import {
   isEventInstance,
   RecordType,
 } from './module.js';
+import { flushMonitoringData } from './modules/core.js';
 import { isOpenApiEventInstance, isOpenApiModule } from './openapi.js';
-import { escapeQueryName, makeFqName, nameToPath } from './util.js';
+import { isMonitoringEnabled } from './state.js';
+import {
+  escapeQueryName,
+  isCoreDefinition,
+  isCoreModule,
+  isFqName,
+  makeFqName,
+  nameToPath,
+} from './util.js';
 
 const GraphCache = new Map<string, ExecGraph>();
 
@@ -50,7 +61,7 @@ export async function generateExecutionGraph(eventName: string): Promise<ExecGra
   const parts = nameToPath(eventName);
   const moduleName = parts.hasModule() ? parts.getModuleName() : undefined;
   if (!isEmptyWorkflow(wf)) {
-    const g = await graphFromStatements(wf.statements, moduleName);
+    const g = (await graphFromStatements(wf.statements, moduleName)).setEventName(eventName);
     if (g.canCache()) GraphCache.set(eventName, g);
     return g;
   }
@@ -194,6 +205,8 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
   if (activeModuleName) {
     oldModule = env.switchActiveModuleName(activeModuleName);
   }
+  const coreMod = activeModuleName ? isCoreModule(activeModuleName) : false;
+  const monitoringEnabled = !coreMod && isMonitoringEnabled();
   try {
     const walker = new ExecGraphWalker(execGraph);
     while (walker.hasNext()) {
@@ -201,43 +214,67 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
         break;
       }
       const node = walker.nextNode();
-      if (node.subGraphIndex == -1) {
-        await evaluateStatement(node.code as Statement, env);
-      } else {
-        if (node.subGraphType == SubGraphType.AGENT) {
-          await executeAgent(node, execGraph, env);
-        } else {
-          const subg = execGraph.fetchSubGraphAt(node.subGraphIndex);
-          switch (node.subGraphType) {
-            case SubGraphType.EVENT:
-              await evaluateStatement(node.code as Statement, env);
-              break;
-            case SubGraphType.IF: {
-              const newEnv = new Environment(`${env.name}-if`, env);
-              await executeIfSubGraph(subg, newEnv);
-              env.setLastResult(newEnv.getLastResult());
-              break;
-            }
-            case SubGraphType.FOR_EACH: {
-              const newEnv = new Environment(`${env.name}-forEach`, env);
-              await executeForEachSubGraph(subg, node, newEnv);
-              env.setLastResult(newEnv.getLastResult());
-              break;
-            }
-            case SubGraphType.DELETE:
-              await executeDeleteSubGraph(subg, node, env);
-              break;
-            case SubGraphType.PURGE:
-              await executePurgeSubGraph(subg, node, env);
-              break;
-            case SubGraphType.RETURN:
-              await executeReturnSubGraph(subg, env);
-              return;
-            default:
-              throw new Error(`Invalid sub-graph type: ${node.subGraphType}`);
+
+      const monitorIncr =
+        monitoringEnabled &&
+        node.subGraphIndex !== -1 &&
+        (node.subGraphType == SubGraphType.AGENT || node.subGraphType == SubGraphType.EVENT);
+
+      if (node.codeStr && monitoringEnabled) {
+        if (!isSystemCrudPattern(node.code, activeModuleName)) {
+          if (monitorIncr) {
+            env.incrementMonitor();
           }
+          env.appendEntryToMonitor(node.codeStr);
         }
-        maybeSetAlias(node, env);
+      }
+      try {
+        if (node.subGraphIndex == -1) {
+          await evaluateStatement(node.code as Statement, env);
+        } else {
+          if (node.subGraphType == SubGraphType.AGENT) {
+            await executeAgent(node, execGraph, env);
+          } else {
+            const subg = execGraph.fetchSubGraphAt(node.subGraphIndex);
+            switch (node.subGraphType) {
+              case SubGraphType.EVENT:
+                await evaluateStatement(node.code as Statement, env);
+                break;
+              case SubGraphType.IF: {
+                const newEnv = new Environment(`${env.name}-if`, env);
+                await executeIfSubGraph(subg, newEnv);
+                env.setLastResult(newEnv.getLastResult());
+                break;
+              }
+              case SubGraphType.FOR_EACH: {
+                const newEnv = new Environment(`${env.name}-forEach`, env);
+                await executeForEachSubGraph(subg, node, newEnv);
+                env.setLastResult(newEnv.getLastResult());
+                break;
+              }
+              case SubGraphType.DELETE:
+                await executeDeleteSubGraph(subg, node, env);
+                break;
+              case SubGraphType.PURGE:
+                await executePurgeSubGraph(subg, node, env);
+                break;
+              case SubGraphType.RETURN:
+                await executeReturnSubGraph(subg, env);
+                return;
+              default:
+                throw new Error(`Invalid sub-graph type: ${node.subGraphType}`);
+            }
+          }
+          maybeSetAlias(node, env);
+        }
+      } catch (reason: any) {
+        if (monitoringEnabled) env.setMonitorEntryError(reason);
+        throw reason;
+      } finally {
+        if (monitoringEnabled) {
+          if (monitorIncr) env.decrementMonitor();
+          env.setMonitorEntryResult(env.getLastResult());
+        }
       }
     }
   } finally {
@@ -245,6 +282,22 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
       env.switchActiveModuleName(oldModule);
     }
   }
+}
+
+function isSystemCrudPattern(
+  code: Statement | Pattern | Expr,
+  activeModuleName: string | undefined
+): boolean {
+  if (isStatement(code)) {
+    return isSystemCrudPattern(code.pattern, activeModuleName);
+  } else if (isPattern(code)) {
+    const crud = code.crudMap;
+    if (crud) {
+      if (isFqName(crud.name)) return isCoreDefinition(crud.name);
+      else if (activeModuleName) return isCoreModule(activeModuleName);
+    }
+  }
+  return false;
 }
 
 async function evaluateFirstPattern(g: ExecGraph, env: Environment) {
@@ -330,6 +383,7 @@ export async function executeEvent(
   kernelCall?: boolean
 ): Promise<any> {
   const env: Environment = new Environment(eventInstance.name + '.env', activeEnv);
+  env.setStatementsExecutor(executeStatementsHelper);
   let txnRolledBack: boolean = false;
   try {
     if (isEventInstance(eventInstance)) {
@@ -339,7 +393,6 @@ export async function executeEvent(
       env.setActiveEvent(eventInstance);
       await executeEventHelper(eventInstance, env);
     } else if (isAgentEventInstance(eventInstance)) {
-      env.setStatementsExecutor(executeStatements);
       await handleAgentInvocation(eventInstance, env);
     }
     const r = env.getLastResult();
@@ -359,6 +412,9 @@ export async function executeEvent(
   } finally {
     if (!txnRolledBack && env !== undefined && activeEnv === undefined) {
       await env.commitAllTransactions();
+    }
+    if (isMonitoringEnabled()) {
+      await flushMonitoringData(eventInstance.getId());
     }
   }
 }
@@ -388,6 +444,11 @@ export async function executeEventHelper(eventInstance: Instance, env?: Environm
     if (g) {
       await executeGraph(g, env);
     } else {
+      if (isMonitoringEnabled()) {
+        env.appendEntryToMonitor(
+          `{${eventInstance.getFqName()} {message "${eventInstance.lookup('message')}}}`
+        );
+      }
       await handleAgentInvocation(eventInstance, env);
     }
     if (isLocalEnv) {

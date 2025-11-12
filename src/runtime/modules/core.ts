@@ -15,6 +15,7 @@ import { Statement } from '../../language/generated/ast.js';
 import { parseModule, parseStatements } from '../../language/parser.js';
 import { Resolver } from '../resolvers/interface.js';
 import { FlowSuspensionTag, ForceReadPermFlag, PathAttributeName } from '../defs.js';
+import { getMonitor, getMonitorsForEvent, Monitor } from '../monitor.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
@@ -64,6 +65,44 @@ workflow createSuspension {
 
 @public workflow restartSuspension {
   await Core.restartSuspension(restartSuspension.id, restartSuspension.data)
+}
+
+entity Monitor {
+  id String @id,
+  eventInstance Any,
+  eventName String @indexed,
+  user String @optional,
+  totalLatencyMs Int,
+  data String
+}
+
+@public event fetchEventMonitor {
+  eventName String
+}
+
+workflow fetchEventMonitor {
+  {Monitor {eventName? fetchEventMonitor.eventName}} @as [m]
+  Core.eventMonitorData(m)
+}
+
+@public event fetchEventMonitors {
+  eventName String,
+  limit Int @default(0),
+  offset Int @default(0)
+}
+
+workflow fetchEventMonitors {
+  {Monitor {eventName? fetchEventMonitors.eventName}} @as result
+  Core.eventMonitorsData(result, fetchEventMonitors.limit, fetchEventMonitors.offset)
+}
+
+@public event EventMonitor {
+  id String
+}
+
+workflow EventMonitor {
+  {Monitor {id? EventMonitor.id}} @as [m];
+  Core.eventMonitorData(m)
 }
 
 record ValidationRequest {
@@ -267,6 +306,75 @@ export async function lookupActiveSuspension(
   } else {
     return [];
   }
+}
+
+export async function flushMonitoringData(monitorId: string) {
+  const m = getMonitor(monitorId);
+  try {
+    if (m) {
+      const data = btoa(JSON.stringify(m.asObject()));
+      const inst = m.getEventInstance();
+      const eventInstance = inst ? btoa(JSON.stringify(inst.asSerializableObject())) : '';
+      const user = m.getUser() || 'admin';
+      const latency = m.getTotalLatencyMs();
+      const env = new Environment(`monitor-${monitorId}-env`);
+      const eventName = inst ? inst.getFqName() : monitorId;
+      await parseAndEvaluateStatement(
+        `{agentlang/Monitor {id "${monitorId}", eventName "${eventName}", eventInstance "${eventInstance}", user "${user}", totalLatencyMs ${latency}, data "${data}"}}`,
+        undefined,
+        env
+      );
+      await env.commitAllTransactions();
+    } else {
+      logger.warn(`Failed to locate monitor with id ${monitorId}`);
+    }
+  } catch (reason: any) {
+    logger.error(`Failed to flush monitor ${monitorId} - ${reason}`);
+  }
+}
+
+export async function fetchLatestMonitorForEvent(eventName: string): Promise<any> {
+  const monitors = getMonitorsForEvent(eventName);
+  const len = monitors.length;
+  if (len > 0) {
+    return [monitors[len - 1].asObject()];
+  }
+  return [];
+}
+
+export async function fetchMonitorsForEvent(
+  eventName: string,
+  limit: number,
+  offset: number
+): Promise<any> {
+  const monitors = getMonitorsForEvent(eventName);
+  const r = limit === 0 ? monitors : monitors.slice(offset, offset + limit);
+  if (r.length > 0) {
+    return r.map((m: Monitor) => {
+      return m.asObject();
+    });
+  }
+  return [];
+}
+
+export function eventMonitorData(inst: Instance | null | undefined): any {
+  if (inst) return JSON.parse(atob(inst.lookup('data')));
+  else return null;
+}
+
+export function eventMonitorsData(
+  insts: Instance[] | null | undefined,
+  limit?: number,
+  offset?: number
+): any {
+  if (insts) {
+    if (limit !== undefined && offset !== undefined) {
+      insts = limit === 0 ? insts : insts.slice(offset, offset + limit);
+    }
+    return insts.map((inst: Instance) => {
+      return eventMonitorData(inst);
+    });
+  } else return null;
 }
 
 export async function validateModule(moduleDef: string): Promise<Instance> {
