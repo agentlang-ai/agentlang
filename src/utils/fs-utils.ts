@@ -43,9 +43,9 @@ export function createDirectoryURI(dirPath: string): URI {
  * @returns Filesystem path
  */
 export function toFsPath(uri: URI | string): string {
-  const isstr = typeof uri === 'string'
+  const isstr = typeof uri === 'string';
   if (platformIsWindows()) {
-    return isstr ? uri : uri.fsPath
+    return isstr ? uri : uri.fsPath;
   } else {
     return isstr ? VSCodeURI.parse(uri).fsPath : uri.fsPath;
   }
@@ -251,8 +251,8 @@ export function isNode(): boolean {
 }
 
 export function platformIsWindows(): boolean {
-  const os = isNode() ? process.platform : ''
-  return (os === 'win32')
+  const os = isNode() ? process.platform : '';
+  return os === 'win32';
 }
 
 /**
