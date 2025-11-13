@@ -369,9 +369,35 @@ To get started with Agentlang Ontology, please see the [Agentlang Tutorial](http
 
 ## 🚀 Getting Started
 
-#### ⚡ Use npm or pnpm
+### Installation
+
+Install the Agentlang CLI globally using npm:
 
 ```shell
+npm install -g agentlangcli
+```
+
+### Running Agentlang Applications
+
+```shell
+# switch to example directory where package.json is located
+cd example/blog
+
+# Parse and validate an Agentlang file present in that directory
+agent parseAndValidate blog.al
+
+# Run the app
+agent run
+```
+
+## 👨‍💻 Development
+
+For contributors who want to build and develop Agentlang itself:
+
+### Setup
+
+```shell
+# Install dependencies
 npm install
 
 OR
@@ -400,7 +426,7 @@ npm test
 npm run test:verbose
 ```
 
-## Run an Agentlang Script or Application
+### Run from Source
 
 ```shell
 # Parse and validate an Agentlang file
@@ -409,8 +435,6 @@ node ./bin/cli.js parseAndValidate example/blog/blog.al
 # Run a specific app
 node ./bin/cli.js run example/blog
 ```
-
-## Development
 
 ### Code Quality
 

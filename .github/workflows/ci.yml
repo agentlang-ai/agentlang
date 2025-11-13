@@ -15,33 +15,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          cache: 'pnpm'
 
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          # Auto-approve build scripts for esbuild and sqlite3 if needed
-          if pnpm approve-builds --help >/dev/null 2>&1; then
-            echo -e "\ny\ny\n" | pnpm approve-builds || true
-          fi
+        run: npm ci
 
       - name: Generate Langium files
-        run: pnpm run langium:generate
+        run: npm run langium:generate
 
       - name: Run ESLint
-        run: pnpm run lint
+        run: npm run lint
 
       - name: Run Prettier check
-        run: pnpm run format:check
+        run: npm run format:check
 
   test:
     name: Build and Test
@@ -56,37 +45,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
-
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'pnpm'
 
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          # Auto-approve build scripts for esbuild and sqlite3 if needed
-          if pnpm approve-builds --help >/dev/null 2>&1; then
-            echo -e "\ny\ny\n" | pnpm approve-builds || true
-          fi
+        run: npm ci
 
       - name: Generate Langium files
-        run: pnpm run langium:generate
+        run: npm run langium:generate
 
       - name: Build TypeScript
-        run: pnpm run build:ts
+        run: npm run build:ts
 
       - name: Build project
-        run: pnpm run build
+        run: npm run build
 
       - name: Run tests
-        run: NODE_ENV=test pnpm test
+        run: NODE_ENV=test npm test
 
       - name: Run verbose tests if failed
         if: failure()
-        run: NODE_ENV=test pnpm test:verbose
+        run: NODE_ENV=test npm test:verbose
