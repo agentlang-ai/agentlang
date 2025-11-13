@@ -380,11 +380,14 @@ npm install -g agentlangcli
 ### Running Agentlang Applications
 
 ```shell
-# Parse and validate an Agentlang file
-agent parseAndValidate example/blog/blog.al
+# switch to example directory where package.json is located
+cd example/blog
 
-# Run a specific app
-agent run example/blog
+# Parse and validate an Agentlang file present in that directory
+agent parseAndValidate blog.al
+
+# Run the app
+agent run
 ```
 
 ## 👨‍💻 Development
