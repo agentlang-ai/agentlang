@@ -369,20 +369,36 @@ To get started with Agentlang Ontology, please see the [Agentlang Tutorial](http
 
 ## 🚀 Getting Started
 
-#### ⚡ Use npm or pnpm
+### Installation
+
+Install the Agentlang CLI globally using npm:
 
 ```shell
-npm install
-
-OR
-
-# Install pnpm: https://pnpm.io/installation
-# Use pnpm
-pnpm install
+npm install -g agentlangcli
 ```
-**Note**: If pnpm shows build script warnings, run `pnpm approve-builds` and approve esbuild and sqlite3.
 
-### ⚡ Build
+### Running Agentlang Applications
+
+```shell
+# Parse and validate an Agentlang file
+agent parseAndValidate example/blog/blog.al
+
+# Run a specific app
+agent run example/blog
+```
+
+## 👨‍💻 Development
+
+For contributors who want to build and develop Agentlang itself:
+
+### Setup
+
+```shell
+# Install dependencies
+npm install
+```
+
+### Build
 
 ```shell
 # Generate parser and build
@@ -390,7 +406,7 @@ npm run langium:generate
 npm run build
 ```
 
-### ⚡ Test
+### Test
 
 ```shell
 # Run all tests
@@ -400,7 +416,7 @@ npm test
 npm run test:verbose
 ```
 
-## Run an Agentlang Script or Application
+### Run from Source
 
 ```shell
 # Parse and validate an Agentlang file
@@ -409,8 +425,6 @@ node ./bin/cli.js parseAndValidate example/blog/blog.al
 # Run a specific app
 node ./bin/cli.js run example/blog
 ```
-
-## Development
 
 ### Code Quality
 
