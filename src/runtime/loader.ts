@@ -100,7 +100,7 @@ import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.j
 import { getDefaultLLMService } from './agents/registry.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
-import { Config, ConfigSchema, setAppConfig } from './state.js';
+import { Config, ConfigSchema, setAppConfig, setProjectSettings } from './state.js';
 import { getModuleFn, importModule } from './jsmodules.js';
 import { SetSubscription } from './defs.js';
 import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
@@ -231,6 +231,7 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   const appJsonFile = `${appDir}${path.sep}package.json`;
   const s: string = await fs.readFile(appJsonFile);
   const appSpec: ApplicationSpec = JSON.parse(s);
+  setProjectSettings(appSpec.agentlang);
   if (dependenciesCallback !== undefined && appSpec.dependencies) {
     const aldeps = new Array<DependencyInfo>();
     for (const [k, v] of Object.entries(appSpec.dependencies)) {
