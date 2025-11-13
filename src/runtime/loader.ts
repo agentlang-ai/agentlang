@@ -250,7 +250,7 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
     const fls01 = await getAllModules(appDir, fs, false);
     const fls02 = await getAllModules(appDir + path.sep + 'src', fs);
     const alFiles0 = fls01.concat(fls02);
-    const configFile = `${appDir}/config.al`;
+    const configFile = `${appDir}${path.sep}config.al`;
     const alFiles = alFiles0.filter((s: string) => {
       return s != configFile;
     });
