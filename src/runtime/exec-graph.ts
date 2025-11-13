@@ -446,7 +446,7 @@ export async function executeEventHelper(eventInstance: Instance, env?: Environm
     } else {
       if (isMonitoringEnabled()) {
         env.appendEntryToMonitor(
-          `{${eventInstance.getFqName()} {message "${eventInstance.lookup('message')}}}`
+          `{${eventInstance.getFqName()} {message "${eventInstance.lookup('message')}"}}`
         );
       }
       await handleAgentInvocation(eventInstance, env);
