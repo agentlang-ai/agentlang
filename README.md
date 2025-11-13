@@ -408,7 +408,7 @@ pnpm install
 ```
 **Note**: If pnpm shows build script warnings, run `pnpm approve-builds` and approve esbuild and sqlite3.
 
-### Build
+### ⚡ Build
 
 ```shell
 # Generate parser and build
@@ -416,7 +416,7 @@ npm run langium:generate
 npm run build
 ```
 
-### Test
+### ⚡ Test
 
 ```shell
 # Run all tests
