@@ -396,7 +396,14 @@ For contributors who want to build and develop Agentlang itself:
 ```shell
 # Install dependencies
 npm install
+
+OR
+
+# Install pnpm: https://pnpm.io/installation
+# Use pnpm
+pnpm install
 ```
+**Note**: If pnpm shows build script warnings, run `pnpm approve-builds` and approve esbuild and sqlite3.
 
 ### Build
 
