@@ -138,6 +138,7 @@ export class Environment extends Instance {
   private activeUser: string = AdminUserId;
   private activeUserSet: boolean = false;
   private lastResult: Result;
+  private trashedResult: Result = undefined;
   private returnFlag: boolean = false;
   private parentPath: string | undefined;
   private normalizedParentPath: string | undefined;
@@ -464,7 +465,16 @@ export class Environment extends Instance {
   }
 
   setLastResult(result: Result): Environment {
+    this.trashedResult = this.lastResult;
     this.lastResult = result;
+    return this;
+  }
+
+  revokeLastResult(): Environment {
+    if (this.trashedResult !== undefined) {
+      this.lastResult = this.trashedResult;
+      this.trashedResult = undefined;
+    }
     return this;
   }
 
@@ -814,6 +824,13 @@ export class Environment extends Instance {
   decrementMonitor(): Environment {
     if (this.monitor !== undefined) {
       this.monitor = this.monitor.decrement();
+    }
+    return this;
+  }
+
+  setMonitorFlowResult(): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.setFlowResult(this.lastResult);
     }
     return this;
   }
@@ -2025,7 +2042,7 @@ async function iterateOnFlow(
       }
     }
   } finally {
-    env.decrementMonitor();
+    env.decrementMonitor().revokeLastResult().setMonitorFlowResult();
   }
   console.debug(`No more flow steps, completed iteration ${iterId} on flow:\n${flow}`);
 }
