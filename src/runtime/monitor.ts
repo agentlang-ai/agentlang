@@ -1,4 +1,4 @@
-import { Instance, isAgentEventInstance } from './module.js';
+import { Instance, isAgentEventInstance, isInstance } from './module.js';
 import { disableInternalMonitoring, enableInternalMonitoring } from './state.js';
 
 export class MonitorEntry {
@@ -166,6 +166,7 @@ export class Monitor {
   private lastEntrySetAtMs: number = 0;
   private totalLatency: number = 0;
   private timestamp: number;
+  private flowResult: any = undefined;
 
   private static MAX_REGISTRY_SIZE = 25;
 
@@ -293,6 +294,15 @@ export class Monitor {
     return this;
   }
 
+  setFlowResult(result: any): Monitor {
+    if (this.parent !== undefined) {
+      this.parent.setFlowResult(result);
+    } else {
+      this.flowResult = result;
+    }
+    return this;
+  }
+
   asObject(): object {
     const objs = new Array<object>();
     this.entries.forEach((entry: Monitor | MonitorEntry) => {
@@ -315,6 +325,17 @@ export class Monitor {
       r.user = this.user;
     }
     r.timestamp = this.timestamp;
+    if (this.flowResult !== undefined) {
+      let fr = this.flowResult;
+      if (fr instanceof Array && isInstance(fr[0])) {
+        fr = fr.map((v: any) => {
+          return v.asSerializableObject();
+        });
+      } else if (isInstance(fr)) {
+        fr = fr.asSerializableObject();
+      }
+      r.flowResult = fr;
+    }
     return r;
   }
 }

@@ -440,3 +440,12 @@ export async function introspectCase(caseStr: string): Promise<CasePattern> {
   const ifPat = pat[0] as IfPattern;
   return { condition: ifPat.condition, body: ifPat.body[0] };
 }
+
+export function canParse(s: string): boolean {
+  const ts = s.trim();
+  if (ts) {
+    const contents = ts.substring(1, ts.length - 1).trim();
+    return contents.length > 0;
+  }
+  return false;
+}
