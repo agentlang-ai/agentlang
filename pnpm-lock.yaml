@@ -188,7 +188,11 @@ importers:
 
   example/employee_chat: {}
 
+  example/joins: {}
+
   example/mcpdemo: {}
+
+  example/monitoring: {}
 
   example/pets: {}
 
