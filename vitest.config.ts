@@ -24,5 +24,14 @@ export default defineConfig({
         : [['default', { summary: false }]],
     // Suppress console output unless in verbose mode
     silent: !(process.env.VITEST_VERBOSE === 'true' || process.env.DEBUG === 'true'),
+    // Run tests sequentially to prevent SQLite database lock issues
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
+    // Set fileParallelism to false to ensure tests in different files don't run in parallel
+    fileParallelism: false,
   },
 });
