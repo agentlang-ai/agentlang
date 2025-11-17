@@ -430,7 +430,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
         const externalToolSpecs = this.getExternalToolSpecs();
         const msgsContent = msgs
-          .slice(1)
+          //.slice(1)
           .map((bm: BaseMessage) => {
             return bm.content;
           })
