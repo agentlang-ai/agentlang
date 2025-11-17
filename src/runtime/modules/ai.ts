@@ -136,6 +136,7 @@ export class AgentInstance {
   private fqName: string | undefined;
   private decisionExecutor = false;
   private retryObj: Retry | undefined;
+  private addContext = false;
 
   private constructor() {}
 
@@ -312,6 +313,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         return `${finalInstruction}\nSome additional context:\n${ctx}`;
       }
     } else {
+      this.addContext = true;
       return finalInstruction;
     }
   }
@@ -427,7 +429,11 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           const newSysMsg = systemMessage(msg);
           msgs[0] = newSysMsg;
         }
-        msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
+        const hmsg = await this.maybeAddRelevantDocuments(
+          this.maybeAddFlowContext(message, env),
+          env
+        );
+        msgs.push(humanMessage(hmsg));
         const externalToolSpecs = this.getExternalToolSpecs();
         const msgsContent = msgs
           .slice(1)
@@ -472,6 +478,18 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     } else {
       throw new Error(`failed to initialize messages for agent ${agentName}`);
     }
+  }
+
+  private maybeAddFlowContext(message: string, env: Environment): string {
+    if (this.addContext) {
+      this.addContext = false;
+      const fctx = env.getFlowContext();
+      if (fctx) {
+        return `${message}\nContext: ${fctx}`;
+      }
+      return message;
+    }
+    return message;
   }
 
   private async invokeValidator(

@@ -313,9 +313,6 @@ Generally a flowchart has the following two types of entries:
   2. a --> "x" b - this means if 'a' returns the string "x", then do step 'b'.
 If you detect that you have reached the end of the chart, return 'DONE'. Otherwise, return only the name of the next step. Never return
 any additional description, direction or comments.
-
-Sometimes a step-name may appear like a function call, as in 'checkOrder --> "ProductB" acceptOrder(checkOrder)'. In cases like this, return 
-the complete step specification - like 'acceptOrder(checkOrder)', if you decide that 'acceptOrder' is the next step.
 `;
 
 export const DecisionAgentInstructions = `Analyse a decision table with multiple cases along with the context to return one or more values.

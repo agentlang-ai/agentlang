@@ -1787,9 +1787,6 @@ async function walkJoinQueryPattern(
 const MAX_PLANNER_RETRIES = 3;
 
 async function agentInvoke(agent: AgentInstance, msg: string, env: Environment): Promise<void> {
-  const flowContext = env.getFlowContext();
-  msg = flowContext ? `${msg}\nContext:\n${flowContext}` : msg;
-
   // log invocation details
   let invokeDebugMsg = `\nInvoking agent ${agent.name}:`;
   if (agent.role) {
