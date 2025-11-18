@@ -1055,3 +1055,38 @@ analyseEmail --> "ARC" archiveEmail
     );
   });
 });
+
+describe('Instances as JS objects', () => {
+  test('JS obejct syntax for instances', async () => {
+    await doInternModule(
+      'JsObj',
+      `entity E {
+        id Int @id,
+        x String
+      }
+      
+      workflow W1 {
+        {E: {x?: W1.x}}
+      }
+
+      workflow W2 {
+        {E: {id?>: W2.id}}
+      }
+      `)
+      const cre = async (id: number, x: string) => {
+        const e = await parseAndEvaluateStatement(`{JsObj/E: {id: ${id}, x: "${x}"}}`)
+        assert(isInstanceOfType(e, "JsObj/E"))
+        return e
+      }
+      await cre(1, "a"); await cre(2, "b"); await cre(3, "c")
+      let rs: Instance[] = await parseAndEvaluateStatement(`{JsObj/W1: {x: "b"}}`)
+      assert(rs.length == 1)
+      assert(rs[0].lookup('id') == 2)
+      rs = await parseAndEvaluateStatement(`{JsObj/W2: {id: 1}}`)
+      assert(rs.length == 2)
+      rs.forEach((inst: Instance) => {
+        const id = inst.lookup('id')
+        assert(id == 2 || id == 3)
+      })
+    })
+  })
