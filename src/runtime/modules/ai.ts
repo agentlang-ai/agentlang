@@ -331,7 +331,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (response) {
       const responseSchema = getAgentResponseSchema(this.getFqName());
       if (responseSchema) {
-        const attrs = JSON.parse(response);
+        const attrs = JSON.parse(trimGeneratedCode(response));
         const parts = nameToPath(responseSchema);
         const moduleName = parts.getModuleName();
         const entryName = parts.getEntryName();
