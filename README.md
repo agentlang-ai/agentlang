@@ -278,54 +278,6 @@ glossaryEntry campaignAnalyzer.entry3 {
 }
 ```
 
-### Response Schema and Scratchpad
-
-In certain scenarios, agents perform better with structured data than plain text. You can configure an agent to output responses in a specific format, enabling another agent to efficiently parse and utilize the relevant information as input.
-
-```typescript
-module NetOps
-
-record NetworkProvisioningRequest {
-    type @enum("DNS", "WLAN"),
-    requestedBy String,
-    CNAME String,
-    IPAddress String
-}
-
-agent classifyProvisioningRequest {
-    instruction "Analyse the network provisioning request and return its type and other relevant information.",
-    responseSchema NetworkProvisioningRequest
-}
-```
-
-This kind of structured data (as entity or record instances) returned by an agent is added to an internal-cache used by the flow. This cache is known as *scratchpad*. 
-
-### Templatized Instructions
-
-An agent further down the flow can access the scratchpad using template parameters (denoted by `{{}}`) embedded in its instructions/directives. For instance, the `ticketUpdater` agent makes reference to the scratchpad via the parameters `{{classifyProvisioningRequest.type}}` and `{{classifyProvisioningRequest.requestedBy}}`. (The references need not include the agent name and simply be `{{type}}` and `{{requestedBy}}`). The actual instruction the `ticketUpdater` agent will see in this context will be `""Use type=DNS, requestedBy=joe@acme.com and provisioningId={{provisioningId}} to mark the request as completed"` - obviously enhancing its focus on the current context for more deterministic actions.
-
-```typescript
-agent ticketUpdater {
-    instruction "Use type={{classifyProvisioningRequest.type}}, requestedBy={{classifyProvisioningRequest.requestedBy}} and provisioningId={{provisioningId}} to mark the request as completed",
-    tools [Networking/markRequestCompleted]
-}
-
-// insert agent/workflow definitions for provisionDNS, reportFailure etc
-
-flow networkProvisioningRequestManager {
-    classifyProvisioningRequest --> "DNS" provisionDNS
-    classifyProvisioningRequest --> "WLAN" provisionWLAN
-    classifyProvisioningRequest --> "Other" reportFailure
-    provisionDNS --> ticketUpdater
-    provisionWLAN --> ticketUpdater
-}
-```
-
-The agent `classifyProvisioningRequest` has its `responseSchema` attribute set to the record `NetworkProvisioningRequest`. This means for a request like `"Provision DNS joe.acme.com for 192.3.4.1 as requested by joe@acme.com"` this agent will return:
-
-```typescript
-{type "DNS", requestedBy "joe@acme.com", CNAME "joe.acme.com", IPAddress "192.3.4.1"}
-```
 <div align="center">
 
 ## Agentlang Ontology
