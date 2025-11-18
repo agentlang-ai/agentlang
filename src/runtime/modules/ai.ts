@@ -307,7 +307,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const spad = env.getScratchPad();
     if (spad !== undefined) {
       if (finalInstruction.indexOf('{{') > 0) {
-        return AgentInstance.maybeRewriteTemplatePatterns(spad, finalInstruction);
+        return AgentInstance.maybeRewriteTemplatePatterns(spad, finalInstruction, env);
       } else {
         const ctx = JSON.stringify(spad);
         return `${finalInstruction}\nSome additional context:\n${ctx}`;
@@ -318,8 +318,12 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     }
   }
 
-  private static maybeRewriteTemplatePatterns(scratchPad: any, instruction: string): string {
-    const templ = Handlebars.compile(instruction);
+  private static maybeRewriteTemplatePatterns(
+    scratchPad: any,
+    instruction: string,
+    env: Environment
+  ): string {
+    const templ = Handlebars.compile(env.rewriteTemplateMappings(instruction));
     return templ(scratchPad);
   }
 
@@ -401,6 +405,9 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       this.withSession = false;
     }
     if (isflow) {
+      this.withSession = false;
+    }
+    if (this.withSession && env.getFlowContext()) {
       this.withSession = false;
     }
     if (!this.withSession && env.isAgentModeSet()) {

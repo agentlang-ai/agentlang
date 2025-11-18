@@ -33,7 +33,7 @@ entity Expense {
     date DateTime @default(now())
 }
 
-    Now generate the data-model for the request: '{{requestClassifier.dataModelRequest}}'.",
+    Now generate the data-model for the request: '{{request}}'. (Ignore any request to create workflows, generate only entities)",
     validate agentlang/validateModule,
     responseSchema builder.core/Generated
 }
@@ -52,18 +52,18 @@ workflow lookupStudentsByName {
     {Student {name? lookupStudentsByName.name}}
 }
 
-Now based on the data-model \n{{dataModelCreator.code}}\n, generate workflows as per the user request: '{{requestClassifier.workflowRequest}}'.",
+Now based on the data-model \n{{code}}\n, generate workflows as per the user request: '{{request}}'.",
     responseSchema builder.core/Generated
 }
 
 agent appGenerator {
-    instruction "Combine {{dataModelCreator.code}} and {{workflowCreator.code}} and return it as a single app specification"
+    instruction "Combine {{dataModel}} and {{workflows}} and return it as a single app specification"
 }
 
 flow appBuilder {
-    requestClassifier --> dataModelCreator
-    dataModelCreator --> workflowCreator
-    workflowCreator --> appGenerator
+    requestClassifier --> {dataModelCreator: {request: requestClassifier.dataModelRequest}}
+    dataModelCreator --> {workflowCreator: {code: dataModelCreator.code, request: requestClassifier.workflowRequest}}
+    workflowCreator --> {appGenerator: {dataModel: dataModelCreator.code, workflows: workflowCreator.code}}
 }
 
 @public agent appBuilder {
