@@ -569,7 +569,7 @@ export class Record extends ModuleEntry {
           targetModuleName,
           targetEntityName,
           targetColumnName,
-          onDelete: 'CASCADE',
+          onDelete: 'SET NULL',
           onUpdate: 'CASCADE',
         });
       }
