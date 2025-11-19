@@ -581,3 +581,7 @@ export function validateIdFormat(idAttrName: string, idAttrValue: any) {
     }
   }
 }
+
+export function nameContainsSepEscape(n: string): boolean {
+  return n.indexOf(IdSepEscape) >= 0;
+}

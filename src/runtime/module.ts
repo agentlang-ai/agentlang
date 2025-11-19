@@ -46,6 +46,7 @@ import {
   splitRefs,
   forceAsFqName,
   validateIdFormat,
+  nameContainsSepEscape,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -79,6 +80,9 @@ export class ModuleEntry {
   private taggedAsPublic: boolean = false;
 
   constructor(name: string, moduleName: string) {
+    if (nameContainsSepEscape(name)) {
+      throw new Error(`Name cannot contain reserved escape characters - ${name}`);
+    }
     this.name = name;
     this.moduleName = moduleName;
   }
@@ -1091,7 +1095,7 @@ ${attrs.join(',\n')}
     }
   }
 
-  static Suffix = '__agent';
+  static Suffix = '_agent';
 
   static EscapeName(n: string): string {
     if (n.endsWith(Agent.Suffix)) {
