@@ -30,7 +30,7 @@
 ## Agentlang - Team as Code
 </div>
 
-Agentlang is a declarative DSL (built on TypeScript) for creating AI Agents and full Agentic Apps. With Agentlang, you define, version, run, mentor, and monitor a team of AI agents—a model we call Team-as-Code (our riff on IaC). It unifies AI-agent development and application development into one coherent workflow.
+Agentlang is a declarative DSL (built on TypeScript) for creating AI Agents and full-stack Agentic Apps. With Agentlang, you define, version, run, mentor, and monitor teams of AI agents, along with the app infrastructure they need: data model, workflows, RBAC, integrations, and UI. We refer to this approach - bringing together AI agent development and App development into a single coherent discipline - as Team-as-Code (our riff on IaC).
 
 * **For Devs and Non-Devs:** Code and vibe-code in your IDE, focusing on the business-logic of your app, not wiring. Alternatively, you can build, run, mentor and monitor your AI Team in Studio - our visual-builder (coming soon). Switch back-and-forth between the two modes seamlessly.
 
