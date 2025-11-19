@@ -2011,9 +2011,10 @@ async function iterateOnFlow(
 ): Promise<void> {
   rootAgent.disableSession();
   const initContext = msg;
-  const s = `Now consider the following flowchart:\n${flow}\n
+  const s = `Now consider the following flowchart and return the next step:\n${flow}\n
   If you understand from the context that a step with no further possible steps has been evaluated,
-  terminate the flowchart by returning DONE. Never return to the top or root step of the flowchart, instead return DONE.\n`;
+  terminate the flowchart by returning DONE. Never return to the top or root step of the flowchart, instead return DONE.
+  Important: Return only the next flow-step or DONE. Do not return any additional description, like your thinking process.\n`;
   env.setFlowContext(initContext);
   await agentInvoke(rootAgent, s, env);
   let step = await preprocessStep(env.getLastResult().trim(), env);
@@ -2045,7 +2046,8 @@ async function iterateOnFlow(
       if (monitoringEnabled) {
         env.appendEntryToMonitor(step);
       }
-      await agentInvoke(agent, '', env);
+      const inst = agent.swapInstruction('');
+      await agentInvoke(agent, inst, env);
       if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());
       if (env.isSuspended()) {
         console.debug(`${iterId} suspending iteration on step ${step}`);

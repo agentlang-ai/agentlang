@@ -221,6 +221,12 @@ export class AgentInstance {
     return AgentInstance.FromInstance(inst).disableSession().markAsDecisionExecutor();
   }
 
+  swapInstruction(newIns: string): string {
+    const s = this.instruction;
+    this.instruction = newIns;
+    return s;
+  }
+
   disableSession(): AgentInstance {
     this.withSession = false;
     return this;
@@ -440,7 +446,9 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           this.maybeAddFlowContext(message, env),
           env
         );
-        msgs.push(humanMessage(hmsg));
+        if (hmsg.length > 0) {
+          msgs.push(humanMessage(hmsg));
+        }
         const externalToolSpecs = this.getExternalToolSpecs();
         const msgsContent = msgs
           //.slice(1)
