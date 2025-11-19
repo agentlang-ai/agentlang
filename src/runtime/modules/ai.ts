@@ -136,6 +136,7 @@ export class AgentInstance {
   private fqName: string | undefined;
   private decisionExecutor = false;
   private retryObj: Retry | undefined;
+  private addContext = false;
 
   private constructor() {}
 
@@ -218,6 +219,12 @@ export class AgentInstance {
         .set('instruction', instruction)
     );
     return AgentInstance.FromInstance(inst).disableSession().markAsDecisionExecutor();
+  }
+
+  swapInstruction(newIns: string): string {
+    const s = this.instruction;
+    this.instruction = newIns;
+    return s;
   }
 
   disableSession(): AgentInstance {
@@ -306,18 +313,23 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const spad = env.getScratchPad();
     if (spad !== undefined) {
       if (finalInstruction.indexOf('{{') > 0) {
-        return AgentInstance.maybeRewriteTemplatePatterns(spad, finalInstruction);
+        return AgentInstance.maybeRewriteTemplatePatterns(spad, finalInstruction, env);
       } else {
         const ctx = JSON.stringify(spad);
         return `${finalInstruction}\nSome additional context:\n${ctx}`;
       }
     } else {
+      this.addContext = true;
       return finalInstruction;
     }
   }
 
-  private static maybeRewriteTemplatePatterns(scratchPad: any, instruction: string): string {
-    const templ = Handlebars.compile(instruction);
+  private static maybeRewriteTemplatePatterns(
+    scratchPad: any,
+    instruction: string,
+    env: Environment
+  ): string {
+    const templ = Handlebars.compile(env.rewriteTemplateMappings(instruction));
     return templ(scratchPad);
   }
 
@@ -325,7 +337,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (response) {
       const responseSchema = getAgentResponseSchema(this.getFqName());
       if (responseSchema) {
-        const attrs = JSON.parse(response);
+        const attrs = JSON.parse(trimGeneratedCode(response));
         const parts = nameToPath(responseSchema);
         const moduleName = parts.getModuleName();
         const entryName = parts.getEntryName();
@@ -401,6 +413,9 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (isflow) {
       this.withSession = false;
     }
+    if (this.withSession && env.getFlowContext()) {
+      this.withSession = false;
+    }
     if (!this.withSession && env.isAgentModeSet()) {
       this.withSession = true;
       if (env.isInAgentChatMode()) {
@@ -427,7 +442,13 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           const newSysMsg = systemMessage(msg);
           msgs[0] = newSysMsg;
         }
-        msgs.push(humanMessage(await this.maybeAddRelevantDocuments(message, env)));
+        const hmsg = await this.maybeAddRelevantDocuments(
+          this.maybeAddFlowContext(message, env),
+          env
+        );
+        if (hmsg.length > 0) {
+          msgs.push(humanMessage(hmsg));
+        }
         const externalToolSpecs = this.getExternalToolSpecs();
         const msgsContent = msgs
           //.slice(1)
@@ -472,6 +493,18 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     } else {
       throw new Error(`failed to initialize messages for agent ${agentName}`);
     }
+  }
+
+  private maybeAddFlowContext(message: string, env: Environment): string {
+    if (this.addContext) {
+      this.addContext = false;
+      const fctx = env.getFlowContext();
+      if (fctx) {
+        return `${message}\nContext: ${fctx}`;
+      }
+      return message;
+    }
+    return message;
   }
 
   private async invokeValidator(

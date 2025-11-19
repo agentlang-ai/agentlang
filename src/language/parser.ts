@@ -141,10 +141,34 @@ export function maybeGetValidationErrors(
         scs.add(validationError.range.start.character);
       }
     }
-    return lines;
+    return trimErrorLines(lines);
   } else {
     return undefined;
   }
+}
+
+function trimErrorLines(lines: string[]): string[] {
+  let startidx = 0;
+  for (let i = 0; i < lines.length; ++i) {
+    if (lines[i].indexOf(ErrorIndicator) > 0) {
+      startidx = i;
+      break;
+    }
+  }
+  let endidx = startidx;
+  for (let i = startidx + 1; i < lines.length; ++i) {
+    if (lines[i].indexOf(ErrorIndicator) > 0) {
+      endidx = i;
+      break;
+    }
+  }
+  if (startidx > 0) {
+    --startidx;
+  }
+  if (endidx != lines.length) {
+    ++endidx;
+  }
+  return lines.slice(startidx, endidx);
 }
 
 function trimErrorMessage(s: string): string {

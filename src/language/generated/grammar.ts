@@ -30,7 +30,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@112"
+                "$ref": "#/rules@113"
               },
               "arguments": []
             }
@@ -86,7 +86,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@116"
+                "$ref": "#/rules@117"
               },
               "arguments": []
             }
@@ -102,7 +102,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@114"
+                "$ref": "#/rules@115"
               },
               "arguments": []
             }
@@ -174,7 +174,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@83"
+              "$ref": "#/rules@84"
             },
             "arguments": []
           },
@@ -188,14 +188,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@73"
-            },
-            "arguments": []
-          },
-          {
-            "$type": "RuleCall",
-            "rule": {
-              "$ref": "#/rules@78"
+              "$ref": "#/rules@74"
             },
             "arguments": []
           },
@@ -217,6 +210,13 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "$type": "RuleCall",
             "rule": {
               "$ref": "#/rules@81"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@82"
             },
             "arguments": []
           }
@@ -310,7 +310,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@110"
+                    "$ref": "#/rules@111"
                   },
                   "arguments": []
                 }
@@ -344,7 +344,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@110"
+                "$ref": "#/rules@111"
               },
               "arguments": []
             }
@@ -386,7 +386,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@114"
+                    "$ref": "#/rules@115"
                   },
                   "arguments": []
                 }
@@ -692,7 +692,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@112"
+                "$ref": "#/rules@113"
               },
               "arguments": []
             }
@@ -856,7 +856,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@112"
+                "$ref": "#/rules@113"
               },
               "arguments": []
             }
@@ -887,7 +887,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@112"
+                "$ref": "#/rules@113"
               },
               "arguments": []
             }
@@ -970,7 +970,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@112"
+                "$ref": "#/rules@113"
               },
               "arguments": []
             }
@@ -985,7 +985,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@112"
+                    "$ref": "#/rules@113"
                   },
                   "arguments": []
                 }
@@ -1001,7 +1001,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@114"
+                    "$ref": "#/rules@115"
                   },
                   "arguments": []
                 }
@@ -1081,7 +1081,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@114"
+                "$ref": "#/rules@115"
               },
               "arguments": []
             }
@@ -1096,7 +1096,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@112"
+                    "$ref": "#/rules@113"
                   },
                   "arguments": []
                 }
@@ -1111,7 +1111,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@112"
+                        "$ref": "#/rules@113"
                       },
                       "arguments": []
                     }
@@ -1182,7 +1182,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@98"
+                    "$ref": "#/rules@99"
                   },
                   "arguments": []
                 }
@@ -1229,7 +1229,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@112"
+                "$ref": "#/rules@113"
               },
               "arguments": []
             },
@@ -1250,7 +1250,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@116"
+                "$ref": "#/rules@117"
               },
               "arguments": []
             }
@@ -1269,7 +1269,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@116"
+                    "$ref": "#/rules@117"
                   },
                   "arguments": []
                 }
@@ -1311,7 +1311,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@111"
+                "$ref": "#/rules@112"
               },
               "arguments": []
             }
@@ -1342,7 +1342,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@112"
+                "$ref": "#/rules@113"
               },
               "arguments": []
             },
@@ -1363,7 +1363,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@112"
+                "$ref": "#/rules@113"
               },
               "arguments": []
             }
@@ -1593,7 +1593,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@114"
+                        "$ref": "#/rules@115"
                       },
                       "arguments": []
                     },
@@ -1621,7 +1621,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                         {
                           "$type": "RuleCall",
                           "rule": {
-                            "$ref": "#/rules@114"
+                            "$ref": "#/rules@115"
                           },
                           "arguments": []
                         },
@@ -1779,7 +1779,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@111"
+                "$ref": "#/rules@112"
               },
               "arguments": []
             }
@@ -1795,7 +1795,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@111"
+                "$ref": "#/rules@112"
               },
               "arguments": []
             }
@@ -2033,7 +2033,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@114"
+                "$ref": "#/rules@115"
               },
               "arguments": []
             }
@@ -2078,7 +2078,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@114"
+                "$ref": "#/rules@115"
               },
               "arguments": []
             }
@@ -2097,7 +2097,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@114"
+                    "$ref": "#/rules@115"
                   },
                   "arguments": []
                 }
@@ -2190,7 +2190,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@114"
+                "$ref": "#/rules@115"
               },
               "arguments": []
             }
@@ -2202,7 +2202,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@114"
+                "$ref": "#/rules@115"
               },
               "arguments": []
             }
@@ -2377,7 +2377,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@98"
+                "$ref": "#/rules@99"
               },
               "arguments": []
             }
@@ -2404,7 +2404,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@116"
+                "$ref": "#/rules@117"
               },
               "arguments": []
             }
@@ -2416,7 +2416,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@108"
+                "$ref": "#/rules@109"
               },
               "arguments": []
             }
@@ -2428,7 +2428,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@107"
+                "$ref": "#/rules@108"
               },
               "arguments": []
             }
@@ -2458,14 +2458,14 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@114"
+                    "$ref": "#/rules@115"
                   },
                   "arguments": []
                 },
                 {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@111"
+                    "$ref": "#/rules@112"
                   },
                   "arguments": []
                 }
@@ -2505,7 +2505,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                         "terminal": {
                           "$type": "RuleCall",
                           "rule": {
-                            "$ref": "#/rules@98"
+                            "$ref": "#/rules@99"
                           },
                           "arguments": []
                         }
@@ -2524,7 +2524,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                             "terminal": {
                               "$type": "RuleCall",
                               "rule": {
-                                "$ref": "#/rules@98"
+                                "$ref": "#/rules@99"
                               },
                               "arguments": []
                             }
@@ -2596,7 +2596,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@114"
+                "$ref": "#/rules@115"
               },
               "arguments": []
             }
@@ -2608,7 +2608,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@108"
+                "$ref": "#/rules@109"
               },
               "arguments": []
             }
@@ -2620,7 +2620,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@116"
+                "$ref": "#/rules@117"
               },
               "arguments": []
             }
@@ -2632,7 +2632,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@111"
+                "$ref": "#/rules@112"
               },
               "arguments": []
             }
@@ -2644,7 +2644,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@107"
+                "$ref": "#/rules@108"
               },
               "arguments": []
             }
@@ -2849,7 +2849,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@114"
+                    "$ref": "#/rules@115"
                   },
                   "arguments": []
                 }
@@ -2925,7 +2925,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@112"
+                "$ref": "#/rules@113"
               },
               "arguments": []
             }
@@ -3035,7 +3035,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@98"
+                "$ref": "#/rules@99"
               },
               "arguments": []
             }
@@ -3059,7 +3059,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@90"
+                "$ref": "#/rules@91"
               },
               "arguments": []
             }
@@ -3071,7 +3071,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@92"
+                "$ref": "#/rules@93"
               },
               "arguments": []
             }
@@ -3083,7 +3083,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@93"
+                "$ref": "#/rules@94"
               },
               "arguments": []
             }
@@ -3095,7 +3095,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@94"
+                "$ref": "#/rules@95"
               },
               "arguments": []
             }
@@ -3198,7 +3198,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@88"
+                "$ref": "#/rules@89"
               },
               "arguments": []
             }
@@ -3244,7 +3244,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@114"
+                    "$ref": "#/rules@115"
                   },
                   "arguments": []
                 }
@@ -3266,7 +3266,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                         "terminal": {
                           "$type": "RuleCall",
                           "rule": {
-                            "$ref": "#/rules@114"
+                            "$ref": "#/rules@115"
                           },
                           "arguments": []
                         }
@@ -3285,7 +3285,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                             "terminal": {
                               "$type": "RuleCall",
                               "rule": {
-                                "$ref": "#/rules@114"
+                                "$ref": "#/rules@115"
                               },
                               "arguments": []
                             }
@@ -3403,10 +3403,15 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@109"
+                        "$ref": "#/rules@110"
                       },
                       "arguments": []
                     }
+                  },
+                  {
+                    "$type": "Keyword",
+                    "value": ":",
+                    "cardinality": "?"
                   },
                   {
                     "$type": "Keyword",
@@ -3428,10 +3433,15 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@112"
+                        "$ref": "#/rules@113"
                       },
                       "arguments": []
                     }
+                  },
+                  {
+                    "$type": "Keyword",
+                    "value": ":",
+                    "cardinality": "?"
                   },
                   {
                     "$type": "Keyword",
@@ -3492,10 +3502,15 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@112"
+                        "$ref": "#/rules@113"
                       },
                       "arguments": []
                     }
+                  },
+                  {
+                    "$type": "Keyword",
+                    "value": ":",
+                    "cardinality": "?"
                   },
                   {
                     "$type": "Assignment",
@@ -3527,7 +3542,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@87"
+                    "$ref": "#/rules@88"
                   },
                   "arguments": []
                 }
@@ -3546,7 +3561,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@87"
+                        "$ref": "#/rules@88"
                       },
                       "arguments": []
                     }
@@ -3672,7 +3687,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@95"
+                    "$ref": "#/rules@96"
                   },
                   "arguments": []
                 }
@@ -3691,7 +3706,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@95"
+                        "$ref": "#/rules@96"
                       },
                       "arguments": []
                     }
@@ -3802,7 +3817,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@114"
+                "$ref": "#/rules@115"
               },
               "arguments": []
             }
@@ -3814,7 +3829,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@111"
+                "$ref": "#/rules@112"
               },
               "arguments": []
             }
@@ -3853,7 +3868,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@112"
+                "$ref": "#/rules@113"
               },
               "arguments": []
             }
@@ -3869,7 +3884,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@109"
+                "$ref": "#/rules@110"
               },
               "arguments": []
             }
@@ -3881,7 +3896,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@96"
+                "$ref": "#/rules@97"
               },
               "arguments": []
             },
@@ -3894,7 +3909,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@111"
+                "$ref": "#/rules@112"
               },
               "arguments": []
             }
@@ -3965,7 +3980,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@109"
+                "$ref": "#/rules@110"
               },
               "arguments": []
             }
@@ -4056,7 +4071,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@113"
+                "$ref": "#/rules@114"
               },
               "arguments": []
             }
@@ -4208,7 +4223,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@114"
+                "$ref": "#/rules@115"
               },
               "arguments": []
             }
@@ -4251,7 +4266,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@113"
+                "$ref": "#/rules@114"
               },
               "arguments": []
             }
@@ -4363,7 +4378,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@113"
+                "$ref": "#/rules@114"
               },
               "arguments": []
             }
@@ -4394,7 +4409,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@113"
+                    "$ref": "#/rules@73"
                   },
                   "arguments": []
                 }
@@ -4423,7 +4438,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@116"
+                "$ref": "#/rules@117"
               },
               "arguments": []
             }
@@ -4435,10 +4450,39 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@113"
+                "$ref": "#/rules@73"
               },
               "arguments": []
             }
+          }
+        ]
+      },
+      "definesHiddenTokens": false,
+      "entry": false,
+      "fragment": false,
+      "hiddenTokens": [],
+      "parameters": [],
+      "wildcard": false
+    },
+    {
+      "$type": "ParserRule",
+      "name": "FlowStepSpec",
+      "definition": {
+        "$type": "Alternatives",
+        "elements": [
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@114"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@57"
+            },
+            "arguments": []
           }
         ]
       },
@@ -4466,7 +4510,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@113"
+                "$ref": "#/rules@114"
               },
               "arguments": []
             }
@@ -4481,7 +4525,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@74"
+                    "$ref": "#/rules@75"
                   },
                   "arguments": []
                 },
@@ -4531,7 +4575,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@75"
+                    "$ref": "#/rules@76"
                   },
                   "arguments": []
                 }
@@ -4543,7 +4587,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@75"
+                    "$ref": "#/rules@76"
                   },
                   "arguments": []
                 },
@@ -4586,7 +4630,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@98"
+                "$ref": "#/rules@99"
               },
               "arguments": []
             }
@@ -4631,7 +4675,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@77"
+                    "$ref": "#/rules@78"
                   },
                   "arguments": []
                 }
@@ -4650,7 +4694,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@77"
+                        "$ref": "#/rules@78"
                       },
                       "arguments": []
                     }
@@ -4690,7 +4734,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@114"
+                    "$ref": "#/rules@115"
                   },
                   "arguments": []
                 }
@@ -4702,7 +4746,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@116"
+                    "$ref": "#/rules@117"
                   },
                   "arguments": []
                 }
@@ -4712,7 +4756,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@111"
+              "$ref": "#/rules@112"
             },
             "arguments": []
           }
@@ -4742,7 +4786,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@111"
+                "$ref": "#/rules@112"
               },
               "arguments": []
             }
@@ -4777,7 +4821,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@90"
+                        "$ref": "#/rules@91"
                       },
                       "arguments": []
                     },
@@ -4830,7 +4874,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@111"
+                "$ref": "#/rules@112"
               },
               "arguments": []
             }
@@ -4865,7 +4909,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@90"
+                        "$ref": "#/rules@91"
                       },
                       "arguments": []
                     },
@@ -4918,7 +4962,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@111"
+                "$ref": "#/rules@112"
               },
               "arguments": []
             }
@@ -4946,7 +4990,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@76"
+                    "$ref": "#/rules@77"
                   },
                   "arguments": []
                 },
@@ -4993,7 +5037,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@114"
+                "$ref": "#/rules@115"
               },
               "arguments": []
             }
@@ -5016,7 +5060,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@108"
+                    "$ref": "#/rules@109"
                   },
                   "arguments": []
                 }
@@ -5038,7 +5082,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@82"
+                    "$ref": "#/rules@83"
                   },
                   "arguments": []
                 }
@@ -5083,7 +5127,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@95"
+                    "$ref": "#/rules@96"
                   },
                   "arguments": []
                 }
@@ -5102,7 +5146,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@95"
+                        "$ref": "#/rules@96"
                       },
                       "arguments": []
                     }
@@ -5143,7 +5187,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@113"
+                "$ref": "#/rules@114"
               },
               "arguments": []
             }
@@ -5162,7 +5206,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@113"
+                    "$ref": "#/rules@114"
                   },
                   "arguments": []
                 }
@@ -5181,7 +5225,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@113"
+                        "$ref": "#/rules@114"
                       },
                       "arguments": []
                     }
@@ -5210,7 +5254,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@84"
+                    "$ref": "#/rules@85"
                   },
                   "arguments": []
                 }
@@ -5229,7 +5273,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                     "terminal": {
                       "$type": "RuleCall",
                       "rule": {
-                        "$ref": "#/rules@84"
+                        "$ref": "#/rules@85"
                       },
                       "arguments": []
                     }
@@ -5266,7 +5310,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@86"
+                "$ref": "#/rules@87"
               },
               "arguments": []
             }
@@ -5278,7 +5322,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@85"
+                "$ref": "#/rules@86"
               },
               "arguments": []
             }
@@ -5305,21 +5349,21 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@114"
+                "$ref": "#/rules@115"
               },
               "arguments": []
             },
             {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@111"
+                "$ref": "#/rules@112"
               },
               "arguments": []
             },
             {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@116"
+                "$ref": "#/rules@117"
               },
               "arguments": []
             }
@@ -5406,7 +5450,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@112"
+                "$ref": "#/rules@113"
               },
               "arguments": []
             }
@@ -5453,7 +5497,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@89"
+                "$ref": "#/rules@90"
               },
               "arguments": []
             },
@@ -5538,7 +5582,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@98"
+                "$ref": "#/rules@99"
               },
               "arguments": []
             }
@@ -5561,7 +5605,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@91"
+                "$ref": "#/rules@92"
               },
               "arguments": []
             },
@@ -5619,7 +5663,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@114"
+                "$ref": "#/rules@115"
               },
               "arguments": []
             }
@@ -5731,7 +5775,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@109"
+                "$ref": "#/rules@110"
               },
               "arguments": []
             }
@@ -5743,10 +5787,15 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@96"
+                "$ref": "#/rules@97"
               },
               "arguments": []
             },
+            "cardinality": "?"
+          },
+          {
+            "$type": "Keyword",
+            "value": ":",
             "cardinality": "?"
           },
           {
@@ -5756,7 +5805,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@97"
+                "$ref": "#/rules@98"
               },
               "arguments": []
             }
@@ -5832,7 +5881,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
       "definition": {
         "$type": "RuleCall",
         "rule": {
-          "$ref": "#/rules@98"
+          "$ref": "#/rules@99"
         },
         "arguments": []
       },
@@ -5849,7 +5898,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
       "definition": {
         "$type": "RuleCall",
         "rule": {
-          "$ref": "#/rules@99"
+          "$ref": "#/rules@100"
         },
         "arguments": []
       },
@@ -5873,7 +5922,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@100"
+              "$ref": "#/rules@101"
             },
             "arguments": []
           },
@@ -5914,7 +5963,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@100"
+                    "$ref": "#/rules@101"
                   },
                   "arguments": []
                 }
@@ -5944,7 +5993,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@101"
+              "$ref": "#/rules@102"
             },
             "arguments": []
           },
@@ -5985,7 +6034,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@101"
+                    "$ref": "#/rules@102"
                   },
                   "arguments": []
                 }
@@ -6015,7 +6064,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@102"
+              "$ref": "#/rules@103"
             },
             "arguments": []
           },
@@ -6056,7 +6105,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@102"
+                    "$ref": "#/rules@103"
                   },
                   "arguments": []
                 }
@@ -6086,7 +6135,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@103"
+              "$ref": "#/rules@104"
             },
             "arguments": []
           },
@@ -6155,7 +6204,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@103"
+                    "$ref": "#/rules@104"
                   },
                   "arguments": []
                 }
@@ -6188,13 +6237,6 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@104"
-            },
-            "arguments": []
-          },
-          {
-            "$type": "RuleCall",
-            "rule": {
               "$ref": "#/rules@105"
             },
             "arguments": []
@@ -6203,6 +6245,13 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "$type": "RuleCall",
             "rule": {
               "$ref": "#/rules@106"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@107"
             },
             "arguments": []
           }
@@ -6232,7 +6281,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@98"
+                "$ref": "#/rules@99"
               },
               "arguments": []
             }
@@ -6267,7 +6316,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@98"
+                "$ref": "#/rules@99"
               },
               "arguments": []
             }
@@ -6302,7 +6351,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@98"
+                "$ref": "#/rules@99"
               },
               "arguments": []
             }
@@ -6354,7 +6403,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@117"
+              "$ref": "#/rules@118"
             },
             "arguments": []
           },
@@ -6364,7 +6413,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
               {
                 "$type": "RuleCall",
                 "rule": {
-                  "$ref": "#/rules@117"
+                  "$ref": "#/rules@118"
                 },
                 "arguments": []
               },
@@ -6375,7 +6424,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
               {
                 "$type": "RuleCall",
                 "rule": {
-                  "$ref": "#/rules@117"
+                  "$ref": "#/rules@118"
                 },
                 "arguments": []
               }
@@ -6400,7 +6449,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@112"
+              "$ref": "#/rules@113"
             },
             "arguments": []
           },
@@ -6410,7 +6459,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
               {
                 "$type": "RuleCall",
                 "rule": {
-                  "$ref": "#/rules@112"
+                  "$ref": "#/rules@113"
                 },
                 "arguments": []
               },
@@ -6443,7 +6492,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@114"
+              "$ref": "#/rules@115"
             },
             "arguments": []
           }
@@ -6466,7 +6515,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@114"
+              "$ref": "#/rules@115"
             },
             "arguments": []
           },
@@ -6480,14 +6529,14 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
               {
                 "$type": "RuleCall",
                 "rule": {
-                  "$ref": "#/rules@111"
+                  "$ref": "#/rules@112"
                 },
                 "arguments": []
               },
               {
                 "$type": "RuleCall",
                 "rule": {
-                  "$ref": "#/rules@114"
+                  "$ref": "#/rules@115"
                 },
                 "arguments": []
               }
@@ -6512,14 +6561,14 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@111"
+              "$ref": "#/rules@112"
             },
             "arguments": []
           },
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@114"
+              "$ref": "#/rules@115"
             },
             "arguments": []
           }
@@ -6542,14 +6591,14 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@114"
+              "$ref": "#/rules@115"
             },
             "arguments": []
           },
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@116"
+              "$ref": "#/rules@117"
             },
             "arguments": []
           }
@@ -6575,7 +6624,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
           {
             "$type": "TerminalRuleCall",
             "rule": {
-              "$ref": "#/rules@115"
+              "$ref": "#/rules@116"
             }
           },
           {
@@ -6591,7 +6640,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
               {
                 "$type": "TerminalRuleCall",
                 "rule": {
-                  "$ref": "#/rules@115"
+                  "$ref": "#/rules@116"
                 }
               }
             ],

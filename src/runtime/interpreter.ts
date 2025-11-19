@@ -330,6 +330,35 @@ export class Environment extends Instance {
     return this;
   }
 
+  private templateMappings: Map<string, string> | undefined;
+
+  setTemplateMapping(k: string, v: string): Environment {
+    if (this.templateMappings === undefined) {
+      this.templateMappings = new Map<string, string>();
+    }
+    this.templateMappings.set(k, v);
+    return this;
+  }
+
+  rewriteTemplateMappings(s: string): string {
+    if (this.templateMappings !== undefined) {
+      this.templateMappings.keys().forEach((k: string) => {
+        const tk = `{{${k}}}`;
+        const v = this.templateMappings?.get(k);
+        if (v) {
+          const tv = `{{${v}}}`;
+          s = s.replaceAll(tk, tv);
+        }
+      });
+    }
+    return s;
+  }
+
+  resetTemplateMappings(): Environment {
+    this.templateMappings?.clear();
+    return this;
+  }
+
   static SuspensionUserData = '^';
 
   bindSuspensionUserData(userData: string): Environment {
@@ -1787,9 +1816,6 @@ async function walkJoinQueryPattern(
 const MAX_PLANNER_RETRIES = 3;
 
 async function agentInvoke(agent: AgentInstance, msg: string, env: Environment): Promise<void> {
-  const flowContext = env.getFlowContext();
-  msg = flowContext ? `${msg}\nContext:\n${flowContext}` : msg;
-
   // log invocation details
   let invokeDebugMsg = `\nInvoking agent ${agent.name}:`;
   if (agent.role) {
@@ -1985,12 +2011,13 @@ async function iterateOnFlow(
 ): Promise<void> {
   rootAgent.disableSession();
   const initContext = msg;
-  const s = `Now consider the following flowchart:\n${flow}\n
+  const s = `Now consider the following flowchart and return the next step:\n${flow}\n
   If you understand from the context that a step with no further possible steps has been evaluated,
-  terminate the flowchart by returning DONE. Never return to the top or root step of the flowchart, instead return DONE.\n`;
+  terminate the flowchart by returning DONE. Never return to the top or root step of the flowchart, instead return DONE.
+  Important: Return only the next flow-step or DONE. Do not return any additional description, like your thinking process.\n`;
   env.setFlowContext(initContext);
   await agentInvoke(rootAgent, s, env);
-  let step = env.getLastResult().trim();
+  let step = await preprocessStep(env.getLastResult().trim(), env);
   let context = initContext;
   let stepc = 0;
   const iterId = crypto.randomUUID();
@@ -2019,7 +2046,8 @@ async function iterateOnFlow(
       if (monitoringEnabled) {
         env.appendEntryToMonitor(step);
       }
-      await agentInvoke(agent, '', env);
+      const inst = agent.swapInstruction('');
+      await agentInvoke(agent, inst, env);
       if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());
       if (env.isSuspended()) {
         console.debug(`${iterId} suspending iteration on step ${step}`);
@@ -2034,17 +2062,39 @@ async function iterateOnFlow(
       );
       context = `${context}\n${step} --> ${rs}\n`;
       if (isfxc) {
-        step = rs.trim();
+        step = await preprocessStep(rs.trim(), env);
       } else {
         env.setFlowContext(context);
         await agentInvoke(rootAgent, `${s}\n${context}`, env);
-        step = env.getLastResult().trim();
+        step = await preprocessStep(env.getLastResult().trim(), env);
       }
     }
   } finally {
     env.decrementMonitor().revokeLastResult().setMonitorFlowResult();
   }
   console.debug(`No more flow steps, completed iteration ${iterId} on flow:\n${flow}`);
+}
+
+async function preprocessStep(spec: string, env: Environment): Promise<string> {
+  if (spec.startsWith('{')) {
+    const stmt = await parseStatement(spec);
+    const crudMap = stmt.pattern.crudMap;
+    if (crudMap) {
+      env.resetTemplateMappings();
+      const step = crudMap.name;
+      if (crudMap.body) {
+        crudMap.body.attributes.forEach((sa: SetAttribute) => {
+          const v = sa.value.$cstNode?.text;
+          if (v) env.setTemplateMapping(sa.name, v);
+        });
+      }
+      return step;
+    } else {
+      throw new Error(`Invalid step - ${spec}`);
+    }
+  } else {
+    return spec;
+  }
 }
 
 export async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
