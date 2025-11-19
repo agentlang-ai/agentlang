@@ -45,6 +45,7 @@ import {
   splitFqName,
   splitRefs,
   forceAsFqName,
+  validateIdFormat,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -3680,6 +3681,7 @@ export function makeInstance(
   const record: Record = module.getRecord(entryName);
 
   const schema: RecordSchema = record.schema;
+  const idAttr = record.getIdAttributeName();
   if (schema.size > 0) {
     attributes.forEach((value: any, key: string) => {
       if (!schema.has(key)) {
@@ -3687,6 +3689,9 @@ export function makeInstance(
       }
       const spec: AttributeSpec = getAttributeSpec(schema, key);
       if (value !== null && value !== undefined) validateType(key, value, spec);
+      if (key === idAttr) {
+        validateIdFormat(key, value);
+      }
     });
   }
   if (!queryAttributes && !queryAll) {

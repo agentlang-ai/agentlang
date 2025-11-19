@@ -36,6 +36,7 @@ import {
   DefaultFileHandlingDirectory,
   splitRefs,
   splitFqName,
+  escapeSepInPath,
 } from '../runtime/util.js';
 import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
@@ -420,6 +421,7 @@ function queryPatternFromPath(path: string, req: Request): string {
       return `{${pm}/${pe} {${PathAttributeNameQuery} "${p}"}, ${relName} {${moduleName}/${entityName}? {}}}`;
     }
     entityName = restoreFqName(entityName);
+    path = escapeSepInPath(path);
     if (id === undefined) {
       return `{${moduleName}/${entityName} {${PathAttributeNameQuery}like "${path}%"}}`;
     } else {

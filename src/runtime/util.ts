@@ -567,3 +567,17 @@ export function asStringLiteralsMap(mapLit: MapLiteral): Map<string, string> {
   });
   return result;
 }
+
+const IdSepEscape = '__';
+
+export function escapeSepInPath(path: string): string {
+  return path.replace(IdSepEscape, '/');
+}
+
+export function validateIdFormat(idAttrName: string, idAttrValue: any) {
+  if (isString(idAttrValue)) {
+    if (idAttrValue.indexOf(IdSepEscape) >= 0) {
+      throw new Error(`${IdSepEscape} not allowed in @id ${idAttrName} - '${idAttrValue}'`);
+    }
+  }
+}
