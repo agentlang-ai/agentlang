@@ -1878,7 +1878,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
         } catch (err: any) {
           if (retries < MAX_PLANNER_RETRIES) {
             await agent.invoke(
-              `For my previouns request <${msg}>, you generated this pattern: ${result}. It had these errors: ${err}. Please fix these errors.`,
+              `For my previouns request <${msg}>, you generated this pattern: ${result}. It had these errors: ${err}. Please fix these errors.\nReturn only the fixed code and no other additional text or messages.`,
               env
             );
             const r: string | undefined = env.getLastResult();
@@ -1906,7 +1906,10 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           break;
         } catch (err: any) {
           if (retries < MAX_PLANNER_RETRIES) {
-            await agent.invoke(`Please fix these errors:\n ${err}`, env);
+            await agent.invoke(
+              `Please fix these errors:\n ${err}\nReturn only the fixed response and no other additional text or messages.`,
+              env
+            );
             const r: string | undefined = env.getLastResult();
             result = r;
             ++retries;
