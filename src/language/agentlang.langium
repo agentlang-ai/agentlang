@@ -129,7 +129,7 @@ CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ pro
 
 SelectIntoSpec: '@into' '{' entries+=SelectIntoEntry (',' entries+=SelectIntoEntry)* '}';
 
-SelectIntoEntry: alias=ID attribute=Ref;
+SelectIntoEntry: alias=ID (':')? attribute=Ref;
 
 JoinSpec: type=JoinType name=QualifiedName '{' lhs=QueryId op=SqlComparisonOpr? rhs=Ref '}';
 
@@ -186,7 +186,7 @@ ResolverFnName: name=(ID | Ref | STRING);
 
 ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe' | 'onSubscription' | 'startTransaction' | 'commitTransaction' | 'rollbackTransaction');
 
-RelationshipPattern: name=QualifiedName pattern=Pattern;
+RelationshipPattern: name=QualifiedName (':')? pattern=Pattern;
 
 CatchSpec: '@catch' '{' (handlers+=Handler)+ '}';
 

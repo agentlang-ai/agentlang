@@ -3823,6 +3823,11 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             }
           },
           {
+            "$type": "Keyword",
+            "value": ":",
+            "cardinality": "?"
+          },
+          {
             "$type": "Assignment",
             "feature": "attribute",
             "operator": "=",
@@ -5454,6 +5459,11 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
               },
               "arguments": []
             }
+          },
+          {
+            "$type": "Keyword",
+            "value": ":",
+            "cardinality": "?"
           },
           {
             "$type": "Assignment",
