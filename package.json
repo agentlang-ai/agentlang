@@ -99,7 +99,7 @@
 		"brace-expansion": ">=2.0.2",
 		"concurrently": "~8.2.1",
 		"esbuild": "^0.25.4",
-		"eslint": "~9.26.0",
+		"eslint": "^9.39.1",
 		"generator-langium": "^3.0.0",
 		"http-server": "~14.1.1",
 		"langium-cli": "^3.5.0",
