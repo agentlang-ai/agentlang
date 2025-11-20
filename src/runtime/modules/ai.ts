@@ -512,13 +512,14 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     validationEventName: string
   ): Promise<Instance> {
     let isstr = true;
+    const content = trimGeneratedCode(response.content);
     try {
-      const c = JSON.parse(response.content);
+      const c = JSON.parse(content);
       isstr = isString(c);
     } catch (reason: any) {
       logger.debug(`invokeValidator json/parse - ${reason}`);
     }
-    const d = isstr ? `"${escapeSpecialChars(response.content)}"` : response.content;
+    const d = isstr ? `"${escapeSpecialChars(content)}"` : content;
     const r: Instance | Instance[] = await parseAndEvaluateStatement(
       `{${validationEventName} {data ${d}}}`
     );
