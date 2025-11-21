@@ -75,9 +75,9 @@ import {
   escapeSpecialChars,
   findRbacSchema,
   isFqName,
-  isString,
   makeFqName,
   maybeExtends,
+  preprocessRawConfig,
   registerInitFunction,
   rootRef,
 } from './util.js';
@@ -1144,22 +1144,6 @@ export async function internModule(
     await addFromDef(def, mn);
   }
   return r;
-}
-
-const JS_PREFIX = '#js';
-
-function preprocessRawConfig(rawConfig: any): any {
-  const keys = Object.keys(rawConfig);
-  keys.forEach((k: any) => {
-    const v = rawConfig[k];
-    if (isString(v) && v.startsWith(JS_PREFIX)) {
-      const s = v.substring(3).trim();
-      rawConfig[k] = eval(s);
-    } else if (typeof v == 'object') {
-      preprocessRawConfig(v);
-    }
-  });
-  return rawConfig;
 }
 
 export async function loadRawConfig(

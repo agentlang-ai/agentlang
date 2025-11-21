@@ -1,7 +1,7 @@
 {
     chat.core/Config: {
         server: "https://my.chat",
-        key: "333dwddsd7738"
+        key: "#js process.env.CHAT_SECRET" // or "#js readSecret(\"CHAT_SECRET\")"
     }
 }
 

@@ -70,6 +70,7 @@ import {
   nameToPath,
   splitRefs,
   isCoreModule,
+  preprocessRawConfig,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
@@ -2460,7 +2461,7 @@ export async function runPostDeleteEvents(inst: Instance, env: Environment) {
 export async function fetchConfig(configEntityName: string): Promise<any> {
   const rs: Instance[] | null = await parseAndEvaluateStatement(`{${configEntityName}? {}}`);
   if (rs && rs !== null && rs.length > 0) {
-    return Object.fromEntries(rs[0].attributes);
+    return preprocessRawConfig(Object.fromEntries(rs[0].attributes));
   }
   return undefined;
 }
