@@ -1,7 +1,7 @@
 import { default as ai } from './ai.js';
 import { default as auth } from './auth.js';
 import { default as files } from './files.js';
-import { DefaultModuleName, DefaultModules, escapeSpecialChars } from '../util.js';
+import { DefaultModuleName, DefaultModules, escapeSpecialChars, isString } from '../util.js';
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../module.js';
 import {
   Environment,
@@ -377,14 +377,25 @@ export function eventMonitorsData(
   } else return null;
 }
 
-export async function validateModule(moduleDef: string): Promise<Instance> {
+export async function validateModule(moduleDef: any): Promise<Instance> {
   try {
-    await parseModule(moduleDef);
-    return makeInstance(
-      'agentlang',
-      'ValidationResult',
-      newInstanceAttributes().set('status', 'ok')
-    );
+    if (isString(moduleDef)) {
+      await parseModule(moduleDef);
+      return makeInstance(
+        'agentlang',
+        'ValidationResult',
+        newInstanceAttributes().set('status', 'ok')
+      );
+    } else {
+      const xs = Object.entries(moduleDef);
+      for (let i = 0; i < xs.length; ++i) {
+        const x = xs[i][1] as any;
+        if (isString(x) && x.trimStart().startsWith('module')) {
+          return await validateModule(x);
+        }
+      }
+      throw new Error(`no module definitions found in object`);
+    }
   } catch (reason: any) {
     return makeInstance(
       'agentlang',

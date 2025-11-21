@@ -1,7 +1,7 @@
 {
 	"name": "agentlang",
 	"description": "The easiest way to build the most reliable AI agents - enterprise-grade teams of AI agents that collaborate with each other and humans",
-	"version": "0.5.4",
+	"version": "0.6.2",
 	"license": "Sustainable Use License",
 	"author": "agentlang-ai",
 	"homepage": "https://github.com/agentlang-ai/agentlang#readme",
@@ -99,7 +99,7 @@
 		"brace-expansion": ">=2.0.2",
 		"concurrently": "~8.2.1",
 		"esbuild": "^0.25.4",
-		"eslint": "~9.26.0",
+		"eslint": "^9.39.1",
 		"generator-langium": "^3.0.0",
 		"http-server": "~14.1.1",
 		"langium-cli": "^3.5.0",
@@ -183,5 +183,5 @@
 			"prettier --write"
 		]
 	},
-	"packageManager": "pnpm@10.13.1+sha512.37ebf1a5c7a30d5fabe0c5df44ee8da4c965ca0c5af3dbab28c3a1681b70a256218d05c81c9c0dcf767ef6b8551eb5b960042b9ed4300c59242336377e01cfad"
+	"packageManager": "pnpm@10.22.0"
 }

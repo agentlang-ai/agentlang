@@ -178,6 +178,8 @@ importers:
         specifier: ^3.1.0
         version: 3.1.0
 
+  example/app_builder: {}
+
   example/blog: {}
 
   example/camera_info: {}
@@ -188,7 +190,11 @@ importers:
 
   example/employee_chat: {}
 
+  example/joins: {}
+
   example/mcpdemo: {}
+
+  example/monitoring: {}
 
   example/pets: {}
 

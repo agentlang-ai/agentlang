@@ -67,4 +67,4 @@ jobs:
 
       - name: Run verbose tests if failed
         if: failure()
-        run: NODE_ENV=test npm test:verbose
+        run: NODE_ENV=test npm run test:verbose

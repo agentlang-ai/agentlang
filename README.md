@@ -20,7 +20,6 @@
   </ul>
 </div>
 
-
 <a href="https://agentlang-ai.fractl.io"><img src="https://img.shields.io/badge/Project-Home-blue?logo=homepage&logoColor=blue&style=for-the-badge"></a>
 <a href="https://discord.gg/mf6ezgcg"><img src="https://img.shields.io/badge/Discord-Join%20Us-purple?logo=discord&logoColor=red&style=for-the-badge"></a>
 <a href="https://github.com/agentlang-ai/agentlang/tree/main/example"><img src="https://img.shields.io/badge/Examples-Page-yellow?logo=homepage&logoColor=yellow&style=for-the-badge"></a>
@@ -28,37 +27,24 @@
 [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml)![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang)
 <hr>
 
-<div id="toc"> <!-- both work, toc or user-content-toc -->
-  <ul style="list-style: none;">
-    <summary>
-      <h2>🎯 Agentic Reliability Modeling - Build AI Agents that actually work!</h2>
-    </summary>
-  </ul>
+## Agentlang - Team as Code
 </div>
 
-</div>
+Agentlang is a declarative DSL (built on TypeScript) for creating AI Agents and full-stack Agentic Apps. With Agentlang, you define, version, run, mentor, and monitor teams of AI agents, along with the app infrastructure they need: data model, workflows, RBAC, integrations, and UI. We refer to this approach - bringing together AI agent development and App development into a single coherent discipline - as Team-as-Code (our riff on IaC).
 
-Build **teams of reliable AI Agents** that follow your organization's processes closely, while adapting to new scenarios. Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
+* **For Devs and Non-Devs:** Code and vibe-code in your IDE, focusing on the business-logic of your app, not wiring. Alternatively, you can build, run, mentor and monitor your AI Team in Studio - our visual-builder (coming soon). Switch back-and-forth between the two modes seamlessly.
 
-* **Agentic:** Agentlang is a programming abstraction specifically designed for building anything involving agents. Agentlang is highly declarative - enabling you to focus on the business logic without getting bogged down in implementation details.
+* **Robust Integrations:** The Agentlang runtime ships with native integrations for LLMs, databases, vector DBs, and auth providers. Our connector architecture is built for the enterprise, with a rapidly growing catalog for systems like Salesforce, ServiceNow, HubSpot, Snowflake, and more. Also, because Agentlang compiles to Node.js (and runs in the browser), you can use any existing JavaScript library out of the box.
 
-* **Robust Integrations:** The Agentlang runtime integrates natively with a wide range of LLMs, databases, vector databases, and auth providers. Agentlang has a novel connector architecture, with a rapidly growing collection of prebuilt connectors for Enterprise tools. Plus, Agentlang programs run on NodeJS (and in the browser) and can leverage any existing JavaScript library.
+* **Production-grade**: Under the hood, it’s all modern TypeScript—strong typing, tooling, testing, and CI/CD-friendly workflows—built for enterprise-class reliability, governance, and scale.
 
-* **Production-grade**: Agentlang is built on top of TypeScript and uses all the modern JS/TS tooling needed to build enterprise-class agents and apps.
-
-> Coming soon! Fractl Studio is a no-code environment for building and operating AI Agents.
-
-The two key innovations in AgentLang are: [Agentic Reliability Modeling](#agentic-reliabillity-modeling) and [AgentLang Ontology](#agentlang-ontology)
-
-## Agentic Reliability Modeling
-
-Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking to achieve our goal. Agentlang offers **just enough structure**, to augment natural language instructions, to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
+Agentlang introduces two foundational innovations: [Agentic Reliability Modeling](#-agentic-reliability-modeling) and [AgentLang Ontology](#agentlang-ontology)
 
 <table>
     <tr>
         <td valign="top">
           <div>
-          <b>Agentic Reliability Features:</b>
+          <b>Agentic Reliability Modeling</b>
           <ul>
 <li> First-class AI Agents </li>
 <li> Flows </li>
@@ -66,8 +52,6 @@ Depending solely only on instructions for agents is a recipe for failure. Natura
 <li> Directives </li>
 <li> Scenarios </li>
 <li> Glossary </li>
-<li> Structured output and scratchpad </li>
-<li> Input Template </li>
           </ul>
             <img width="441" height="1">
           </div>
@@ -78,8 +62,33 @@ Depending solely only on instructions for agents is a recipe for failure. Natura
           <img width="441" height="1">
           </div>
         </td>
+        <td valign="top">
+        <div>
+          <b>Agentlang Ontology</b>
+          <ul>
+<li> Data Model </li>
+<li> Auto-gen CRUD </li>
+<li> Events & Workflows </li>
+<li> Declarative RBAC </li>
+<li> Auto-gen UI </li>
+          </ul>
+            <img width="441" height="1">
+          </div>
+        </td>
     </tr>
 </table>
+
+<div align="center">
+
+## 🎯 Agentic Reliability Modeling
+
+</div>
+
+### Build AI Agents that actually work!
+
+Build **teams of reliable AI Agents** that follow your organization's processes closely, while adapting to new scenarios. Agents collaborate with each other and humans to handle complex, time-consuming, monotonous tasks and get work done!
+
+Depending solely only on instructions for agents is a recipe for failure. Natural language is beautiful, but ambiguous - forcing us to be stuck in an endless cycle of prompt-tweaking to achieve our goal. Agentlang offers **just enough structure**, to augment natural language instructions, to model various aspects of your agents - unambiguously, but still effortlessly - to make them reliable.
 
 ### An Example
 
@@ -99,7 +108,7 @@ agent TicketFlow {
 		{"name": "task", "meaning": "a record that captures some work that needs to be done", "synonyms": "ticket"},
 		{"name": "DNS", "meaning": "Domain Name Service - is used to translate human-readable domain names to IP addresses", "synonyms": "DNS name, CNAME, DNS HOST record"}
 		{"name": "WLAN", "meaning": "Wireless LAN - wireless network to connect devices to each other and the internet", "synonyms": "Office network"}
-]
+    ]
 }
 
 decision ticketTriager {
@@ -118,7 +127,7 @@ decision ticketTriager {
 }
 
 workflow ticketInProgress {
-    // workflow body is developer-written declarative code (not handled by LLM)
+    // workflow body is declarative code that is executed by the symbolic runtime
     ...
 }
 ```
@@ -269,56 +278,11 @@ glossaryEntry campaignAnalyzer.entry3 {
 }
 ```
 
-### Response Schema and Scratchpad
-
-In certain scenarios, agents perform better with structured data than plain text. You can configure an agent to output responses in a specific format, enabling another agent to efficiently parse and utilize the relevant information as input.
-
-```typescript
-module NetOps
-
-record NetworkProvisioningRequest {
-    type @enum("DNS", "WLAN"),
-    requestedBy String,
-    CNAME String,
-    IPAddress String
-}
-
-agent classifyProvisioningRequest {
-    instruction "Analyse the network provisioning request and return its type and other relevant information.",
-    responseSchema NetworkProvisioningRequest
-}
-```
-
-This kind of structured data (as entity or record instances) returned by an agent is added to an internal-cache used by the flow. This cache is known as *scratchpad*. 
-
-### Templatized Instructions
-
-An agent further down the flow can access the scratchpad using template parameters (denoted by `{{}}`) embedded in its instructions/directives. For instance, the `ticketUpdater` agent makes reference to the scratchpad via the parameters `{{classifyProvisioningRequest.type}}` and `{{classifyProvisioningRequest.requestedBy}}`. (The references need not include the agent name and simply be `{{type}}` and `{{requestedBy}}`). The actual instruction the `ticketUpdater` agent will see in this context will be `""Use type=DNS, requestedBy=joe@acme.com and provisioningId={{provisioningId}} to mark the request as completed"` - obviously enhancing its focus on the current context for more deterministic actions.
-
-```typescript
-agent ticketUpdater {
-    instruction "Use type={{classifyProvisioningRequest.type}}, requestedBy={{classifyProvisioningRequest.requestedBy}} and provisioningId={{provisioningId}} to mark the request as completed",
-    tools [Networking/markRequestCompleted]
-}
-
-// insert agent/workflow definitions for provisionDNS, reportFailure etc
-
-flow networkProvisioningRequestManager {
-    classifyProvisioningRequest --> "DNS" provisionDNS
-    classifyProvisioningRequest --> "WLAN" provisionWLAN
-    classifyProvisioningRequest --> "Other" reportFailure
-    provisionDNS --> ticketUpdater
-    provisionWLAN --> ticketUpdater
-}
-```
-
-The agent `classifyProvisioningRequest` has its `responseSchema` attribute set to the record `NetworkProvisioningRequest`. This means for a request like `"Provision DNS joe.acme.com for 192.3.4.1 as requested by joe@acme.com"` this agent will return:
-
-```typescript
-{type "DNS", requestedBy "joe@acme.com", CNAME "joe.acme.com", IPAddress "192.3.4.1"}
-```
+<div align="center">
 
 ## Agentlang Ontology
+
+</div>
 
 Agentlang's sophisticated modeling capabilities allow you to design the data-schema, workflows and access control constructs of your application in a declarative way. Agents can work directly with this ontology and dynamically generate business workflows, making your application into a living system that constantly adapts to new requirements and demands.
 

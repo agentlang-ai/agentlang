@@ -36,8 +36,14 @@ import {
   DefaultFileHandlingDirectory,
   splitRefs,
   splitFqName,
+  escapeSepInPath,
 } from '../runtime/util.js';
-import { BadRequestError, PathAttributeNameQuery, UnauthorisedError } from '../runtime/defs.js';
+import {
+  BadRequestError,
+  isPathAttribute,
+  PathAttributeNameQuery,
+  UnauthorisedError,
+} from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
 import { Config } from '../runtime/state.js';
 import {
@@ -224,6 +230,9 @@ function patternFromAttributes(
     let av = isString(v) ? `"${v}"` : v;
     if (av instanceof Object) {
       av = JSON.stringify(av);
+    }
+    if (isPathAttribute(n)) {
+      av = escapeSepInPath(av);
     }
     attrsStrs.push(`${n} ${av}`);
   });
@@ -416,10 +425,11 @@ function queryPatternFromPath(path: string, req: Request): string {
       const ns = nameToPath(n);
       const pe = ns.getEntryName();
       const pm = ns.hasModule() ? ns.getModuleName() : moduleName;
-      const p = parts.slice(0, parts.length - 2).join('/');
+      const p = escapeSepInPath(parts.slice(0, parts.length - 2).join('/'));
       return `{${pm}/${pe} {${PathAttributeNameQuery} "${p}"}, ${relName} {${moduleName}/${entityName}? {}}}`;
     }
     entityName = restoreFqName(entityName);
+    path = escapeSepInPath(path);
     if (id === undefined) {
       return `{${moduleName}/${entityName} {${PathAttributeNameQuery}like "${path}%"}}`;
     } else {
@@ -496,7 +506,7 @@ function createChildPattern(moduleName: string, entityName: string, req: Request
     const pinfo = parts.slice(-4);
     const parentFqname = forceAsFqName(pinfo[0], moduleName);
     const relName = forceAsFqName(pinfo[2], moduleName);
-    const parentPath = parts.slice(0, parts.length - 2).join('/');
+    const parentPath = escapeSepInPath(parts.slice(0, parts.length - 2).join('/'));
     const childFqName = forceAsFqName(pinfo[3], moduleName);
     const cparts = nameToPath(childFqName);
     const childModuleName = cparts.getModuleName();

@@ -5,6 +5,10 @@ export const PathAttributeNameQuery: string = '__path__?';
 export const ParentAttributeName: string = '__parent__';
 export const DeletedFlagAttributeName: string = '__is_deleted__';
 
+export function isPathAttribute(n: string): boolean {
+  return n.startsWith(PathAttributeName);
+}
+
 export type UnautInfo = {
   opr: string;
   entity: string;

@@ -86,6 +86,7 @@ import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
 import { isNodeEnv, path } from '../utils/runtime.js';
 import { CoreModules, registerCoreModules } from './modules/core.js';
 import {
+  canParse,
   introspectIf,
   maybeGetValidationErrors,
   maybeRaiseParserErrors,
@@ -336,19 +337,21 @@ export async function flushAllAndLoad(
 export async function loadAppConfig(configDir: string): Promise<Config> {
   let cfgObj: any = undefined;
   const fs = await getFileSystem();
-  const alCfgFile = `${configDir}/config.al`;
+  const alCfgFile = `${configDir}${path.sep}config.al`;
   if (await fs.exists(alCfgFile)) {
     const cfgPats = await fs.readFile(alCfgFile);
-    const cfgWf = `workflow createConfig{\n${cfgPats}}`;
-    const wf = await parseWorkflow(cfgWf);
-    const env = new Environment('config.env');
-    await evaluateStatements(wf.statements, env);
-    cfgObj = env.getLastResult();
+    if (canParse(cfgPats)) {
+      const cfgWf = `workflow createConfig{\n${cfgPats}}`;
+      const wf = await parseWorkflow(cfgWf);
+      const env = new Environment('config.env');
+      await evaluateStatements(wf.statements, env);
+      cfgObj = env.getLastResult();
+    }
   }
   try {
     const cfg = cfgObj
       ? configFromObject(cfgObj)
-      : await loadRawConfig(`${configDir}/app.config.json`);
+      : await loadRawConfig(`${configDir}${path.sep}app.config.json`);
     return setAppConfig(cfg);
   } catch (err: any) {
     if (err instanceof z.ZodError) {
@@ -591,7 +594,10 @@ function processAgentScenarios(agentName: string, value: Literal): AgentScenario
         let user: string | undefined;
         let ai: string | undefined;
         expr.map.entries.forEach((me: MapEntry) => {
-          const v = isLiteral(me.value) ? me.value.str : undefined;
+          let v = isLiteral(me.value) ? me.value.str : undefined;
+          if (v === undefined) {
+            v = me.value.$cstNode?.text;
+          }
           if (v) {
             if (me.key.str == 'user') {
               user = v;
@@ -604,7 +610,7 @@ function processAgentScenarios(agentName: string, value: Literal): AgentScenario
           const internal = true;
           scenarios.push({ user, ai, internal, ifPattern: undefined });
         } else {
-          throw new Error(`Invalid glossary spec in agent ${agentName}`);
+          throw new Error(`Invalid scenario spec in agent ${agentName}`);
         }
       }
     });
