@@ -2456,3 +2456,11 @@ export async function runPostDeleteEvents(inst: Instance, env: Environment) {
   }
   await runPrePostEvents(CrudType.DELETE, false, inst, env);
 }
+
+export async function fetchConfig(configEntityName: string): Promise<any> {
+  const rs: Instance[] | null = await parseAndEvaluateStatement(`{${configEntityName}? {}}`);
+  if (rs && rs !== null && rs.length > 0) {
+    return Object.fromEntries(rs[0].attributes);
+  }
+  return undefined;
+}

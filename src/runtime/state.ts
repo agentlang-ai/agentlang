@@ -135,13 +135,3 @@ export function disableInternalMonitoring() {
 export function isMonitoringEnabled(): boolean {
   return internalMonitoringEnabled || AppConfig?.monitoring?.enabled === true;
 }
-
-let ProjectConfig: object | undefined;
-
-export function setProjectSettings(config: object) {
-  ProjectConfig = config;
-}
-
-export function getProjectSettings(): object | undefined {
-  return ProjectConfig;
-}

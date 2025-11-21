@@ -47,6 +47,7 @@ import {
   isRetryDefinition,
   RetryDefinition,
   SetAttribute,
+  CrudMap,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -92,6 +93,7 @@ import {
   maybeRaiseParserErrors,
   parse,
   parseModule,
+  parseStatement,
   parseWorkflow,
 } from '../language/parser.js';
 import { logger } from './logger.js';
@@ -101,7 +103,7 @@ import { AgentEntityName, CoreAIModuleName, LlmEntityName } from './modules/ai.j
 import { getDefaultLLMService } from './agents/registry.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
-import { Config, ConfigSchema, setAppConfig, setProjectSettings } from './state.js';
+import { Config, ConfigSchema, setAppConfig } from './state.js';
 import { getModuleFn, importModule } from './jsmodules.js';
 import { SetSubscription } from './defs.js';
 import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
@@ -232,7 +234,6 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   const appJsonFile = `${appDir}${path.sep}package.json`;
   const s: string = await fs.readFile(appJsonFile);
   const appSpec: ApplicationSpec = JSON.parse(s);
-  setProjectSettings(appSpec.agentlang);
   if (dependenciesCallback !== undefined && appSpec.dependencies) {
     const aldeps = new Array<DependencyInfo>();
     for (const [k, v] of Object.entries(appSpec.dependencies)) {
@@ -344,7 +345,30 @@ export async function loadAppConfig(configDir: string): Promise<Config> {
       const cfgWf = `workflow createConfig{\n${cfgPats}}`;
       const wf = await parseWorkflow(cfgWf);
       const env = new Environment('config.env');
-      await evaluateStatements(wf.statements, env);
+      const cfgStmts = new Array<Statement>();
+      const initInsts = new Array<Statement>();
+      for (let i = 0; i < wf.statements.length; ++i) {
+        const stmt: Statement = wf.statements[i];
+        if (stmt.pattern.crudMap) {
+          initInsts.push(await makeDeleteAllConfigStatement(stmt.pattern.crudMap));
+          initInsts.push(stmt);
+        } else {
+          cfgStmts.push(stmt);
+        }
+      }
+      if (initInsts.length > 0) {
+        registerInitFunction(async () => {
+          const env = new Environment('config.insts.env');
+          try {
+            await evaluateStatements(initInsts, env);
+            await env.commitAllTransactions();
+          } catch (reason: any) {
+            await env.rollbackAllTransactions();
+            console.error(`Failed to initialize config instances: ${reason}`);
+          }
+        });
+      }
+      await evaluateStatements(cfgStmts, env);
       cfgObj = env.getLastResult();
     }
   }
@@ -364,6 +388,12 @@ export async function loadAppConfig(configDir: string): Promise<Config> {
     }
     throw err;
   }
+}
+
+async function makeDeleteAllConfigStatement(crudMap: CrudMap): Promise<Statement> {
+  const n = crudMap.name;
+  const p = `purge {${n}? {}}`;
+  return await parseStatement(p);
 }
 
 export async function loadCoreModules() {
