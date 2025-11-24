@@ -124,6 +124,7 @@ if (process.env.AL_TEST === 'true') {
       );
     });
   });
+
   describe('Simple planner agent', () => {
     test('Agent should generate and evaluate patterns', async () => {
       await doInternModule('SPA', `entity Person {id Int @id, name String, age Int}`);
@@ -134,8 +135,21 @@ if (process.env.AL_TEST === 'true') {
            tools "SPA",
            runWorkflows false}
           workflow chat {{planner01 {message chat.msg}}}
+          agent planner02
+          {instruction "Create new instances of Person",
+           tools "SPA/Person"}
+          event planner02 {
+            id Int,
+            name String,
+            age Int
+           }
           `
       );
+      const rr: Instance = await parseAndEvaluateStatement(`{SimplePlannerAgent/planner02 {id 10001, name "kk", age 20}}`);
+      assert(isInstanceOfType(rr, 'SPA/Person'))
+      assert(rr.lookup('id') == '10001')
+      assert(rr.lookup('name') == 'kk')
+      assert(rr.lookup('age') == 20)
       const k = async (ins: string) => {
         return await parseAndEvaluateStatement(`{SimplePlannerAgent/chat {msg "${ins}"}}`);
       };

@@ -1932,7 +1932,8 @@ export async function handleAgentInvocation(
   env: Environment
 ): Promise<void> {
   const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
-  const origMsg: any = agentEventInst.lookup('message');
+  const origMsg: any =
+    agentEventInst.lookup('message') || JSON.stringify(agentEventInst.asObject());
   const msg: string = isString(origMsg) ? origMsg : maybeInstanceAsString(origMsg);
   const flow = getAgentFlow(agent.name, agent.moduleName);
   if (flow) {

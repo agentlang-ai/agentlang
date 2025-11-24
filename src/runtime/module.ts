@@ -2721,7 +2721,11 @@ export function addEvent(
   ext?: string
 ): Event {
   const module: Module = fetchModule(moduleName);
-  return module.addEntry(new Event(name, moduleName, scm, ext)) as Event;
+  const event = module.addEntry(new Event(name, moduleName, scm, ext)) as Event;
+  if (module.getAgent(name)) {
+    event.addMeta(IsAgentEventMeta, 'y');
+  }
+  return event;
 }
 
 export function addRecord(
@@ -3804,14 +3808,19 @@ const IsAgentEventMeta = 'is-agent-event';
 const EventAgentName = 'event-agent-name';
 const DocumentationMetaTag = 'documentation';
 
+function markAsAgentEvent(event: Event): Event {
+  event.addMeta(IsAgentEventMeta, 'y');
+  return event;
+}
+
 export function defineAgentEvent(moduleName: string, agentName: string, instruction?: string) {
   const module = fetchModule(moduleName);
   const event: Record = new Event(agentName, moduleName);
-  event.addAttribute('message', { type: 'Any' });
-  event.addAttribute('chatId', asOptionalAttribute({ type: 'String' }));
-  event.addAttribute('mode', asSystemAttribute(asOptionalAttribute({ type: 'String' })));
-  event.addMeta(IsAgentEventMeta, 'y');
-  event.addMeta(EventAgentName, agentName);
+  markAsAgentEvent(event as Event)
+    .addAttribute('message', { type: 'Any' })
+    .addAttribute('chatId', asOptionalAttribute({ type: 'String' }))
+    .addAttribute('mode', asSystemAttribute(asOptionalAttribute({ type: 'String' })))
+    .addMeta(EventAgentName, agentName);
   if (instruction) {
     event.addMeta(
       DocumentationMetaTag,
