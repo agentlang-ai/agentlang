@@ -593,7 +593,10 @@ function processAgentScenarios(agentName: string, value: Literal): AgentScenario
         let user: string | undefined;
         let ai: string | undefined;
         expr.map.entries.forEach((me: MapEntry) => {
-          const v = isLiteral(me.value) ? me.value.str : undefined;
+          let v = isLiteral(me.value) ? me.value.str : undefined;
+          if (v === undefined) {
+            v = me.value.$cstNode?.text;
+          }
           if (v) {
             if (me.key.str == 'user') {
               user = v;
@@ -606,7 +609,7 @@ function processAgentScenarios(agentName: string, value: Literal): AgentScenario
           const internal = true;
           scenarios.push({ user, ai, internal, ifPattern: undefined });
         } else {
-          throw new Error(`Invalid glossary spec in agent ${agentName}`);
+          throw new Error(`Invalid scenario spec in agent ${agentName}`);
         }
       }
     });

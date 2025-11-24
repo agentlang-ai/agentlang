@@ -115,9 +115,9 @@ AliasSpec: ('@as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
 
 ThenSpec: '@then' '{' (statements+=Statement (';' statements+=Statement)*)+ '}';
 
-CrudMap: '{' (name=QueryId '{''}' 
-             | (name=QualifiedName '{''}' ',' '@from' source=Literal (',' upsert+='@upsert')?)
-             | name=QualifiedName body=CrudMapBody)
+CrudMap: '{' (name=QueryId (':')? '{''}' 
+             | (name=QualifiedName (':')? '{''}' ',' '@from' source=Literal (',' upsert+='@upsert')?)
+             | name=QualifiedName (':')? body=CrudMapBody)
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)?
              (',' join=JoinSpec)?
              (',' into=SelectIntoSpec)?
@@ -129,7 +129,7 @@ CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ pro
 
 SelectIntoSpec: '@into' '{' entries+=SelectIntoEntry (',' entries+=SelectIntoEntry)* '}';
 
-SelectIntoEntry: alias=ID attribute=Ref;
+SelectIntoEntry: alias=ID (':')? attribute=Ref;
 
 JoinSpec: type=JoinType name=QualifiedName '{' lhs=QueryId op=SqlComparisonOpr? rhs=Ref '}';
 
@@ -151,9 +151,11 @@ FlowDefinition: 'flow' name=GenericName (body=FlowDefBody? | '{''}');
 
 FlowDefBody: '{' (entries+=FlowEntry (entries+=FlowEntry)*)+ '}';
 
-FlowEntry: root=GenericName '-->' (cond=ConditionalFlowStep | next=GenericName);
+FlowEntry: root=GenericName '-->' (cond=ConditionalFlowStep | next=FlowStepSpec);
 
-ConditionalFlowStep: expr=STRING next=GenericName;
+ConditionalFlowStep: expr=STRING next=FlowStepSpec;
+
+FlowStepSpec: GenericName | CrudMap;
 
 DecisionDefinition: 'decision' name=GenericName (body=DecisionDefBody? | '{''}');
 
@@ -184,7 +186,7 @@ ResolverFnName: name=(ID | Ref | STRING);
 
 ResolverMethodName: name=('create' | 'update' | 'upsert' | 'delete' | 'query' | 'subscribe' | 'onSubscription' | 'startTransaction' | 'commitTransaction' | 'rollbackTransaction');
 
-RelationshipPattern: name=QualifiedName pattern=Pattern;
+RelationshipPattern: name=QualifiedName (':')? pattern=Pattern;
 
 CatchSpec: '@catch' '{' (handlers+=Handler)+ '}';
 
@@ -200,7 +202,7 @@ Delete: 'delete' pattern=Pattern;
 
 Purge: 'purge' pattern=Pattern;
 
-SetAttribute: name=QueryId op=SqlComparisonOpr? value=AttributeValueExpression;
+SetAttribute: name=QueryId op=SqlComparisonOpr? (':')? value=AttributeValueExpression;
 
 SqlComparisonOpr returns string: ('='|'<>' | '!=' |'<'|'<='|'>'|'>='|'in'|'like'|'between');
 
