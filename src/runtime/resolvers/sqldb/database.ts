@@ -414,16 +414,47 @@ export async function vectorStoreSearch(
     return [];
   }
   try {
+    let hasGlobalPerms = ctx.isPermitted();
+    if (!hasGlobalPerms) {
+      const userId = ctx.getUserId();
+      const fqName = ctx.resourceFqName;
+      const env: Environment = ctx.activeEnv;
+      hasGlobalPerms = await canUserRead(userId, fqName, env);
+    }
     const vecTableName = tableName + VectorSuffix;
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const { default: pgvector } = await import('pgvector');
-    return await qb.query(
+    const rs = await qb.query(
       `select id from ${vecTableName} order by embedding <-> $1 LIMIT ${limit}`,
       [pgvector.toSql(searchVec)]
     );
+    if (hasGlobalPerms) {
+      return rs;
+    } else {
+      return await filterVectorDataByReadPermission(tableName, ctx, qb, rs);
+    }
   } catch (err: any) {
     logger.error(`Vector store search failed - ${err}`);
   }
+}
+
+async function filterVectorDataByReadPermission(
+  tableName: string,
+  ctx: DbContext,
+  qb: EntityManager,
+  result: any[]
+): Promise<any> {
+  const ot = ownersTable(tableName);
+  const finalResult = new Array<any>();
+  for (let i = 0; i < result.length; ++i) {
+    const path = result[i].id;
+    const sql = `select 1 from ${ot} where path = '${path}' and user_id = '${ctx.authInfo.userId}' and r = true`;
+    const rs: any = await qb.query(sql);
+    if (rs.length > 0) {
+      finalResult.push(result[i]);
+    }
+  }
+  return finalResult;
 }
 
 export async function vectorStoreSearchEntryExists(
