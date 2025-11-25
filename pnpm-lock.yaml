@@ -186,6 +186,8 @@ importers:
 
   example/car_dealership: {}
 
+  example/custom_config: {}
+
   example/customer_support_system: {}
 
   example/employee_chat: {}
