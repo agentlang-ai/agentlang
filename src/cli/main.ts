@@ -27,6 +27,7 @@ import { initDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { runInitFunctions } from '../runtime/util.js';
 import { startServer } from '../api/http.js';
 import { enableExecutionGraph } from '../runtime/exec-graph.js';
+import { importModule } from '../runtime/jsmodules.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -85,6 +86,7 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
 
 export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
   await initDatabase(config?.store);
+  await importModule('../runtime/api.js', 'agentlang');
   await runInitFunctions();
   await runStandaloneStatements();
   if (appSpec) startServer(appSpec, config?.service?.port || 8080, config?.service?.host, config);

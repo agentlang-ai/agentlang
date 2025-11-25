@@ -585,3 +585,29 @@ export function validateIdFormat(idAttrName: string, idAttrValue: any) {
 export function nameContainsSepEscape(n: string): boolean {
   return n.indexOf(IdSepEscape) >= 0;
 }
+
+const JS_PREFIX = '#js';
+
+export function preprocessRawConfig(rawConfig: any): any {
+  const keys = Object.keys(rawConfig);
+  keys.forEach((k: any) => {
+    const v = rawConfig[k];
+    if (isString(v) && v.startsWith(JS_PREFIX)) {
+      const s = v.substring(3).trim();
+      rawConfig[k] = eval(s);
+    } else if (typeof v == 'object') {
+      preprocessRawConfig(v);
+    }
+  });
+  return rawConfig;
+}
+
+// interface for reading secrets from a secret-store
+type ReadSecret = (k: string, configuration?: any) => any;
+declare global {
+  function readSecret(k: string, configuration?: any): any;
+}
+
+export function setScecretReader(f: ReadSecret) {
+  globalThis.readSecret = f;
+}
