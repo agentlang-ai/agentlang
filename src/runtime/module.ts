@@ -1117,6 +1117,14 @@ ${attrs.join(',\n')}
   }
 }
 
+const SysAttr_Created = '__created';
+const SysAttr_CreatedSpec: AttributeSpec = asSystemAttribute({
+  type: 'DateTime',
+  properties: new Map<string, string>().set('default', 'now()'),
+});
+const SysAttr_LastModified = '__last_modified';
+const SysAttr_LastModifiedSpec = SysAttr_CreatedSpec;
+
 export class Entity extends Record {
   override type: RecordType = RecordType.ENTITY;
 
@@ -1127,6 +1135,14 @@ export class Entity extends Record {
     parentEntryName?: string
   ) {
     super(name, moduleName, scm, parentEntryName);
+    this.addSysTrackerAttributes();
+  }
+
+  private addSysTrackerAttributes(): Entity {
+    this.schema
+      .set(SysAttr_Created, SysAttr_CreatedSpec)
+      .set(SysAttr_LastModified, SysAttr_LastModifiedSpec);
+    return this;
   }
 
   setRbacSpecifications(rbac: RbacSpecification[]): Entity {
@@ -3309,6 +3325,14 @@ export class Instance {
     return this.id;
   }
 
+  created(): string | undefined {
+    return this.lookup(SysAttr_Created);
+  }
+
+  lastModified(): string | undefined {
+    return this.lookup(SysAttr_LastModified);
+  }
+
   normalizeAttributes(attrs: InstanceAttributes): InstanceAttributes {
     attrs.forEach((v: any, k: string) => {
       const attrSpec = this.record.schema.get(k);
@@ -3928,4 +3952,8 @@ export function getAttributeNames(entityFqName: string): Array<string> {
   const parts = nameToPath(entityFqName);
   const scm = fetchModule(parts.getModuleName()).getRecord(parts.getEntryName()).schema;
   return [...scm.keys()];
+}
+
+export function maybeSetTrackingAttributes(attrs: InstanceAttributes) {
+  attrs.set(SysAttr_LastModified, now());
 }

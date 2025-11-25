@@ -49,6 +49,7 @@ import {
   PlaceholderRecordEntry,
   Relationship,
   Workflow,
+  maybeSetTrackingAttributes,
 } from './module.js';
 import { JoinInfo, Resolver } from './resolvers/interface.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
@@ -1462,6 +1463,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       await computeExprAttributes(inst, undefined, undefined, env);
       if (env.isInUpsertMode()) {
         await runPreUpdateEvents(inst, env);
+        maybeSetTrackingAttributes(inst.attributes);
         r = await res.upsertInstance(inst);
         await runPostUpdateEvents(inst, undefined, env);
       } else {
@@ -1578,6 +1580,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             for (let i = 0; i < lastRes.length; ++i) {
               await computeExprAttributes(lastRes[i], crud.body?.attributes, attrs, env);
               await runPreUpdateEvents(lastRes[i], env);
+              maybeSetTrackingAttributes(attrs);
               const finalInst: Instance = await resolver.updateInstance(lastRes[i], attrs);
               await runPostUpdateEvents(finalInst, lastRes[i], env);
               res.push(finalInst);

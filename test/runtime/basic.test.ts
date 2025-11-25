@@ -1090,3 +1090,51 @@ describe('Instances as JS objects', () => {
       })
     })
   })
+
+  describe('tracking-attrs', () => {
+  test('set tracking attributes in entity instances', async () => {
+    await doInternModule(
+      'TA',
+      `entity E {
+        id Int @id,
+        x String
+      }
+
+      workflow Up {
+        {E {id? Up.id, x Up.x}} @as [e];
+        e
+      }
+
+      workflow Ups {
+        {E {id Ups.id, x Ups.x}, @upsert}
+      }`)
+      const ise = ((x: any) => {
+        assert(isInstanceOfType(x, 'TA/E'))
+      })
+      const e1: Instance = await parseAndEvaluateStatement(`{TA/E {id 1, x "hello"}}`)
+      ise(e1)
+      assert(e1.created())
+      const lm1 = e1.lastModified()
+      assert(lm1)
+      const e2: Instance = await parseAndEvaluateStatement(`{TA/Up {id 1, x "ok"}}`)
+      ise(e2)
+      const lm2 = e2.lastModified()
+      assert(lm2)
+      assert(lm2 > lm1)
+      assert(e1.created() === e2.created())
+      assert(e2.lookup('x') === 'ok')
+      const e3: Instance = await parseAndEvaluateStatement(`{TA/Ups {id 1, x "bye"}}`)
+      ise(e3)
+      const lm3 = e3.lastModified()
+      assert(lm3)
+      assert(lm3 > lm2)
+      assert(e3.created())
+      const es: Instance[] = await parseAndEvaluateStatement(`{TA/E? {}}`)
+      assert(es.length === 1)
+      const e4 = es[0]
+      assert(e4.created() === e3.created())
+      assert(e4.lastModified() === e3.lastModified())
+      assert(e4.lookup('x') === 'bye')
+      assert(e4.lookup('id') === 1)
+    })
+  })
