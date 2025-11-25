@@ -1143,9 +1143,10 @@ export async function internModule(
 ): Promise<Module> {
   const mn = module.name;
   const r = addModule(mn);
-  module.imports.forEach(async (imp: Import) => {
+  // Process imports sequentially to ensure all JS modules are loaded before definitions
+  for (const imp of module.imports as Import[]) {
     await importModule(imp.path, imp.name, moduleFileName);
-  });
+  }
   for (let i = 0; i < module.defs.length; ++i) {
     const def = module.defs[i];
     await addFromDef(def, mn);
