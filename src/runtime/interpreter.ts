@@ -70,6 +70,7 @@ import {
   nameToPath,
   splitRefs,
   isCoreModule,
+  preprocessRawConfig,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
@@ -1932,7 +1933,8 @@ export async function handleAgentInvocation(
   env: Environment
 ): Promise<void> {
   const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
-  const origMsg: any = agentEventInst.lookup('message');
+  const origMsg: any =
+    agentEventInst.lookup('message') || JSON.stringify(agentEventInst.asObject());
   const msg: string = isString(origMsg) ? origMsg : maybeInstanceAsString(origMsg);
   const flow = getAgentFlow(agent.name, agent.moduleName);
   if (flow) {
@@ -2455,4 +2457,12 @@ export async function runPostDeleteEvents(inst: Instance, env: Environment) {
     await addDeleteAudit(inst.getPath(), inst, env);
   }
   await runPrePostEvents(CrudType.DELETE, false, inst, env);
+}
+
+export async function fetchConfig(configEntityName: string): Promise<any> {
+  const rs: Instance[] | null = await parseAndEvaluateStatement(`{${configEntityName}? {}}`);
+  if (rs && rs !== null && rs.length > 0) {
+    return preprocessRawConfig(Object.fromEntries(rs[0].attributes));
+  }
+  return undefined;
 }

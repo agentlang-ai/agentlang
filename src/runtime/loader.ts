@@ -47,6 +47,7 @@ import {
   isRetryDefinition,
   RetryDefinition,
   SetAttribute,
+  CrudMap,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -74,9 +75,9 @@ import {
   escapeSpecialChars,
   findRbacSchema,
   isFqName,
-  isString,
   makeFqName,
   maybeExtends,
+  preprocessRawConfig,
   registerInitFunction,
   rootRef,
 } from './util.js';
@@ -92,6 +93,7 @@ import {
   maybeRaiseParserErrors,
   parse,
   parseModule,
+  parseStatement,
   parseWorkflow,
 } from '../language/parser.js';
 import { logger } from './logger.js';
@@ -343,7 +345,30 @@ export async function loadAppConfig(configDir: string): Promise<Config> {
       const cfgWf = `workflow createConfig{\n${cfgPats}}`;
       const wf = await parseWorkflow(cfgWf);
       const env = new Environment('config.env');
-      await evaluateStatements(wf.statements, env);
+      const cfgStmts = new Array<Statement>();
+      const initInsts = new Array<Statement>();
+      for (let i = 0; i < wf.statements.length; ++i) {
+        const stmt: Statement = wf.statements[i];
+        if (stmt.pattern.crudMap) {
+          initInsts.push(await makeDeleteAllConfigStatement(stmt.pattern.crudMap));
+          initInsts.push(stmt);
+        } else {
+          cfgStmts.push(stmt);
+        }
+      }
+      if (initInsts.length > 0) {
+        registerInitFunction(async () => {
+          const env = new Environment('config.insts.env');
+          try {
+            await evaluateStatements(initInsts, env);
+            await env.commitAllTransactions();
+          } catch (reason: any) {
+            await env.rollbackAllTransactions();
+            console.error(`Failed to initialize config instances: ${reason}`);
+          }
+        });
+      }
+      await evaluateStatements(cfgStmts, env);
       cfgObj = env.getLastResult();
     }
   }
@@ -363,6 +388,12 @@ export async function loadAppConfig(configDir: string): Promise<Config> {
     }
     throw err;
   }
+}
+
+async function makeDeleteAllConfigStatement(crudMap: CrudMap): Promise<Statement> {
+  const n = crudMap.name;
+  const p = `purge {${n}? {}}`;
+  return await parseStatement(p);
 }
 
 export async function loadCoreModules() {
@@ -1113,22 +1144,6 @@ export async function internModule(
     await addFromDef(def, mn);
   }
   return r;
-}
-
-const JS_PREFIX = '#js';
-
-function preprocessRawConfig(rawConfig: any): any {
-  const keys = Object.keys(rawConfig);
-  keys.forEach((k: any) => {
-    const v = rawConfig[k];
-    if (isString(v) && v.startsWith(JS_PREFIX)) {
-      const s = v.substring(3).trim();
-      rawConfig[k] = eval(s);
-    } else if (typeof v == 'object') {
-      preprocessRawConfig(v);
-    }
-  });
-  return rawConfig;
 }
 
 export async function loadRawConfig(

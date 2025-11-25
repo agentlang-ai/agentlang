@@ -414,15 +414,27 @@ export async function vectorStoreSearch(
     return [];
   }
   try {
+    let hasGlobalPerms = ctx.isPermitted();
+    if (!hasGlobalPerms) {
+      const userId = ctx.getUserId();
+      const fqName = ctx.resourceFqName;
+      const env: Environment = ctx.activeEnv;
+      hasGlobalPerms = await canUserRead(userId, fqName, env);
+    }
     const vecTableName = tableName + VectorSuffix;
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const { default: pgvector } = await import('pgvector');
-    return await qb.query(
-      `select id from ${vecTableName} order by embedding <-> $1 LIMIT ${limit}`,
-      [pgvector.toSql(searchVec)]
-    );
+    let ownersJoinCond: string = '';
+    if (!hasGlobalPerms) {
+      const ot = ownersTable(tableName);
+      ownersJoinCond = `inner join ${ot} on
+${ot}.path = ${vecTableName}.id and ${ot}.user_id = '${ctx.authInfo.userId}' and ${ot}.r = true`;
+    }
+    const sql = `select ${vecTableName}.id from ${vecTableName} ${ownersJoinCond} order by embedding <-> $1 LIMIT ${limit}`;
+    return await qb.query(sql, [pgvector.toSql(searchVec)]);
   } catch (err: any) {
     logger.error(`Vector store search failed - ${err}`);
+    return [];
   }
 }
 
