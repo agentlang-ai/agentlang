@@ -1,7 +1,7 @@
 import { logger } from './logger.js';
 import { now, splitRefs } from './util.js';
 import { isNodeEnv } from '../utils/runtime.js';
-import { setModuleFnFetcher, ModuleLoader } from './defs.js';
+import { setModuleFnFetcher, getModuleLoader } from './defs.js';
 import {
   transformModule,
   wrapModuleCode,
@@ -46,8 +46,9 @@ async function loadModuleDependencies(
 
     // Try to get from dependency provider first
     let module: any;
-    if (ModuleLoader?.dependencyProvider) {
-      module = ModuleLoader.dependencyProvider(moduleSpecifier);
+    const moduleLoader = getModuleLoader();
+    if (moduleLoader?.dependencyProvider) {
+      module = moduleLoader.dependencyProvider(moduleSpecifier);
     }
 
     if (!module) {
@@ -94,7 +95,8 @@ async function loadModuleInBrowser(
   name: string,
   moduleFileName?: string
 ): Promise<any> {
-  if (!ModuleLoader) {
+  const moduleLoader = getModuleLoader();
+  if (!moduleLoader) {
     throw new Error(
       'ModuleLoader not configured. Call setModuleLoader() with a fileReader and dependencyProvider.'
     );
@@ -110,16 +112,16 @@ async function loadModuleInBrowser(
   }
 
   // Add basePath if configured
-  if (ModuleLoader.basePath) {
+  if (moduleLoader.basePath) {
     if (!resolvedPath.startsWith('/')) {
-      resolvedPath = `${ModuleLoader.basePath}${sep}${resolvedPath}`;
+      resolvedPath = `${moduleLoader.basePath}${sep}${resolvedPath}`;
     }
   }
 
   logger.debug(`Resolved path: ${resolvedPath}`);
 
   // Read the module content
-  const content = await ModuleLoader.fileReader(resolvedPath);
+  const content = await moduleLoader.fileReader(resolvedPath);
 
   if (!content || content.trim().length === 0) {
     logger.warn(`Module file ${resolvedPath} is empty`);

@@ -104,10 +104,14 @@ export interface ModuleLoaderConfig {
   basePath?: string;
 }
 
-export let ModuleLoader: ModuleLoaderConfig | undefined = undefined;
+let _moduleLoader: ModuleLoaderConfig | undefined = undefined;
 
 export function setModuleLoader(config: ModuleLoaderConfig) {
-  ModuleLoader = config;
+  _moduleLoader = config;
+}
+
+export function getModuleLoader(): ModuleLoaderConfig | undefined {
+  return _moduleLoader;
 }
 
 export const ForceReadPermFlag = 'f-r-f';
