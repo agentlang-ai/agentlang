@@ -586,6 +586,32 @@ export function nameContainsSepEscape(n: string): boolean {
   return n.indexOf(IdSepEscape) >= 0;
 }
 
+export function generateUrlSafePassword(length: number = 8): string {
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const digits = '0123456789';
+  const special = '-_.~';
+
+  const chars = [
+    upper[Math.floor(Math.random() * upper.length)],
+    lower[Math.floor(Math.random() * lower.length)],
+    digits[Math.floor(Math.random() * digits.length)],
+    special[Math.floor(Math.random() * special.length)],
+  ];
+
+  const all = upper + lower + digits + special;
+  for (let i = chars.length; i < length; ++i) {
+    chars.push(all[Math.floor(Math.random() * all.length)]);
+  }
+
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join('');
+}
+
 const JS_PREFIX = '#js';
 
 export function preprocessRawConfig(rawConfig: any): any {

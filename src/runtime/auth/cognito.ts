@@ -16,7 +16,7 @@ import {
   findUserByEmail,
 } from '../modules/auth.js';
 import { logger } from '../logger.js';
-import { sleepMilliseconds } from '../util.js';
+import { sleepMilliseconds, generateUrlSafePassword } from '../util.js';
 import { Instance } from '../module.js';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { Environment } from '../interpreter.js';
@@ -1084,6 +1084,7 @@ export class CognitoAuth implements AgentlangAuth {
         Username: email,
         UserAttributes: userAttrs,
         DesiredDeliveryMediums: ['EMAIL'],
+        TemporaryPassword: generateUrlSafePassword(),
         ...(userExists ? { MessageAction: 'RESEND' } : {}),
       });
 
