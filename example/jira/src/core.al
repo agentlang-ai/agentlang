@@ -11,11 +11,13 @@ flow issueTriager {
 record IssueTriageInfo {
     id String,
     updatedDescritpion String,
-    label @enum("featureRequest", "bug", "enhancement")
+    labels String[]
 }
 
 agent analyseIssue {
-    instruction "Analyse the incoming issue and return a better description. Also return an appropriate label for the issue",
+    instruction "Analyse the incoming issue and return a better description. Also return appropriate labels for the issue.
+Labels should be selected from [\"featureRequest\", \"bug\", \"enhancement\"].
+Note that an issue is identifdied by its `id` field and not by its key.",
     responseSchema issues.core/IssueTriageInfo
 }
 

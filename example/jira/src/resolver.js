@@ -127,8 +127,8 @@ async function getAccessToken() {
 
 // Generic HTTP functions
 const makeRequest = async (endpoint, options = {}) => {
-  const { cloudId, baseUrl } = await getCloudData();
-
+  const cd = await getCloudData();
+  const baseUrl = cd.baseUrl
   let token = process.env.JIRA_ACCESS_TOKEN;
 
   // If no direct token provided, try to get one via OAuth2 or API token
@@ -473,10 +473,7 @@ export const updateIssue = async (env, attributes, newAttrs) => {
     fields.assignee = { accountId: newAttrs.get("assignee") };
   }
   if (newAttrs.get("labels")) {
-    fields.labels = newAttrs
-      .get("labels")
-      .split(",")
-      .map((label) => label.trim());
+    fields.labels = newAttrs.get("labels")
   }
 
   const data = { fields };
@@ -515,7 +512,7 @@ const processedIssueIds = new Set();
 // Subscription functions for real-time updates
 async function getAndProcessRecords(resolver, entityType) {
   try {
-    const { cloudId, baseUrl } = await getCloudData();
+    await getCloudData();
     let endpoint;
 
     switch (entityType) {
