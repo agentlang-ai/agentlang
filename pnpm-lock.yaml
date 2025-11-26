@@ -192,6 +192,12 @@ importers:
 
   example/employee_chat: {}
 
+  example/jira:
+    dependencies:
+      agentlang:
+        specifier: file:../../../agentlang
+        version: file:(axios@1.13.2)(encoding@0.1.13)(js-yaml@4.1.1)(openai@5.12.2(zod@3.25.76))(reflect-metadata@0.2.2)
+
   example/joins: {}
 
   example/mcpdemo: {}
@@ -1340,6 +1346,11 @@ packages:
   agentkeepalive@4.6.0:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
     engines: {node: '>= 8.0.0'}
+
+  'agentlang@file:':
+    resolution: {directory: '', type: directory}
+    engines: {node: '>=20.0.0', vscode: ^1.67.0}
+    hasBin: true
 
   aggregate-error@3.1.0:
     resolution: {integrity: sha512-4I7Td01quW/RpocfNayFdFVk1qSuoh0E7JrbRJ16nH01HhKFQ88INq9Sd+nd72zqRySlr9BmDA8xlEJ6vJMrYA==}
@@ -5748,6 +5759,80 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
     optional: true
+
+  agentlang@file:(axios@1.13.2)(encoding@0.1.13)(js-yaml@4.1.1)(openai@5.12.2(zod@3.25.76))(reflect-metadata@0.2.2):
+    dependencies:
+      '@aws-sdk/client-cognito-identity': 3.936.0
+      '@aws-sdk/client-cognito-identity-provider': 3.936.0
+      '@aws-sdk/credential-providers': 3.936.0
+      '@isomorphic-git/lightning-fs': 4.6.2
+      '@langchain/anthropic': 0.3.33(@langchain/core@0.3.79(openai@5.12.2(zod@3.25.76)))(zod@3.25.76)
+      '@langchain/core': 0.3.79(openai@5.12.2(zod@3.25.76))
+      '@langchain/openai': 0.6.16(@langchain/core@0.3.79(openai@5.12.2(zod@3.25.76)))
+      '@types/jsonwebtoken': 9.0.10
+      '@types/multer': 1.4.13
+      amazon-cognito-identity-js: 6.3.16(encoding@0.1.13)
+      aws-jwt-verify: 5.1.1
+      bcryptjs: 3.0.3
+      buffer: 6.0.3
+      chalk: 5.3.0
+      commander: 11.0.0
+      express: 5.1.0
+      handlebars: 4.7.8
+      jsonwebtoken: 9.0.2
+      langchain: 0.3.36(@langchain/anthropic@0.3.33(@langchain/core@0.3.79(openai@5.12.2(zod@3.25.76)))(zod@3.25.76))(@langchain/core@0.3.79(openai@5.12.2(zod@3.25.76)))(axios@1.13.2)(handlebars@4.7.8)(openai@5.12.2(zod@3.25.76))(typeorm@0.3.27(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7))
+      langium: 3.5.0
+      multer: 1.4.5-lts.2
+      openapi-client-axios: 7.8.0(axios@1.13.2)(js-yaml@4.1.1)
+      pg: 8.16.3
+      pgvector: 0.2.1
+      sql.js: 1.13.0
+      sqlite3: 5.1.7
+      typeorm: 0.3.27(pg@8.16.3)(reflect-metadata@0.2.2)(sql.js@1.13.0)(sqlite3@5.1.7)
+      vscode-languageserver: 9.0.1
+      winston: 3.18.3
+      winston-daily-rotate-file: 5.0.0(winston@3.18.3)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@google-cloud/spanner'
+      - '@langchain/aws'
+      - '@langchain/cerebras'
+      - '@langchain/cohere'
+      - '@langchain/deepseek'
+      - '@langchain/google-genai'
+      - '@langchain/google-vertexai'
+      - '@langchain/google-vertexai-web'
+      - '@langchain/groq'
+      - '@langchain/mistralai'
+      - '@langchain/ollama'
+      - '@langchain/xai'
+      - '@opentelemetry/api'
+      - '@opentelemetry/exporter-trace-otlp-proto'
+      - '@opentelemetry/sdk-trace-base'
+      - '@sap/hana-client'
+      - aws-crt
+      - axios
+      - babel-plugin-macros
+      - better-sqlite3
+      - bluebird
+      - cheerio
+      - encoding
+      - ioredis
+      - js-yaml
+      - mongodb
+      - mssql
+      - mysql2
+      - openai
+      - oracledb
+      - peggy
+      - pg-native
+      - pg-query-stream
+      - redis
+      - reflect-metadata
+      - supports-color
+      - ts-node
+      - typeorm-aurora-data-api-driver
+      - ws
 
   aggregate-error@3.1.0:
     dependencies:
