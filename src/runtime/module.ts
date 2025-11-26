@@ -73,6 +73,7 @@ import {
   removeAgentResponseSchema,
   removeAgentScenarios,
 } from './agents/common.js';
+import { Environment } from './interpreter.js';
 
 export class ModuleEntry {
   name: string;
@@ -1117,6 +1118,25 @@ ${attrs.join(',\n')}
   }
 }
 
+const SysAttr_Created = '__created';
+const SysAttr_LastModified = '__last_modified';
+const SysAttr_CreatedBy = '__created_by';
+const SysAttr_LastModifiedBy = '__last_modified_by';
+
+const SysAttr_CreatedSpec: AttributeSpec = asSystemAttribute({
+  type: 'DateTime',
+  properties: new Map<string, any>().set('default', 'now()'),
+});
+
+const SysAttr_LastModifiedSpec = SysAttr_CreatedSpec;
+
+const SysAttr_CreatedBySpec: AttributeSpec = asSystemAttribute({
+  type: 'String',
+  properties: new Map<string, any>().set('optional', true),
+});
+
+const SysAttr_LastModifiedBySpec = SysAttr_CreatedBySpec;
+
 export class Entity extends Record {
   override type: RecordType = RecordType.ENTITY;
 
@@ -1127,6 +1147,16 @@ export class Entity extends Record {
     parentEntryName?: string
   ) {
     super(name, moduleName, scm, parentEntryName);
+    this.addMetaAttributes();
+  }
+
+  private addMetaAttributes(): Entity {
+    this.schema
+      .set(SysAttr_Created, SysAttr_CreatedSpec)
+      .set(SysAttr_CreatedBy, SysAttr_CreatedBySpec)
+      .set(SysAttr_LastModified, SysAttr_LastModifiedSpec)
+      .set(SysAttr_LastModifiedBy, SysAttr_LastModifiedBySpec);
+    return this;
   }
 
   setRbacSpecifications(rbac: RbacSpecification[]): Entity {
@@ -3309,6 +3339,15 @@ export class Instance {
     return this.id;
   }
 
+  metaAttributeValues(): any {
+    return {
+      created: this.lookup(SysAttr_Created),
+      createdBy: this.lookup(SysAttr_CreatedBy),
+      lastModified: this.lookup(SysAttr_LastModified),
+      lastModifiedBy: this.lookup(SysAttr_LastModifiedBy),
+    };
+  }
+
   normalizeAttributes(attrs: InstanceAttributes): InstanceAttributes {
     attrs.forEach((v: any, k: string) => {
       const attrSpec = this.record.schema.get(k);
@@ -3928,4 +3967,16 @@ export function getAttributeNames(entityFqName: string): Array<string> {
   const parts = nameToPath(entityFqName);
   const scm = fetchModule(parts.getModuleName()).getRecord(parts.getEntryName()).schema;
   return [...scm.keys()];
+}
+
+export function maybeSetMetaAttributes(
+  attrs: InstanceAttributes,
+  env: Environment,
+  inUpdateMode: boolean = false
+) {
+  const user = env.getActiveUser();
+  attrs.set(SysAttr_LastModified, now()).set(SysAttr_LastModifiedBy, user);
+  if (!inUpdateMode && attrs.get(SysAttr_CreatedBy) === undefined) {
+    attrs.set(SysAttr_CreatedBy, user);
+  }
 }

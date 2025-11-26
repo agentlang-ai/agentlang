@@ -49,6 +49,7 @@ import {
   PlaceholderRecordEntry,
   Relationship,
   Workflow,
+  maybeSetMetaAttributes,
 } from './module.js';
 import { JoinInfo, Resolver } from './resolvers/interface.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
@@ -1460,6 +1461,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
       let r: Instance | undefined;
       await computeExprAttributes(inst, undefined, undefined, env);
+      maybeSetMetaAttributes(inst.attributes, env);
       if (env.isInUpsertMode()) {
         await runPreUpdateEvents(inst, env);
         r = await res.upsertInstance(inst);
@@ -1578,6 +1580,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             for (let i = 0; i < lastRes.length; ++i) {
               await computeExprAttributes(lastRes[i], crud.body?.attributes, attrs, env);
               await runPreUpdateEvents(lastRes[i], env);
+              maybeSetMetaAttributes(attrs, env, true);
               const finalInst: Instance = await resolver.updateInstance(lastRes[i], attrs);
               await runPostUpdateEvents(finalInst, lastRes[i], env);
               res.push(finalInst);
