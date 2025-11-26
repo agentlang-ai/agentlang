@@ -1,4 +1,4 @@
-import { Instance, isAgentEventInstance, isInstance } from './module.js';
+import { Instance, isAgentEventInstance } from './module.js';
 import { disableInternalMonitoring, enableInternalMonitoring } from './state.js';
 
 export class MonitorEntry {
@@ -104,7 +104,7 @@ export class MonitorEntry {
   }
 
   private static resultAsObject(result: any): object {
-    if (result instanceof Instance) return result.asSerializableObject();
+    if (Instance.IsInstance(result)) return result.asSerializableObject();
     else if (result instanceof Array)
       return result.map((v: any) => {
         return MonitorEntry.resultAsObject(v);
@@ -327,11 +327,11 @@ export class Monitor {
     r.timestamp = this.timestamp;
     if (this.flowResult !== undefined) {
       let fr = this.flowResult;
-      if (fr instanceof Array && isInstance(fr[0])) {
+      if (fr instanceof Array && Instance.IsInstance(fr[0])) {
         fr = fr.map((v: any) => {
           return v.asSerializableObject();
         });
-      } else if (isInstance(fr)) {
+      } else if (Instance.IsInstance(fr)) {
         fr = fr.asSerializableObject();
       }
       r.flowResult = fr;

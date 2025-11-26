@@ -377,8 +377,8 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (obj === null || obj === undefined) return this;
     let r: Instance | Instance[] | undefined = undefined;
     if (
-      obj instanceof Instance ||
-      (obj instanceof Array && obj.length > 0 && obj[0] instanceof Instance)
+      Instance.IsInstance(obj) ||
+      (obj instanceof Array && obj.length > 0 && Instance.IsInstance(obj[0]))
     ) {
       r = obj;
     } else {
@@ -394,8 +394,9 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       });
       n = r[0].getFqName();
     } else {
-      data = extractScratchData(scratchNames, r);
-      n = r.getFqName();
+      const i = r as Instance;
+      data = extractScratchData(scratchNames, i);
+      n = i.getFqName();
     }
     if (data) env.addToScratchPad(n, data);
     return this;

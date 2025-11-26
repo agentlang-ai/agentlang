@@ -2286,7 +2286,7 @@ export async function evaluateExpression(expr: Expr, env: Environment): Promise<
 }
 
 async function getRef(r: string, src: any, env: Environment): Promise<Result> {
-  if (src instanceof Instance) return src.lookup(r);
+  if (Instance.IsInstance(src)) return src.lookup(r);
   else if (src instanceof Map) return src.get(r);
   else if (src instanceof Object) return src[r];
   else if (isPath(src)) return await getRef(r, await dereferencePath(src, env), env);
