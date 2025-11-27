@@ -17,7 +17,7 @@ record IssueTriageInfo {
 agent analyseIssue {
     instruction "Analyse the incoming issue and return a better description. Also return appropriate labels for the issue.
 Labels should be selected from [\"featureRequest\", \"bug\", \"enhancement\"]. Is you select more than one label, return them comma-separated.
-Note that an issue is identifdied by its `id` field and not by its key.",
+Note that an issue is identified by its `id` field and not by its key.",
     responseSchema issues.core/IssueTriageInfo
 }
 
