@@ -3,6 +3,6 @@
     "version": "0.0.1",
     "dependencies": {
         "agentlang": "file:../../../agentlang",
-	"jira": "github:fractl-dev/jira#main"
+        "jira": "github:fractl-dev/jira#main"
     }
 }
