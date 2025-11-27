@@ -33,7 +33,7 @@ entity Issue {
     project_name String @optional,
     comments Comment @optional,
     description String,
-    labels String[]
+    labels String
 }
 
 resolver jira1 [jira/Issue] {
