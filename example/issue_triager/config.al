@@ -1,9 +1,9 @@
 {
     "store": {
-	"type": "sqlite",
-	"dbname": "issues.db"
+        "type": "sqlite",
+        "dbname": "issues.db"
     },
     "service": {
-	"port": "#js parseInt(process.env.SERVICE_PORT || '8080')"
+        "port": "#js parseInt(process.env.SERVICE_PORT || '8080')"
     }
 }
