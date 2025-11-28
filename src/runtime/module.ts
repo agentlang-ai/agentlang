@@ -47,6 +47,7 @@ import {
   forceAsFqName,
   validateIdFormat,
   nameContainsSepEscape,
+  registerInitFunction,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -74,6 +75,7 @@ import {
   removeAgentScenarios,
 } from './agents/common.js';
 import { Environment } from './interpreter.js';
+import { isNode } from '../utils/fs-utils.js';
 
 export class ModuleEntry {
   name: string;
@@ -2443,7 +2445,26 @@ export class Module {
   }
 }
 
-const moduleDb = new Map<string, Module>();
+declare global {
+  var al_moduleDb: Map<string, Module> | undefined;
+}
+
+let browserModuleDb: Map<string, Module> | undefined;
+
+const getModuleDb = function (): Map<string, Module> {
+  if (isNode()) {
+    if (globalThis.al_moduleDb === undefined) {
+      globalThis.al_moduleDb = new Map<string, Module>();
+    }
+    return globalThis.al_moduleDb;
+  } else {
+    if (browserModuleDb === undefined) {
+      browserModuleDb = new Map<string, Module>();
+    }
+    return browserModuleDb;
+  }
+};
+
 let activeModule: string = '';
 
 export function getActiveModuleName() {
@@ -2452,12 +2473,13 @@ export function getActiveModuleName() {
 
 export function addModule(name: string): Module {
   const mod: Module = new Module(name);
-  moduleDb.set(name, mod);
+  getModuleDb().set(name, mod);
   activeModule = name;
   return mod;
 }
 
 export function removeModule(name: string): boolean {
+  const moduleDb = getModuleDb();
   if (moduleDb.has(name)) {
     moduleDb.delete(name);
     return true;
@@ -2469,13 +2491,13 @@ addModule(DefaultModuleName);
 addRecord('env', DefaultModuleName);
 
 export function getModuleNames(): string[] {
-  const ks: Iterable<string> = moduleDb.keys();
+  const ks: Iterable<string> = getModuleDb().keys();
   return Array.from(ks);
 }
 
 export function getUserModuleNames(): string[] {
   const result: Array<string> = new Array<string>();
-  Array.from(moduleDb.keys()).forEach((n: string) => {
+  Array.from(getModuleDb().keys()).forEach((n: string) => {
     if (!DefaultModules.has(n)) {
       result.push(n);
     }
@@ -2484,11 +2506,11 @@ export function getUserModuleNames(): string[] {
 }
 
 export function isModule(name: string): boolean {
-  return moduleDb.has(name);
+  return getModuleDb().has(name);
 }
 
 export function fetchModule(moduleName: string): Module {
-  const module: Module | undefined = moduleDb.get(moduleName);
+  const module: Module | undefined = getModuleDb().get(moduleName);
   if (module === undefined) {
     throw new Error(`Module not found - ${moduleName}`);
   }
@@ -2496,7 +2518,7 @@ export function fetchModule(moduleName: string): Module {
 }
 
 export function allModuleNames(): string[] {
-  return [...moduleDb.keys()];
+  return [...getModuleDb().keys()];
 }
 
 export function fetchModuleEntry(entryName: string, moduleName: string): ModuleEntry {
@@ -2859,21 +2881,23 @@ export function addWorkflow(
   }
   if (!statements) statements = new Array<Statement>();
   if (hdr) {
-    const eventFqName = makeFqName(moduleName, name);
-    const entityDef = getEntityDef(hdr.name, moduleName);
-    if (hdr.tag == '@after') {
-      entityDef?.addAfterTrigger({
-        on: hdr.prefix,
-        event: eventFqName,
-        async: false,
-      });
-    } else {
-      entityDef?.addBeforeTrigger({
-        on: hdr.prefix,
-        event: eventFqName,
-        async: false,
-      });
-    }
+    registerInitFunction(() => {
+      const eventFqName = makeFqName(moduleName, name);
+      const entityDef = getEntityDef(hdr.name, moduleName);
+      if (hdr.tag == '@after') {
+        entityDef?.addAfterTrigger({
+          on: hdr.prefix,
+          event: eventFqName,
+          async: false,
+        });
+      } else {
+        entityDef?.addBeforeTrigger({
+          on: hdr.prefix,
+          event: eventFqName,
+          async: false,
+        });
+      }
+    });
   }
   return module.addEntry(
     new Workflow(asWorkflowName(name), statements, moduleName, hdr ? true : false)
@@ -3294,7 +3318,7 @@ export class Instance {
   queryAttributeValues: InstanceAttributes | undefined;
   relatedInstances: Map<string, Instance[]> | undefined;
   private contextData: Map<string, any> | undefined;
-  private id: string;
+  private ___id: string;
 
   constructor(
     record: Record,
@@ -3304,7 +3328,7 @@ export class Instance {
     queryAttributes?: InstanceAttributes,
     queryAttributeValues?: InstanceAttributes
   ) {
-    this.id = crypto.randomUUID();
+    this.___id = crypto.randomUUID();
     this.record = record;
     this.name = name;
     this.moduleName = moduleName;
@@ -3327,6 +3351,10 @@ export class Instance {
     );
   }
 
+  static IsInstance(obj: any): boolean {
+    return obj instanceof Instance || (obj instanceof Object && obj.___id);
+  }
+
   static clone(inst: Instance): Instance {
     const attrs = newInstanceAttributes();
     inst.attributes.forEach((v: any, k: string) => {
@@ -3336,7 +3364,7 @@ export class Instance {
   }
 
   getId(): string {
-    return this.id;
+    return this.___id;
   }
 
   metaAttributeValues(): any {
@@ -3450,7 +3478,7 @@ export class Instance {
   }
 
   static asSerializableValue(v: any, forSerialization: boolean): any {
-    if (v instanceof Instance) {
+    if (Instance.IsInstance(v)) {
       const inst = v as Instance;
       return forSerialization ? inst.asSerializableObject() : inst.asObject();
     } else if (v instanceof Object) {
@@ -3527,10 +3555,10 @@ export class Instance {
     if (relInsts === undefined) {
       relInsts = new Array<Instance>();
     }
-    if (insts instanceof Instance) {
-      relInsts.push(insts);
+    if (Instance.IsInstance(insts)) {
+      relInsts.push(insts as Instance);
     } else {
-      insts.forEach((inst: Instance) => {
+      (insts as Instance[]).forEach((inst: Instance) => {
         relInsts.push(inst);
       });
     }
@@ -3630,7 +3658,7 @@ export class Instance {
 export function maybeInstanceAsString(result: any): string {
   if (!isString(result)) {
     try {
-      if (result instanceof Instance) {
+      if (Instance.IsInstance(result)) {
         const inst = result as Instance;
         return JSON.stringify(inst.asSerializableObject());
       } else if (result instanceof Array) {
@@ -3768,7 +3796,7 @@ export function isRecordInstance(inst: Instance): boolean {
 
 export function getAllModuleEntries(f: Function): Map<string, string[]> {
   const result: Map<string, string[]> = new Map<string, string[]>();
-  moduleDb.forEach((module: Module, k: string) => {
+  getModuleDb().forEach((module: Module, k: string) => {
     result.set(
       k,
       f(module).map((me: ModuleEntry) => {
@@ -3818,16 +3846,9 @@ export function getBetweenInstanceNodeValues(inst: Instance): BetweenInstanceNod
   };
 }
 
-export function isInstance(obj: any): boolean {
-  if (obj) {
-    return obj instanceof Instance;
-  }
-  return false;
-}
-
 export function isInstanceOfType(obj: any, fqName: string): boolean {
   if (obj) {
-    return isInstance(obj) && fqName == (obj as Instance).getFqName();
+    return Instance.IsInstance(obj) && fqName == (obj as Instance).getFqName();
   }
   return false;
 }
@@ -3838,7 +3859,7 @@ export function assertInstance(obj: any) {
       throw new Error(`Empty instances`);
     }
     obj.forEach(assertInstance);
-  } else if (!(obj instanceof Instance)) {
+  } else if (!Instance.IsInstance(obj)) {
     throw new Error(`${obj} is not an Instance`);
   }
 }

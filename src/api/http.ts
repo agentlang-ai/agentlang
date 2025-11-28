@@ -543,11 +543,11 @@ function normalizedResult(r: Result): Result {
     return r.map((x: Result) => {
       return normalizedResult(x);
     });
-  } else if (r instanceof Instance) {
+  } else if (Instance.IsInstance(r)) {
     r.mergeRelatedInstances();
     Array.from(r.attributes.keys()).forEach(k => {
       const v: Result = r.attributes.get(k);
-      if (v instanceof Array || v instanceof Instance) {
+      if (v instanceof Array || Instance.IsInstance(v)) {
         r.attributes.set(k, normalizedResult(v));
       }
     });
