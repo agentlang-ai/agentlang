@@ -45,6 +45,7 @@ let InitiateAuthCommand: any = undefined;
 let AdminCreateUserCommand: any = undefined;
 let AdminDisableUserCommand: any = undefined;
 let AdminEnableUserCommand: any = undefined;
+let AdminDeleteUserCommand: any = undefined;
 let RespondToAuthChallengeCommand: any = undefined;
 let AuthenticationDetails: any = undefined;
 let CognitoUser: any = undefined;
@@ -70,6 +71,7 @@ if (isNodeEnv) {
   AdminCreateUserCommand = cip.AdminCreateUserCommand;
   AdminDisableUserCommand = cip.AdminDisableUserCommand;
   AdminEnableUserCommand = cip.AdminEnableUserCommand;
+  AdminDeleteUserCommand = cip.AdminDeleteUserCommand;
   RespondToAuthChallengeCommand = cip.RespondToAuthChallengeCommand;
 
   const ci = await import('amazon-cognito-identity-js');
@@ -1331,6 +1333,29 @@ export class CognitoAuth implements AgentlangAuth {
     } catch (err) {
       logger.error(`Failed to decode JWT payload: ${err}`);
       throw new Error('Invalid JWT token');
+    }
+  }
+
+  async deleteUser(email: string, _env: Environment): Promise<void> {
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+      });
+
+      const command = new AdminDeleteUserCommand({
+        UserPoolId: this.fetchUserPoolId(),
+        Username: email,
+      });
+
+      logger.debug(`Attempting to delete user: ${email}`);
+      await client.send(command);
+      logger.info(`User deleted successfully: ${email}`);
+    } catch (err: any) {
+      logger.error(`Failed to delete user ${email}:`, {
+        errorName: err.name,
+        errorMessage: sanitizeErrorMessage(err.message),
+      });
+      handleCognitoError(err, 'deleteUser');
     }
   }
 

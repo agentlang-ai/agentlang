@@ -82,4 +82,5 @@ export interface AgentlangAuth {
   callback(code: string, env: Environment, cb: LoginCallback): Promise<void>;
   disableUser(email: string, env: Environment): Promise<void>;
   enableUser(email: string, env: Environment): Promise<void>;
+  deleteUser(email: string, env: Environment): Promise<void>;
 }
