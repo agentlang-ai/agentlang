@@ -180,7 +180,7 @@ export const runModule = async (fileName: string, releaseDb: boolean = false): P
       console.error(err);
     }
   } finally {
-    if (releaseDb) {
+    if (releaseDb === true) {
       resetDefaultDatabase();
     }
   }
