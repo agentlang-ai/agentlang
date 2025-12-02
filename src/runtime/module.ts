@@ -3257,7 +3257,7 @@ function checkOneOfValue(attrSpec: AttributeSpec, attrName: string, attrValue: a
   const vals: Set<string> | undefined = getEnumValues(attrSpec);
   if (vals) {
     if (!vals.has(attrValue as string)) {
-      throw new Error(`Value of ${attrName} must be one of ${vals}`);
+      throw new Error(`Value of ${attrName} must be one of [${[...vals]}]`);
     }
     return true;
   }
