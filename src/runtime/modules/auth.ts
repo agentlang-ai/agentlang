@@ -44,6 +44,7 @@ entity User {
 
 workflow AfterDeleteUser {
   {RemoveUserSession {id AfterDeleteUser.User.id}}
+  await Auth.deleteUser(AfterDeleteUser.User.id, AfterDeleteUser.User.email)
 }
 
 @public workflow CreateUser {
@@ -559,6 +560,41 @@ export async function activateUser(userId: string, env: Environment): Promise<Re
       };
     } catch (err: any) {
       logger.error(`Failed to activate user ${userId}: ${err.message}`);
+      throw err;
+    }
+  };
+  if (needCommit) {
+    return await env.callInTransaction(f);
+  } else {
+    return await f();
+  }
+}
+
+export async function deleteUser(userId: string, email: string, env: Environment): Promise<Result> {
+  const needCommit = env ? false : true;
+  env = env ? env : new Environment();
+  const f = async () => {
+    try {
+      if (email) {
+        try {
+          await fetchAuthImpl().deleteUser(email, env);
+        } catch (err: any) {
+          // If user doesn't exist in Cognito, log warning but continue with local deletion
+          if (err.message && err.message.includes('not found')) {
+            logger.warn(`User ${email} not found in Cognito, continuing with local deletion`);
+          } else {
+            logger.error(`Failed to delete user ${email} from Cognito: ${err.message}`);
+            throw err;
+          }
+        }
+      }
+
+      return {
+        status: 'ok',
+        message: 'User deleted successfully',
+      };
+    } catch (err: any) {
+      logger.error(`Failed to delete user ${userId}: ${err.message}`);
       throw err;
     }
   };
