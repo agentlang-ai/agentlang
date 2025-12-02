@@ -148,7 +148,7 @@ export async function runPreInitTasks(): Promise<boolean> {
 }
 
 export const runModule = async (fileName: string, releaseDb: boolean = false): Promise<void> => {
-  if (isRuntimeMode_dev() && process.env.AL_PROD === 'true') {
+  if (isRuntimeMode_dev() && process.env.NODE_ENV === 'production') {
     setRuntimeMode_prod();
   }
   const r: boolean = await runPreInitTasks();
