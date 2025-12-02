@@ -37,6 +37,8 @@ import {
   PathAttributeName,
   UnauthorisedError,
 } from '../../defs.js';
+import path from 'node:path';
+import { getFileSystem } from '../../../utils/fs-utils.js';
 
 export let defaultDataSource: DataSource | undefined;
 
@@ -173,7 +175,7 @@ function makePostgresDataSource(
   config: DatabaseConfig | undefined
 ): DataSource {
   const synchronize = isRuntimeMode_dev() || isRuntimeMode_init_schema();
-  const runMigrations = isRuntimeMode_migration() || isRuntimeMode_undo_migration() || !synchronize;
+  //const runMigrations = isRuntimeMode_migration() || isRuntimeMode_undo_migration() || !synchronize;
   return new DataSource({
     type: 'postgres',
     host: process.env.POSTGRES_HOST || config?.host || 'localhost',
@@ -182,7 +184,7 @@ function makePostgresDataSource(
     password: process.env.POSTGRES_PASSWORD || config?.password || 'postgres',
     database: process.env.POSTGRES_DB || config?.dbname || 'postgres',
     synchronize: synchronize,
-    migrationsRun: runMigrations,
+    migrationsRun: false,
     dropSchema: false,
     entities: entities,
     invalidWhereValuesBehavior: {
@@ -206,13 +208,13 @@ function makeSqliteDataSource(
   config: DatabaseConfig | undefined
 ): DataSource {
   const synchronize = isRuntimeMode_dev() || isRuntimeMode_init_schema();
-  const runMigrations = isRuntimeMode_migration() || isRuntimeMode_undo_migration() || !synchronize;
+  //const runMigrations = isRuntimeMode_migration() || isRuntimeMode_undo_migration() || !synchronize;
   return new DataSource({
     type: 'sqlite',
     database: config?.dbname || mkDbName(),
     synchronize: synchronize,
     entities: entities,
-    migrationsRun: runMigrations,
+    migrationsRun: false,
     dropSchema: false,
     invalidWhereValuesBehavior: {
       null: 'sql-null',
@@ -221,18 +223,58 @@ function makeSqliteDataSource(
   });
 }
 
+async function writeSql(fileName: string, sql: string): Promise<boolean> {
+  const root = 'sql';
+  const fullPath = `${root}${path.sep}${fileName}`;
+  const fs = await getFileSystem();
+  try {
+    fs.ensureDir(root);
+    await fs.writeFile(fullPath, sql);
+    return true;
+  } catch (reason: any) {
+    console.log(`Failed to write sql file ${fullPath} - ${reason}`);
+    return false;
+  }
+}
+
+async function execMigrationSql(dataSource: DataSource, sql: string[]) {
+  const queryRunner = dataSource.createQueryRunner();
+  await queryRunner.startTransaction();
+  for (let i = 0; i < sql.length; ++i) {
+    await queryRunner.query(sql[i]);
+  }
+  await queryRunner.commitTransaction();
+}
+
 async function maybeHandleMigrations(dataSource: DataSource) {
-  if (isRuntimeMode_migration()) await dataSource.runMigrations();
-  else if (isRuntimeMode_undo_migration()) await dataSource.undoLastMigration();
-  else if (isRuntimeMode_generate_migration()) {
+  const is_migration = isRuntimeMode_migration();
+  const is_undo_migration = isRuntimeMode_undo_migration();
+  const is_gen_migration = isRuntimeMode_generate_migration();
+  if (is_migration || is_undo_migration || is_gen_migration) {
     const sqlInMemory = await dataSource.driver.createSchemaBuilder().log();
-    // TODO: write to separate up/down sql script files
-    sqlInMemory.upQueries.forEach(upQuery => {
-      console.log(upQuery.query.replaceAll('`', '\\`'));
-    });
-    sqlInMemory.downQueries.forEach(downQuery => {
-      console.log(downQuery.query.replaceAll('`', '\\`'));
-    });
+    let ups: string[] | undefined;
+    if (is_migration || is_gen_migration) {
+      ups = new Array<string>();
+      sqlInMemory.upQueries.forEach(upQuery => {
+        ups?.push(upQuery.query.replaceAll('`', '\\`'));
+      });
+    }
+    let downs: string[] | undefined;
+    if (is_undo_migration || is_gen_migration) {
+      downs = new Array<string>();
+      sqlInMemory.downQueries.forEach(downQuery => {
+        downs?.push(downQuery.query.replaceAll('`', '\\`'));
+      });
+    }
+    if (is_migration && ups?.length) {
+      await execMigrationSql(dataSource, ups);
+    } else if (is_undo_migration && downs?.length) {
+      await execMigrationSql(dataSource, downs);
+    } else if (is_gen_migration) {
+      const ts = Date.now();
+      if (ups?.length) writeSql(`up_${ts}.sql`, ups?.join(';\n'));
+      if (downs?.length) writeSql(`down_${ts}.sql`, downs?.join(';\n'));
+    }
   }
 }
 
@@ -343,7 +385,11 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
             onDelete: fk.onDelete,
             onUpdate: fk.onUpdate,
           });
-          await qr.createForeignKey(asTableReference(fk.moduleName, fk.entityName), fkobj);
+          try {
+            await qr.createForeignKey(asTableReference(fk.moduleName, fk.entityName), fkobj);
+          } catch (reason: any) {
+            logger.warn(`initDatabase: ${reason}`);
+          }
         }
       }
       const vectEnts = ormScm.vectorEntities.map((es: EntitySchema) => {
