@@ -28,6 +28,7 @@ import { runInitFunctions } from '../runtime/util.js';
 import { startServer } from '../api/http.js';
 import { enableExecutionGraph } from '../runtime/exec-graph.js';
 import { importModule } from '../runtime/jsmodules.js';
+import { initGlobalApi } from '../runtime/api.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -95,6 +96,7 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
 let execGraphEnabled = false;
 
 export async function runPreInitTasks(): Promise<boolean> {
+  initGlobalApi();
   if (!execGraphEnabled && isExecGraphEnabled()) {
     enableExecutionGraph();
     execGraphEnabled = true;

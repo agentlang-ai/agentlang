@@ -4,6 +4,18 @@ import {
   isInstanceOfType as al_isInstanceOfType,
 } from './module.js';
 
-export const makeInstance = al_makeInstance;
-export const isInstanceOfType = al_isInstanceOfType;
-export const fetchConfig = al_fetchConfig;
+declare global {
+  var agentlang: any | undefined;
+}
+
+let ApiInited = false;
+
+export function initGlobalApi() {
+  if (!ApiInited) {
+    globalThis.agentlang = {};
+    globalThis.agentlang.makeInstance = al_makeInstance;
+    globalThis.agentlang.isInstanceOfType = al_isInstanceOfType;
+    globalThis.agentlang.fetchConfig = al_fetchConfig;
+    ApiInited = true;
+  }
+}

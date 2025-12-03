@@ -1,9 +1,0 @@
-{
-    "name": "issueTriager",
-    "version": "0.0.1",
-    "dependencies": {
-        "agentlang": "file:../../../agentlang",
-        "slack": "file:../../../agentlang-hub/slack",
-        "jira": "file:../../../agentlang-hub/jira"
-    }
-}

@@ -1,0 +1,7 @@
+{
+    "name": "issueTriager",
+    "version": "0.0.1",
+    "dependencies": {
+        "jira": "github:fractl-dev/jira#main"
+    }
+}
