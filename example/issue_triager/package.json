@@ -3,6 +3,7 @@
     "version": "0.0.1",
     "dependencies": {
         "agentlang": "file:../../../agentlang",
-        "jira": "github:fractl-dev/jira#main"
+        "slack": "file:../../../agentlang-hub/slack",
+        "jira": "file:../../../agentlang-hub/jira"
     }
 }
