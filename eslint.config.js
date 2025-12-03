@@ -43,7 +43,7 @@ export default [
       '@typescript-eslint/no-unused-expressions': 'off',
       'prefer-spread': 'warn',
       'no-useless-escape': 'warn',
-      "no-var": "off"
+      "no-var": "off",
     },
   },
 ];
