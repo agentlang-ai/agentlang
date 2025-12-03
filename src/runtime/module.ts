@@ -2287,6 +2287,17 @@ export class Module {
     return false;
   }
 
+  removeEvent(name: string): boolean {
+    if (this.isEvent(name)) {
+      const r: boolean = this.removeEntry(name);
+      if (r) {
+        this.removeEntry(asWorkflowName(name));
+        return r;
+      }
+    }
+    return false;
+  }
+
   private getEntriesOfType(t: RecordType): ModuleEntry[] {
     return this.entries.filter((v: ModuleEntry) => {
       const r: Record = v as Record;
@@ -3232,14 +3243,7 @@ export function removeWorkflow(name: string, moduleName = activeModule): boolean
 
 export function removeEvent(name: string, moduleName = activeModule): boolean {
   const module: Module = fetchModule(moduleName);
-  if (module.isEvent(name)) {
-    const r: boolean = module.removeEntry(name);
-    if (r) {
-      module.removeEntry(asWorkflowName(name));
-      return r;
-    }
-  }
-  return false;
+  return module.removeEvent(name);
 }
 
 function getAttributeSpec(attrsSpec: RecordSchema, attrName: string): AttributeSpec {

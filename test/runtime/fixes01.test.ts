@@ -674,3 +674,48 @@ entity E
 `)// no @object tags added to Float and Decimal
     })
 })
+
+describe('event-removal', () => {
+    test('removeEvent method that cleans-up workflows', async () => {
+        await doInternModule('EventRem',
+            `entity E {
+                  id Int @id,
+                  x String
+             }
+             event createE {
+                  id Int, x String
+             }
+             workflow createE {
+                 {E {id createE.id, x createE.x}}
+             }`)
+        const m = fetchModule('EventRem')
+        const s1 = m.toString()
+        assert(s1 === `module EventRem
+
+entity E
+{
+    id Int @id,
+    x String
+}
+
+event createE
+{
+    id Int,
+    x String
+}
+
+workflow createE {
+    {E {id createE.id, x createE.x}}
+}`)
+        m.removeEvent('createE')
+        const s2 = m.toString()
+        assert(s2 === `module EventRem
+
+entity E
+{
+    id Int @id,
+    x String
+}
+`)
+    })
+})
