@@ -37,8 +37,8 @@ import {
   PathAttributeName,
   UnauthorisedError,
 } from '../../defs.js';
-import path from 'node:path';
-import { getFileSystem } from '../../../utils/fs-utils.js';
+import { saveMigration } from '../../modules/core.js';
+import { getAppSpec } from '../../loader.js';
 
 export let defaultDataSource: DataSource | undefined;
 
@@ -223,20 +223,6 @@ function makeSqliteDataSource(
   });
 }
 
-async function writeSql(fileName: string, sql: string): Promise<boolean> {
-  const root = 'sql';
-  const fullPath = `${root}${path.sep}${fileName}`;
-  const fs = await getFileSystem();
-  try {
-    fs.ensureDir(root);
-    await fs.writeFile(fullPath, sql);
-    return true;
-  } catch (reason: any) {
-    console.log(`Failed to write sql file ${fullPath} - ${reason}`);
-    return false;
-  }
-}
-
 async function execMigrationSql(dataSource: DataSource, sql: string[]) {
   const queryRunner = dataSource.createQueryRunner();
   await queryRunner.startTransaction();
@@ -267,13 +253,13 @@ async function maybeHandleMigrations(dataSource: DataSource) {
       });
     }
     if (is_migration && ups?.length) {
+      await saveMigration(getAppSpec().version, ups, downs);
       await execMigrationSql(dataSource, ups);
     } else if (is_undo_migration && downs?.length) {
+      await saveMigration(getAppSpec().version, ups, downs);
       await execMigrationSql(dataSource, downs);
     } else if (is_gen_migration) {
-      const ts = Date.now();
-      if (ups?.length) writeSql(`up_${ts}.sql`, ups?.join(';\n'));
-      if (downs?.length) writeSql(`down_${ts}.sql`, downs?.join(';\n'));
+      await saveMigration(getAppSpec().version, ups, downs);
     }
   }
 }
