@@ -2372,9 +2372,23 @@ export async function callPostEventOnSubscription(
   inst: Instance,
   env?: Environment
 ): Promise<any> {
+  const localEnv = env === undefined;
   const newEnv = env ? env : new Environment('onSubs.env');
-  await runPrePostEvents(crudType, false, inst, newEnv);
-  return newEnv.getLastResult();
+  try {
+    await runPrePostEvents(crudType, false, inst, newEnv);
+    if (localEnv) {
+      await newEnv.commitAllTransactions();
+    }
+    return newEnv.getLastResult();
+  } catch (reason: any) {
+    if (localEnv) {
+      await newEnv.rollbackAllTransactions();
+      logger.error(
+        `callPostEventOnSubscription failed for ${crudType} ${inst.getFqName()} - ${reason}`
+      );
+    }
+  }
+  return undefined;
 }
 
 async function runPrePostEvents(
