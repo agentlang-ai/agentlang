@@ -2050,10 +2050,8 @@ async function iterateOnFlow(
       );
       const isfxc = agent.isFlowExecutor();
       const isdec = agent.isDecisionExecutor();
-      if (isfxc || isdec) 
-        env.setFlowContext(context);
-      else 
-        env.setFlowContext(initContext);
+      if (isfxc || isdec) env.setFlowContext(context);
+      else env.setFlowContext(initContext);
       if (monitoringEnabled) {
         env.appendEntryToMonitor(step);
       }
