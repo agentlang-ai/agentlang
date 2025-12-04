@@ -188,11 +188,23 @@ export async function startServer(
       )
     );
   };
-  if (host) {
-    app.listen(port, host, cb);
-  } else {
-    app.listen(port, cb);
-  }
+
+  const server = host ? app.listen(port, host, cb) : app.listen(port, cb);
+
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(
+        chalk.red(
+          `Port ${chalk.bold(port)} is already in use. Please choose a different port.`
+        )
+      );
+      throw new Error(`Port ${port} is already in use`);
+    } else {
+      console.error(chalk.red(`Server error: ${err.message}`));
+      throw err;
+    }
+  });
+
 }
 
 function ok(res: Response) {
