@@ -329,6 +329,8 @@ export class GenericResolver extends Resolver {
   }
 
   override async subscribe() {
+    const MaxErrors = 3
+    let errCount = 0
     while (true) {
       try {
         if (this.subs?.subscribe) {
@@ -338,6 +340,11 @@ export class GenericResolver extends Resolver {
         return;
       } catch (reason: any) {
         logger.warn(`subscribe error in resolver ${this.name}: ${reason}`);
+        if (errCount >= MaxErrors) {
+          logger.warn(`exiting resolver subscription after ${errCount} retries`)
+          break
+        }
+        ++errCount
       }
     }
   }
