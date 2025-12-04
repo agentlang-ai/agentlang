@@ -7,7 +7,7 @@ record Issue {
 }
 
 agent analyseUserMessage {
-    instruction "Analyse the message and create a new issue based on it. If possible, add more information to the description",
+    instruction "Analyse the message and create a new issue based on it. If possible, created a markdown formatted description with the following sections: Problem statement, Steps to reproduce and Expected behavior. All sections except 'Problem statement' are optional.",
     responseSchema issues.core/Issue
 }
 
@@ -52,17 +52,22 @@ agent replyToUser {
 }
 
 decision classifyMessage {
-    case ("message looks like a bug, issue or task") {
+    case ("message looks like a bug or issue") {
         Issue
     }
 
-    case ("message is not a bug or task report") {
+    case ("message looks like a feature request or product enhancement") {
+	Task
+    }
+
+    case ("message is not a bug, issue or feature request") {
 	Other
     }
 }
 
 flow issueManager {
     classifyMessage --> "Issue" analyseUserMessage
+    classifyMessage --> "Task" analyseUserMessage
     analyseUserMessage --> issueCreator
     issueCreator --> replyToUser
 }
