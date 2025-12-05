@@ -327,3 +327,62 @@ export type FkSpec = {
   onDelete: 'CASCADE' | 'SET NULL' | 'SET DEFAULT' | undefined;
   onUpdate: 'CASCADE' | 'SET NULL' | 'SET DEFAULT' | undefined;
 };
+
+enum RuntimeModeTag {
+  DEV,
+  PROD,
+  INIT_SCHEMA,
+  RUN_MIGRATION,
+  UNDO_MIGRATION,
+  GENERATE_MIGRATION,
+}
+
+let RuntimeMode: RuntimeModeTag = RuntimeModeTag.DEV;
+
+export function setRuntimeMode_dev() {
+  RuntimeMode = RuntimeModeTag.DEV;
+}
+
+export function setRuntimeMode_prod() {
+  RuntimeMode = RuntimeModeTag.PROD;
+}
+
+export function setRuntimeMode_init_schema() {
+  RuntimeMode = RuntimeModeTag.INIT_SCHEMA;
+}
+
+export function setRuntimeMode_migration() {
+  RuntimeMode = RuntimeModeTag.RUN_MIGRATION;
+}
+
+export function setRuntimeMode_undo_migration() {
+  RuntimeMode = RuntimeModeTag.UNDO_MIGRATION;
+}
+
+export function setRuntimeMode_generate_migration() {
+  RuntimeMode = RuntimeModeTag.GENERATE_MIGRATION;
+}
+
+export function isRuntimeMode_dev(): boolean {
+  return RuntimeMode === RuntimeModeTag.DEV;
+}
+
+export function isRuntimeMode_prod(): boolean {
+  return RuntimeMode === RuntimeModeTag.PROD;
+}
+
+export function isRuntimeMode_init_schema(): boolean {
+  return RuntimeMode === RuntimeModeTag.INIT_SCHEMA;
+}
+
+export function isRuntimeMode_migration(): boolean {
+  return RuntimeMode === RuntimeModeTag.RUN_MIGRATION;
+}
+
+export function isRuntimeMode_generate_migration(): boolean {
+  return RuntimeMode === RuntimeModeTag.GENERATE_MIGRATION;
+}
+
+export function isRuntimeMode_undo_migration(): boolean {
+  return RuntimeMode === RuntimeModeTag.UNDO_MIGRATION;
+}

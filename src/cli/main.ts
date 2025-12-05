@@ -23,11 +23,20 @@ import { prepareIntegrations } from '../runtime/integrations.js';
 import { isExecGraphEnabled, isNodeEnv } from '../utils/runtime.js';
 import { OpenAPIClientAxios } from 'openapi-client-axios';
 import { registerOpenApiModule } from '../runtime/openapi.js';
-import { initDatabase } from '../runtime/resolvers/sqldb/database.js';
+import { initDatabase, resetDefaultDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { runInitFunctions } from '../runtime/util.js';
 import { startServer } from '../api/http.js';
 import { enableExecutionGraph } from '../runtime/exec-graph.js';
 import { importModule } from '../runtime/jsmodules.js';
+import {
+  isRuntimeMode_dev,
+  isRuntimeMode_prod,
+  setRuntimeMode_generate_migration,
+  setRuntimeMode_init_schema,
+  setRuntimeMode_migration,
+  setRuntimeMode_prod,
+  setRuntimeMode_undo_migration,
+} from '../runtime/defs.js';
 import { initGlobalApi } from '../runtime/api.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -60,6 +69,34 @@ export default function (): void {
     .description('Parses and validates an Agentlang module')
     .action(parseAndValidate);
 
+  program
+    .command('initSchema')
+    .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+    .option('-c, --config <config>', 'configuration file')
+    .description('Initialize database schema')
+    .action(initSchema);
+
+  program
+    .command('runMigrations')
+    .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+    .option('-c, --config <config>', 'configuration file')
+    .description('Automatically perform migration of the schema')
+    .action(runMigrations);
+
+  program
+    .command('undoLastMigration')
+    .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+    .option('-c, --config <config>', 'configuration file')
+    .description('Revoke the last migration')
+    .action(undoLastMigration);
+
+  program
+    .command('generateMigration')
+    .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+    .option('-c, --config <config>', 'configuration file')
+    .description('Generate migration script')
+    .action(generateMigration);
+
   program.parse(process.argv);
 }
 
@@ -90,7 +127,8 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   await importModule('../runtime/api.js', 'agentlang');
   await runInitFunctions();
   await runStandaloneStatements();
-  if (appSpec) startServer(appSpec, config?.service?.port || 8080, config?.service?.host, config);
+  if (appSpec && (isRuntimeMode_dev() || isRuntimeMode_prod()))
+    startServer(appSpec, config?.service?.port || 8080, config?.service?.host, config);
 }
 
 let execGraphEnabled = false;
@@ -111,7 +149,10 @@ export async function runPreInitTasks(): Promise<boolean> {
   return result;
 }
 
-export const runModule = async (fileName: string): Promise<void> => {
+export const runModule = async (fileName: string, releaseDb: boolean = false): Promise<void> => {
+  if (isRuntimeMode_dev() && process.env.NODE_ENV === 'production') {
+    setRuntimeMode_prod();
+  }
   const r: boolean = await runPreInitTasks();
   if (!r) {
     throw new Error('Failed to initialize runtime');
@@ -140,8 +181,32 @@ export const runModule = async (fileName: string): Promise<void> => {
     } else {
       console.error(err);
     }
+  } finally {
+    if (releaseDb === true) {
+      resetDefaultDatabase();
+    }
   }
 };
+
+async function initSchema(fileName: string) {
+  setRuntimeMode_init_schema();
+  await runModule(fileName, true);
+}
+
+async function runMigrations(fileName: string) {
+  setRuntimeMode_migration();
+  await runModule(fileName, true);
+}
+
+async function undoLastMigration(fileName: string) {
+  setRuntimeMode_undo_migration();
+  await runModule(fileName, true);
+}
+
+async function generateMigration(fileName: string) {
+  setRuntimeMode_generate_migration();
+  await runModule(fileName, true);
+}
 
 export async function internAndRunModule(
   module: ModuleDefinition,

@@ -191,6 +191,12 @@ export const DefaultAppSpec: ApplicationSpec = {
   version: '0.0.1',
 };
 
+let CurrentAppSpec: ApplicationSpec = DefaultAppSpec;
+
+export function getAppSpec(): ApplicationSpec {
+  return CurrentAppSpec;
+}
+
 async function getAllModules(
   dir: string,
   fs: ExtendedFileSystem,
@@ -234,6 +240,7 @@ async function loadApp(appDir: string, fsOptions?: any, callback?: Function): Pr
   const appJsonFile = `${appDir}${path.sep}package.json`;
   const s: string = await fs.readFile(appJsonFile);
   const appSpec: ApplicationSpec = JSON.parse(s);
+  CurrentAppSpec = appSpec;
   if (dependenciesCallback !== undefined && appSpec.dependencies) {
     const aldeps = new Array<DependencyInfo>();
     for (const [k, v] of Object.entries(appSpec.dependencies)) {

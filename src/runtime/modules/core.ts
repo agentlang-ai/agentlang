@@ -1,7 +1,13 @@
 import { default as ai } from './ai.js';
 import { default as auth } from './auth.js';
 import { default as files } from './files.js';
-import { DefaultModuleName, DefaultModules, escapeSpecialChars, isString } from '../util.js';
+import {
+  DefaultModuleName,
+  DefaultModules,
+  escapeSpecialChars,
+  isString,
+  restoreSpecialChars,
+} from '../util.js';
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../module.js';
 import {
   Environment,
@@ -119,6 +125,12 @@ event validateModule extends ValidationRequest {
 
 workflow validateModule {
   await Core.validateModule(validateModule.data)
+}
+
+entity Migration {
+  appVersion String @id,
+  ups String @optional,
+  downs String @optional
 }
 `;
 
@@ -403,4 +415,87 @@ export async function validateModule(moduleDef: any): Promise<Instance> {
       newInstanceAttributes().set('status', 'error').set('reason', `${reason}`)
     );
   }
+}
+
+const SqlSep = ';\n\n';
+
+export async function saveMigration(
+  version: string,
+  ups: string[] | undefined,
+  downs: string[] | undefined
+): Promise<boolean> {
+  try {
+    const env = new Environment(`migrations-${version}-env`);
+    await parseAndEvaluateStatement(
+      `purge {agentlang/Migration {appVersion? "${version}"}}`,
+      undefined,
+      env
+    );
+    let ups_str = '';
+    if (ups) {
+      ups_str = escapeSpecialChars(
+        ups
+          .map((s: string) => {
+            return s.trim();
+          })
+          .join(SqlSep)
+      );
+    }
+    let downs_str = '';
+    if (downs) {
+      downs_str = escapeSpecialChars(
+        downs
+          .map((s: string) => {
+            return s.trim();
+          })
+          .join(SqlSep)
+      );
+    }
+    const inst: Instance = await parseAndEvaluateStatement(`{agentlang/Migration {
+        appVersion "${version}",
+        ups "${ups_str}",
+        downs "${downs_str}"}}`);
+    if (isInstanceOfType(inst, 'agentlang/Migration') && inst.lookup('appVersion') === version) {
+      await env.commitAllTransactions();
+      return true;
+    } else {
+      logger.warn(`Failed to save migration for version ${version}`);
+    }
+  } catch (reason: any) {
+    logger.error(`Failed to save migration for version ${version} - ${reason}`);
+  }
+  return false;
+}
+
+export async function loadMigration(version: string): Promise<Instance | undefined> {
+  try {
+    const env = new Environment(`migrations-${version}-env`);
+    const insts: Instance[] = await parseAndEvaluateStatement(
+      `{agentlang/Migration {appVersion? "${version}"}}`,
+      undefined,
+      env
+    );
+    if (insts && insts.length > 0) {
+      return insts[0];
+    }
+  } catch (reason: any) {
+    logger.error(`Failed to lookup migration for version ${version} - ${reason}`);
+  }
+  return undefined;
+}
+
+export function migrationUps(inst: Instance): string[] | undefined {
+  const ups: string | undefined = inst.lookup('ups');
+  if (ups) {
+    return restoreSpecialChars(ups).split(SqlSep);
+  }
+  return undefined;
+}
+
+export function migrationDowns(inst: Instance): string[] | undefined {
+  const downs: string | undefined = inst.lookup('downs');
+  if (downs) {
+    return restoreSpecialChars(downs).split(SqlSep);
+  }
+  return undefined;
 }

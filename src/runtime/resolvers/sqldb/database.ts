@@ -29,9 +29,16 @@ import { isString } from '../../util.js';
 import {
   DeletedFlagAttributeName,
   ForceReadPermFlag,
+  isRuntimeMode_dev,
+  isRuntimeMode_generate_migration,
+  isRuntimeMode_init_schema,
+  isRuntimeMode_migration,
+  isRuntimeMode_undo_migration,
   PathAttributeName,
   UnauthorisedError,
 } from '../../defs.js';
+import { saveMigration } from '../../modules/core.js';
+import { getAppSpec } from '../../loader.js';
 
 export let defaultDataSource: DataSource | undefined;
 
@@ -165,9 +172,10 @@ function mkDbName(): string {
 
 function makePostgresDataSource(
   entities: EntitySchema[],
-  config: DatabaseConfig | undefined,
-  synchronize: boolean = true
+  config: DatabaseConfig | undefined
 ): DataSource {
+  const synchronize = isRuntimeMode_dev() || isRuntimeMode_init_schema();
+  //const runMigrations = isRuntimeMode_migration() || isRuntimeMode_undo_migration() || !synchronize;
   return new DataSource({
     type: 'postgres',
     host: process.env.POSTGRES_HOST || config?.host || 'localhost',
@@ -176,6 +184,8 @@ function makePostgresDataSource(
     password: process.env.POSTGRES_PASSWORD || config?.password || 'postgres',
     database: process.env.POSTGRES_DB || config?.dbname || 'postgres',
     synchronize: synchronize,
+    migrationsRun: false,
+    dropSchema: false,
     entities: entities,
     invalidWhereValuesBehavior: {
       null: 'sql-null',
@@ -195,19 +205,63 @@ function getPostgressEnvPort(): number | undefined {
 
 function makeSqliteDataSource(
   entities: EntitySchema[],
-  config: DatabaseConfig | undefined,
-  synchronize: boolean = true
+  config: DatabaseConfig | undefined
 ): DataSource {
+  const synchronize = isRuntimeMode_dev() || isRuntimeMode_init_schema();
+  //const runMigrations = isRuntimeMode_migration() || isRuntimeMode_undo_migration() || !synchronize;
   return new DataSource({
     type: 'sqlite',
     database: config?.dbname || mkDbName(),
     synchronize: synchronize,
     entities: entities,
+    migrationsRun: false,
+    dropSchema: false,
     invalidWhereValuesBehavior: {
       null: 'sql-null',
       undefined: 'ignore',
     },
   });
+}
+
+async function execMigrationSql(dataSource: DataSource, sql: string[]) {
+  const queryRunner = dataSource.createQueryRunner();
+  await queryRunner.startTransaction();
+  for (let i = 0; i < sql.length; ++i) {
+    await queryRunner.query(sql[i]);
+  }
+  await queryRunner.commitTransaction();
+}
+
+async function maybeHandleMigrations(dataSource: DataSource) {
+  const is_migration = isRuntimeMode_migration();
+  const is_undo_migration = isRuntimeMode_undo_migration();
+  const is_gen_migration = isRuntimeMode_generate_migration();
+  if (is_migration || is_undo_migration || is_gen_migration) {
+    const sqlInMemory = await dataSource.driver.createSchemaBuilder().log();
+    let ups: string[] | undefined;
+    if (is_migration || is_gen_migration) {
+      ups = new Array<string>();
+      sqlInMemory.upQueries.forEach(upQuery => {
+        ups?.push(upQuery.query.replaceAll('`', '\\`'));
+      });
+    }
+    let downs: string[] | undefined;
+    if (is_undo_migration || is_gen_migration) {
+      downs = new Array<string>();
+      sqlInMemory.downQueries.forEach(downQuery => {
+        downs?.push(downQuery.query.replaceAll('`', '\\`'));
+      });
+    }
+    if (is_migration && ups?.length) {
+      await saveMigration(getAppSpec().version, ups, downs);
+      await execMigrationSql(dataSource, ups);
+    } else if (is_undo_migration && downs?.length) {
+      await saveMigration(getAppSpec().version, ups, downs);
+      await execMigrationSql(dataSource, downs);
+    } else if (is_gen_migration) {
+      await saveMigration(getAppSpec().version, ups, downs);
+    }
+  }
 }
 
 function isBrowser(): boolean {
@@ -305,6 +359,7 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
       const ormScm = modulesAsOrmSchema();
       defaultDataSource = mkds(ormScm.entities, config) as DataSource;
       await defaultDataSource.initialize();
+      await maybeHandleMigrations(defaultDataSource);
       if (ormScm.fkSpecs.length > 0) {
         const qr = defaultDataSource.createQueryRunner();
         for (let i = 0; i < ormScm.fkSpecs.length; ++i) {
@@ -316,7 +371,11 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
             onDelete: fk.onDelete,
             onUpdate: fk.onUpdate,
           });
-          await qr.createForeignKey(asTableReference(fk.moduleName, fk.entityName), fkobj);
+          try {
+            await qr.createForeignKey(asTableReference(fk.moduleName, fk.entityName), fkobj);
+          } catch (reason: any) {
+            logger.warn(`initDatabase: ${reason}`);
+          }
         }
       }
       const vectEnts = ormScm.vectorEntities.map((es: EntitySchema) => {
