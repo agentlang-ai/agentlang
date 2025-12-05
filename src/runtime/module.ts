@@ -1071,8 +1071,10 @@ export class Agent extends Record {
       const skip = key == 'moduleName' || (key == 'type' && value == 'flow-exec');
       if (!skip && value !== null && value !== undefined) {
         let v = value;
-        if (key == 'flows') {
-          v = `[${v}]`;
+        const isf = key == 'flows';
+        if (isf || key == 'tools') {
+          if (isf || v.indexOf(',') > 0 || v.indexOf('/') > 0) v = `[${v}]`;
+          else v = `"${v}"`;
         } else if (isString(v)) {
           v = `"${v}"`;
         }

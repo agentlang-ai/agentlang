@@ -62,7 +62,7 @@ entity E
 agent agent02
 {
     llm "llm02",
-    tools "A, B"
+    tools [A, B]
 }`
     );
   });
