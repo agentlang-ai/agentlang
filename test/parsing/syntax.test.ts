@@ -486,7 +486,7 @@ Try to include as much information about the provisioning request in the message
 }
 agent incidentProvisioner
 {
-    tools "ticketflow.core/handleDnsProvisioning,ticketflow.core/handleWlanProvisioning",
+    tools [ticketflow.core/handleDnsProvisioning,ticketflow.core/handleWlanProvisioning],
     instruction "If the incident triage category is DNS, do DNS provisioning. Otherwise do WLAN provisioning.
 The incident data and triage category will be available in the context. The relevant DNS or WLAN name will be available
 in the incident's description."

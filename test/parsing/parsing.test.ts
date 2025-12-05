@@ -210,7 +210,7 @@ describe('Agent toString test', () => {
 
       agent Agent2 {
         instruction "This Agent will solve any math problem",
-        tools "a,b",
+        tools [a,b],
         llm "agent2_llm"
       }
       `
@@ -238,7 +238,7 @@ agent Agent1
 agent Agent2
 {
     instruction "This Agent will solve any math problem",
-    tools "a,b",
+    tools [a,b],
     llm "agent2_llm"
 }`
     );
