@@ -399,6 +399,15 @@ export class Record extends ModuleEntry {
     this.compositeUqAttributes = findUqCompositeAttributes(scm);
   }
 
+  protected addMetaAttributes(): Record {
+    this.schema
+      .set(SysAttr_Created, SysAttr_CreatedSpec)
+      .set(SysAttr_CreatedBy, SysAttr_CreatedBySpec)
+      .set(SysAttr_LastModified, SysAttr_LastModifiedSpec)
+      .set(SysAttr_LastModifiedBy, SysAttr_LastModifiedBySpec);
+    return this;
+  }
+
   private addOneOfRefAttribute(s: string): Record {
     if (this.oneOfRefAttributes === undefined) {
       this.oneOfRefAttributes = [];
@@ -1152,15 +1161,6 @@ export class Entity extends Record {
     this.addMetaAttributes();
   }
 
-  private addMetaAttributes(): Entity {
-    this.schema
-      .set(SysAttr_Created, SysAttr_CreatedSpec)
-      .set(SysAttr_CreatedBy, SysAttr_CreatedBySpec)
-      .set(SysAttr_LastModified, SysAttr_LastModifiedSpec)
-      .set(SysAttr_LastModifiedBy, SysAttr_LastModifiedBySpec);
-    return this;
-  }
-
   setRbacSpecifications(rbac: RbacSpecification[]): Entity {
     this.rbac = rbac;
     return this;
@@ -1254,7 +1254,10 @@ export class Relationship extends Record {
     props?: Map<string, any>
   ) {
     super(name, moduleName, scm);
-    if (typ == 'between') this.relType = RelType.BETWEEN;
+    if (typ == 'between') {
+      this.relType = RelType.BETWEEN;
+      this.addMetaAttributes();
+    }
     this.node1 = node1;
     this.node2 = node2;
     this.properties = props;
