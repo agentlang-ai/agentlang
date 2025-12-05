@@ -1,7 +1,14 @@
 import { logger } from './logger.js';
 import { now, splitRefs } from './util.js';
 import { isNodeEnv } from '../utils/runtime.js';
-import { setModuleFnFetcher } from './defs.js';
+import { setModuleFnFetcher, getModuleLoader } from './defs.js';
+import {
+  transformModule,
+  wrapModuleCode,
+  evaluateModule,
+  wrapCommonJSCode,
+  evaluateCommonJS,
+} from './module-transform.js';
 
 let dirname: any = undefined;
 let sep: any = undefined;
@@ -24,37 +31,197 @@ if (isNodeEnv) {
 
 const importedModules = new Map<string, any>();
 
-// Usage: importModule("./mymodels/acme.js")
-export async function importModule(path: string, name: string, moduleFileName?: string) {
-  if (isNodeEnv) {
-    if (importedModules.has(name)) {
-      logger.warn(`Alias '${name}' will overwrite a previously imported module`);
+/**
+ * Load dependencies for a module using the configured dependency provider
+ */
+async function loadModuleDependencies(
+  imports: Array<{ defaultImport?: string; namedImports?: string[]; moduleSpecifier: string }>
+): Promise<Map<string, any>> {
+  const loadedDeps = new Map<string, any>();
+
+  for (const imp of imports) {
+    const moduleSpecifier = imp.moduleSpecifier;
+
+    logger.debug(`Loading dependency: ${moduleSpecifier}`);
+
+    // Try to get from dependency provider first
+    let module: any;
+    const moduleLoader = getModuleLoader();
+    if (moduleLoader?.dependencyProvider) {
+      module = moduleLoader.dependencyProvider(moduleSpecifier);
     }
-    if (moduleFileName) {
-      let s: string = dirname(moduleFileName);
-      if (s.startsWith('./')) {
-        s = s.substring(2);
-      } else if (s == '.') {
-        s = process.cwd();
+
+    if (!module) {
+      // In browser without dependency provider, we can't load external modules
+      if (!isNodeEnv) {
+        throw new Error(
+          `Failed to load dependency "${moduleSpecifier}". ` +
+            `Please add it to the dependency provider via setModuleLoader().`
+        );
       }
-      path = `${s}${sep}${path}`;
+
+      // In Node.js, try dynamic import
+      try {
+        module = await import(/* @vite-ignore */ moduleSpecifier);
+        logger.debug(`Loaded ${moduleSpecifier} via dynamic import`);
+      } catch (error) {
+        throw new Error(`Failed to load dependency "${moduleSpecifier}": ${error}`);
+      }
+    } else {
+      logger.debug(`Using pre-imported dependency: ${moduleSpecifier}`);
     }
-    if (!(path.startsWith(sep) || path.startsWith('.'))) {
-      path = process.cwd() + sep + path;
+
+    // Handle default import
+    if (imp.defaultImport) {
+      loadedDeps.set(imp.defaultImport, module.default || module);
     }
-    const m = await import(/* @vite-ignore */ path);
-    importedModules.set(name, m);
-    // e.g of dynamic fn-call:
-    //// let f = eval("(a, b) => m.add(a, b)");
-    //// console.log(f(10, 20))
-    return m;
-  } else {
+
+    // Handle named imports
+    if (imp.namedImports) {
+      for (const name of imp.namedImports) {
+        loadedDeps.set(name, module[name]);
+      }
+    }
+  }
+
+  return loadedDeps;
+}
+
+/**
+ * Load a JavaScript module in the browser environment
+ */
+async function loadModuleInBrowser(
+  path: string,
+  name: string,
+  moduleFileName?: string
+): Promise<any> {
+  const moduleLoader = getModuleLoader();
+  if (!moduleLoader) {
+    throw new Error(
+      'ModuleLoader not configured. Call setModuleLoader() with a fileReader and dependencyProvider.'
+    );
+  }
+
+  logger.info(`Loading module in browser: ${path} as ${name}`);
+
+  // Resolve path relative to the module file
+  let resolvedPath = path;
+  if (moduleFileName) {
+    const dir = dirname(moduleFileName);
+    resolvedPath = dir ? `${dir}${sep}${path}` : path;
+  }
+
+  // Add basePath if configured
+  if (moduleLoader.basePath) {
+    if (!resolvedPath.startsWith('/')) {
+      resolvedPath = `${moduleLoader.basePath}${sep}${resolvedPath}`;
+    }
+  }
+
+  logger.debug(`Resolved path: ${resolvedPath}`);
+
+  // Read the module content
+  const content = await moduleLoader.fileReader(resolvedPath);
+
+  if (!content || content.trim().length === 0) {
+    logger.warn(`Module file ${resolvedPath} is empty`);
     return {};
   }
+
+  logger.debug(`Read ${content.length} characters from ${resolvedPath}`);
+
+  // Check if the file uses ES6 import syntax
+  const hasImports = /\bimport\s+/.test(content);
+
+  let moduleExports: any;
+
+  if (hasImports) {
+    logger.debug(`Processing ES6 imports for: ${name}`);
+
+    // Transform the module
+    const { transformedCode, imports } = transformModule(content);
+
+    // Load all import dependencies
+    const loadedDeps = await loadModuleDependencies(imports);
+
+    logger.debug(`Loaded ${loadedDeps.size} dependencies, executing transformed code...`);
+
+    // Create wrapped code with injected dependencies
+    const wrappedCode = wrapModuleCode(transformedCode, loadedDeps);
+
+    // Evaluate and get exports
+    moduleExports = evaluateModule(wrappedCode, loadedDeps);
+
+    logger.debug(`Module exports:`, Object.keys(moduleExports));
+  } else {
+    logger.debug(`Loading as CommonJS module: ${name}`);
+
+    // Wrap and evaluate as CommonJS
+    const wrappedCode = wrapCommonJSCode(content);
+    moduleExports = evaluateCommonJS(wrappedCode);
+  }
+
+  return moduleExports;
+}
+
+/**
+ * Load a JavaScript module in Node.js environment
+ */
+async function loadModuleInNode(path: string, name: string, moduleFileName?: string): Promise<any> {
+  if (moduleFileName) {
+    let s: string = dirname(moduleFileName);
+    if (s.startsWith('./')) {
+      s = s.substring(2);
+    } else if (s == '.') {
+      s = process.cwd();
+    }
+    path = `${s}${sep}${path}`;
+  }
+  if (!(path.startsWith(sep) || path.startsWith('.'))) {
+    path = process.cwd() + sep + path;
+  }
+
+  const m = await import(/* @vite-ignore */ path);
+  return m;
+}
+
+// Usage: importModule("./mymodels/acme.js")
+export async function importModule(path: string, name: string, moduleFileName?: string) {
+  if (importedModules.has(name)) {
+    logger.warn(`Alias '${name}' will overwrite a previously imported module`);
+  }
+
+  let moduleExports: any;
+
+  if (isNodeEnv) {
+    moduleExports = await loadModuleInNode(path, name, moduleFileName);
+  } else {
+    moduleExports = await loadModuleInBrowser(path, name, moduleFileName);
+  }
+
+  importedModules.set(name, moduleExports);
+
+  logger.info(`Successfully imported module: ${name}`, Object.keys(moduleExports));
+
+  return moduleExports;
 }
 
 export function moduleImported(moduleName: string): boolean {
   return importedModules.has(moduleName);
+}
+
+/**
+ * Get an imported module by its alias name
+ */
+export function getImportedModule(moduleName: string): any | undefined {
+  return importedModules.get(moduleName);
+}
+
+/**
+ * Get all imported module names
+ */
+export function getImportedModuleNames(): string[] {
+  return Array.from(importedModules.keys());
 }
 
 function maybeEvalFunction(fnName: string): Function | undefined {

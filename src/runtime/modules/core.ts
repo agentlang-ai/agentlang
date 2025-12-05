@@ -1,7 +1,13 @@
 import { default as ai } from './ai.js';
 import { default as auth } from './auth.js';
 import { default as files } from './files.js';
-import { DefaultModuleName, DefaultModules, escapeSpecialChars, isString } from '../util.js';
+import {
+  DefaultModuleName,
+  DefaultModules,
+  escapeSpecialChars,
+  isString,
+  makeCoreModuleName,
+} from '../util.js';
 import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../module.js';
 import {
   Environment,
@@ -127,9 +133,18 @@ export const CoreModules: string[] = [];
 export function registerCoreModules() {
   DefaultModules.add(DefaultModuleName);
   CoreModules.push(CoreModuleDefinition);
-  [auth, ai, files].forEach((mdef: string) => {
-    CoreModules.push(mdef);
-    DefaultModules.add(mdef);
+
+  // Map of module definitions to their names for proper DefaultModules registration
+  const coreModuleInfo: Array<{ def: string; name: string }> = [
+    { def: auth, name: makeCoreModuleName('auth') },
+    { def: ai, name: makeCoreModuleName('ai') },
+    { def: files, name: makeCoreModuleName('files') },
+  ];
+
+  coreModuleInfo.forEach(({ def, name }) => {
+    CoreModules.push(def);
+    // Add module NAME (not definition) to DefaultModules so flushAllModules() doesn't remove core modules
+    DefaultModules.add(name);
   });
 }
 
