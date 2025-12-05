@@ -2,7 +2,6 @@
     "name": "issueTriager",
     "version": "0.0.1",
     "dependencies": {
-        "agentlang": "file:../../../agentlang",
         "jira": "github:fractl-dev/jira#main"
     }
 }

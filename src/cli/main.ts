@@ -37,6 +37,7 @@ import {
   setRuntimeMode_prod,
   setRuntimeMode_undo_migration,
 } from '../runtime/defs.js';
+import { initGlobalApi } from '../runtime/api.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -133,6 +134,7 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
 let execGraphEnabled = false;
 
 export async function runPreInitTasks(): Promise<boolean> {
+  initGlobalApi();
   if (!execGraphEnabled && isExecGraphEnabled()) {
     enableExecutionGraph();
     execGraphEnabled = true;
