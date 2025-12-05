@@ -19,3 +19,12 @@ export function initGlobalApi() {
     ApiInited = true;
   }
 }
+
+// Global function directly accesible from workflows
+declare global {
+  function raiseError(reason: any): any;
+}
+
+globalThis.raiseError = (reason: any): any => {
+  throw new Error(reason);
+};
