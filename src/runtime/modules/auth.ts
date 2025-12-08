@@ -180,6 +180,19 @@ relationship RolePermission between(Role, Permission)
     }
 }
 
+@public workflow GetPermissionsForRole {
+    {Role {__path__? GetPermissionsForRole.Role},
+      RolePermission {Permission? {}},
+      @into 
+       {Id Permission.id,
+        resourceFqName Permission.resourceFqName,
+        c Permission.c,
+        r Permission.r,
+        u Permission.u,
+        d Permission.d}
+    }
+}
+
 @public workflow AssignUserToRole {
     {User {id? AssignUserToRole.userId}} @as [user];
     {Role {name? AssignUserToRole.roleName}} @as [role];
@@ -1358,7 +1371,7 @@ export async function getUserInfo(
         }
         if (role) {
           permissions = await evalEvent(
-            'ListRolePermissions',
+            'GetPermissionsForRole',
             {
               Role: role,
             },
@@ -1408,7 +1421,7 @@ export async function getUserInfoByEmail(
         }
         if (role) {
           permissions = await evalEvent(
-            'ListRolePermissions',
+            'GetPermissionsForRole',
             {
               Role: role,
             },
