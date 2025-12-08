@@ -374,11 +374,11 @@ entity Session {
 }
 
 @public workflow getUser {
-  await Auth.getUserInfo(getUser.userId)
+  await Auth.getUserInfo(getUser.userId, getUser.withRbac)
 }
 
 @public workflow getUserByEmail {
-  await Auth.getUserInfoByEmail(getUserByEmail.email)
+  await Auth.getUserInfoByEmail(getUserByEmail.email, getUserByEmail.withRbac)
 }
 
 @public workflow getUsersDetail {
@@ -1331,12 +1331,46 @@ async function verifySessionToken(token: string, env?: Environment): Promise<Act
   }
 }
 
-export async function getUserInfo(userId: string, env: Environment): Promise<UserInfo> {
+export async function getUserInfo(
+  userId: string,
+  withRbac: boolean = false,
+  env: Environment
+): Promise<UserInfo> {
   const needCommit = env ? false : true;
   env = env ? env : new Environment();
   const f = async () => {
     try {
-      return await fetchAuthImpl().getUser(userId, env);
+      const userInfo = await fetchAuthImpl().getUser(userId, env);
+
+      if (withRbac) {
+        const roles = await evalEvent(
+          'ListUserRoles',
+          {
+            User: 'agentlang.auth$User/' + userId.toString(),
+          },
+          env
+        );
+
+        let role: string | null = null;
+        let permissions: any[] | null = null;
+        if (roles && roles.length > 0) {
+          role = roles[0]['attributes'].get('Role');
+        }
+        if (role) {
+          permissions = await evalEvent(
+            'ListRolePermissions',
+            {
+              Role: role,
+            },
+            env
+          );
+        }
+        return {
+          ...userInfo,
+          role: role,
+          permissions: permissions,
+        };
+      } else return userInfo;
     } catch (err: any) {
       logger.error(`Failed to get user info for ${userId}: ${err.message}`);
       throw err; // Re-throw to preserve error type
@@ -1349,12 +1383,44 @@ export async function getUserInfo(userId: string, env: Environment): Promise<Use
   }
 }
 
-export async function getUserInfoByEmail(email: string, env: Environment): Promise<UserInfo> {
+export async function getUserInfoByEmail(
+  email: string,
+  withRbac: boolean = false,
+  env: Environment
+): Promise<UserInfo> {
   const needCommit = env ? false : true;
   env = env ? env : new Environment();
   const f = async () => {
     try {
-      return await fetchAuthImpl().getUserByEmail(email.toLowerCase(), env);
+      const userInfo = await fetchAuthImpl().getUserByEmail(email.toLowerCase(), env);
+      if (withRbac) {
+        const roles = await evalEvent(
+          'ListUserRoles',
+          {
+            User: 'agentlang.auth$User/' + userInfo.id.toString(),
+          },
+          env
+        );
+        let role: string | null = null;
+        let permissions: any[] | null = null;
+        if (roles && roles.length > 0) {
+          role = roles[0]['attributes'].get('Role');
+        }
+        if (role) {
+          permissions = await evalEvent(
+            'ListRolePermissions',
+            {
+              Role: role,
+            },
+            env
+          );
+        }
+        return {
+          ...userInfo,
+          role: role,
+          permissions: permissions,
+        };
+      } else return userInfo;
     } catch (err: any) {
       logger.error(`Failed to get user info for email ${email}: ${err.message}`);
       throw err; // Re-throw to preserve error type
