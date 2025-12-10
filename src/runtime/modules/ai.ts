@@ -15,6 +15,7 @@ import {
   parseAndEvaluateStatement,
 } from '../interpreter.js';
 import {
+  Agent,
   asJSONSchema,
   Decision,
   fetchModule,
@@ -663,12 +664,25 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           if (entryName) {
             const hasmod = slimModules.has(moduleName);
             const defs = hasmod ? slimModules.get(moduleName) : new Array<string>();
-            const entry = m.getEntry(entryName);
-            const s =
-              entry instanceof Record ? (entry as Record).toString_(true) : entry.toString();
-            defs?.push(s);
-            if (!hasmod && defs) {
-              slimModules.set(moduleName, defs);
+            // Try to get entry directly first, then try as an agent (agents have _agent suffix)
+            let entry = m.getEntrySafe(entryName);
+            if (!entry) {
+              // Try with agent suffix - agents are stored with escaped names
+              entry = m.getEntrySafe(Agent.EscapeName(entryName));
+            }
+            if (entry) {
+              const s =
+                entry instanceof Record ? (entry as Record).toString_(true) : entry.toString();
+              // Add full qualified name comment so LLM knows how to reference it
+              const fqName = `${moduleName}/${entryName}`;
+              defs?.push(
+                `# Tool: ${fqName}\n# Use as: {${fqName} {...}} or {${fqName}? {...}}\n${s}`
+              );
+              if (!hasmod && defs) {
+                slimModules.set(moduleName, defs);
+              }
+            } else {
+              logger.warn(`Tool entry '${entryName}' not found in module '${moduleName}'`);
             }
           } else {
             tooldefs.push(fetchModule(moduleName).toString());
