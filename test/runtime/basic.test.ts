@@ -1165,7 +1165,7 @@ describe('raiseError', () => {
       'RE',
       `workflow W {
         if (W.x < 0) {
-          raiseError("neg: " + W.x)
+          throw("neg: " + W.x)
         } else {
           W.x + 2  
         }
