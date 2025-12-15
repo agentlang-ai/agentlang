@@ -21,7 +21,12 @@ import { logger } from '../logger.js';
 import { Statement } from '../../language/generated/ast.js';
 import { parseModule, parseStatements } from '../../language/parser.js';
 import { Resolver } from '../resolvers/interface.js';
-import { FlowSuspensionTag, ForceReadPermFlag, PathAttributeName } from '../defs.js';
+import {
+  FlowSuspensionTag,
+  ForceReadPermFlag,
+  InternDynamicModule,
+  PathAttributeName,
+} from '../defs.js';
 import { getMonitor, getMonitorsForEvent, Monitor } from '../monitor.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
@@ -126,6 +131,15 @@ event validateModule extends ValidationRequest {
 
 workflow validateModule {
   await Core.validateModule(validateModule.data)
+}
+
+@public event internModule {
+  name String
+  definition String
+}
+
+workflow internModule {
+  await Core.internModuleHelper(internModule.name, internModule.definition)
 }
 
 entity Migration {
@@ -424,6 +438,17 @@ export async function validateModule(moduleDef: any): Promise<Instance> {
       'ValidationResult',
       newInstanceAttributes().set('status', 'error').set('reason', `${reason}`)
     );
+  }
+}
+
+export async function internModuleHelper(
+  name: string,
+  definition: string
+): Promise<string | undefined> {
+  if (InternDynamicModule !== undefined) {
+    return await InternDynamicModule(name, definition);
+  } else {
+    return undefined;
   }
 }
 
