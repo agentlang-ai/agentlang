@@ -94,6 +94,26 @@ export function setSubscriptionFn(f: Function) {
   SetSubscription = f;
 }
 
+// Module loader configuration for browser-compatible resolver loading
+export type FileReader = (filePath: string) => Promise<string>;
+export type DependencyProvider = (moduleName: string) => any | undefined;
+
+export interface ModuleLoaderConfig {
+  fileReader: FileReader;
+  dependencyProvider?: DependencyProvider;
+  basePath?: string;
+}
+
+let _moduleLoader: ModuleLoaderConfig | undefined = undefined;
+
+export function setModuleLoader(config: ModuleLoaderConfig) {
+  _moduleLoader = config;
+}
+
+export function getModuleLoader(): ModuleLoaderConfig | undefined {
+  return _moduleLoader;
+}
+
 export const ForceReadPermFlag = 'f-r-f';
 export const FlowSuspensionTag = `--`;
 
