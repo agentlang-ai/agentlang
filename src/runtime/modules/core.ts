@@ -9,7 +9,15 @@ import {
   restoreSpecialChars,
   makeCoreModuleName,
 } from '../util.js';
-import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../module.js';
+import {
+  fetchModule,
+  Instance,
+  isInstanceOfType,
+  isModule,
+  makeInstance,
+  newInstanceAttributes,
+  removeModule,
+} from '../module.js';
 import {
   Environment,
   evaluate,
@@ -133,13 +141,16 @@ workflow validateModule {
   await Core.validateModule(validateModule.data)
 }
 
-@public event internModule {
-  name String
+entity Module {
+  name String @id,
   definition String
 }
 
-workflow internModule {
-  await Core.internModuleHelper(internModule.name, internModule.definition)
+resolver moduleResolver [agentlang/Module] {
+    create Core.createModule,
+    update Core.updateModule,
+    delete Core.deleteModule,
+    query Core.getModule
 }
 
 entity Migration {
@@ -450,6 +461,35 @@ export async function internModuleHelper(
   } else {
     return undefined;
   }
+}
+
+export async function createModule(_: Resolver, inst: Instance) {
+  await internModuleHelper(inst.lookup('name'), inst.lookup('definition'));
+  return inst;
+}
+
+export async function updateModule(r: Resolver, inst: Instance) {
+  return await createModule(r, inst);
+}
+
+export async function deleteModule(_: Resolver, inst: Instance) {
+  removeModule(inst.lookup('name'));
+  return inst;
+}
+
+export async function getModule(_: Resolver, inst: Instance) {
+  const p = inst.lookupQueryVal(PathAttributeName);
+  if (p !== undefined) {
+    const idx = p.lastIndexOf('/');
+    const n = p.substring(idx + 1);
+    if (isModule(n)) {
+      const m = fetchModule(n);
+      const defn = inst.lookup('definition') || m.toString();
+      const attrs = newInstanceAttributes().set('name', n).set('definition', defn);
+      return [makeInstance('agentlang', 'Module', attrs)];
+    }
+  }
+  return null;
 }
 
 const SqlSep = ';\n\n';
