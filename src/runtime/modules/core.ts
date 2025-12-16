@@ -355,23 +355,44 @@ export async function lookupActiveSuspension(
   }
 }
 
+function getMonitoringEventName(inst: Instance): string {
+  if (isInstanceOfType(inst, 'agentlang.ai/Agent')) {
+    return `${inst.lookup('moduleName')}/${inst.lookup('name')}`;
+  } else {
+    return inst.getFqName();
+  }
+}
+
+async function saveMonitoringData(m: Monitor) {
+  const data = btoa(JSON.stringify(m.asObject()));
+  const inst = m.getEventInstance();
+  const eventInstance = inst ? btoa(JSON.stringify(inst.asSerializableObject())) : '';
+  const user = m.getUser() || 'admin';
+  const latency = m.getTotalLatencyMs();
+  const monitorId = m.getId();
+  const env = new Environment(`monitor-${monitorId}-env`);
+  const eventName = inst ? getMonitoringEventName(inst) : monitorId;
+  await parseAndEvaluateStatement(
+    `{agentlang/Monitor {id "${monitorId}", eventName "${eventName}", eventInstance "${eventInstance}", user "${user}", totalLatencyMs ${latency}, data "${data}"}}`,
+    undefined,
+    env
+  );
+  await env.commitAllTransactions();
+}
+
 export async function flushMonitoringData(monitorId: string) {
   const m = getMonitor(monitorId);
   try {
     if (m) {
-      const data = btoa(JSON.stringify(m.asObject()));
-      const inst = m.getEventInstance();
-      const eventInstance = inst ? btoa(JSON.stringify(inst.asSerializableObject())) : '';
-      const user = m.getUser() || 'admin';
-      const latency = m.getTotalLatencyMs();
-      const env = new Environment(`monitor-${monitorId}-env`);
-      const eventName = inst ? inst.getFqName() : monitorId;
-      await parseAndEvaluateStatement(
-        `{agentlang/Monitor {id "${monitorId}", eventName "${eventName}", eventInstance "${eventInstance}", user "${user}", totalLatencyMs ${latency}, data "${data}"}}`,
-        undefined,
-        env
-      );
-      await env.commitAllTransactions();
+      await saveMonitoringData(m);
+      const subRoots = m.getAllSubgraphRoots();
+      for (let i = 0; i < subRoots.length; ++i) {
+        const subm = subRoots[i];
+        const eventInstance = subm.getEventInstance();
+        if (eventInstance) {
+          await saveMonitoringData(subm);
+        }
+      }
     } else {
       logger.warn(`Failed to locate monitor with id ${monitorId}`);
     }

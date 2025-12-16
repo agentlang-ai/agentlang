@@ -303,6 +303,60 @@ export class Monitor {
     return this;
   }
 
+  private isRoot(): boolean {
+    if (this.eventInstance) {
+      return true;
+    }
+    if (this.entries.length > 0) {
+      const entry: Monitor | MonitorEntry = this.entries[0];
+      if (entry instanceof MonitorEntry) {
+        const result = entry.getResult();
+        if (
+          Instance.IsInstance(result) ||
+          (result instanceof Array && Instance.IsInstance(result[0]))
+        )
+          return true;
+      }
+    }
+    return false;
+  }
+
+  private copyAsRoot(): Monitor {
+    const m = new Monitor();
+    m.id = this.id;
+    m.eventInstance = this.eventInstance;
+    m.user = this.user;
+    m.entries = this.entries;
+    m.parent = this.parent;
+    m.lastEntry = this.lastEntry;
+    m.lastEntrySetAtMs = this.lastEntrySetAtMs;
+    m.totalLatency = this.totalLatency;
+    m.timestamp = this.timestamp;
+    m.flowResult = this.flowResult;
+    if (m.eventInstance) {
+      return m;
+    }
+    const entry: Monitor | MonitorEntry = this.entries[0];
+    if (entry instanceof MonitorEntry) {
+      const result = entry.getResult();
+      m.eventInstance = Instance.IsInstance(result) ? result : result[0];
+    }
+    return m;
+  }
+
+  getAllSubgraphRoots(): Monitor[] {
+    let result = new Array<Monitor>();
+    this.entries.forEach((entry: Monitor | MonitorEntry) => {
+      if (entry instanceof Monitor) {
+        if (entry.isRoot()) {
+          result.push(entry.copyAsRoot());
+        }
+        result = result.concat(entry.getAllSubgraphRoots());
+      }
+    });
+    return result;
+  }
+
   asObject(): object {
     const objs = new Array<object>();
     this.entries.forEach((entry: Monitor | MonitorEntry) => {
