@@ -105,7 +105,7 @@ WorkflowHeaderPrefix returns string: 'create' | 'update' | 'delete';
 PublicWorkflowDefinition: '@public' def=WorkflowDefinition;
 
 Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
-| fullTextSearch=FullTextSearch | return=Return;
+| fullTextSearch=FullTextSearch | return=Return |  throwError=ThrowError;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
 
@@ -138,6 +138,8 @@ JoinType returns string: ('@join' | '@inner_join' | '@left_join' | '@right_join'
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
 Return: 'return' pattern=Pattern;
+
+ThrowError: 'throw' '(' reason=Expr ')';
 
 AgentDefinition: 'agent' name=GenericName (body=GenericDefBody? | '{''}');
 

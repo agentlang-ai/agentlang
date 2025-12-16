@@ -125,6 +125,7 @@ export enum SubGraphType {
   PURGE,
   RETURN,
   AGENT,
+  THROW,
   NONE,
 }
 

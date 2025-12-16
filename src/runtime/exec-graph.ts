@@ -13,6 +13,7 @@ import {
   Purge,
   Return,
   Statement,
+  ThrowError,
 } from '../language/generated/ast.js';
 import { parseModule, parseStatement } from '../language/parser.js';
 import { ExecGraph, ExecGraphNode, ExecGraphWalker, SubGraphType } from './defs.js';
@@ -157,6 +158,15 @@ class GraphGenerator extends PatternHandler {
     this.handleSubPattern(SubGraphType.RETURN, ret.pattern, env);
   }
 
+  override async handleThrow(throwErr: ThrowError, env: Environment) {
+    const handler = new GraphGenerator();
+    await handler.handleExpression(
+      throwErr.reason,
+      Environment.from(env).setActiveUserData(throwErr.reason)
+    );
+    this.addSubGraph(SubGraphType.THROW, handler.getGraph(), env);
+  }
+
   getGraph(): ExecGraph {
     return this.graph;
   }
@@ -261,6 +271,9 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
               case SubGraphType.RETURN:
                 await executeReturnSubGraph(subg, env);
                 return;
+              case SubGraphType.THROW:
+                await evaluateExpression(subg.getRootNodes()[0].code as Expr, env);
+                throw new Error(env.getLastResult());
               default:
                 throw new Error(`Invalid sub-graph type: ${node.subGraphType}`);
             }

@@ -629,10 +629,10 @@ describe('Multiple module loading tests', () => {
     } finally {
       try {
         removeModule('Blog.Core');
-      } catch {}
+      } catch { }
       try {
         removeModule('Family');
-      } catch {}
+      } catch { }
     }
   });
 });
@@ -887,7 +887,7 @@ describe('Config entity', () => {
     const s = m.toString();
     assert(
       s ==
-        `module cfge
+      `module cfge
 
 entity A
 {
@@ -1040,7 +1040,7 @@ describe('Flow API', () => {
     const s = mod.toString();
     assert(
       s ==
-        `module flowApi
+      `module flowApi
 
 entity E
 {
@@ -1073,25 +1073,25 @@ describe('Instances as JS objects', () => {
         {E: {id?>: W2.id}}
       }
       `)
-      const cre = async (id: number, x: string) => {
-        const e = await parseAndEvaluateStatement(`{JsObj/E: {id: ${id}, x: "${x}"}}`)
-        assert(isInstanceOfType(e, "JsObj/E"))
-        return e
-      }
-      await cre(1, "a"); await cre(2, "b"); await cre(3, "c")
-      let rs: Instance[] = await parseAndEvaluateStatement(`{JsObj/W1: {x: "b"}}`)
-      assert(rs.length == 1)
-      assert(rs[0].lookup('id') == 2)
-      rs = await parseAndEvaluateStatement(`{JsObj/W2: {id: 1}}`)
-      assert(rs.length == 2)
-      rs.forEach((inst: Instance) => {
-        const id = inst.lookup('id')
-        assert(id == 2 || id == 3)
-      })
+    const cre = async (id: number, x: string) => {
+      const e = await parseAndEvaluateStatement(`{JsObj/E: {id: ${id}, x: "${x}"}}`)
+      assert(isInstanceOfType(e, "JsObj/E"))
+      return e
+    }
+    await cre(1, "a"); await cre(2, "b"); await cre(3, "c")
+    let rs: Instance[] = await parseAndEvaluateStatement(`{JsObj/W1: {x: "b"}}`)
+    assert(rs.length == 1)
+    assert(rs[0].lookup('id') == 2)
+    rs = await parseAndEvaluateStatement(`{JsObj/W2: {id: 1}}`)
+    assert(rs.length == 2)
+    rs.forEach((inst: Instance) => {
+      const id = inst.lookup('id')
+      assert(id == 2 || id == 3)
     })
   })
+})
 
-  describe('tracking-attrs', () => {
+describe('tracking-attrs', () => {
   test('set tracking attributes in entity instances', async () => {
     await doInternModule(
       'TA',
@@ -1108,53 +1108,85 @@ describe('Instances as JS objects', () => {
       workflow Ups {
         {E {id Ups.id, x Ups.x}, @upsert}
       }`)
-      const ise = ((x: any) => {
-        assert(isInstanceOfType(x, 'TA/E'))
-      })
-      const e1: Instance = await parseAndEvaluateStatement(`{TA/E {id 1, x "hello"}}`, 'user01')
-      ise(e1)
-      const e1m =  e1.metaAttributeValues()
-      assert(e1m.created)
-      assert(e1m.createdBy === 'user01')
-      assert(e1m.lastModifiedBy === 'user01')
-      const lm1 = e1m.lastModified
-      assert(lm1)
-      const e2: Instance = await parseAndEvaluateStatement(`{TA/Up {id 1, x "ok"}}`, 'user02')
-      ise(e2)
-      const e2m = e2.metaAttributeValues()
-      const lm2 = e2m.lastModified
-      assert(e2m.createdBy === e1m.createdBy)
-      assert(e2m.lastModifiedBy === 'user02')
-      assert(lm2)
-      assert(lm2 > lm1)
-      assert(e1m.created === e2m.created)
-      assert(e2.lookup('x') === 'ok')
-      let es: Instance[] = await parseAndEvaluateStatement(`{TA/E? {}}`)
-      assert(es.length == 1)
-      const es1 = es[0]
-      const es1m = es1.metaAttributeValues()
-      assert(es1m.created === e1m.created)
-      assert(es1m.lastModified > e1m.lastModified)
-      assert(es1m.lastModifiedBy === 'user02')
-      assert(es1m.createdBy === 'user01')
-      const e3: Instance = await parseAndEvaluateStatement(`{TA/Ups {id 1, x "bye"}}`, 'user03')
-      ise(e3)
-      const e3m = e3.metaAttributeValues()
-      const lm3 = e3m.lastModified
-      assert(lm3)
-      assert(lm3 > lm2)
-      assert(e3m.created)
-      assert(e3m.createdBy === 'user03')
-      assert(e3m.lastModifiedBy === 'user03')
-      es = await parseAndEvaluateStatement(`{TA/E? {}}`)
-      assert(es.length === 1)
-      const e4 = es[0]
-      const e4m = e4.metaAttributeValues()
-      assert(e4m.created === e3m.created)
-      assert(e4m.lastModified === e3m.lastModified)
-      assert(e4m.lastModifiedBy === 'user03')
-      assert(e4m.createdBy === 'user03')
-      assert(e4.lookup('x') === 'bye')
-      assert(e4.lookup('id') === 1)
+    const ise = ((x: any) => {
+      assert(isInstanceOfType(x, 'TA/E'))
     })
+    const e1: Instance = await parseAndEvaluateStatement(`{TA/E {id 1, x "hello"}}`, 'user01')
+    ise(e1)
+    const e1m = e1.metaAttributeValues()
+    assert(e1m.created)
+    assert(e1m.createdBy === 'user01')
+    assert(e1m.lastModifiedBy === 'user01')
+    const lm1 = e1m.lastModified
+    assert(lm1)
+    const e2: Instance = await parseAndEvaluateStatement(`{TA/Up {id 1, x "ok"}}`, 'user02')
+    ise(e2)
+    const e2m = e2.metaAttributeValues()
+    const lm2 = e2m.lastModified
+    assert(e2m.createdBy === e1m.createdBy)
+    assert(e2m.lastModifiedBy === 'user02')
+    assert(lm2)
+    assert(lm2 > lm1)
+    assert(e1m.created === e2m.created)
+    assert(e2.lookup('x') === 'ok')
+    let es: Instance[] = await parseAndEvaluateStatement(`{TA/E? {}}`)
+    assert(es.length == 1)
+    const es1 = es[0]
+    const es1m = es1.metaAttributeValues()
+    assert(es1m.created === e1m.created)
+    assert(es1m.lastModified > e1m.lastModified)
+    assert(es1m.lastModifiedBy === 'user02')
+    assert(es1m.createdBy === 'user01')
+    const e3: Instance = await parseAndEvaluateStatement(`{TA/Ups {id 1, x "bye"}}`, 'user03')
+    ise(e3)
+    const e3m = e3.metaAttributeValues()
+    const lm3 = e3m.lastModified
+    assert(lm3)
+    assert(lm3 > lm2)
+    assert(e3m.created)
+    assert(e3m.createdBy === 'user03')
+    assert(e3m.lastModifiedBy === 'user03')
+    es = await parseAndEvaluateStatement(`{TA/E? {}}`)
+    assert(es.length === 1)
+    const e4 = es[0]
+    const e4m = e4.metaAttributeValues()
+    assert(e4m.created === e3m.created)
+    assert(e4m.lastModified === e3m.lastModified)
+    assert(e4m.lastModifiedBy === 'user03')
+    assert(e4m.createdBy === 'user03')
+    assert(e4.lookup('x') === 'bye')
+    assert(e4.lookup('id') === 1)
   })
+})
+
+describe('raiseError', () => {
+  test('throw errors from workflows', async () => {
+    await doInternModule(
+      'RE',
+      `workflow W {
+        if (W.x < 0) {
+          throw("neg: " + W.x)
+        } else {
+          W.x + 2  
+        }
+       }
+        workflow X {
+          {W {x X.x}}
+          @catch {error {W {x 0}}}
+        }`)
+
+    const r1 = await parseAndEvaluateStatement(`{RE/W {x 100}}`)
+    assert(r1 == 102)
+    let err:any = undefined
+    try {
+      await parseAndEvaluateStatement(`{RE/W {x -2}}`)
+    } catch (reason: any) {
+     err = reason
+    }
+    assert(err?.message == 'neg: -2')
+    const r2 = await parseAndEvaluateStatement(`{RE/X {x 1}}`)
+    assert(r2 == 3)
+    const r3 = await parseAndEvaluateStatement(`{RE/X {x -3}}`)
+    assert(r3 == 2)
+  })
+})

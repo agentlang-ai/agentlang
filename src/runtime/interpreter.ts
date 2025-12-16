@@ -27,6 +27,7 @@ import {
   SelectIntoSpec,
   SetAttribute,
   Statement,
+  ThrowError,
 } from '../language/generated/ast.js';
 import {
   maybeInstanceAsString,
@@ -1217,6 +1218,10 @@ export class PatternHandler {
   async handleReturn(ret: Return, env: Environment) {
     await evaluatePattern(ret.pattern, env);
   }
+
+  async handleThrow(throwErr: ThrowError, env: Environment) {
+    await evaluateThrowError(throwErr, env);
+  }
 }
 
 const DefaultPatternHandler = new PatternHandler();
@@ -1243,7 +1248,14 @@ export async function evaluatePattern(
   } else if (pat.return) {
     await handler.handleReturn(pat.return, env);
     env.markForReturn();
+  } else if (pat.throwError) {
+    await handler.handleThrow(pat.throwError, env);
   }
+}
+
+async function evaluateThrowError(throwErr: ThrowError, env: Environment) {
+  await evaluateExpression(throwErr.reason, env);
+  throw new Error(env.getLastResult());
 }
 
 async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Promise<void> {
