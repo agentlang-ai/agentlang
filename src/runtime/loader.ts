@@ -1137,6 +1137,13 @@ export async function parseAndIntern(code: string, moduleName?: string) {
   await internModule(r.parseResult.value);
 }
 
+export async function refreshModuleDefinition(moduleName: string, moduleDefinition: string) {
+  removeModule(moduleName);
+  const r = await parse(moduleDefinition);
+  maybeRaiseParserErrors(r);
+  await internModule(r.parseResult.value);
+}
+
 export async function internModule(
   module: ModuleDefinition,
   moduleFileName?: string

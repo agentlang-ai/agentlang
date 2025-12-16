@@ -407,3 +407,29 @@ export function isRuntimeMode_generate_migration(): boolean {
 export function isRuntimeMode_undo_migration(): boolean {
   return RuntimeMode === RuntimeModeTag.UNDO_MIGRATION;
 }
+
+let UpdateEventEndpoints: Function | undefined;
+let UpdateEntityEndpoints: Function | undefined;
+
+export function setEventEndpointsUpdater(f: Function) {
+  UpdateEventEndpoints = f;
+}
+
+export function setEntityEndpointsUpdater(f: Function) {
+  UpdateEntityEndpoints = f;
+}
+
+export function updateEndpoints(moduleName: string) {
+  if (UpdateEventEndpoints !== undefined) {
+    UpdateEventEndpoints(moduleName);
+  }
+  if (UpdateEntityEndpoints !== undefined) {
+    UpdateEntityEndpoints(moduleName);
+  }
+}
+
+export let InternDynamicModule: Function | undefined;
+
+export function setInternDynamicModuleFn(f: Function) {
+  InternDynamicModule = f;
+}

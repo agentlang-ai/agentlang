@@ -9,7 +9,15 @@ import {
   restoreSpecialChars,
   makeCoreModuleName,
 } from '../util.js';
-import { Instance, isInstanceOfType, makeInstance, newInstanceAttributes } from '../module.js';
+import {
+  fetchModule,
+  Instance,
+  isInstanceOfType,
+  isModule,
+  makeInstance,
+  newInstanceAttributes,
+  removeModule,
+} from '../module.js';
 import {
   Environment,
   evaluate,
@@ -21,7 +29,12 @@ import { logger } from '../logger.js';
 import { Statement } from '../../language/generated/ast.js';
 import { parseModule, parseStatements } from '../../language/parser.js';
 import { Resolver } from '../resolvers/interface.js';
-import { FlowSuspensionTag, ForceReadPermFlag, PathAttributeName } from '../defs.js';
+import {
+  FlowSuspensionTag,
+  ForceReadPermFlag,
+  InternDynamicModule,
+  PathAttributeName,
+} from '../defs.js';
 import { getMonitor, getMonitorsForEvent, Monitor } from '../monitor.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
@@ -126,6 +139,18 @@ event validateModule extends ValidationRequest {
 
 workflow validateModule {
   await Core.validateModule(validateModule.data)
+}
+
+entity Module {
+  name String @id,
+  definition String
+}
+
+resolver moduleResolver [agentlang/Module] {
+    create Core.createModule,
+    update Core.updateModule,
+    delete Core.deleteModule,
+    query Core.getModule
 }
 
 entity Migration {
@@ -425,6 +450,46 @@ export async function validateModule(moduleDef: any): Promise<Instance> {
       newInstanceAttributes().set('status', 'error').set('reason', `${reason}`)
     );
   }
+}
+
+export async function internModuleHelper(
+  name: string,
+  definition: string
+): Promise<string | undefined> {
+  if (InternDynamicModule !== undefined) {
+    return await InternDynamicModule(name, definition);
+  } else {
+    return undefined;
+  }
+}
+
+export async function createModule(_: Resolver, inst: Instance) {
+  await internModuleHelper(inst.lookup('name'), inst.lookup('definition'));
+  return inst;
+}
+
+export async function updateModule(r: Resolver, inst: Instance) {
+  return await createModule(r, inst);
+}
+
+export async function deleteModule(_: Resolver, inst: Instance) {
+  removeModule(inst.lookup('name'));
+  return inst;
+}
+
+export async function getModule(_: Resolver, inst: Instance) {
+  const p = inst.lookupQueryVal(PathAttributeName);
+  if (p !== undefined) {
+    const idx = p.lastIndexOf('/');
+    const n = p.substring(idx + 1);
+    if (isModule(n)) {
+      const m = fetchModule(n);
+      const defn = inst.lookup('definition') || m.toString();
+      const attrs = newInstanceAttributes().set('name', n).set('definition', defn);
+      return [makeInstance('agentlang', 'Module', attrs)];
+    }
+  }
+  return null;
 }
 
 const SqlSep = ';\n\n';

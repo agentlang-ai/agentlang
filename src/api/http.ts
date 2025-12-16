@@ -16,6 +16,7 @@ import {
   Record,
   fetchRefTarget,
   getAttributeNames,
+  Module,
 } from '../runtime/module.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
@@ -42,6 +43,8 @@ import {
   BadRequestError,
   isPathAttribute,
   PathAttributeNameQuery,
+  setEntityEndpointsUpdater,
+  setEventEndpointsUpdater,
   UnauthorisedError,
 } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
@@ -145,39 +148,47 @@ export async function startServer(
     });
   }
 
+  const addEventHandler = (moduleName: string, m: Module, n: string) => {
+    if (m.eventIsPublic(n))
+      app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+        handleEventPost(moduleName, n, req, res);
+      });
+  };
+
   getAllEventNames().forEach((eventNames: string[], moduleName: string) => {
     const m = fetchModule(moduleName);
     eventNames.forEach((n: string) => {
-      if (m.eventIsPublic(n))
-        app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
-          handleEventPost(moduleName, n, req, res);
-        });
+      addEventHandler(moduleName, m, n);
     });
   });
 
+  const addEntityHandlers = (moduleName: string, n: string) => {
+    app.get(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+      handleEntityGet(moduleName, n, req, res);
+    });
+    app.get(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
+      handleEntityGet(moduleName, n, req, res);
+    });
+    app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+      handleEntityPost(moduleName, n, req, res);
+    });
+    app.post(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
+      handleEntityPost(moduleName, n, req, res);
+    });
+    app.put(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
+      handleEntityPut(moduleName, n, req, res);
+    });
+    app.patch(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
+      handleEntityPut(moduleName, n, req, res);
+    });
+    app.delete(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
+      handleEntityDelete(moduleName, n, req, res);
+    });
+  };
+
   getAllEntityNames().forEach((entityNames: string[], moduleName: string) => {
     entityNames.forEach((n: string) => {
-      app.get(`/${moduleName}/${n}`, (req: Request, res: Response) => {
-        handleEntityGet(moduleName, n, req, res);
-      });
-      app.get(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
-        handleEntityGet(moduleName, n, req, res);
-      });
-      app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
-        handleEntityPost(moduleName, n, req, res);
-      });
-      app.post(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
-        handleEntityPost(moduleName, n, req, res);
-      });
-      app.put(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
-        handleEntityPut(moduleName, n, req, res);
-      });
-      app.patch(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
-        handleEntityPut(moduleName, n, req, res);
-      });
-      app.delete(`/${moduleName}/${n}/*path`, (req: Request, res: Response) => {
-        handleEntityDelete(moduleName, n, req, res);
-      });
+      addEntityHandlers(moduleName, n);
     });
   });
 
@@ -193,6 +204,21 @@ export async function startServer(
   } else {
     app.listen(port, cb);
   }
+
+  setEventEndpointsUpdater((moduleName: string) => {
+    const m = fetchModule(moduleName);
+    const eventNames = m.getEventNames();
+    eventNames.forEach((n: string) => {
+      addEventHandler(moduleName, m, n);
+    });
+  });
+  setEntityEndpointsUpdater((moduleName: string) => {
+    const m = fetchModule(moduleName);
+    const entityNames = m.getEntityNames();
+    entityNames.forEach((n: string) => {
+      addEntityHandlers(moduleName, n);
+    });
+  });
 }
 
 function ok(res: Response) {

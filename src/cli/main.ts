@@ -8,6 +8,7 @@ import {
   load,
   loadAppConfig,
   loadCoreModules,
+  refreshModuleDefinition,
   runStandaloneStatements,
 } from '../runtime/loader.js';
 import { NodeFileSystem } from 'langium/node';
@@ -31,11 +32,13 @@ import { importModule } from '../runtime/jsmodules.js';
 import {
   isRuntimeMode_dev,
   isRuntimeMode_prod,
+  setInternDynamicModuleFn,
   setRuntimeMode_generate_migration,
   setRuntimeMode_init_schema,
   setRuntimeMode_migration,
   setRuntimeMode_prod,
   setRuntimeMode_undo_migration,
+  updateEndpoints,
 } from '../runtime/defs.js';
 import { initGlobalApi } from '../runtime/api.js';
 
@@ -122,6 +125,8 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
   }
 };
 
+let LastActiveConfig: Config | undefined;
+
 export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
   await initDatabase(config?.store);
   await importModule('../runtime/api.js', 'agentlang');
@@ -129,6 +134,11 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   await runStandaloneStatements();
   if (appSpec && (isRuntimeMode_dev() || isRuntimeMode_prod()))
     startServer(appSpec, config?.service?.port || 8080, config?.service?.host, config);
+  LastActiveConfig = config;
+}
+
+export async function runPostInitTasksWithLastActiveConfig() {
+  await runPostInitTasks(undefined, LastActiveConfig);
 }
 
 let execGraphEnabled = false;
@@ -148,6 +158,16 @@ export async function runPreInitTasks(): Promise<boolean> {
   });
   return result;
 }
+
+async function internDynamicModule(name: string, definition: string): Promise<string> {
+  await refreshModuleDefinition(name, definition);
+  await resetDefaultDatabase();
+  await runPostInitTasksWithLastActiveConfig();
+  updateEndpoints(name);
+  return name;
+}
+
+setInternDynamicModuleFn(internDynamicModule);
 
 export const runModule = async (fileName: string, releaseDb: boolean = false): Promise<void> => {
   if (isRuntimeMode_dev() && process.env.NODE_ENV === 'production') {
