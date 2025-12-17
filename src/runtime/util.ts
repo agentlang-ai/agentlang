@@ -637,3 +637,12 @@ declare global {
 export function setScecretReader(f: ReadSecret) {
   globalThis.readSecret = f;
 }
+
+export function objectAsString(obj: any) {
+  const entries = new Array<string>();
+  Object.entries(obj).forEach(([k, v]) => {
+    const vv = typeof v === 'string' ? `"${v}"` : v;
+    entries.push(`${k}: ${vv}`);
+  });
+  return `{${entries.join(', ')}}`;
+}
