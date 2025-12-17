@@ -1248,7 +1248,7 @@ export class Relationship extends Record {
 
   constructor(
     name: string,
-    typ: string,
+    type: string,
     node1: RelationshipNode,
     node2: RelationshipNode,
     moduleName: string,
@@ -1256,7 +1256,7 @@ export class Relationship extends Record {
     props?: Map<string, any>
   ) {
     super(name, moduleName, scm);
-    if (typ == 'between') {
+    if (type == 'between') {
       this.relType = RelType.BETWEEN;
       this.addMetaAttributes();
     }
