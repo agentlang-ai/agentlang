@@ -60,7 +60,7 @@ import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
 import Handlebars from 'handlebars';
 import { Statement } from '../../language/generated/ast.js';
-import { isMonitoringEnabled } from '../state.js';
+import { isMonitoringEnabled, TtlCache } from '../state.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -284,16 +284,22 @@ export class AgentInstance {
     return this.decisionExecutor;
   }
 
+  private static CACHE_TTL_MS = 2 * 60 * 1000; // 2 mins
+  private static DirectivesCache = new TtlCache<AgentCondition[]>(AgentInstance.CACHE_TTL_MS);
+
   private async getUserDefinedAgentDirectives(fqName: string): Promise<AgentCondition[]> {
+    const cached = AgentInstance.DirectivesCache.get(fqName);
+    if (cached !== undefined) return cached;
     const result: Instance[] = await parseAndEvaluateStatement(
       `{${CoreAIModuleName}/AgentDirective {agentFqName? "${fqName}"}}`
     );
+    let r: AgentCondition[] = [];
     if (result && result.length > 0) {
-      return result.map((inst: Instance) => {
+      r = result.map((inst: Instance) => {
         return newAgentDirective(inst.lookup('condition'), inst.lookup('consequent'));
       });
     }
-    return [];
+    return AgentInstance.DirectivesCache.set(fqName, r);
   }
 
   private async directivesAsString(fqName: string): Promise<string> {
@@ -317,12 +323,17 @@ export class AgentInstance {
     return '';
   }
 
+  private static GlossaryCache = new TtlCache<AgentGlossaryEntry[]>(AgentInstance.CACHE_TTL_MS);
+
   private async getUserDefinedAgentGlossary(fqName: string): Promise<AgentGlossaryEntry[]> {
+    const cached = AgentInstance.GlossaryCache.get(fqName);
+    if (cached !== undefined) return cached;
     const result: Instance[] = await parseAndEvaluateStatement(
       `{${CoreAIModuleName}/AgentGlossaryEntry {agentFqName? "${fqName}"}}`
     );
+    let r: AgentGlossaryEntry[] = [];
     if (result && result.length > 0) {
-      return result.map((inst: Instance) => {
+      r = result.map((inst: Instance) => {
         return newAgentGlossaryEntry(
           inst.lookup('name'),
           inst.lookup('meaning'),
@@ -330,19 +341,24 @@ export class AgentInstance {
         );
       });
     }
-    return [];
+    return AgentInstance.GlossaryCache.set(fqName, r);
   }
 
+  private static ScenariosCache = new TtlCache<AgentScenario[]>(AgentInstance.CACHE_TTL_MS);
+
   private async getUserDefinedAgentScenarios(fqName: string): Promise<AgentScenario[]> {
+    const cached = AgentInstance.ScenariosCache.get(fqName);
+    if (cached !== undefined) return cached;
     const result: Instance[] = await parseAndEvaluateStatement(
       `{${CoreAIModuleName}/AgentScenario {agentFqName? "${fqName}"}}`
     );
+    let r: AgentScenario[] = [];
     if (result && result.length > 0) {
-      return result.map((inst: Instance) => {
+      r = result.map((inst: Instance) => {
         return newAgentScenario(inst.lookup('user'), inst.lookup('ai'));
       });
     }
-    return [];
+    return AgentInstance.ScenariosCache.set(fqName, r);
   }
 
   private async getFullInstructions(env: Environment): Promise<string> {

@@ -329,19 +329,21 @@ if (process.env.AL_TEST === 'true') {
          agent ga
           {instruction "Create appropriate patterns for managing Employee information",
            tools "GA",
-           directives [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
-                       {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
+           directives [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"}],
            scenarios  [{"user": "Jake hit a jackpot!", "ai": "GuidedAgent/scenario01"}],
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
          scenario ga.scn01 {
              if ("Kiran had a block-buster") { GuidedAgent/scenario01 }
          }
-         directive GuidedAgent/ga.dir01 {
-             if("sales is less than 2000") { "hike salary by 0.5 percent" }
-         }
          workflow chat {{ga {message chat.msg}}}
           `
       );
+      const dirInst = await parseAndEvaluateStatement(`{agentlang.ai/AgentDirective {
+        agentFqName "GuidedAgent/ga",
+        condition "sales is more than 2000 but less than 5000",
+        consequent "hike salary by 2 percent"
+        }}`)
+        assert(isInstanceOfType(dirInst, 'agentlang.ai/AgentDirective'))
       const k = async (ins: string) => {
         return await parseAndEvaluateStatement(`{GuidedAgent/chat {msg "${ins}"}}`);
       };
