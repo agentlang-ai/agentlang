@@ -24,6 +24,7 @@ import {
   RbacPermissionFlag,
   RbacSpecification,
   Relationship,
+  setAllMetaAttributes,
 } from '../../module.js';
 import { isString } from '../../util.js';
 import {
@@ -646,6 +647,7 @@ export async function insertBetweenRow(
     if (relEntry.isOneToMany()) {
       attrs.set(relEntry.joinNodesAttributeName(), `${p1}_${p2}`);
     }
+    setAllMetaAttributes(attrs, ctx.activeEnv);
     const row = Object.fromEntries(attrs);
     await insertRow(n, row, ctx.clone().setNeedAuthCheck(false), false);
   } else {
