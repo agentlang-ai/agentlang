@@ -3999,7 +3999,7 @@ export function getAttributeNames(entityFqName: string): Array<string> {
   return [...scm.keys()];
 }
 
-export function maybeSetMetaAttributes(
+export function setMetaAttributes(
   attrs: InstanceAttributes,
   env: Environment,
   inUpdateMode: boolean = false
@@ -4009,4 +4009,13 @@ export function maybeSetMetaAttributes(
   if (!inUpdateMode && attrs.get(SysAttr_CreatedBy) === undefined) {
     attrs.set(SysAttr_CreatedBy, user);
   }
+}
+
+export function setAllMetaAttributes(
+  attrs: InstanceAttributes,
+  env: Environment,
+  inUpdateMode: boolean = false
+) {
+  attrs.set(SysAttr_Created, now());
+  setMetaAttributes(attrs, env, inUpdateMode);
 }
