@@ -435,6 +435,7 @@ export class SqlDbResolver extends Resolver {
     const a1: string = relEntry.node1.alias;
     const a2: string = relEntry.node2.alias;
     const n1path: any = orUpdate ? firstNode.lookup(PathAttributeName) : undefined;
+    const ctx = this.getDbContext(relEntry.getFqName());
     if (relEntry.isOneToOne()) {
       await this.updateInstance(
         node1,
@@ -452,18 +453,10 @@ export class SqlDbResolver extends Resolver {
             [a1, n1path],
             [a2, secondNode.lookup(PathAttributeName)],
           ],
-          this.getDbContext(relEntry.getFqName())
+          ctx
         );
       }
-      await insertBetweenRow(
-        n,
-        a1,
-        a2,
-        firstNode,
-        secondNode,
-        relEntry,
-        this.getDbContext(relEntry.getFqName())
-      );
+      await insertBetweenRow(n, a1, a2, firstNode, secondNode, relEntry, ctx);
     }
   }
 

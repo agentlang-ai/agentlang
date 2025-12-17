@@ -1248,7 +1248,7 @@ export class Relationship extends Record {
 
   constructor(
     name: string,
-    typ: string,
+    type: string,
     node1: RelationshipNode,
     node2: RelationshipNode,
     moduleName: string,
@@ -1256,7 +1256,7 @@ export class Relationship extends Record {
     props?: Map<string, any>
   ) {
     super(name, moduleName, scm);
-    if (typ == 'between') {
+    if (type == 'between') {
       this.relType = RelType.BETWEEN;
       this.addMetaAttributes();
     }
@@ -3999,7 +3999,7 @@ export function getAttributeNames(entityFqName: string): Array<string> {
   return [...scm.keys()];
 }
 
-export function maybeSetMetaAttributes(
+export function setMetaAttributes(
   attrs: InstanceAttributes,
   env: Environment,
   inUpdateMode: boolean = false
@@ -4009,4 +4009,13 @@ export function maybeSetMetaAttributes(
   if (!inUpdateMode && attrs.get(SysAttr_CreatedBy) === undefined) {
     attrs.set(SysAttr_CreatedBy, user);
   }
+}
+
+export function setAllMetaAttributes(
+  attrs: InstanceAttributes,
+  env: Environment,
+  inUpdateMode: boolean = false
+) {
+  attrs.set(SysAttr_Created, now());
+  setMetaAttributes(attrs, env, inUpdateMode);
 }
