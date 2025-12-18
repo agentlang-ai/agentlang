@@ -34,6 +34,7 @@ import {
   isRuntimeMode_generate_migration,
   isRuntimeMode_init_schema,
   isRuntimeMode_migration,
+  isRuntimeMode_test,
   isRuntimeMode_undo_migration,
   PathAttributeName,
   UnauthorisedError,
@@ -171,11 +172,15 @@ function mkDbName(): string {
   return process.env.AGENTLANG_DB_NAME || `db-${Date.now()}`;
 }
 
+function needSync(): boolean {
+  return isRuntimeMode_dev() || isRuntimeMode_test() || isRuntimeMode_init_schema();
+}
+
 function makePostgresDataSource(
   entities: EntitySchema[],
   config: DatabaseConfig | undefined
 ): DataSource {
-  const synchronize = isRuntimeMode_dev() || isRuntimeMode_init_schema();
+  const synchronize = needSync();
   //const runMigrations = isRuntimeMode_migration() || isRuntimeMode_undo_migration() || !synchronize;
   return new DataSource({
     type: 'postgres',
@@ -208,7 +213,7 @@ function makeSqliteDataSource(
   entities: EntitySchema[],
   config: DatabaseConfig | undefined
 ): DataSource {
-  const synchronize = isRuntimeMode_dev() || isRuntimeMode_init_schema();
+  const synchronize = needSync();
   //const runMigrations = isRuntimeMode_migration() || isRuntimeMode_undo_migration() || !synchronize;
   return new DataSource({
     type: 'sqlite',

@@ -41,6 +41,7 @@ import {
   updateEndpoints,
 } from '../runtime/defs.js';
 import { initGlobalApi } from '../runtime/api.js';
+import { initCoreModuleManager } from '../runtime/modules/core.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -132,6 +133,7 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   await importModule('../runtime/api.js', 'agentlang');
   await runInitFunctions();
   await runStandaloneStatements();
+  initCoreModuleManager();
   logger.info(
     `Running application ${appSpec?.name || 'unknown'} version ${appSpec?.version || 'unknown'} on port ${config?.service?.port || 8080}`
   );

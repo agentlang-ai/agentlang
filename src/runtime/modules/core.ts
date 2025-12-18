@@ -28,14 +28,16 @@ import {
 import { logger } from '../logger.js';
 import { Statement } from '../../language/generated/ast.js';
 import { parseModule, parseStatements } from '../../language/parser.js';
-import { Resolver } from '../resolvers/interface.js';
+import { GenericResolver, Resolver } from '../resolvers/interface.js';
 import {
   FlowSuspensionTag,
   ForceReadPermFlag,
   InternDynamicModule,
+  isRuntimeMode_dev,
   PathAttributeName,
 } from '../defs.js';
 import { getMonitor, getMonitorsForEvent, Monitor } from '../monitor.js';
+import { registerResolver, setResolver } from '../resolvers/registry.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
@@ -146,11 +148,12 @@ entity Module {
   definition String
 }
 
-resolver moduleResolver [agentlang/Module] {
-    create Core.createModule,
-    update Core.updateModule,
-    delete Core.deleteModule,
-    query Core.getModule
+entity PersistentModule extends Module {
+}
+
+workflow savePersistentModule {
+  purge {PersistentModule {name? savePersistentModule.name}}
+  {PersistentModule {name savePersistentModule.name, definition savePersistentModule.definition}}
 }
 
 entity Migration {
@@ -464,7 +467,21 @@ export async function internModuleHelper(
 }
 
 export async function createModule(_: Resolver, inst: Instance) {
-  await internModuleHelper(inst.lookup('name'), inst.lookup('definition'));
+  const n = inst.lookup('name');
+  const d = inst.lookup('definition');
+  const env = new Environment('module-env');
+  try {
+    await parseAndEvaluateStatement(
+      `{agentlang/savePersistentModule {name "${n}", definition "${d}"}}`,
+      undefined,
+      env
+    );
+    await env.commitAllTransactions();
+  } catch (reason: any) {
+    await env.rollbackAllTransactions();
+    logger.error(`Failed to persist module ${n} - ${reason}`);
+  }
+  await internModuleHelper(n, d);
   return inst;
 }
 
@@ -473,7 +490,20 @@ export async function updateModule(r: Resolver, inst: Instance) {
 }
 
 export async function deleteModule(_: Resolver, inst: Instance) {
-  removeModule(inst.lookup('name'));
+  const n = inst.lookup('name');
+  const env = new Environment('module-env');
+  try {
+    await parseAndEvaluateStatement(
+      `purge {agentlang/PersistentModule {name? "${n}"}}`,
+      undefined,
+      env
+    );
+    await env.commitAllTransactions();
+  } catch (reason: any) {
+    await env.rollbackAllTransactions();
+    logger.error(`Failed to purge persistent module ${n} - ${reason}`);
+  }
+  removeModule(n);
   return inst;
 }
 
@@ -489,7 +519,46 @@ export async function getModule(_: Resolver, inst: Instance) {
       return [makeInstance('agentlang', 'Module', attrs)];
     }
   }
-  return null;
+  return [];
+}
+
+async function internPersistentModules() {
+  try {
+    const insts: Instance[] = await parseAndEvaluateStatement(`{agentlang/PersistentModule? {}}`);
+    for (let i = 0; i < insts.length; ++i) {
+      const inst = insts[i];
+      const n = inst.lookup('name');
+      if (!isModule(n)) await internModuleHelper(n, inst.lookup('definition'));
+    }
+  } catch (reason: any) {
+    logger.warn(`Failed to intern persistent modules: ${reason}`);
+  }
+}
+
+export function initCoreModuleManager() {
+  const ModuleResolverName = 'agentlang/moduleResolver';
+  const ModuleResolver = new GenericResolver(ModuleResolverName, {
+    create: createModule,
+    upsert: createModule,
+    update: updateModule,
+    query: getModule,
+    delete: deleteModule,
+    startTransaction: undefined,
+    commitTransaction: undefined,
+    rollbackTransaction: undefined,
+  });
+
+  registerResolver(ModuleResolverName, () => {
+    return ModuleResolver;
+  });
+
+  setResolver('agentlang/Module', ModuleResolverName);
+
+  if (isRuntimeMode_dev()) {
+    setInterval(() => {
+      internPersistentModules();
+    }, 10000);
+  }
 }
 
 const SqlSep = ';\n\n';
