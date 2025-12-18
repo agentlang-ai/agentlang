@@ -612,6 +612,10 @@ export function generateUrlSafePassword(length: number = 8): string {
   return chars.join('');
 }
 
+export function generateLoggerCallId() {
+  return Math.floor(10000 + Math.random() * 90000);
+}
+
 const JS_PREFIX = '#js';
 
 export function preprocessRawConfig(rawConfig: any): any {

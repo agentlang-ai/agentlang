@@ -14,7 +14,7 @@ import {
   newInstanceAttributes,
   Relationship,
 } from '../module.js';
-import { CrudType, nameToPath } from '../util.js';
+import { CrudType, nameToPath, generateLoggerCallId } from '../util.js';
 import { DefaultAuthInfo, ResolverAuthInfo } from './authinfo.js';
 
 export type JoinInfo = {
@@ -272,11 +272,22 @@ export class GenericResolver extends Resolver {
   }
 
   public override async createInstance(inst: Instance): Promise<any> {
-    if (this.implementation?.create) {
-      return await this.implementation.create(this, inst);
-    } else {
-      return await super.createInstance(inst);
+    const callId = generateLoggerCallId();
+    let attrVals;
+    if (inst.attributes) {
+      attrVals = JSON.stringify(Object.fromEntries(inst.attributes));
     }
+    logger.debug(
+      `${callId}: Resolver createInstance called for ${inst.moduleName + '/' + inst.name} with values ${attrVals}`
+    );
+    let result;
+    if (this.implementation?.create) {
+      result = await this.implementation.create(this, inst);
+    } else {
+      result = await super.createInstance(inst);
+    }
+    logger.debug(`${callId}: Resolver createInstance response: ${JSON.stringify(result)}`);
+    return result;
   }
 
   public override async upsertInstance(inst: Instance): Promise<any> {
@@ -287,20 +298,57 @@ export class GenericResolver extends Resolver {
   }
 
   public override async updateInstance(inst: Instance, newAttrs: InstanceAttributes): Promise<any> {
-    if (this.implementation?.update) {
-      return await this.implementation.update(this, inst, newAttrs);
+    const callId = generateLoggerCallId();
+
+    const newAttrsVals = JSON.stringify(Object.fromEntries(newAttrs));
+    logger.debug(
+      `${callId} Resolver updateInstance called for ${inst.moduleName + '/' + inst.name} with values ${newAttrsVals}`
+    );
+    if (inst.queryAttributes && inst.queryAttributeValues) {
+      const qattr = JSON.stringify(Object.fromEntries(inst.queryAttributes));
+      const qattrValues = JSON.stringify(Object.fromEntries(inst.queryAttributeValues));
+      logger.debug(`${callId}: Query attributes: ${qattr}, values ${qattrValues}`);
     }
-    return await super.updateInstance(inst, newAttrs);
+
+    let result;
+    if (this.implementation?.update) {
+      result = await this.implementation.update(this, inst, newAttrs);
+    } else {
+      result = await super.updateInstance(inst, newAttrs);
+    }
+    logger.debug(`${callId}: Resolver updateInstance response: ${JSON.stringify(result)}`);
+    return result;
   }
 
   public override async queryInstances(inst: Instance, queryAll: boolean): Promise<any> {
-    if (this.implementation?.query) {
-      return await this.implementation.query(this, inst, queryAll);
+    const callId = generateLoggerCallId();
+    logger.debug(
+      `${callId}: Resolver queryInstances called for ${inst.moduleName + '/' + inst.name}`
+    );
+    if (inst.queryAttributes && inst.queryAttributeValues) {
+      const qattr = JSON.stringify(Object.fromEntries(inst.queryAttributes));
+      const qattrValues = JSON.stringify(Object.fromEntries(inst.queryAttributeValues));
+      logger.debug(`${callId}: Query attributes: ${qattr}, values ${qattrValues}`);
     }
-    return await super.queryInstances(inst, queryAll);
+    let result;
+    if (this.implementation?.query) {
+      result = await this.implementation.query(this, inst, queryAll);
+    } else {
+      result = await super.queryInstances(inst, queryAll);
+    }
+    logger.debug(`${callId}: Resolver queryInstances response: ${JSON.stringify(result)}`);
+    return result;
   }
 
   public override async deleteInstance(inst: Instance | Instance[], purge: boolean): Promise<any> {
+    if (inst instanceof Instance) {
+      if (inst.queryAttributes)
+        logger.debug(`Resolver deleteInstance called for ${inst.moduleName + '/' + inst.name}`);
+    } else {
+      logger.debug(
+        `Resolver deleteInstance called for ${inst.map(i => i.moduleName + '/' + i.name).join(', ')}`
+      );
+    }
     if (this.implementation?.delete) {
       return await this.implementation.delete(this, inst, purge);
     }

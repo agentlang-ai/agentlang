@@ -16,7 +16,7 @@ import { extractDocument } from '../runtime/loader.js';
 import * as url from 'node:url';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { logger } from '../runtime/logger.js';
+import { logger, updateLoggerFromConfig } from '../runtime/logger.js';
 import { Module } from '../runtime/module.js';
 import { ModuleDefinition } from '../language/generated/ast.js';
 import { Config } from '../runtime/state.js';
@@ -132,6 +132,14 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   await importModule('../runtime/api.js', 'agentlang');
   await runInitFunctions();
   await runStandaloneStatements();
+  logger.info(
+    `Running application ${appSpec?.name || 'unknown'} version ${appSpec?.version || 'unknown'} on port ${config?.service?.port || 8080}`
+  );
+  logger.info(
+    `Application dependencies: ${appSpec?.dependencies ? Object.keys(appSpec.dependencies).join(', ') : 'none'}`
+  );
+  logger.info(`Application database type: ${config?.store?.type || 'None'}`);
+  logger.info(`Application authentication enabled: ${config?.auth?.enabled}`);
   if (appSpec && (isRuntimeMode_dev() || isRuntimeMode_prod()))
     startServer(appSpec, config?.service?.port || 8080, config?.service?.host, config);
   LastActiveConfig = config;
@@ -180,6 +188,7 @@ export const runModule = async (fileName: string, releaseDb: boolean = false): P
   const configDir =
     path.dirname(fileName) === '.' ? process.cwd() : path.resolve(process.cwd(), fileName);
   const config: Config = await loadAppConfig(configDir);
+  updateLoggerFromConfig();
   if (config.integrations) {
     await prepareIntegrations(
       config.integrations.host,
