@@ -115,21 +115,21 @@ event doc {
   url String
 }
 
-entity AgentDirective {
+entity Directive {
   id UUID @id @default(uuid()),
   agentFqName String @indexed,
   condition String,
   consequent String
 }
 
-entity AgentScenario {
+entity Scenario {
   id UUID @id @default(uuid()),
   agentFqName String @indexed,
   user String,
   ai String
 }
 
-entity AgentGlossaryEntry {
+entity GlossaryEntry {
    id UUID @id @default(uuid()),
    agentFqName String @indexed,
    name String,
@@ -284,14 +284,14 @@ export class AgentInstance {
     return this.decisionExecutor;
   }
 
-  private static CACHE_TTL_MS = 2 * 60 * 1000; // 2 mins
+  private static CACHE_TTL_MS = 5 * 60 * 1000; // 5 mins
   private static DirectivesCache = new TtlCache<AgentCondition[]>(AgentInstance.CACHE_TTL_MS);
 
   private async getUserDefinedAgentDirectives(fqName: string): Promise<AgentCondition[]> {
     const cached = AgentInstance.DirectivesCache.get(fqName);
     if (cached !== undefined) return cached;
     const result: Instance[] = await parseAndEvaluateStatement(
-      `{${CoreAIModuleName}/AgentDirective {agentFqName? "${fqName}"}}`
+      `{${CoreAIModuleName}/Directive {agentFqName? "${fqName}"}}`
     );
     let r: AgentCondition[] = [];
     if (result && result.length > 0) {
@@ -329,7 +329,7 @@ export class AgentInstance {
     const cached = AgentInstance.GlossaryCache.get(fqName);
     if (cached !== undefined) return cached;
     const result: Instance[] = await parseAndEvaluateStatement(
-      `{${CoreAIModuleName}/AgentGlossaryEntry {agentFqName? "${fqName}"}}`
+      `{${CoreAIModuleName}/GlossaryEntry {agentFqName? "${fqName}"}}`
     );
     let r: AgentGlossaryEntry[] = [];
     if (result && result.length > 0) {
@@ -350,7 +350,7 @@ export class AgentInstance {
     const cached = AgentInstance.ScenariosCache.get(fqName);
     if (cached !== undefined) return cached;
     const result: Instance[] = await parseAndEvaluateStatement(
-      `{${CoreAIModuleName}/AgentScenario {agentFqName? "${fqName}"}}`
+      `{${CoreAIModuleName}/Scenario {agentFqName? "${fqName}"}}`
     );
     let r: AgentScenario[] = [];
     if (result && result.length > 0) {
