@@ -83,7 +83,7 @@ export async function startServer(
   // Log all HTTP requests and responses
   app.use((req: Request, res: Response, next) => {
     const startTime = Date.now();
-    const callId  = generateLoggerCallId()
+    const callId = generateLoggerCallId();
 
     const requestLog: any = {
       method: req.method,

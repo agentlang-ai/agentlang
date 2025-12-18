@@ -132,10 +132,14 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   await importModule('../runtime/api.js', 'agentlang');
   await runInitFunctions();
   await runStandaloneStatements();
-  logger.info(`Running application ${appSpec?.name || 'unknown'} version ${appSpec?.version || 'unknown'} on port ${config?.service?.port || 8080}`);
-  logger.info(`Application dependencies: ${appSpec?.dependencies ? Object.keys(appSpec.dependencies).join(", ") : 'none'}`);
+  logger.info(
+    `Running application ${appSpec?.name || 'unknown'} version ${appSpec?.version || 'unknown'} on port ${config?.service?.port || 8080}`
+  );
+  logger.info(
+    `Application dependencies: ${appSpec?.dependencies ? Object.keys(appSpec.dependencies).join(', ') : 'none'}`
+  );
   logger.info(`Application database type: ${config?.store?.type || 'None'}`);
-  logger.info(`Application authentication enabled: ${config?.auth?.enabled}`)
+  logger.info(`Application authentication enabled: ${config?.auth?.enabled}`);
   if (appSpec && (isRuntimeMode_dev() || isRuntimeMode_prod()))
     startServer(appSpec, config?.service?.port || 8080, config?.service?.host, config);
   LastActiveConfig = config;
