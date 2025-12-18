@@ -352,6 +352,7 @@ export type FkSpec = {
 enum RuntimeModeTag {
   DEV,
   PROD,
+  TEST,
   INIT_SCHEMA,
   RUN_MIGRATION,
   UNDO_MIGRATION,
@@ -366,6 +367,10 @@ export function setRuntimeMode_dev() {
 
 export function setRuntimeMode_prod() {
   RuntimeMode = RuntimeModeTag.PROD;
+}
+
+export function setRuntimeMode_test() {
+  RuntimeMode = RuntimeModeTag.TEST;
 }
 
 export function setRuntimeMode_init_schema() {
@@ -390,6 +395,10 @@ export function isRuntimeMode_dev(): boolean {
 
 export function isRuntimeMode_prod(): boolean {
   return RuntimeMode === RuntimeModeTag.PROD;
+}
+
+export function isRuntimeMode_test(): boolean {
+  return RuntimeMode === RuntimeModeTag.TEST;
 }
 
 export function isRuntimeMode_init_schema(): boolean {

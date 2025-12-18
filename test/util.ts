@@ -4,10 +4,12 @@ import { isModule } from '../src/runtime/module.js';
 import { resetDefaultDatabase } from '../src/runtime/resolvers/sqldb/database.js';
 import { testLogger } from './test-logger.js';
 import { runPostInitTasks, runPreInitTasks } from '../src/cli/main.js';
+import { setRuntimeMode_test } from '../src/runtime/defs.js';
 
 let CoreModulesInited = false;
 
 export async function doPreInit() {
+  setRuntimeMode_test()
   if (!CoreModulesInited) {
     await runPreInitTasks();
     CoreModulesInited = true;

@@ -291,16 +291,6 @@ export async function startServer(
       addEntityHandlers(moduleName, n);
     });
   });
-
-  // Default 404 handler for unmatched routes
-  app.use((req: Request, res: Response) => {
-    logger.debug(`Route not found: ${req.path} ${req.method}`);
-    res.status(404).json({
-      error: 'Route not found',
-      path: req.path,
-      method: req.method,
-    });
-  });
 }
 
 function ok(res: Response) {
