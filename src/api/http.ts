@@ -38,6 +38,7 @@ import {
   splitRefs,
   splitFqName,
   escapeSepInPath,
+  generateLoggerCallId,
 } from '../runtime/util.js';
 import {
   BadRequestError,
@@ -75,6 +76,77 @@ export async function startServer(
       res.sendStatus(200);
       return;
     }
+
+    next();
+  });
+
+  // Log all HTTP requests and responses
+  app.use((req: Request, res: Response, next) => {
+    const startTime = Date.now();
+    const callId = generateLoggerCallId();
+
+    const requestLog: any = {
+      method: req.method,
+      path: req.path,
+      url: req.url,
+      query: req.query,
+      headers: {
+        ...req.headers,
+        // Mask authorization header for security
+        authorization: req.headers.authorization ? '[REDACTED]' : undefined,
+      },
+    };
+
+    if (req.method !== 'GET' && req.method !== 'DELETE' && req.body) {
+      requestLog.body = req.body;
+    }
+
+    logger.debug(`${callId}: HTTP Request: ${JSON.stringify(requestLog)}`);
+
+    const originalSend = res.send;
+    const originalJson = res.json;
+    let responseBody: any = null;
+
+    res.send = function (body?: any): Response {
+      responseBody = body;
+      return originalSend.call(this, body);
+    };
+
+    res.json = function (body?: any): Response {
+      responseBody = body;
+      return originalJson.call(this, body);
+    };
+
+    // Log response when finished
+    res.on('finish', () => {
+      const duration = Date.now() - startTime;
+      const responseLog: any = {
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        duration: `${duration}ms`,
+      };
+
+      if (responseBody !== null) {
+        try {
+          if (typeof responseBody === 'string') {
+            try {
+              responseLog.body = JSON.parse(responseBody);
+            } catch {
+              responseLog.body =
+                responseBody.length > 1000
+                  ? responseBody.substring(0, 1000) + '... [truncated]'
+                  : responseBody;
+            }
+          } else {
+            responseLog.body = responseBody;
+          }
+        } catch {
+          responseLog.body = '[Unable to serialize response body]';
+        }
+      }
+      logger.debug(`${callId}: HTTP Response: ${JSON.stringify(responseLog)}`);
+    });
 
     next();
   });

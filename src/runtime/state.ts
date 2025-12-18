@@ -111,6 +111,11 @@ export const ConfigSchema = z.object({
       })
     )
     .optional(),
+  logging: z
+    .object({
+      level: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+    })
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
