@@ -77,6 +77,7 @@ import {
   isFqName,
   makeFqName,
   maybeExtends,
+  objectAsString,
   preprocessRawConfig,
   registerInitFunction,
   rootRef,
@@ -342,6 +343,40 @@ export async function flushAllAndLoad(
   return await load(fileName, fsOptions, callback);
 }
 
+async function evaluateConfigPatterns(cfgPats: string): Promise<any> {
+  const cfgWf = `workflow createConfig{\n${cfgPats}}`;
+  const wf = await parseWorkflow(cfgWf);
+  const cfgStmts = new Array<Statement>();
+  const initInsts = new Array<Statement>();
+  for (let i = 0; i < wf.statements.length; ++i) {
+    const stmt: Statement = wf.statements[i];
+    if (stmt.pattern.crudMap) {
+      initInsts.push(await makeDeleteAllConfigStatement(stmt.pattern.crudMap));
+      initInsts.push(stmt);
+    } else {
+      cfgStmts.push(stmt);
+    }
+  }
+  if (initInsts.length > 0) {
+    registerInitFunction(async () => {
+      const env = new Environment('config.insts.env');
+      try {
+        await evaluateStatements(initInsts, env);
+        await env.commitAllTransactions();
+      } catch (reason: any) {
+        await env.rollbackAllTransactions();
+        console.error(`Failed to initialize config instances: ${reason}`);
+      }
+    });
+  }
+  if (cfgStmts.length > 0) {
+    const env = new Environment('config.env');
+    await evaluateStatements(cfgStmts, env);
+    return env.getLastResult();
+  }
+  return undefined;
+}
+
 export async function loadAppConfig(configDir: string): Promise<Config> {
   let cfgObj: any = undefined;
   const fs = await getFileSystem();
@@ -349,39 +384,12 @@ export async function loadAppConfig(configDir: string): Promise<Config> {
   if (await fs.exists(alCfgFile)) {
     const cfgPats = await fs.readFile(alCfgFile);
     if (canParse(cfgPats)) {
-      const cfgWf = `workflow createConfig{\n${cfgPats}}`;
-      const wf = await parseWorkflow(cfgWf);
-      const env = new Environment('config.env');
-      const cfgStmts = new Array<Statement>();
-      const initInsts = new Array<Statement>();
-      for (let i = 0; i < wf.statements.length; ++i) {
-        const stmt: Statement = wf.statements[i];
-        if (stmt.pattern.crudMap) {
-          initInsts.push(await makeDeleteAllConfigStatement(stmt.pattern.crudMap));
-          initInsts.push(stmt);
-        } else {
-          cfgStmts.push(stmt);
-        }
-      }
-      if (initInsts.length > 0) {
-        registerInitFunction(async () => {
-          const env = new Environment('config.insts.env');
-          try {
-            await evaluateStatements(initInsts, env);
-            await env.commitAllTransactions();
-          } catch (reason: any) {
-            await env.rollbackAllTransactions();
-            console.error(`Failed to initialize config instances: ${reason}`);
-          }
-        });
-      }
-      await evaluateStatements(cfgStmts, env);
-      cfgObj = env.getLastResult();
+      cfgObj = await evaluateConfigPatterns(cfgPats);
     }
   }
   try {
     const cfg = cfgObj
-      ? configFromObject(cfgObj)
+      ? await configFromObject(cfgObj)
       : await loadRawConfig(`${configDir}${path.sep}app.config.json`);
     return setAppConfig(cfg);
   } catch (err: any) {
@@ -1178,10 +1186,31 @@ export async function loadRawConfig(
   }
 }
 
-export function configFromObject(cfgObj: any, validate: boolean = true): any {
+function filterConfigEntityInstances(rawConfig: any): [any, Map<string, any>] {
+  const cfg = new Map<string, any>();
+  const insts = new Map<string, any>();
+  Object.entries(rawConfig).forEach(([key, value]: [string, any]) => {
+    if (isFqName(key)) {
+      insts.set(key, value);
+    } else {
+      cfg.set(key, value);
+    }
+  });
+  return [Object.fromEntries(cfg), insts];
+}
+
+async function configFromObject(cfgObj: any, validate: boolean = true): Promise<any> {
   const rawConfig = preprocessRawConfig(cfgObj);
   if (validate) {
-    return ConfigSchema.parse(rawConfig);
+    const [cfg, insts] = filterConfigEntityInstances(rawConfig);
+    const pats = new Array<string>();
+    insts.forEach((v: any, k: string) => {
+      pats.push(`{${k} ${objectAsString(v)}}`);
+    });
+    if (pats.length > 0) {
+      await evaluateConfigPatterns(pats.join('\n'));
+    }
+    return ConfigSchema.parse(cfg);
   }
   return rawConfig;
 }
