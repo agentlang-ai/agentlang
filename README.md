@@ -338,7 +338,7 @@ To get started with Agentlang Ontology, please see the [Agentlang Tutorial](http
 Install the Agentlang CLI globally using npm:
 
 ```shell
-npm install -g agentlangcli
+npm i -g @agentlang/cli
 ```
 
 ### Running Agentlang Applications
