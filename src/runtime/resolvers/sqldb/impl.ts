@@ -243,10 +243,7 @@ export class SqlDbResolver extends Resolver {
       ).then((rslt: any) => {
         if (rslt instanceof Array) {
           result = new Array<Instance>();
-          const connInst: Instance = Instance.EmptyInstance(
-            relationship.node2.path.getEntryName(),
-            relationship.node2.path.getModuleName()
-          );
+          const connInst: Instance = Instance.EmptyInstance(inst.name, inst.moduleName);
           rslt.forEach((r: object) => {
             const attrs: InstanceAttributes = new Map(Object.entries(r));
             attrs.delete(DeletedFlagAttributeName);
