@@ -3664,6 +3664,22 @@ export class Instance {
   }
 }
 
+function embeddedInstancesAsObjects(result: any): any {
+  const obj = new Map<string, any>();
+  Object.entries(result).forEach(([k, v]) => {
+    let vv = v;
+    if (Instance.IsInstance(v)) {
+      vv = (v as Instance).asSerializableObject();
+    } else if (v instanceof Array) {
+      vv = v.map((entry: any) => {
+        return embeddedInstancesAsObjects(entry);
+      });
+    }
+    obj.set(k, vv);
+  });
+  return Object.fromEntries(obj);
+}
+
 export function maybeInstanceAsString(result: any): string {
   if (!isString(result)) {
     try {
@@ -3677,7 +3693,8 @@ export function maybeInstanceAsString(result: any): string {
           })
           .join(',')}]`;
       } else {
-        return JSON.stringify(result);
+        const obj = embeddedInstancesAsObjects(result);
+        return JSON.stringify(obj);
       }
     } catch (reason: any) {
       logger.error(`Failed to serialize object to string - ${reason}`);
