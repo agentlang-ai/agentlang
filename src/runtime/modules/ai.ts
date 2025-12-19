@@ -50,6 +50,9 @@ import {
   getAgentResponseSchema,
   getAgentScenarios,
   getAgentScratchNames,
+  newAgentDirective,
+  newAgentGlossaryEntry,
+  newAgentScenario,
   PlannerInstructions,
 } from '../agents/common.js';
 import { PathAttributeNameQuery } from '../defs.js';
@@ -57,7 +60,7 @@ import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
 import Handlebars from 'handlebars';
 import { Statement } from '../../language/generated/ast.js';
-import { isMonitoringEnabled } from '../state.js';
+import { isMonitoringEnabled, TtlCache } from '../state.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -110,6 +113,28 @@ entity Document {
 event doc {
   title String,
   url String
+}
+
+entity Directive {
+  id UUID @id @default(uuid()),
+  agentFqName String @indexed,
+  condition String,
+  consequent String
+}
+
+entity Scenario {
+  id UUID @id @default(uuid()),
+  agentFqName String @indexed,
+  user String,
+  ai String
+}
+
+entity GlossaryEntry {
+   id UUID @id @default(uuid()),
+   agentFqName String @indexed,
+   name String,
+   meaning String,
+   synonyms String @optional
 }
 `;
 
@@ -259,9 +284,29 @@ export class AgentInstance {
     return this.decisionExecutor;
   }
 
-  private directivesAsString(fqName: string): string {
-    const conds = getAgentDirectives(fqName);
-    if (conds) {
+  private static CACHE_TTL_MS = 5 * 60 * 1000; // 5 mins
+  private static DirectivesCache = new TtlCache<AgentCondition[]>(AgentInstance.CACHE_TTL_MS);
+
+  private async getUserDefinedAgentDirectives(fqName: string): Promise<AgentCondition[]> {
+    const cached = AgentInstance.DirectivesCache.get(fqName);
+    if (cached !== undefined) return cached;
+    const result: Instance[] = await parseAndEvaluateStatement(
+      `{${CoreAIModuleName}/Directive {agentFqName? "${fqName}"}}`
+    );
+    let r: AgentCondition[] = [];
+    if (result && result.length > 0) {
+      r = result.map((inst: Instance) => {
+        return newAgentDirective(inst.lookup('condition'), inst.lookup('consequent'));
+      });
+    }
+    return AgentInstance.DirectivesCache.set(fqName, r);
+  }
+
+  private async directivesAsString(fqName: string): Promise<string> {
+    const userDirs = await this.getUserDefinedAgentDirectives(fqName);
+    const dirs = getAgentDirectives(fqName) || [];
+    const conds = dirs.concat(userDirs);
+    if (conds.length > 0) {
       const ss = new Array<string>();
       ss.push(
         '\nUse the following guidelines to take more accurate decisions in relevant scenarios.\n'
@@ -278,12 +323,52 @@ export class AgentInstance {
     return '';
   }
 
-  private getFullInstructions(env: Environment): string {
+  private static GlossaryCache = new TtlCache<AgentGlossaryEntry[]>(AgentInstance.CACHE_TTL_MS);
+
+  private async getUserDefinedAgentGlossary(fqName: string): Promise<AgentGlossaryEntry[]> {
+    const cached = AgentInstance.GlossaryCache.get(fqName);
+    if (cached !== undefined) return cached;
+    const result: Instance[] = await parseAndEvaluateStatement(
+      `{${CoreAIModuleName}/GlossaryEntry {agentFqName? "${fqName}"}}`
+    );
+    let r: AgentGlossaryEntry[] = [];
+    if (result && result.length > 0) {
+      r = result.map((inst: Instance) => {
+        return newAgentGlossaryEntry(
+          inst.lookup('name'),
+          inst.lookup('meaning'),
+          inst.lookup('synonyms')
+        );
+      });
+    }
+    return AgentInstance.GlossaryCache.set(fqName, r);
+  }
+
+  private static ScenariosCache = new TtlCache<AgentScenario[]>(AgentInstance.CACHE_TTL_MS);
+
+  private async getUserDefinedAgentScenarios(fqName: string): Promise<AgentScenario[]> {
+    const cached = AgentInstance.ScenariosCache.get(fqName);
+    if (cached !== undefined) return cached;
+    const result: Instance[] = await parseAndEvaluateStatement(
+      `{${CoreAIModuleName}/Scenario {agentFqName? "${fqName}"}}`
+    );
+    let r: AgentScenario[] = [];
+    if (result && result.length > 0) {
+      r = result.map((inst: Instance) => {
+        return newAgentScenario(inst.lookup('user'), inst.lookup('ai'));
+      });
+    }
+    return AgentInstance.ScenariosCache.set(fqName, r);
+  }
+
+  private async getFullInstructions(env: Environment): Promise<string> {
     const fqName = this.getFqName();
     const ins = this.role ? `${this.role}\n${this.instruction || ''}` : this.instruction || '';
-    let finalInstruction = `${ins} ${this.directivesAsString(fqName)}`;
-    const gls = getAgentGlossary(fqName);
-    if (gls) {
+    let finalInstruction = `${ins} ${await this.directivesAsString(fqName)}`;
+    const staticGls = getAgentGlossary(fqName) || [];
+    const userGls = await this.getUserDefinedAgentGlossary(fqName);
+    const gls = staticGls.concat(userGls);
+    if (gls.length > 0) {
       const glss = new Array<string>();
       gls.forEach((age: AgentGlossaryEntry) => {
         glss.push(
@@ -293,8 +378,10 @@ export class AgentInstance {
       finalInstruction = `${finalInstruction}\nThe following glossary will be helpful for understanding user requests.
       ${glss.join('\n')}\n`;
     }
-    const scenarios = getAgentScenarios(fqName);
-    if (scenarios) {
+    const staticScns = getAgentScenarios(fqName) || [];
+    const userScns = await this.getUserDefinedAgentScenarios(fqName);
+    const scenarios = staticScns.concat(userScns);
+    if (scenarios.length > 0) {
       const scs = new Array<string>();
       scenarios.forEach((sc: AgentScenario) => {
         try {
@@ -431,7 +518,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      cachedMsg = this.getFullInstructions(env);
+      cachedMsg = await this.getFullInstructions(env);
       msgs = [systemMessage(cachedMsg || '')];
     }
     if (msgs) {
@@ -440,7 +527,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         if (isplnr || isflow) {
           const s = isplnr ? PlannerInstructions : FlowExecInstructions;
           const ts = this.toolsAsString();
-          const msg = `${s}\n${ts}\n${cachedMsg || this.getFullInstructions(env)}`;
+          const msg = `${s}\n${ts}\n${cachedMsg || (await this.getFullInstructions(env))}`;
           const newSysMsg = systemMessage(msg);
           msgs[0] = newSysMsg;
         }

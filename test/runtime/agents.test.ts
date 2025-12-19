@@ -52,7 +52,7 @@ describe('Agent API', () => {
     const str = m.toString();
     assert(
       str ==
-      `module AAPI
+        `module AAPI
 
 entity E
 {
@@ -145,11 +145,13 @@ if (process.env.AL_TEST === 'true') {
            }
           `
       );
-      const rr: Instance = await parseAndEvaluateStatement(`{SimplePlannerAgent/planner02 {id 10001, name "kk", age 20}}`);
-      assert(isInstanceOfType(rr, 'SPA/Person'))
-      assert(rr.lookup('id') == '10001')
-      assert(rr.lookup('name') == 'kk')
-      assert(rr.lookup('age') == 20)
+      const rr: Instance = await parseAndEvaluateStatement(
+        `{SimplePlannerAgent/planner02 {id 10001, name "kk", age 20}}`
+      );
+      assert(isInstanceOfType(rr, 'SPA/Person'));
+      assert(rr.lookup('id') == '10001');
+      assert(rr.lookup('name') == 'kk');
+      assert(rr.lookup('age') == 20);
       const k = async (ins: string) => {
         return await parseAndEvaluateStatement(`{SimplePlannerAgent/chat {msg "${ins}"}}`);
       };
@@ -293,29 +295,38 @@ if (process.env.AL_TEST === 'true') {
         }
         agent customerProductManager
         {role "You are a product and customer manager"}
-          `);
+          `
+      );
       const k = async (ins: string) => {
-        return await parseAndEvaluateStatement(`{FlowTest/customerProductManager {message "${ins}"}}`);
+        return await parseAndEvaluateStatement(
+          `{FlowTest/customerProductManager {message "${ins}"}}`
+        );
       };
-      await k('A new customer named Joseph K needs to be added. His email is jk@acme.com and phone number is 8989893')
-      await k('Add a customer named Joe with email j@acme.com and phone 9674763')
-      const custs: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Customer? {}}`)
-      assert(custs.length == 2)
-      const emails = new Set<string>().add('jk@acme.com').add('j@acme.com')
-      assert(custs.every((inst: Instance) => {
-        return isInstanceOfType(inst, 'FlowTest/Customer') && emails.has(inst.lookup('email'))
-      }))
-      await k('A new product named X90 is added to the company. Its price is 789.22 and it should be assigned the id 1090')
-      const prods: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Product? {}}`)
-      assert(prods.length == 1)
-      assert(isInstanceOfType(prods[0], 'FlowTest/Product'))
-      assert(prods[0].lookup('price') == 789.22)
-      await k('Add an employee named Joe with email j@acme.com and phone 9674763') // reportFailure
-      const fails: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Failure? {}}`)
-      assert(fails.length == 1)
-      assert(isInstanceOfType(fails[0], 'FlowTest/Failure'))
-    })
-  })
+      await k(
+        'A new customer named Joseph K needs to be added. His email is jk@acme.com and phone number is 8989893'
+      );
+      await k('Add a customer named Joe with email j@acme.com and phone 9674763');
+      const custs: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Customer? {}}`);
+      assert(custs.length == 2);
+      const emails = new Set<string>().add('jk@acme.com').add('j@acme.com');
+      assert(
+        custs.every((inst: Instance) => {
+          return isInstanceOfType(inst, 'FlowTest/Customer') && emails.has(inst.lookup('email'));
+        })
+      );
+      await k(
+        'A new product named X90 is added to the company. Its price is 789.22 and it should be assigned the id 1090'
+      );
+      const prods: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Product? {}}`);
+      assert(prods.length == 1);
+      assert(isInstanceOfType(prods[0], 'FlowTest/Product'));
+      assert(prods[0].lookup('price') == 789.22);
+      await k('Add an employee named Joe with email j@acme.com and phone 9674763'); // reportFailure
+      const fails: Instance[] = await parseAndEvaluateStatement(`{FlowTest/Failure? {}}`);
+      assert(fails.length == 1);
+      assert(isInstanceOfType(fails[0], 'FlowTest/Failure'));
+    });
+  });
 
   describe('Agent-guidance', () => {
     test('Apply scenarios and directives for agents', async () => {
@@ -329,36 +340,46 @@ if (process.env.AL_TEST === 'true') {
          agent ga
           {instruction "Create appropriate patterns for managing Employee information",
            tools "GA",
-           directives [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
-                       {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
+           directives [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"}],
            scenarios  [{"user": "Jake hit a jackpot!", "ai": "GuidedAgent/scenario01"}],
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
          scenario ga.scn01 {
              if ("Kiran had a block-buster") { GuidedAgent/scenario01 }
          }
-         directive GuidedAgent/ga.dir01 {
-             if("sales is less than 2000") { "hike salary by 0.5 percent" }
-         }
          workflow chat {{ga {message chat.msg}}}
           `
       );
+      const dirInst = await parseAndEvaluateStatement(`{agentlang.ai/Directive {
+        agentFqName "GuidedAgent/ga",
+        condition "sales is more than 2000 but less than 5000",
+        consequent "hike salary by 2 percent"
+        }}`);
+      assert(isInstanceOfType(dirInst, 'agentlang.ai/Directive'));
+      const scnInst = await parseAndEvaluateStatement(`{agentlang.ai/Scenario {
+        agentFqName "GuidedAgent/ga",
+        user "Bibi is a superstar!",
+        ai "GuidedAgent/scenario01"
+        }}`);
+      assert(isInstanceOfType(scnInst, 'agentlang.ai/Scenario'));
+      const geInst = await parseAndEvaluateStatement(`{agentlang.ai/GlossaryEntry {
+         agentFqName "GuidedAgent/ga",
+         name "superstar", 
+         meaning "the person hit a jackpot"
+        }}`);
+      assert(isInstanceOfType(geInst, 'agentlang.ai/GlossaryEntry'));
       const k = async (ins: string) => {
         return await parseAndEvaluateStatement(`{GuidedAgent/chat {msg "${ins}"}}`);
       };
-      let r = await k(
-        `Create an Employee named Joe with id 102 and salary 2050`
-      );
-      assert(isInstanceOfType(r, 'GA/Employee'))
-      r = await k(
-        `Joe hit a jackpot`
-      );
-      assert(isInstanceOfType(r[0], 'GA/Employee'))
-      assert(r[0].lookup('salary') == 2050 + 2050 * 0.5)
-      r = await parseAndEvaluateStatement(`{GA/Employee {id? 102}}`)
-      assert(isInstanceOfType(r[0], 'GA/Employee'))
-      assert(r[0].lookup('salary') == 2050 + 2050 * 0.5)
-    })
-  })
+      let r = await k(`Create an Employee named Joe with id 102 and salary 2050`);
+      assert(isInstanceOfType(r, 'GA/Employee'));
+      r = await k(`Joe hit a jackpot`);
+      assert(isInstanceOfType(r[0], 'GA/Employee'));
+      assert(r[0].lookup('salary') == 2050 + 2050 * 0.5);
+      r = await parseAndEvaluateStatement(`{GA/Employee {id? 102}}`);
+      assert(isInstanceOfType(r[0], 'GA/Employee'));
+      assert(r[0].lookup('salary') == 2050 + 2050 * 0.5);
+    });
+  });
 
   describe('Agent-schema', () => {
     test('Response schema support for agents', async () => {
@@ -477,36 +498,38 @@ if (process.env.AL_TEST === 'true') {
           `
       );
       const k = async (ins: string) => {
-        return await parseAndEvaluateStatement(`{NetworkProvisioning/networkProvisioningRequestManager {message "${ins}"}}`);
+        return await parseAndEvaluateStatement(
+          `{NetworkProvisioning/networkProvisioningRequestManager {message "${ins}"}}`
+        );
       };
-      await k(
-        `User Jake needs a DNS for 192.3.4.5 for jake.blog.com`
+      await k(`User Jake needs a DNS for 192.3.4.5 for jake.blog.com`);
+      const r1: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisioning/DNSEntry? {}}`);
+      assert(r1.length == 1);
+      assert(isInstanceOfType(r1[0], 'NetworkProvisioning/DNSEntry'));
+      assert(r1[0].lookup('CNAME') == 'jake.blog.com');
+      assert(r1[0].lookup('IPAddress') == '192.3.4.5');
+      const pid1 = r1[0].lookup('provisioningId');
+      const r2: Instance[] = await parseAndEvaluateStatement(
+        `{NetworkProvisioning/requestCompletedNotification {provisioningId? "${pid1}"}}`
       );
-      const r1: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisioning/DNSEntry? {}}`)
-      assert(r1.length == 1)
-      assert(isInstanceOfType(r1[0], 'NetworkProvisioning/DNSEntry'))
-      assert(r1[0].lookup('CNAME') == 'jake.blog.com')
-      assert(r1[0].lookup('IPAddress') == '192.3.4.5')
-      const pid1 = r1[0].lookup('provisioningId')
-      const r2: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisioning/requestCompletedNotification {provisioningId? "${pid1}"}}`)
-      assert(r2.length == 1)
-      assert(isInstanceOfType(r2[0], 'NetworkProvisioning/requestCompletedNotification'))
-      assert(r2[0].lookup('requestedBy').toLowerCase() == 'jake')
+      assert(r2.length == 1);
+      assert(isInstanceOfType(r2[0], 'NetworkProvisioning/requestCompletedNotification'));
+      assert(r2[0].lookup('requestedBy').toLowerCase() == 'jake');
 
-      await k(
-        `WLAN request from Mat. IP 192.1.1.2`
+      await k(`WLAN request from Mat. IP 192.1.1.2`);
+      const r3: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisioning/WLANEntry? {}}`);
+      assert(r3.length == 1);
+      assert(isInstanceOfType(r3[0], 'NetworkProvisioning/WLANEntry'));
+      assert(r3[0].lookup('IPAddress') == '192.1.1.2');
+      const pid2 = r3[0].lookup('provisioningId');
+      const r4: Instance[] = await parseAndEvaluateStatement(
+        `{NetworkProvisioning/requestCompletedNotification {provisioningId? "${pid2}"}}`
       );
-      const r3: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisioning/WLANEntry? {}}`)
-      assert(r3.length == 1)
-      assert(isInstanceOfType(r3[0], 'NetworkProvisioning/WLANEntry'))
-      assert(r3[0].lookup('IPAddress') == '192.1.1.2')
-      const pid2 = r3[0].lookup('provisioningId')
-      const r4: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisioning/requestCompletedNotification {provisioningId? "${pid2}"}}`)
-      assert(r4.length == 1)
-      assert(isInstanceOfType(r4[0], 'NetworkProvisioning/requestCompletedNotification'))
-      assert(r4[0].lookup('requestedBy').toLowerCase() == 'mat')
-    })
-  })
+      assert(r4.length == 1);
+      assert(isInstanceOfType(r4[0], 'NetworkProvisioning/requestCompletedNotification'));
+      assert(r4[0].lookup('requestedBy').toLowerCase() == 'mat');
+    });
+  });
 
   describe('Agent-DecisionTable', () => {
     test('Decision tables in flows', async () => {
@@ -622,30 +645,29 @@ if (process.env.AL_TEST === 'true') {
         agent carOrderRequestManager {
           instruction "You are an agent who analyses customer order requests for new cars and make appropriate orders"
         }
-        `)
+        `
+      );
       const k = async (ins: string) => {
-        return await parseAndEvaluateStatement(`{CarCompany/carOrderRequestManager {message "${ins}"}}`);
+        return await parseAndEvaluateStatement(
+          `{CarCompany/carOrderRequestManager {message "${ins}"}}`
+        );
       };
-      await k(
-        `I want an economic red EV with 59kwh battery pack and 7.2kw charger`
-      );
-      let rs: Instance[] = await parseAndEvaluateStatement(`{CarCompany/EV? {}}`)
-      assert(rs.length == 1)
-      assert(rs[0].lookup('bodyColor').toLowerCase() == 'red')
-      assert(rs[0].lookup('batteryPack') == '59kwh')
-      await k(
-        `White diesel luxury SUV with manual transmission and 330nm torque`
-      );
-      rs = await parseAndEvaluateStatement(`{CarCompany/SUV? {}}`)
-      assert(rs.length == 1)
-      assert(rs[0].lookup('bodyColor').toLowerCase() == 'white')
-      assert(rs[0].lookup('transmission') == 'manual')
-      assert(rs[0].lookup('torque') == '330nm')
-      assert(rs[0].lookup('segment') == 'luxury')
-    })
-  })
+      await k(`I want an economic red EV with 59kwh battery pack and 7.2kw charger`);
+      let rs: Instance[] = await parseAndEvaluateStatement(`{CarCompany/EV? {}}`);
+      assert(rs.length == 1);
+      assert(rs[0].lookup('bodyColor').toLowerCase() == 'red');
+      assert(rs[0].lookup('batteryPack') == '59kwh');
+      await k(`White diesel luxury SUV with manual transmission and 330nm torque`);
+      rs = await parseAndEvaluateStatement(`{CarCompany/SUV? {}}`);
+      assert(rs.length == 1);
+      assert(rs[0].lookup('bodyColor').toLowerCase() == 'white');
+      assert(rs[0].lookup('transmission') == 'manual');
+      assert(rs[0].lookup('torque') == '330nm');
+      assert(rs[0].lookup('segment') == 'luxury');
+    });
+  });
 } else {
   describe('Skipping agent tests', () => {
-    test('test01', async () => { });
+    test('test01', async () => {});
   });
 }

@@ -140,3 +140,50 @@ export function disableInternalMonitoring() {
 export function isMonitoringEnabled(): boolean {
   return internalMonitoringEnabled || AppConfig?.monitoring?.enabled === true;
 }
+
+type TtlCacheEntry<T> = {
+  value: T;
+  expireTime: number;
+};
+
+export class TtlCache<T> {
+  private store: Map<string, TtlCacheEntry<T>>;
+  private ttlMs: number;
+
+  constructor(ttlMs: number) {
+    this.store = new Map();
+    this.ttlMs = ttlMs;
+  }
+
+  set(key: string, value: T, ttlMilliseconds?: number): T {
+    ttlMilliseconds = ttlMilliseconds ? ttlMilliseconds : this.ttlMs;
+    const expireTime = Date.now() + ttlMilliseconds;
+    this.store.set(key, { value, expireTime });
+
+    // Automatically delete the item after the TTL passes
+    setTimeout(() => {
+      // Check again at the time of potential expiration to handle cases where
+      // the key might have been updated with a new TTL in the meantime.
+      const entry = this.store.get(key);
+      if (entry && entry.expireTime === expireTime) {
+        this.store.delete(key);
+      }
+    }, ttlMilliseconds);
+    return value;
+  }
+
+  get(key: string): T | undefined {
+    const entry = this.store.get(key);
+    if (entry === undefined) return undefined;
+
+    if (Date.now() > entry.expireTime) {
+      this.store.delete(key); // Remove expired item
+      return undefined;
+    }
+    return entry.value;
+  }
+
+  delete(key: string) {
+    this.store.delete(key);
+  }
+}
