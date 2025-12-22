@@ -17,6 +17,9 @@ import {
   fetchRefTarget,
   getAttributeNames,
   Module,
+  fetchEntity,
+  Workflow,
+  getAllBetweenRelationshipNames,
 } from '../runtime/module.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
@@ -39,6 +42,7 @@ import {
   splitFqName,
   escapeSepInPath,
   generateLoggerCallId,
+  ScratchModuleName,
 } from '../runtime/util.js';
 import {
   BadRequestError,
@@ -261,6 +265,24 @@ export async function startServer(
   getAllEntityNames().forEach((entityNames: string[], moduleName: string) => {
     entityNames.forEach((n: string) => {
       addEntityHandlers(moduleName, n);
+    });
+  });
+
+  const addBetweenHandlers = (moduleName: string, n: string) => {
+    app.get(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+      handleEntityGet(moduleName, n, req, res);
+    });
+    app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+      handleBetweenRelationshipPost(moduleName, n, req, res);
+    });
+    app.delete(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+      handleBetweenRelationshipDelete(moduleName, n, req, res);
+    });
+  };
+
+  getAllBetweenRelationshipNames().forEach((entityNames: string[], moduleName: string) => {
+    entityNames.forEach((n: string) => {
+      addBetweenHandlers(moduleName, n);
     });
   });
 
@@ -577,6 +599,76 @@ async function handleEntityDelete(
     }
     const cmd = req.query.purge == 'true' ? 'purge' : 'delete';
     const pattern = `${cmd} ${queryPatternFromPath(path, req)}`;
+    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+  } catch (err: any) {
+    logger.error(err);
+    res.status(500).send(err.toString());
+  }
+}
+
+function relAddEventName(moduleName: string, relName: string): string {
+  return `${moduleName}_${relName}___add`;
+}
+
+async function linkInstancesPattern(
+  moduleName: string,
+  relName: string,
+  req: any
+): Promise<string> {
+  const eventName = relAddEventName(moduleName, relName);
+  const sm = fetchModule(ScratchModuleName);
+  if (!sm.hasEntry(eventName)) {
+    const m = fetchModule(moduleName);
+    const r = m.getEntry(relName) as Relationship;
+    const ent1 = fetchEntity(r.node1.path);
+    const ent2 = fetchEntity(r.node2.path);
+    const pat1 = `{${ent1.getFqName()} {${ent1.getIdAttributeName()}? ${eventName}.${r.node1.alias}}} @as [n1]`;
+    const pat2 = `{${ent2.getFqName()} {${ent2.getIdAttributeName()}? ${eventName}.${r.node2.alias}}} @as [n2]`;
+    const pat3 = `{${r.getFqName()} {${r.node1.alias} n1.${PathAttributeNameQuery}, ${r.node2.alias} n2.${PathAttributeNameQuery}}}`;
+    const wf = new Workflow(eventName, [], ScratchModuleName);
+    await wf.addStatement(pat1);
+    await wf.addStatement(pat2);
+    await wf.addStatement(pat3);
+    sm.addEntry(wf);
+  }
+  return patternFromAttributes(ScratchModuleName, eventName, objectAsInstanceAttributes(req.body));
+}
+
+async function handleBetweenRelationshipPost(
+  moduleName: string,
+  betweenRelName: string,
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const sessionInfo = await verifyAuth(moduleName, betweenRelName, req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const pattern = await linkInstancesPattern(moduleName, betweenRelName, req);
+    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+  } catch (err: any) {
+    logger.error(err);
+    res.status(500).send(err.toString());
+  }
+}
+
+async function handleBetweenRelationshipDelete(
+  moduleName: string,
+  entityName: string,
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const pattern = req.params.path
+      ? createChildPattern(moduleName, entityName, req)
+      : patternFromAttributes(moduleName, entityName, objectAsInstanceAttributes(req.body));
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);

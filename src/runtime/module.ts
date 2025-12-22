@@ -48,6 +48,7 @@ import {
   validateIdFormat,
   nameContainsSepEscape,
   registerInitFunction,
+  ScratchModuleName,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -2505,6 +2506,7 @@ export function removeModule(name: string): boolean {
 
 addModule(DefaultModuleName);
 addRecord('env', DefaultModuleName);
+addModule(ScratchModuleName)
 
 export function getModuleNames(): string[] {
   const ks: Iterable<string> = getModuleDb().keys();
@@ -3051,6 +3053,14 @@ export function getEntity(name: string, moduleName: string): Entity | undefined 
   }
   logger.error(`Entity ${fr.entryName} not found in module ${fr.moduleName}`);
   return undefined;
+}
+
+export function fetchEntity(path: Path): Entity {
+  const e = getEntity(path.getEntryName(), path.getModuleName())
+  if (e === undefined) {
+    throw new Error(`Entity not found - ${path.asFqName()}`)
+  }
+  return e
 }
 
 function isEntryOfType(t: RecordType, fqName: string): boolean {
@@ -3842,6 +3852,12 @@ export function getAllEventNames() {
 export function getAllEntityNames() {
   return getAllModuleEntries((module: Module) => {
     return module.getEntityEntries();
+  });
+}
+
+export function getAllBetweenRelationshipNames() {
+  return getAllModuleEntries((module: Module) => {
+    return module.getBetweenRelationshipEntries();
   });
 }
 
