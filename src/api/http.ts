@@ -17,9 +17,8 @@ import {
   fetchRefTarget,
   getAttributeNames,
   Module,
-  fetchEntity,
-  Workflow,
   getAllBetweenRelationshipNames,
+  linkInstancesEvent,
 } from '../runtime/module.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
@@ -42,7 +41,6 @@ import {
   splitFqName,
   escapeSepInPath,
   generateLoggerCallId,
-  ScratchModuleName,
 } from '../runtime/util.js';
 import {
   BadRequestError,
@@ -606,34 +604,6 @@ async function handleEntityDelete(
   }
 }
 
-function relAddEventName(moduleName: string, relName: string): string {
-  return `${moduleName}_${relName}___add`;
-}
-
-async function linkInstancesPattern(
-  moduleName: string,
-  relName: string,
-  req: any
-): Promise<string> {
-  const eventName = relAddEventName(moduleName, relName);
-  const sm = fetchModule(ScratchModuleName);
-  if (!sm.hasEntry(eventName)) {
-    const m = fetchModule(moduleName);
-    const r = m.getEntry(relName) as Relationship;
-    const ent1 = fetchEntity(r.node1.path);
-    const ent2 = fetchEntity(r.node2.path);
-    const pat1 = `{${ent1.getFqName()} {${ent1.getIdAttributeName()}? ${eventName}.${r.node1.alias}}} @as [n1]`;
-    const pat2 = `{${ent2.getFqName()} {${ent2.getIdAttributeName()}? ${eventName}.${r.node2.alias}}} @as [n2]`;
-    const pat3 = `{${r.getFqName()} {${r.node1.alias} n1.${PathAttributeNameQuery}, ${r.node2.alias} n2.${PathAttributeNameQuery}}}`;
-    const wf = new Workflow(eventName, [], ScratchModuleName);
-    await wf.addStatement(pat1);
-    await wf.addStatement(pat2);
-    await wf.addStatement(pat3);
-    sm.addEntry(wf);
-  }
-  return patternFromAttributes(ScratchModuleName, eventName, objectAsInstanceAttributes(req.body));
-}
-
 async function handleBetweenRelationshipPost(
   moduleName: string,
   betweenRelName: string,
@@ -646,7 +616,8 @@ async function handleBetweenRelationshipPost(
       res.status(401).send('Authorization required');
       return;
     }
-    const pattern = await linkInstancesPattern(moduleName, betweenRelName, req);
+    const path = await linkInstancesEvent(moduleName, betweenRelName);
+    const pattern = patternFromAttributes(path.getModuleName(), path.getEntryName(), objectAsInstanceAttributes(req.body));
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
