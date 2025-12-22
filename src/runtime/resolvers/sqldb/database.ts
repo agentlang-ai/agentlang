@@ -1036,18 +1036,20 @@ function buildQueryFromConnnectionInfo(
 
 export async function getAllConnected(
   tableName: string,
-  queryObj: object,
-  queryVals: object,
+  queryObj: any,
+  queryVals: any,
   connInfo: BetweenConnectionInfo,
   ctx: DbContext
 ) {
   const alias: string = tableName.toLowerCase();
   const connAlias: string = connInfo.connectionTable.toLowerCase();
+  queryObj[DeletedFlagAttributeName] = '=';
+  queryVals[DeletedFlagAttributeName] = false;
   const qb = getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
     .select()
     .from(tableName, alias)
-    .where(objectToWhereClause(queryObj, alias), queryVals)
+    .where(objectToWhereClause(queryObj, queryVals, alias), queryVals)
     .innerJoin(
       connInfo.connectionTable,
       connAlias,
