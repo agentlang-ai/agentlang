@@ -1,15 +1,5 @@
 module Blog.Core
 
-entity A {
-    id Int @id
-}
-
-entity B {
-    id Int @id
-}
-
-relationship AB between(A @as A, B @as B)
-
 entity Profile {
     id UUID @id @default(uuid()),
     address String @optional,

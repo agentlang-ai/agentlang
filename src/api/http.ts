@@ -604,11 +604,12 @@ async function handleEntityDelete(
   }
 }
 
-async function handleBetweenRelationshipPost(
+async function handleBetweenRelationshipLinking(
   moduleName: string,
   betweenRelName: string,
   req: Request,
-  res: Response
+  res: Response,
+  unlink: boolean
 ): Promise<void> {
   try {
     const sessionInfo = await verifyAuth(moduleName, betweenRelName, req.headers.authorization);
@@ -616,8 +617,12 @@ async function handleBetweenRelationshipPost(
       res.status(401).send('Authorization required');
       return;
     }
-    const path = await linkInstancesEvent(moduleName, betweenRelName);
-    const pattern = patternFromAttributes(path.getModuleName(), path.getEntryName(), objectAsInstanceAttributes(req.body));
+    const path = await linkInstancesEvent(moduleName, betweenRelName, unlink);
+    const pattern = patternFromAttributes(
+      path.getModuleName(),
+      path.getEntryName(),
+      objectAsInstanceAttributes(req.body)
+    );
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
@@ -625,26 +630,22 @@ async function handleBetweenRelationshipPost(
   }
 }
 
-async function handleBetweenRelationshipDelete(
+async function handleBetweenRelationshipPost(
   moduleName: string,
-  entityName: string,
+  betweenRelName: string,
   req: Request,
   res: Response
 ): Promise<void> {
-  try {
-    const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
-    if (isNoSession(sessionInfo)) {
-      res.status(401).send('Authorization required');
-      return;
-    }
-    const pattern = req.params.path
-      ? createChildPattern(moduleName, entityName, req)
-      : patternFromAttributes(moduleName, entityName, objectAsInstanceAttributes(req.body));
-    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
-  } catch (err: any) {
-    logger.error(err);
-    res.status(500).send(err.toString());
-  }
+  await handleBetweenRelationshipLinking(moduleName, betweenRelName, req, res, false);
+}
+
+async function handleBetweenRelationshipDelete(
+  moduleName: string,
+  betweenRelName: string,
+  req: Request,
+  res: Response
+): Promise<void> {
+  await handleBetweenRelationshipLinking(moduleName, betweenRelName, req, res, true);
 }
 
 function fetchTreePattern(fqName: string, path?: string): string {

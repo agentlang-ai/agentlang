@@ -1463,7 +1463,8 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     }
     return;
   }
-  if (isEntityInstance(inst) || isBetweenRelationship(inst.name, inst.moduleName)) {
+  const isBetRel = isBetweenRelationship(inst.name, inst.moduleName);
+  if (isEntityInstance(inst) || isBetRel) {
     if (qattrs === undefined && !isQueryAll) {
       const parentPath: string | undefined = env.getParentPath();
       if (parentPath) {
@@ -1479,10 +1480,22 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         r = await res.upsertInstance(inst);
         await runPostUpdateEvents(inst, undefined, env);
       } else {
-        await runPreCreateEvents(inst, env);
-        if (isTimer(inst)) triggerTimer(inst);
-        r = await res.createInstance(inst);
-        await runPostCreateEvents(inst, env);
+        if (isBetRel && env.isInDeleteMode()) {
+          const rel: Relationship = getRelationship(inst.name, inst.moduleName);
+          await res.handleInstancesLink(
+            inst.lookup(rel.node1.alias),
+            inst.lookup(rel.node2.alias),
+            rel,
+            false,
+            true
+          );
+          r = inst;
+        } else {
+          await runPreCreateEvents(inst, env);
+          if (isTimer(inst)) triggerTimer(inst);
+          r = await res.createInstance(inst);
+          await runPostCreateEvents(inst, env);
+        }
       }
       if (r && entryName == AgentEntityName && inst.moduleName == CoreAIModuleName) {
         defineAgentEvent(env.getActiveModuleName(), r.lookup('name'), r.lookup('instruction'));
@@ -1490,11 +1503,12 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       env.setLastResult(r);
       const betRelInfo: BetweenRelInfo | undefined = env.getBetweenRelInfo();
       if (betRelInfo) {
-        await res.connectInstances(
+        await res.handleInstancesLink(
           betRelInfo.connectedInstance,
           env.getLastResult(),
           betRelInfo.relationship,
-          env.isInUpsertMode()
+          env.isInUpsertMode(),
+          env.isInDeleteMode()
         );
       }
       if (crud.relationships !== undefined) {
@@ -1514,7 +1528,13 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             await evaluatePattern(rel.pattern, newEnv);
             const relResult: any = newEnv.getLastResult();
             const res: Resolver = await getResolverForPath(rel.name, moduleName, env);
-            await res.connectInstances(lastInst, relResult, relEntry, env.isInUpsertMode());
+            await res.handleInstancesLink(
+              lastInst,
+              relResult,
+              relEntry,
+              env.isInUpsertMode(),
+              env.isInDeleteMode()
+            );
             lastInst.attachRelatedInstances(rel.name, newEnv.getLastResult());
           }
         }
@@ -2182,7 +2202,7 @@ export async function maybeDeleteQueriedInstances(
   const inst: Instance[] | Instance = queryEnv.getLastResult();
   let resolver: Resolver = Resolver.Default;
   if (inst instanceof Array) {
-    if (inst.length > 0) {
+    if (inst.length > 0 && isEntityInstance(inst[0])) {
       resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, queryEnv);
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
@@ -2195,7 +2215,7 @@ export async function maybeDeleteQueriedInstances(
     } else {
       queryEnv.setLastResult(inst);
     }
-  } else {
+  } else if (isEntityInstance(inst)) {
     resolver = await getResolverForPath(inst.name, inst.moduleName, queryEnv);
     await runPreDeleteEvents(inst, env);
     const r: Instance | null = await resolver.deleteInstance(inst, purge);

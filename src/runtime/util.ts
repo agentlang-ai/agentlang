@@ -224,7 +224,7 @@ export const DefaultModuleName = 'agentlang';
 export const DefaultModules = new Set();
 export const DefaultFileHandlingDirectory = 'fs';
 
-export const ScratchModuleName = 'al_scratch'
+export const ScratchModuleName = 'al_scratch';
 
 export function makeCoreModuleName(n: string): string {
   return DefaultModuleName + '.' + n;
