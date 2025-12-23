@@ -120,6 +120,8 @@ CrudMap: '{' (name=QueryId (':')? '{''}'
              | name=QualifiedName (':')? body=CrudMapBody)
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)?
              (',' join=JoinSpec)?
+             (',' groupByClause=GroupByClause)?
+             (',' orderByClause=OrderByClause)?
              (',' into=SelectIntoSpec)?
              (',' upsert+='@upsert')?
              (',' distinct+='@distinct')?
@@ -134,6 +136,9 @@ SelectIntoEntry: alias=ID (':')? attribute=Ref;
 JoinSpec: type=JoinType name=QualifiedName '{' lhs=QueryId op=SqlComparisonOpr? rhs=Ref '}';
 
 JoinType returns string: ('@join' | '@inner_join' | '@left_join' | '@right_join' | '@full_join');
+
+GroupByClause: '@groupBy' '(' colName=QualifiedName ')';
+OrderByClause: '@orderBy' '(' colName=QualifiedName ')' (order=('@asc' | '@desc'))?;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 

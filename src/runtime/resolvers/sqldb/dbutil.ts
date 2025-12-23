@@ -28,8 +28,13 @@ import {
   Module,
 } from '../../module.js';
 import { buildGraph } from '../../relgraph.js';
-import { makeFqName } from '../../util.js';
-import { DeletedFlagAttributeName, FkSpec, ParentAttributeName, PathAttributeName } from '../../defs.js';
+import { makeFqName, splitFqName, splitRefs } from '../../util.js';
+import {
+  DeletedFlagAttributeName,
+  FkSpec,
+  ParentAttributeName,
+  PathAttributeName,
+} from '../../defs.js';
 
 export const DefaultVectorDimension = 1536;
 
@@ -47,6 +52,20 @@ export function asTableReference(moduleName: string, ref: string): string {
     return `"${r}"."${colref}"`;
   } else {
     return `${modName}_${ref}`.toLowerCase();
+  }
+}
+
+export function asColumnReference(n: string, tableName: string, entityName: string, entityFqName: string, moduleName: string): string {
+  const refs = splitRefs(n);
+  if (refs.length == 1 || refs[0] == entityName || refs[0] == entityFqName) {
+    return `${tableName}.${refs[0]}`;
+  } else {
+    const p = splitFqName(refs[0]);
+    if (p.length == 2) {
+      return `${asTableReference(p[0], p[1])}.${refs[1]}`;
+    } else {
+      return `${asTableReference(moduleName, p[1])}.${refs[1]}`;
+    }
   }
 }
 
@@ -96,11 +115,11 @@ export function modulesAsOrmSchema(): OrmSchema {
       }
     });
     entities.forEach((r: Record) => {
-      const fks = r.getFkAttributeSpecs()
+      const fks = r.getFkAttributeSpecs();
       if (fks.length > 0) {
-        fkSpecs.push(...fks)
+        fkSpecs.push(...fks);
       }
-    })
+    });
   });
   return { entities: ents, vectorEntities: vects, fkSpecs };
 }

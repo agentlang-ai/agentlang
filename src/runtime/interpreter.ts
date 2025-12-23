@@ -1446,6 +1446,15 @@ async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
   }
 }
 
+function maybeSetQueryClauses(inst: Instance, crud: CrudMap) {
+  if (crud.groupByClause) {
+    inst.setGroupBy(crud.groupByClause.colName);
+  }
+  if (crud.orderByClause) {
+    inst.setOrderBy(crud.orderByClause.colName, crud.orderByClause.order === '@desc');
+  }
+}
+
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   if (!env.isInUpsertMode() && crud.upsert.length > 0) {
     return await evaluateUpsert(crud, env);
@@ -1459,6 +1468,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   const qattrs = inst.queryAttributes;
   const isQueryAll = crud.name.endsWith(QuerySuffix);
   const distinct: boolean = crud.distinct.length > 0;
+  maybeSetQueryClauses(inst, crud);
   if (attrs.size > 0) {
     await maybeValidateOneOfRefs(inst, env);
   }

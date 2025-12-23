@@ -880,17 +880,27 @@ function objectToRawWhereClause(queryObj: object, queryVals: any, tableName?: st
   }
 }
 
+export type QuerySpec = {
+  queryObj: object | undefined;
+  queryVals: object | undefined;
+  aggregates: Map<string, string> | undefined;
+  groupBy: string | undefined;
+  orderBy: string | undefined;
+  orderByDesc: 'DESC' | 'ASC';
+  distinct: boolean;
+};
+
 export async function getMany(
   tableName: string,
-  queryObj: object | undefined,
-  queryVals: object | undefined,
-  distinct: boolean,
+  querySpec: QuerySpec,
   ctx: DbContext
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
   const queryStr: string = withNotDeletedClause(
     alias,
-    queryObj !== undefined ? objectToWhereClause(queryObj, queryVals, alias) : ''
+    querySpec.queryObj !== undefined
+      ? objectToWhereClause(querySpec.queryObj, querySpec.queryVals, alias)
+      : ''
   );
   let ownersJoinCond: string[] | undefined;
   let ot: string = '';
@@ -927,14 +937,27 @@ export async function getMany(
   const qb: SelectQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
     .getRepository(tableName)
     .createQueryBuilder();
+  const hasAggregates = querySpec.aggregates !== undefined;
+  if (hasAggregates) {
+    querySpec.aggregates?.forEach((f: string, n: string) => {
+      qb.addSelect(f, n);
+    });
+  }
+  if (querySpec.groupBy !== undefined) {
+    qb.groupBy(querySpec.groupBy);
+  }
+  if (querySpec.orderBy !== undefined) {
+    qb.orderBy(querySpec.orderBy, querySpec.orderByDesc);
+  }
   if (ownersJoinCond) {
     qb.innerJoin(ot, otAlias, ownersJoinCond.join(' AND '));
   }
-  if (distinct) {
+  if (querySpec.distinct) {
     qb.distinct(true);
   }
-  qb.where(queryStr, queryVals);
-  return await qb.getMany();
+  qb.where(queryStr, querySpec.queryVals);
+  if (hasAggregates) return await qb.getRawMany();
+  else return await qb.getMany();
 }
 
 export async function getManyByJoin(
