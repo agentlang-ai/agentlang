@@ -204,7 +204,7 @@ Delete: 'delete' pattern=Pattern;
 
 Purge: 'purge' pattern=Pattern;
 
-SetAttribute: name=QueryId op=SqlComparisonOpr? (':')? value=AttributeValueExpression;
+SetAttribute: name=QueryId op=SqlComparisonOpr? (':')? (value=AttributeValueExpression | aggregate=AggregateFunctionSpec);
 
 SqlComparisonOpr returns string: ('='|'<>' | '!=' |'<'|'<='|'>'|'>='|'in'|'like'|'between');
 
@@ -225,6 +225,8 @@ Comparison infers Expr:
     PrimExpr ({infer BinExpr.e1=current} op=('==' | '!=' | '<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=PrimExpr)*;
 
 PrimExpr: Literal | Group | NegExpr | NotExpr;
+
+AggregateFunctionSpec: '@' name=ID (('(' ')') | ('(' (args+=QualifiedName (',' args+=QualifiedName)*)+ ')'));
 
 // grouped expression with parentheses
 Group:      '(' ge=Expr ')';

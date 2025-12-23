@@ -340,12 +340,14 @@ function introspectPrimExpr(expr: PrimExpr): BasePattern {
   }
 }
 
-function introspectExpression(expr: Expr | Expr): BasePattern {
-  if (isPrimExpr(expr)) {
-    return introspectPrimExpr(expr);
-  }
-  if (expr.$cstNode) {
-    return new ExpressionPattern(expr.$cstNode.text);
+function introspectExpression(expr: Expr | undefined): BasePattern {
+  if (expr !== undefined) {
+    if (isPrimExpr(expr)) {
+      return introspectPrimExpr(expr);
+    }
+    if (expr.$cstNode) {
+      return new ExpressionPattern(expr.$cstNode.text);
+    }
   }
   throw new Error('Failed to introspect expression - ' + expr);
 }

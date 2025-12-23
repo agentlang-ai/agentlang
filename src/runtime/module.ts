@@ -75,7 +75,7 @@ import {
   removeAgentResponseSchema,
   removeAgentScenarios,
 } from './agents/common.js';
-import { Environment } from './interpreter.js';
+import { AggregateFunctionCall, Environment } from './interpreter.js';
 import { isNode } from '../utils/fs-utils.js';
 
 export class ModuleEntry {
@@ -3336,6 +3336,7 @@ export class Instance {
   queryAttributes: InstanceAttributes | undefined;
   queryAttributeValues: InstanceAttributes | undefined;
   relatedInstances: Map<string, Instance[]> | undefined;
+  aggregates: Map<string, AggregateFunctionCall> | undefined;
   private contextData: Map<string, any> | undefined;
   private ___id: string;
 
@@ -3430,6 +3431,11 @@ export class Instance {
 
   getPath(): string {
     return this.lookup(PathAttributeName);
+  }
+
+  setAggregates(aggregates: Map<string, AggregateFunctionCall>): Instance {
+    this.aggregates = aggregates;
+    return this;
   }
 
   asSerializableObject(): object {

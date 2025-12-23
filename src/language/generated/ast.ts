@@ -298,6 +298,19 @@ export function isAgentXtraSpec(item: unknown): item is AgentXtraSpec {
     return reflection.isInstance(item, AgentXtraSpec);
 }
 
+export interface AggregateFunctionSpec extends langium.AstNode {
+    readonly $container: SetAttribute;
+    readonly $type: 'AggregateFunctionSpec';
+    args: Array<QualifiedName>;
+    name: string;
+}
+
+export const AggregateFunctionSpec = 'AggregateFunctionSpec';
+
+export function isAggregateFunctionSpec(item: unknown): item is AggregateFunctionSpec {
+    return reflection.isInstance(item, AggregateFunctionSpec);
+}
+
 export interface AliasSpec extends langium.AstNode {
     readonly $container: RuntimeHint;
     readonly $type: 'AliasSpec';
@@ -1359,9 +1372,10 @@ export function isSelectIntoSpec(item: unknown): item is SelectIntoSpec {
 export interface SetAttribute extends langium.AstNode {
     readonly $container: BackoffSpec | CrudMapBody;
     readonly $type: 'SetAttribute';
+    aggregate?: AggregateFunctionSpec;
     name: QueryId;
     op?: SqlComparisonOpr;
-    value: AttributeValueExpression;
+    value?: AttributeValueExpression;
 }
 
 export const SetAttribute = 'SetAttribute';
@@ -1479,6 +1493,7 @@ export type AgentlangAstType = {
     AgentDefinition: AgentDefinition
     AgentXtraAttribute: AgentXtraAttribute
     AgentXtraSpec: AgentXtraSpec
+    AggregateFunctionSpec: AggregateFunctionSpec
     AliasSpec: AliasSpec
     ArrayLiteral: ArrayLiteral
     AsyncFnCall: AsyncFnCall
@@ -1579,7 +1594,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AgentXtraAttribute, AgentXtraSpec, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BackoffSpec, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FlowStepSpec, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, Handler, If, Import, JoinSpec, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicAgentDefinition, PublicEventDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RetryDefinition, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, ThrowError, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AgentXtraAttribute, AgentXtraSpec, AggregateFunctionSpec, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BackoffSpec, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FlowStepSpec, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, Handler, If, Import, JoinSpec, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicAgentDefinition, PublicEventDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RetryDefinition, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, ThrowError, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1679,6 +1694,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: AgentXtraSpec,
                     properties: [
                         { name: 'attributes', defaultValue: [] }
+                    ]
+                };
+            }
+            case AggregateFunctionSpec: {
+                return {
+                    name: AggregateFunctionSpec,
+                    properties: [
+                        { name: 'args', defaultValue: [] },
+                        { name: 'name' }
                     ]
                 };
             }
@@ -2425,6 +2449,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: SetAttribute,
                     properties: [
+                        { name: 'aggregate' },
                         { name: 'name' },
                         { name: 'op' },
                         { name: 'value' }
