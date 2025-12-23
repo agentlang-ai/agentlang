@@ -93,11 +93,18 @@ export class SqlDbResolver extends Resolver {
   }
 
   private async insertInstance(inst: Instance, orUpdate = false): Promise<Instance> {
+    const ctx = this.getDbContext(inst.getFqName());
     if (isBetweenRelationship(inst.name, inst.moduleName)) {
       const nodeVals: BetweenInstanceNodeValuesResult = getBetweenInstanceNodeValues(inst);
       assertInstance(nodeVals.node1);
       assertInstance(nodeVals.node2);
-      await this.connectInstances(nodeVals.node1, nodeVals.node2, nodeVals.entry, orUpdate);
+      await this.handleInstancesLink(
+        nodeVals.node1,
+        nodeVals.node2,
+        nodeVals.entry,
+        orUpdate,
+        ctx.activeEnv.isInDeleteMode()
+      );
       return inst;
     } else {
       const idAttrName: string | undefined = maybeFindIdAttributeName(inst);
@@ -114,7 +121,6 @@ export class SqlDbResolver extends Resolver {
       }
       const n: string = asTableReference(inst.moduleName, inst.name);
       const rowObj: object = inst.attributesWithStringifiedObjects();
-      const ctx = this.getDbContext(inst.getFqName());
       await insertRow(n, rowObj, ctx, orUpdate);
       if (inst.record.getFullTextSearchAttributes()) {
         const path = attrs.get(PathAttributeName);
@@ -404,19 +410,32 @@ export class SqlDbResolver extends Resolver {
     }
   }
 
-  public override async connectInstances(
+  public override async handleInstancesLink(
     node1: Instance,
     otherNodeOrNodes: Instance | Instance[],
     relEntry: Relationship,
-    orUpdate: boolean
+    orUpdate: boolean,
+    inDeleteMode: boolean
   ): Promise<Instance> {
     if (otherNodeOrNodes instanceof Array) {
       for (let i = 0; i < otherNodeOrNodes.length; ++i) {
-        await this.connectInstancesHelper(node1, otherNodeOrNodes[i], relEntry, orUpdate);
+        await this.connectInstancesHelper(
+          node1,
+          otherNodeOrNodes[i],
+          relEntry,
+          orUpdate,
+          inDeleteMode
+        );
       }
       return node1;
     } else {
-      await this.connectInstancesHelper(node1, otherNodeOrNodes as Instance, relEntry, orUpdate);
+      await this.connectInstancesHelper(
+        node1,
+        otherNodeOrNodes as Instance,
+        relEntry,
+        orUpdate,
+        inDeleteMode
+      );
       return node1;
     }
   }
@@ -425,25 +444,26 @@ export class SqlDbResolver extends Resolver {
     node1: Instance,
     node2: Instance,
     relEntry: Relationship,
-    orUpdate: boolean
+    orUpdate: boolean,
+    inDeleteMode: boolean
   ): Promise<void> {
+    if (!node1 || !node2) {
+      return;
+    }
     const n: string = asTableReference(relEntry.moduleName, relEntry.name);
     const [firstNode, secondNode] = relEntry.isFirstNode(node1) ? [node1, node2] : [node2, node1];
     const a1: string = relEntry.node1.alias;
     const a2: string = relEntry.node2.alias;
-    const n1path: any = orUpdate ? firstNode.lookup(PathAttributeName) : undefined;
     const ctx = this.getDbContext(relEntry.getFqName());
     if (relEntry.isOneToOne()) {
-      await this.updateInstance(
-        node1,
-        newInstanceAttributes().set(relEntry.node2.alias, node2.lookup(PathAttributeName))
-      );
-      await this.updateInstance(
-        node2,
-        newInstanceAttributes().set(relEntry.node1.alias, node1.lookup(PathAttributeName))
-      );
+      const n1p = inDeleteMode ? crypto.randomUUID() : node1.lookup(PathAttributeName);
+      const n2p = inDeleteMode ? crypto.randomUUID() : node2.lookup(PathAttributeName);
+      await this.updateInstance(node1, newInstanceAttributes().set(relEntry.node2.alias, n2p));
+      await this.updateInstance(node2, newInstanceAttributes().set(relEntry.node1.alias, n1p));
     } else {
-      if (orUpdate) {
+      const n1path: any =
+        orUpdate || inDeleteMode ? firstNode.lookup(PathAttributeName) : undefined;
+      if (n1path !== undefined) {
         await hardDeleteRow(
           n,
           [
@@ -453,7 +473,7 @@ export class SqlDbResolver extends Resolver {
           ctx
         );
       }
-      await insertBetweenRow(n, a1, a2, firstNode, secondNode, relEntry, ctx);
+      if (!inDeleteMode) await insertBetweenRow(n, a1, a2, firstNode, secondNode, relEntry, ctx);
     }
   }
 

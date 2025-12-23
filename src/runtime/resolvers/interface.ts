@@ -146,19 +146,20 @@ export class Resolver {
   }
 
   /**
-   * Connect instances via a between relationship
+   * Connect/dis-connect instances via a between relationship
    * @param node1 The main node to connect
    * @param otherNodeOrNodes Nodes to be connected to node1
    * @param relEntry Details of the repationship
    */
-  public async connectInstances(
+  public async handleInstancesLink(
     node1: Instance,
     otherNodeOrNodes: Instance | Instance[],
     relEntry: Relationship,
-    orUpdate: boolean
+    orUpdate: boolean,
+    inDeleteMode: boolean
   ): Promise<any> {
     return this.notImpl(
-      `connectInstances(${node1}, ${otherNodeOrNodes}, ${relEntry}, ${orUpdate})`
+      `handleInstancesLink(${node1}, ${otherNodeOrNodes}, ${relEntry}, ${orUpdate}, ${inDeleteMode})`
     );
   }
 

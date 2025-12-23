@@ -17,6 +17,8 @@ import {
   fetchRefTarget,
   getAttributeNames,
   Module,
+  getAllBetweenRelationshipNames,
+  linkInstancesEvent,
 } from '../runtime/module.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
@@ -261,6 +263,24 @@ export async function startServer(
   getAllEntityNames().forEach((entityNames: string[], moduleName: string) => {
     entityNames.forEach((n: string) => {
       addEntityHandlers(moduleName, n);
+    });
+  });
+
+  const addBetweenHandlers = (moduleName: string, n: string) => {
+    app.get(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+      handleEntityGet(moduleName, n, req, res);
+    });
+    app.post(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+      handleBetweenRelationshipPost(moduleName, n, req, res);
+    });
+    app.delete(`/${moduleName}/${n}`, (req: Request, res: Response) => {
+      handleBetweenRelationshipDelete(moduleName, n, req, res);
+    });
+  };
+
+  getAllBetweenRelationshipNames().forEach((entityNames: string[], moduleName: string) => {
+    entityNames.forEach((n: string) => {
+      addBetweenHandlers(moduleName, n);
     });
   });
 
@@ -582,6 +602,50 @@ async function handleEntityDelete(
     logger.error(err);
     res.status(500).send(err.toString());
   }
+}
+
+async function handleBetweenRelationshipLinking(
+  moduleName: string,
+  betweenRelName: string,
+  req: Request,
+  res: Response,
+  unlink: boolean
+): Promise<void> {
+  try {
+    const sessionInfo = await verifyAuth(moduleName, betweenRelName, req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const path = await linkInstancesEvent(moduleName, betweenRelName, unlink);
+    const pattern = patternFromAttributes(
+      path.getModuleName(),
+      path.getEntryName(),
+      objectAsInstanceAttributes(req.body)
+    );
+    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+  } catch (err: any) {
+    logger.error(err);
+    res.status(500).send(err.toString());
+  }
+}
+
+async function handleBetweenRelationshipPost(
+  moduleName: string,
+  betweenRelName: string,
+  req: Request,
+  res: Response
+): Promise<void> {
+  await handleBetweenRelationshipLinking(moduleName, betweenRelName, req, res, false);
+}
+
+async function handleBetweenRelationshipDelete(
+  moduleName: string,
+  betweenRelName: string,
+  req: Request,
+  res: Response
+): Promise<void> {
+  await handleBetweenRelationshipLinking(moduleName, betweenRelName, req, res, true);
 }
 
 function fetchTreePattern(fqName: string, path?: string): string {
