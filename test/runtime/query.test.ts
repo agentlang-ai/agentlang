@@ -17,7 +17,7 @@ describe('basic-aggregate-queries', () => {
     );
     const entName = `${moduleName}/Product`;
     const isp = (inst: any) => {
-      return (isInstanceOfType(inst, entName));
+      return isInstanceOfType(inst, entName);
     };
     const crp = async (id: number, name: string, price: number): Promise<Instance> => {
       const inst: Instance = await parseAndEvaluateStatement(`{${entName} {
@@ -30,8 +30,28 @@ describe('basic-aggregate-queries', () => {
     };
     await crp(1, 'p01', 673.44);
     await crp(2, 'p02', 784.42);
-    const insts: Instance[] = await parseAndEvaluateStatement(`{${entName}? {}}`);
-    assert(insts.length === 2);
-    assert(insts.every(isp));
+    await crp(3, 'p04', 500.0);
+    const q = async (pat: string, n: number = 3): Promise<Instance[]> => {
+      const insts: Instance[] = await parseAndEvaluateStatement(pat);
+      assert(insts.length === n);
+      assert(insts.every(isp));
+      return insts;
+    };
+    let insts: Instance[] = await q(
+      `{${entName}? {}, @orderBy(id) @desc}`
+    );
+    assert(insts[0].lookup('id') == 3);
+    insts = await q(
+      `{${entName}? {}, @orderBy(id)}`
+    );
+    assert(insts[0].lookup('id') == 1);
+    insts = await q(
+      `{${entName} {mp @max(price)}, @groupBy(id)}`
+    );
+    assert(insts[0].lookup('price') == insts[0].lookup('mp'))
+    insts = await q(
+      `{${entName} {mp @max(price)}}`, 1
+    );
+    assert(insts[0].lookup('mp') == 784.42)
   });
 });

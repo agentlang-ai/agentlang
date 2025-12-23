@@ -1380,7 +1380,7 @@ async function patternToInstance(
         }
       } else if (a.aggregate !== undefined) {
         if (aggregates === undefined) aggregates = new Map<string, AggregateFunctionCall>();
-        aggregates.set(a.name, { name: a.aggregate.name, args: a.aggregate.args });
+        aggregates.set(escapeQueryName(a.name), { name: a.aggregate.name, args: a.aggregate.args });
       }
     }
   }
@@ -1466,7 +1466,8 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   const moduleName = inst.moduleName;
   const attrs = inst.attributes;
   const qattrs = inst.queryAttributes;
-  const isQueryAll = crud.name.endsWith(QuerySuffix);
+  const onlyAggregates = inst.aggregates !== undefined && qattrs === undefined;
+  const isQueryAll = onlyAggregates || crud.name.endsWith(QuerySuffix);
   const distinct: boolean = crud.distinct.length > 0;
   maybeSetQueryClauses(inst, crud);
   if (attrs.size > 0) {

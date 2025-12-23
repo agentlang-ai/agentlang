@@ -178,7 +178,7 @@ export class SqlDbResolver extends Resolver {
         const args = f.args.map((v: string) => {
           return asColumnReference(v, tableName, entn, entfqn, mn);
         });
-        result.set(n, `${n}(${args.join(', ')})`);
+        result.set(n, `${f.name}(${args.join(', ')})`);
       });
       return result;
     }
@@ -206,6 +206,7 @@ export class SqlDbResolver extends Resolver {
       ? asColumnReference(inst.orderBy, tableName, inst.name, fqName, inst.moduleName)
       : undefined;
     const orderByDesc = inst.orderByDesc ? 'DESC' : 'ASC';
+    const aggregates = SqlDbResolver.normalizedAggregates(inst, tableName);
     const qspec: QuerySpec = {
       queryObj: qattrs,
       queryVals: qvals,
@@ -213,7 +214,7 @@ export class SqlDbResolver extends Resolver {
       groupBy,
       orderBy,
       orderByDesc,
-      aggregates: SqlDbResolver.normalizedAggregates(inst, tableName),
+      aggregates,
     };
     const rslt: any = await getMany(tableName, qspec, ctx);
     if (rslt instanceof Array) {
@@ -573,7 +574,7 @@ function maybeNormalizeAttributeNames(
     ks.forEach((k: string) => {
       const v = attrs.get(k);
       attrs.delete(k);
-      attrs.set(k.substring(n + 1), v);
+      attrs.set(k.substring(n + 1) || k, v);
     });
   }
   return attrs;
