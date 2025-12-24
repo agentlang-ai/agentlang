@@ -28,6 +28,7 @@ import {
   SetAttribute,
   Statement,
   ThrowError,
+  WhereSpec,
 } from '../language/generated/ast.js';
 import {
   maybeInstanceAsString,
@@ -52,7 +53,7 @@ import {
   Workflow,
   setMetaAttributes,
 } from './module.js';
-import { JoinInfo, Resolver } from './resolvers/interface.js';
+import { JoinInfo, Resolver, WhereClause } from './resolvers/interface.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
 import {
@@ -1482,8 +1483,8 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (qattrs === undefined && !isQueryAll) {
       throw new Error(`Pattern for ${entryName} with 'into' clause must be a query`);
     }
-    if (crud.join) {
-      await evaluateJoinQuery(crud.join, crud.into, inst, distinct, env);
+    if (crud.joins.length > 0) {
+      await evaluateJoinQuery(crud.joins, crud.into, crud.where, inst, distinct, env);
     } else {
       await evaluateJoinQueryWithRelationships(crud.into, inst, crud.relationships, distinct, env);
     }
@@ -1786,9 +1787,25 @@ async function computeExprAttributes(
   }
 }
 
+async function evalWhereClauses(whereSpec: WhereSpec, env: Environment): Promise<WhereClause[]> {
+  const result = new Array<WhereClause>();
+  const e = new Environment(undefined, env);
+  for (let i = 0; i < whereSpec.clauses.length; ++i) {
+    const c = whereSpec.clauses[i];
+    await evaluateExpression(c.rhs, e);
+    result.push({
+      attrName: escapeQueryName(c.lhs),
+      op: c.op === undefined ? '=' : c.op,
+      qval: e.getLastResult(),
+    });
+  }
+  return result;
+}
+
 async function evaluateJoinQuery(
-  joinSpec: JoinSpec,
+  joinSpec: JoinSpec[],
   intoSpec: SelectIntoSpec,
+  whereSpec: WhereSpec | undefined,
   inst: Instance,
   distinct: boolean,
   env: Environment
@@ -1805,8 +1822,16 @@ async function evaluateJoinQuery(
   if (aggregates !== undefined) {
     inst.setAggregates(aggregates);
   }
+  const clauses = whereSpec ? await evalWhereClauses(whereSpec, env) : undefined;
   const resolver = await getResolverForPath(inst.name, inst.moduleName, env);
-  const result: Result = await resolver.queryByJoin(inst, [], normIntoSpec, distinct, joinSpec);
+  const result: Result = await resolver.queryByJoin(
+    inst,
+    [],
+    normIntoSpec,
+    distinct,
+    joinSpec,
+    clauses
+  );
 
   const transformedResult = transformDateFieldsInJoinResult(result);
 

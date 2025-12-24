@@ -119,8 +119,9 @@ CrudMap: '{' (name=QueryId (':')? '{''}'
              | (name=QualifiedName (':')? '{''}' ',' '@from' source=Literal (',' upsert+='@upsert')?)
              | name=QualifiedName (':')? body=CrudMapBody)
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)?
-             (',' join=JoinSpec)?
+             (',' joins+=JoinSpec)*
              (',' into=SelectIntoSpec)?
+             (',' where=WhereSpec)?
              (',' groupByClause=GroupByClause)?
              (',' orderByClause=OrderByClause)?
              (',' upsert+='@upsert')?
@@ -136,6 +137,9 @@ SelectIntoEntry: alias=ID (':')? (attribute=Ref | aggregate=AggregateFunctionSpe
 JoinSpec: type=JoinType name=QualifiedName '{' lhs=QueryId op=SqlComparisonOpr? rhs=Ref '}';
 
 JoinType returns string: ('@join' | '@inner_join' | '@left_join' | '@right_join' | '@full_join');
+
+WhereSpec: '@where' ('{' (clauses+=WhereSpecClause (',' clauses+=WhereSpecClause)*)+ '}');
+WhereSpecClause: lhs=QueryId op=SqlComparisonOpr? rhs=Expr;
 
 GroupByClause: '@groupBy' ('(' (colNames+=QualifiedName (',' colNames+=QualifiedName)*)+ ')');
 OrderByClause: '@orderBy' ('(' (colNames+=QualifiedName (',' colNames+=QualifiedName)*)+ ')') (order=('@asc' | '@desc'))?;

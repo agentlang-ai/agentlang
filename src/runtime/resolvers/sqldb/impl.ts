@@ -22,7 +22,7 @@ import {
   splitFqName,
   splitRefs,
 } from '../../util.js';
-import { JoinInfo, Resolver } from '../interface.js';
+import { JoinInfo, Resolver, WhereClause } from '../interface.js';
 import { asColumnReference, asTableReference } from './dbutil.js';
 import {
   getMany,
@@ -221,6 +221,7 @@ export class SqlDbResolver extends Resolver {
       aggregates,
       joinClauses: undefined,
       intoSpec: undefined,
+      whereClauses: undefined,
     };
     const rslt: any = await getMany(tableName, qspec, ctx);
     if (rslt instanceof Array) {
@@ -310,12 +311,15 @@ export class SqlDbResolver extends Resolver {
     joinInfo: JoinInfo[],
     intoSpec: Map<string, string>,
     distinct: boolean = false,
-    rawJoinSpec?: JoinSpec
+    rawJoinSpec?: JoinSpec[],
+    whereClauses?: WhereClause[]
   ): Promise<any> {
     const tableName = asTableReference(inst.moduleName, inst.name);
     const joinClauses: JoinClause[] = [];
     if (rawJoinSpec) {
-      this.processRawJoinSpec(tableName, inst, rawJoinSpec, joinClauses);
+      rawJoinSpec.forEach((rjs: JoinSpec) => {
+        this.processRawJoinSpec(tableName, inst, rjs, joinClauses);
+      });
     } else {
       this.processJoinInfo(tableName, inst, joinInfo, joinClauses);
     }
@@ -337,6 +341,9 @@ export class SqlDbResolver extends Resolver {
       : undefined;
     const orderByDesc = inst.orderByDesc ? 'DESC' : 'ASC';
     const aggregates = SqlDbResolver.normalizedAggregates(inst, tableName);
+    whereClauses?.forEach((wc: WhereClause) => {
+      wc.attrName = asColumnReference(wc.attrName, tableName, inst.name, fqName, inst.moduleName);
+    });
     const qspec: QuerySpec = {
       queryObj: inst.queryAttributesAsObject(),
       queryVals: inst.queryAttributeValuesAsObject(),
@@ -346,6 +353,7 @@ export class SqlDbResolver extends Resolver {
       orderByDesc,
       aggregates,
       joinClauses,
+      whereClauses,
       intoSpec,
     };
     const rslt: any = await getManyByJoin(tableName, qspec, this.getDbContext(inst.getFqName()));

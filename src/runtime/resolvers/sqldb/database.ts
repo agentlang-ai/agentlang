@@ -41,6 +41,7 @@ import {
 } from '../../defs.js';
 import { saveMigration } from '../../modules/core.js';
 import { getAppSpec } from '../../loader.js';
+import { WhereClause } from '../interface.js';
 
 export let defaultDataSource: DataSource | undefined;
 
@@ -889,6 +890,7 @@ export type QuerySpec = {
   orderByDesc: 'DESC' | 'ASC';
   joinClauses: JoinClause[] | undefined;
   intoSpec: Map<string, string> | undefined;
+  whereClauses: WhereClause[] | undefined;
   distinct: boolean;
 };
 
@@ -972,12 +974,20 @@ export async function getManyByJoin(
   ctx: DbContext
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
-  const queryStr: string = withNotDeletedClause(
+  let queryStr: string = withNotDeletedClause(
     alias,
     querySpec.queryObj !== undefined
       ? objectToRawWhereClause(querySpec.queryObj, querySpec.queryVals, alias)
       : ''
   );
+  if (querySpec.whereClauses) {
+    const qs = new Array<string>();
+    querySpec.whereClauses.forEach((wc: WhereClause) => {
+      const v = isString(wc.qval) ? `"${wc.qval}"` : wc.qval;
+      qs.push(`${wc.attrName} ${wc.op} ${v}`);
+    });
+    queryStr = `${queryStr} AND ${qs.join(' AND ')}`;
+  }
   let ot: string = '';
   let otAlias: string = '';
   if (!ctx.isPermitted()) {

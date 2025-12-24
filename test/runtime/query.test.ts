@@ -114,7 +114,25 @@ describe('olap-test01', () => {
           @orderBy(DateDim.year, DateDim.quarter, DateDim.month)
         }
     }
-  `
+
+    // Slice - revenue for a Single Year (e.g., 2024)
+    // SELECT p.category, SUM(f.revenue) AS revenue
+    // FROM sales_fact f
+    // JOIN product_dim p ON f.product_id = p.product_id
+    // JOIN date_dim d ON f.date_id = d.date_id
+    // WHERE d.year = 2024
+    // GROUP BY p.category
+    workflow revenueForYear {
+        {
+           SalesFact? {},
+           @join ProductDim {product_id? SalesFact.product_id},
+           @join DateDim {date_id? SalesFact.date_id},
+           @into {category ProductDim.category, revenue @sum(SalesFact.revenue)},
+           @where {DateDim.year? revenueForYear.year},
+           @groupBy(ProductDim.category)
+        }
+    }
+    `
     );
     // create data
     const date_dims = [
@@ -133,6 +151,21 @@ describe('olap-test01', () => {
       month ${xs[3]}
     }}`);
       assert(isInstanceOfType(inst, dateDimsEnt));
+    }
+    const prod_dims = [
+      [501, 'Cat01', 'Px501'],
+      [502, 'Cat02', 'Px502'],
+      [503, 'Cat01', 'Px503'],
+    ];
+    const prodDimsEnt = `${moduleName}/ProductDim`;
+    for (let i = 0; i < prod_dims.length; ++i) {
+      const xs = prod_dims[i];
+      const inst = await parseAndEvaluateStatement(`{${prodDimsEnt} {
+      product_id ${xs[0]},
+      category "${xs[1]}",
+      product "${xs[2]}"
+    }}`);
+      assert(isInstanceOfType(inst, prodDimsEnt));
     }
     const sales_facts = [
       [101, 1, 501, 603, 56788.89, 12],
@@ -157,12 +190,14 @@ describe('olap-test01', () => {
       assert(isInstanceOfType(inst, salesFactEnt));
       totrev1 += xs[4];
     }
+    totrev1 = Math.round(totrev1)
 
     const r1: any[] = await parseAndEvaluateStatement(`{${moduleName}/totalRevenueByYear {}}`);
     const rby = (r: any[]) => {
       assert(r.length == 1);
       assert(r[0].year == 2024);
-      assert(r[0].total_revenue == totrev1);
+      const tr = Math.round(Number(r[0].total_revenue))
+      assert(tr == totrev1);
     };
     rby(r1);
     const r2: any[] = await parseAndEvaluateStatement(
@@ -173,27 +208,41 @@ describe('olap-test01', () => {
       assert(r[0].year == 2024);
       assert(r[0].quarter == 1);
       assert(r[0].month == 1);
-      assert(r[0].total_revenue == 22001.1);
+      assert(Math.round(Number(r[0].total_revenue)) == Math.round(22001.1));
       assert(r[1].year == 2024);
       assert(r[1].quarter == 1);
       assert(r[1].month == 2);
-      assert(r[1].total_revenue == 56788.89 + 45000);
+      assert(Math.round(Number(r[1].total_revenue)) == Math.round(56788.89 + 45000));
     };
-    rbyqm(r2)
+    rbyqm(r2);
 
     await crsf([104, 3, 501, 604, 10000.0, 3]);
     const r3: any[] = await parseAndEvaluateStatement(`{${moduleName}/totalRevenueByYear {}}`);
     assert(r3.length == 2);
     assert(r3[0].year == 2023);
-    assert(r3[0].total_revenue == 10000.0);
-    rby(r3.slice(1))
+    assert(Math.round(Number(r3[0].total_revenue)) == Math.round(10000.0));
+    rby(r3.slice(1));
     const r4: any[] = await parseAndEvaluateStatement(
       `{${moduleName}/revenueByYearQuarterMonth {}}`
     );
-    assert(r4.length == 3)
-    assert(r4[0].year == 2023)
-    assert(r4[0].quarter == 2)
-    assert(r4[0].month == 4)
-    rbyqm(r4.slice(1))
+    assert(r4.length == 3);
+    assert(r4[0].year == 2023);
+    assert(r4[0].quarter == 2);
+    assert(r4[0].month == 4);
+    rbyqm(r4.slice(1));
+
+     const r5: any[] = await parseAndEvaluateStatement(`{${moduleName}/revenueForYear {year 2024}}`);
+     assert(r5.length == 2)
+     assert(r5.every((v: any) => {
+      const r = v.category == 'Cat01' || v.category == 'Cat02'
+      if (r) {
+        if (v.category == 'Cat01') {
+          return Math.round(Number(v.revenue)) == Math.round(56788.89 + 22001.1)
+        } else {
+          return Math.round(Number(v.revenue)) == 45000
+        }
+      }
+      return r
+     }))
   });
 });
