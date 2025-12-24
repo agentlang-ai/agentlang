@@ -215,6 +215,8 @@ export class SqlDbResolver extends Resolver {
       orderBy,
       orderByDesc,
       aggregates,
+      joinClauses: undefined,
+      intoSpec: undefined,
     };
     const rslt: any = await getMany(tableName, qspec, ctx);
     if (rslt instanceof Array) {
@@ -318,15 +320,27 @@ export class SqlDbResolver extends Resolver {
       const mn = p.hasModule() ? p.getModuleName() : inst.moduleName;
       intoSpec.set(k, asTableReference(mn, p.getEntryName()));
     });
-    const rslt: any = await getManyByJoin(
-      tableName,
-      inst.queryAttributesAsObject(),
-      inst.queryAttributeValuesAsObject(),
+    const fqName = inst.getFqName();
+    const groupBy = inst.groupBy
+      ? asColumnReference(inst.groupBy, tableName, inst.name, fqName, inst.moduleName)
+      : undefined;
+    const orderBy = inst.orderBy
+      ? asColumnReference(inst.orderBy, tableName, inst.name, fqName, inst.moduleName)
+      : undefined;
+    const orderByDesc = inst.orderByDesc ? 'DESC' : 'ASC';
+    const aggregates = SqlDbResolver.normalizedAggregates(inst, tableName);
+    const qspec: QuerySpec = {
+      queryObj: inst.queryAttributesAsObject(),
+      queryVals: inst.queryAttributeValuesAsObject(),
+      distinct,
+      groupBy,
+      orderBy,
+      orderByDesc,
+      aggregates,
       joinClauses,
       intoSpec,
-      distinct,
-      this.getDbContext(inst.getFqName())
-    );
+    };
+    const rslt: any = await getManyByJoin(tableName, qspec, this.getDbContext(inst.getFqName()));
     return rslt;
   }
 

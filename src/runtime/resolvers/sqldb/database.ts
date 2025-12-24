@@ -887,6 +887,8 @@ export type QuerySpec = {
   groupBy: string | undefined;
   orderBy: string | undefined;
   orderByDesc: 'DESC' | 'ASC';
+  joinClauses: JoinClause[] | undefined;
+  intoSpec: Map<string, string> | undefined;
   distinct: boolean;
 };
 
@@ -962,17 +964,15 @@ export async function getMany(
 
 export async function getManyByJoin(
   tableName: string,
-  queryObj: object | undefined,
-  queryVals: object | undefined,
-  joinClauses: JoinClause[],
-  intoSpec: Map<string, string>,
-  distinct: boolean,
+  querySpec: QuerySpec,
   ctx: DbContext
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
   const queryStr: string = withNotDeletedClause(
     alias,
-    queryObj !== undefined ? objectToRawWhereClause(queryObj, queryVals, alias) : ''
+    querySpec.queryObj !== undefined
+      ? objectToRawWhereClause(querySpec.queryObj, querySpec.queryVals, alias)
+      : ''
   );
   let ot: string = '';
   let otAlias: string = '';
@@ -984,7 +984,7 @@ export async function getManyByJoin(
     if (!hasGlobalPerms) {
       ot = ownersTable(tableName);
       otAlias = ot.toLowerCase();
-      joinClauses.push({
+      querySpec.joinClauses?.push({
         tableName: otAlias,
         joinOn: [
           makeJoinOn(`${otAlias}.path`, `${alias}.${PathAttributeName}`),
@@ -995,7 +995,7 @@ export async function getManyByJoin(
     }
   }
   const joinSql = new Array<string>();
-  joinClauses.forEach((jc: JoinClause) => {
+  querySpec.joinClauses?.forEach((jc: JoinClause) => {
     const joinType = jc.joinType ? jc.joinType : 'inner join';
     joinSql.push(
       `${joinType} ${jc.tableName} as ${jc.tableName} on ${joinOnAsSql(jc.joinOn)} AND ${jc.tableName}.${DeletedFlagAttributeName} = false`
@@ -1007,7 +1007,20 @@ export async function getManyByJoin(
       }
     }
   });
-  const sql = `SELECT ${distinct ? 'DISTINCT' : ''} ${intoSpecToSql(intoSpec)} FROM ${tableName} ${joinSql.join('\n')} WHERE ${queryStr}`;
+  if (querySpec.intoSpec === undefined) {
+    throw new Error('SELECT-INTO pattern is missing');
+  }
+  const intos = intoSpecToSql(querySpec.intoSpec);
+  const aggrs =
+    querySpec.aggregates !== undefined ? intoSpecToSql(querySpec.aggregates) : undefined;
+  const cols = aggrs ? `${intos}, ${aggrs}` : intos;
+  let sql = `SELECT ${querySpec.distinct ? 'DISTINCT' : ''} ${cols} FROM ${tableName} ${joinSql.join('\n')} WHERE ${queryStr}`;
+  if (querySpec.groupBy !== undefined) {
+    sql = `${sql} GROUP BY ${querySpec.groupBy}`;
+  }
+  if (querySpec.orderBy !== undefined) {
+    sql = `${sql} ORDER BY ${querySpec.orderBy} ${querySpec.orderByDesc}`;
+  }
   logger.debug(`Join Query: ${sql}`);
   const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
   return await qb.query(sql);

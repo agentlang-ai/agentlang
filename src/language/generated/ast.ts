@@ -303,7 +303,7 @@ export function isAgentXtraSpec(item: unknown): item is AgentXtraSpec {
 }
 
 export interface AggregateFunctionSpec extends langium.AstNode {
-    readonly $container: SetAttribute;
+    readonly $container: SelectIntoEntry | SetAttribute;
     readonly $type: 'AggregateFunctionSpec';
     args: Array<QualifiedName>;
     name: string;
@@ -1378,8 +1378,9 @@ export function isScenarioDefinition(item: unknown): item is ScenarioDefinition 
 export interface SelectIntoEntry extends langium.AstNode {
     readonly $container: SelectIntoSpec;
     readonly $type: 'SelectIntoEntry';
+    aggregate?: AggregateFunctionSpec;
     alias: string;
-    attribute: Ref;
+    attribute?: Ref;
 }
 
 export const SelectIntoEntry = 'SelectIntoEntry';
@@ -2484,6 +2485,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: SelectIntoEntry,
                     properties: [
+                        { name: 'aggregate' },
                         { name: 'alias' },
                         { name: 'attribute' }
                     ]

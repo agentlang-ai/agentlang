@@ -291,7 +291,7 @@ function introspectPattern(pat: Pattern): BasePattern {
 
 function introspectInto(intoSpec: SelectIntoSpec, p: CrudPattern): CrudPattern {
   intoSpec.entries.forEach((se: SelectIntoEntry) => {
-    p.addInto(se.alias, se.attribute);
+    if (se.attribute) p.addInto(se.alias, se.attribute);
   });
   return p;
 }

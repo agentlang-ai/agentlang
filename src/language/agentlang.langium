@@ -131,7 +131,7 @@ CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ pro
 
 SelectIntoSpec: '@into' '{' entries+=SelectIntoEntry (',' entries+=SelectIntoEntry)* '}';
 
-SelectIntoEntry: alias=ID (':')? attribute=Ref;
+SelectIntoEntry: alias=ID (':')? (attribute=Ref | aggregate=AggregateFunctionSpec);
 
 JoinSpec: type=JoinType name=QualifiedName '{' lhs=QueryId op=SqlComparisonOpr? rhs=Ref '}';
 

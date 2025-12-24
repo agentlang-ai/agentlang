@@ -1794,9 +1794,17 @@ async function evaluateJoinQuery(
   env: Environment
 ): Promise<void> {
   const normIntoSpec = new Map<string, string>();
+  let aggregates: Map<string, AggregateFunctionCall> | undefined;
   intoSpec.entries.forEach((entry: SelectIntoEntry) => {
-    normIntoSpec.set(entry.alias, entry.attribute);
+    if (entry.attribute !== undefined) normIntoSpec.set(entry.alias, entry.attribute);
+    else {
+      if (aggregates === undefined) aggregates = new Map<string, AggregateFunctionCall>();
+      if (entry.aggregate !== undefined) aggregates?.set(entry.alias, entry.aggregate);
+    }
   });
+  if (aggregates !== undefined) {
+    inst.setAggregates(aggregates);
+  }
   const resolver = await getResolverForPath(inst.name, inst.moduleName, env);
   const result: Result = await resolver.queryByJoin(inst, [], normIntoSpec, distinct, joinSpec);
 
@@ -1813,9 +1821,17 @@ async function evaluateJoinQueryWithRelationships(
   env: Environment
 ): Promise<void> {
   const normIntoSpec = new Map<string, string>();
+  let aggregates: Map<string, AggregateFunctionCall> | undefined;
   intoSpec.entries.forEach((entry: SelectIntoEntry) => {
-    normIntoSpec.set(entry.alias, entry.attribute);
+    if (entry.attribute !== undefined) normIntoSpec.set(entry.alias, entry.attribute);
+    else {
+      if (aggregates === undefined) aggregates = new Map<string, AggregateFunctionCall>();
+      if (entry.aggregate !== undefined) aggregates?.set(entry.alias, entry.aggregate);
+    }
   });
+  if (aggregates !== undefined) {
+    inst.setAggregates(aggregates);
+  }
   const moduleName = inst.moduleName;
   let joinsSpec = new Array<JoinInfo>();
   for (let i = 0; i < relationships.length; ++i) {

@@ -57,14 +57,16 @@ export function asTableReference(moduleName: string, ref: string): string {
 
 export function asColumnReference(n: string, tableName: string, entityName: string, entityFqName: string, moduleName: string): string {
   const refs = splitRefs(n);
-  if (refs.length == 1 || refs[0] == entityName || refs[0] == entityFqName) {
-    return `${tableName}.${refs[0]}`;
+  const rlen = refs.length
+  if (rlen == 1 || refs[0] == entityName || refs[0] == entityFqName) {
+    const r = rlen == 1 ? refs[0] : refs[1]
+    return `${tableName}.${r}`;
   } else {
     const p = splitFqName(refs[0]);
     if (p.length == 2) {
       return `${asTableReference(p[0], p[1])}.${refs[1]}`;
     } else {
-      return `${asTableReference(moduleName, p[1])}.${refs[1]}`;
+      return `${asTableReference(moduleName, p[0])}.${refs[1]}`;
     }
   }
 }
