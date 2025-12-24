@@ -755,7 +755,7 @@ export function isGroup(item: unknown): item is Group {
 export interface GroupByClause extends langium.AstNode {
     readonly $container: CrudMap;
     readonly $type: 'GroupByClause';
-    colName: QualifiedName;
+    colNames: Array<QualifiedName>;
 }
 
 export const GroupByClause = 'GroupByClause';
@@ -981,7 +981,7 @@ export function isOneOfSpec(item: unknown): item is OneOfSpec {
 export interface OrderByClause extends langium.AstNode {
     readonly $container: CrudMap;
     readonly $type: 'OrderByClause';
-    colName: QualifiedName;
+    colNames: Array<QualifiedName>;
     order?: '@asc' | '@desc';
 }
 
@@ -2049,7 +2049,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: GroupByClause,
                     properties: [
-                        { name: 'colName' }
+                        { name: 'colNames', defaultValue: [] }
                     ]
                 };
             }
@@ -2208,7 +2208,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: OrderByClause,
                     properties: [
-                        { name: 'colName' },
+                        { name: 'colNames', defaultValue: [] },
                         { name: 'order' }
                     ]
                 };

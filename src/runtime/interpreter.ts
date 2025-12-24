@@ -1448,10 +1448,10 @@ async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
 
 function maybeSetQueryClauses(inst: Instance, crud: CrudMap) {
   if (crud.groupByClause) {
-    inst.setGroupBy(crud.groupByClause.colName);
+    inst.setGroupBy(crud.groupByClause.colNames);
   }
   if (crud.orderByClause) {
-    inst.setOrderBy(crud.orderByClause.colName, crud.orderByClause.order === '@desc');
+    inst.setOrderBy(crud.orderByClause.colNames, crud.orderByClause.order === '@desc');
   }
 }
 

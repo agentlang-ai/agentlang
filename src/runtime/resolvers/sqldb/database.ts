@@ -884,8 +884,8 @@ export type QuerySpec = {
   queryObj: object | undefined;
   queryVals: object | undefined;
   aggregates: Map<string, string> | undefined;
-  groupBy: string | undefined;
-  orderBy: string | undefined;
+  groupBy: string[] | undefined;
+  orderBy: string[] | undefined;
   orderByDesc: 'DESC' | 'ASC';
   joinClauses: JoinClause[] | undefined;
   intoSpec: Map<string, string> | undefined;
@@ -946,10 +946,14 @@ export async function getMany(
     });
   }
   if (querySpec.groupBy !== undefined) {
-    qb.groupBy(querySpec.groupBy);
+    querySpec.groupBy.forEach((gb: string) => {
+      qb.groupBy(gb);
+    });
   }
   if (querySpec.orderBy !== undefined) {
-    qb.orderBy(querySpec.orderBy, querySpec.orderByDesc);
+    querySpec.orderBy.forEach((ob: string) => {
+      qb.orderBy(ob, querySpec.orderByDesc);
+    });
   }
   if (ownersJoinCond) {
     qb.innerJoin(ot, otAlias, ownersJoinCond.join(' AND '));
@@ -1016,10 +1020,10 @@ export async function getManyByJoin(
   const cols = aggrs ? `${intos}, ${aggrs}` : intos;
   let sql = `SELECT ${querySpec.distinct ? 'DISTINCT' : ''} ${cols} FROM ${tableName} ${joinSql.join('\n')} WHERE ${queryStr}`;
   if (querySpec.groupBy !== undefined) {
-    sql = `${sql} GROUP BY ${querySpec.groupBy}`;
+    sql = `${sql} GROUP BY ${querySpec.groupBy.join(', ')}`;
   }
   if (querySpec.orderBy !== undefined) {
-    sql = `${sql} ORDER BY ${querySpec.orderBy} ${querySpec.orderByDesc}`;
+    sql = `${sql} ORDER BY ${querySpec.orderBy.join(', ')} ${querySpec.orderByDesc}`;
   }
   logger.debug(`Join Query: ${sql}`);
   const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;

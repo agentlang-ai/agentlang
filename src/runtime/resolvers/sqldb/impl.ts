@@ -200,10 +200,14 @@ export class SqlDbResolver extends Resolver {
     const qattrs: any = queryAll ? undefined : inst.queryAttributesAsObject();
     const qvals: any = queryAll ? undefined : inst.queryAttributeValuesAsObject();
     const groupBy = inst.groupBy
-      ? asColumnReference(inst.groupBy, tableName, inst.name, fqName, inst.moduleName)
+      ? inst.groupBy.map((gb: string) => {
+          return asColumnReference(gb, tableName, inst.name, fqName, inst.moduleName);
+        })
       : undefined;
     const orderBy = inst.orderBy
-      ? asColumnReference(inst.orderBy, tableName, inst.name, fqName, inst.moduleName)
+      ? inst.orderBy.map((ob: string) => {
+          return asColumnReference(ob, tableName, inst.name, fqName, inst.moduleName);
+        })
       : undefined;
     const orderByDesc = inst.orderByDesc ? 'DESC' : 'ASC';
     const aggregates = SqlDbResolver.normalizedAggregates(inst, tableName);
@@ -322,10 +326,14 @@ export class SqlDbResolver extends Resolver {
     });
     const fqName = inst.getFqName();
     const groupBy = inst.groupBy
-      ? asColumnReference(inst.groupBy, tableName, inst.name, fqName, inst.moduleName)
+      ? inst.groupBy.map((gb: string) => {
+          return asColumnReference(gb, tableName, inst.name, fqName, inst.moduleName);
+        })
       : undefined;
     const orderBy = inst.orderBy
-      ? asColumnReference(inst.orderBy, tableName, inst.name, fqName, inst.moduleName)
+      ? inst.orderBy.map((ob: string) => {
+          return asColumnReference(ob, tableName, inst.name, fqName, inst.moduleName);
+        })
       : undefined;
     const orderByDesc = inst.orderByDesc ? 'DESC' : 'ASC';
     const aggregates = SqlDbResolver.normalizedAggregates(inst, tableName);

@@ -83,13 +83,36 @@ describe('olap-test01', () => {
         city String
     }
 
+    // Total Revenue by Year
+    // SELECT d.year, SUM(f.revenue) AS total_revenue
+    // FROM sales_fact f
+    // JOIN date_dim d ON f.date_id = d.date_id
+    // GROUP BY d.year
+    // ORDER BY d.year
     workflow totalRevenueByYear {
-      {SalesFact? {},
-       @join DateDim {date_id? SalesFact.date_id},
-       @groupBy(DateDim.year),
-       @orderBy(DateDim.year),
-       @into {year DateDim.year, total_revenue @sum(SalesFact.revenue)}
+      {
+        SalesFact? {},
+        @join DateDim {date_id? SalesFact.date_id},
+        @into {year DateDim.year, total_revenue @sum(SalesFact.revenue)},
+        @groupBy(DateDim.year),
+        @orderBy(DateDim.year)
       }
+    }
+
+    // Drill down - revenue by year, quarter and month.
+    // SELECT d.year, d.quarter, d.month, SUM(f.revenue) AS total_revenue
+    // FROM sales_fact f
+    // JOIN date_dim d ON f.date_id = d.date_id
+    // GROUP BY d.year, d.quarter, d.month
+    // ORDER BY d.year, d.quarter, d.month
+    workflow revenueByYearQuarterMonth {
+        {
+          SalesFact? {},
+          @join DateDim {date_id? SalesFact.date_id},
+          @into {year DateDim.year, quarter DateDim.quarter, month DateDim.month, total_revenue @sum(SalesFact.revenue)},
+          @groupBy(DateDim.year, DateDim.quarter, DateDim.month),
+          @orderBy(DateDim.year, DateDim.quarter, DateDim.month)
+        }
     }
   `
     );
@@ -117,10 +140,8 @@ describe('olap-test01', () => {
       [103, 2, 501, 601, 22001.1, 5],
     ];
     const salesFactEnt = `${moduleName}/SalesFact`;
-    let totrev1 = 0
-    for (let i = 0; i < sales_facts.length; ++i) {
-      const xs = sales_facts[i];
-      const inst = await parseAndEvaluateStatement(`{${salesFactEnt} {
+    const crsf = async (xs: number[]) => {
+      return await parseAndEvaluateStatement(`{${salesFactEnt} {
       sale_id ${xs[0]},
       date_id ${xs[1]},
       product_id ${xs[2]},
@@ -128,13 +149,51 @@ describe('olap-test01', () => {
       revenue ${xs[4]},
       quantity ${xs[5]}
     }}`);
+    };
+    let totrev1 = 0;
+    for (let i = 0; i < sales_facts.length; ++i) {
+      const xs = sales_facts[i];
+      const inst = await crsf(xs);
       assert(isInstanceOfType(inst, salesFactEnt));
-      totrev1 += xs[4]
+      totrev1 += xs[4];
     }
 
-    const r1: any[] = await parseAndEvaluateStatement(`{${moduleName}/totalRevenueByYear {}}`)
-    assert(r1.length == 1)
-    assert(r1[0].year == 2024)
-    assert(r1[0].total_revenue == totrev1)
+    const r1: any[] = await parseAndEvaluateStatement(`{${moduleName}/totalRevenueByYear {}}`);
+    const rby = (r: any[]) => {
+      assert(r.length == 1);
+      assert(r[0].year == 2024);
+      assert(r[0].total_revenue == totrev1);
+    };
+    rby(r1);
+    const r2: any[] = await parseAndEvaluateStatement(
+      `{${moduleName}/revenueByYearQuarterMonth {}}`
+    );
+    const rbyqm = (r: any[]) => {
+      assert(r.length == 2);
+      assert(r[0].year == 2024);
+      assert(r[0].quarter == 1);
+      assert(r[0].month == 1);
+      assert(r[0].total_revenue == 22001.1);
+      assert(r[1].year == 2024);
+      assert(r[1].quarter == 1);
+      assert(r[1].month == 2);
+      assert(r[1].total_revenue == 56788.89 + 45000);
+    };
+    rbyqm(r2)
+
+    await crsf([104, 3, 501, 604, 10000.0, 3]);
+    const r3: any[] = await parseAndEvaluateStatement(`{${moduleName}/totalRevenueByYear {}}`);
+    assert(r3.length == 2);
+    assert(r3[0].year == 2023);
+    assert(r3[0].total_revenue == 10000.0);
+    rby(r3.slice(1))
+    const r4: any[] = await parseAndEvaluateStatement(
+      `{${moduleName}/revenueByYearQuarterMonth {}}`
+    );
+    assert(r4.length == 3)
+    assert(r4[0].year == 2023)
+    assert(r4[0].quarter == 2)
+    assert(r4[0].month == 4)
+    rbyqm(r4.slice(1))
   });
 });

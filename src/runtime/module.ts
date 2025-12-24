@@ -3337,8 +3337,8 @@ export class Instance {
   queryAttributeValues: InstanceAttributes | undefined;
   relatedInstances: Map<string, Instance[]> | undefined;
   aggregates: Map<string, AggregateFunctionCall> | undefined;
-  groupBy: string | undefined;
-  orderBy: string | undefined;
+  groupBy: string[] | undefined;
+  orderBy: string[] | undefined;
   orderByDesc: boolean = false;
   private contextData: Map<string, any> | undefined;
   private ___id: string;
@@ -3441,12 +3441,12 @@ export class Instance {
     return this;
   }
 
-  setGroupBy(n: string): Instance {
+  setGroupBy(n: string[]): Instance {
     this.groupBy = n;
     return this;
   }
 
-  setOrderBy(n: string, desc: boolean = false): Instance {
+  setOrderBy(n: string[], desc: boolean = false): Instance {
     this.orderBy = n;
     this.orderByDesc = desc;
     return this;
