@@ -3,10 +3,7 @@ import {
   makeInstance as al_makeInstance,
   isInstanceOfType as al_isInstanceOfType,
 } from './module.js';
-import {
-  getLocalEnv as al_getLocalEnv,
-  setLocalEnv as al_setLocalEnv,
-} from './auth/defs.js';
+import { getLocalEnv as al_getLocalEnv, setLocalEnv as al_setLocalEnv } from './auth/defs.js';
 
 declare global {
   var agentlang: any | undefined;
