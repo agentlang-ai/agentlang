@@ -132,6 +132,28 @@ describe('olap-test01', () => {
            @groupBy(ProductDim.category)
         }
     }
+
+    // Dice - revenue for a particular category (e.g 'Electronics') in a country during a year.
+    // SELECT r.state, SUM(f.revenue) AS revenue
+    // FROM sales_fact f
+    // JOIN product_dim p ON f.product_id = p.product_id
+    // JOIN region_dim r ON f.region_id = r.region_id
+    // JOIN date_dim d ON f.date_id = d.date_id
+    // WHERE d.year = 2024 AND p.category = 'Electronics' AND r.country = 'India'
+    workflow categoryRevenueForYear {
+        {
+           SalesFact? {},
+           @join ProductDim {product_id? SalesFact.product_id},
+           @join RegionDim {region_id? SalesFact.region_id},
+           @join DateDim {date_id? SalesFact.date_id},
+           @into {state RegionDim.state, revenue @sum(SalesFact.revenue)},
+           @where {ProductDim.category categoryRevenueForYear.category,
+                   RegionDim.country categoryRevenueForYear.country,
+                   DateDim.year? categoryRevenueForYear.year},
+           @groupBy(RegionDim.state),
+           @orderBy(revenue)
+        }
+    }
     `
     );
     // create data
@@ -167,9 +189,25 @@ describe('olap-test01', () => {
     }}`);
       assert(isInstanceOfType(inst, prodDimsEnt));
     }
+    const region_dims = [
+      [601, 'India', 'Kerala', 'Kottayam'],
+      [602, 'India', 'Tamilnadu', 'Chennai'],
+      [603, 'USA', 'New York', 'New York'],
+    ];
+    const regionDimsEnt = `${moduleName}/RegionDim`;
+    for (let i = 0; i < region_dims.length; ++i) {
+      const xs = region_dims[i];
+      const inst = await parseAndEvaluateStatement(`{${regionDimsEnt} {
+      region_id ${xs[0]},
+      country "${xs[1]}",
+      state "${xs[2]}",
+      city "${xs[3]}"
+    }}`);
+      assert(isInstanceOfType(inst, regionDimsEnt));
+    }
     const sales_facts = [
-      [101, 1, 501, 603, 56788.89, 12],
-      [102, 1, 502, 604, 45000.0, 10],
+      [101, 1, 501, 602, 56788.89, 12],
+      [102, 1, 502, 603, 45000.0, 10],
       [103, 2, 501, 601, 22001.1, 5],
     ];
     const salesFactEnt = `${moduleName}/SalesFact`;
@@ -190,13 +228,13 @@ describe('olap-test01', () => {
       assert(isInstanceOfType(inst, salesFactEnt));
       totrev1 += xs[4];
     }
-    totrev1 = Math.round(totrev1)
+    totrev1 = Math.round(totrev1);
 
     const r1: any[] = await parseAndEvaluateStatement(`{${moduleName}/totalRevenueByYear {}}`);
     const rby = (r: any[]) => {
       assert(r.length == 1);
       assert(r[0].year == 2024);
-      const tr = Math.round(Number(r[0].total_revenue))
+      const tr = Math.round(Number(r[0].total_revenue));
       assert(tr == totrev1);
     };
     rby(r1);
@@ -231,18 +269,26 @@ describe('olap-test01', () => {
     assert(r4[0].month == 4);
     rbyqm(r4.slice(1));
 
-     const r5: any[] = await parseAndEvaluateStatement(`{${moduleName}/revenueForYear {year 2024}}`);
-     assert(r5.length == 2)
-     assert(r5.every((v: any) => {
-      const r = v.category == 'Cat01' || v.category == 'Cat02'
-      if (r) {
-        if (v.category == 'Cat01') {
-          return Math.round(Number(v.revenue)) == Math.round(56788.89 + 22001.1)
-        } else {
-          return Math.round(Number(v.revenue)) == 45000
+    const r5: any[] = await parseAndEvaluateStatement(`{${moduleName}/revenueForYear {year 2024}}`);
+    assert(r5.length == 2);
+    assert(
+      r5.every((v: any) => {
+        const r = v.category == 'Cat01' || v.category == 'Cat02';
+        if (r) {
+          if (v.category == 'Cat01') {
+            return Math.round(Number(v.revenue)) == Math.round(56788.89 + 22001.1);
+          } else {
+            return Math.round(Number(v.revenue)) == 45000;
+          }
         }
-      }
-      return r
-     }))
+        return r;
+      })
+    );
+    const r6: any[] = await parseAndEvaluateStatement(
+      `{${moduleName}/categoryRevenueForYear {year 2024, category "Cat01", country "India"}}`
+    );
+    assert(r6.length === 2);
+    assert(r6[0].state === 'Kerala' && Math.round(r6[0].revenue) === Math.round(22001.1));
+    assert(r6[1].state === 'Tamilnadu' && Math.round(r6[1].revenue) === Math.round(56788.89));
   });
 });
