@@ -348,10 +348,14 @@ async function evaluateConfigPatterns(cfgPats: string): Promise<any> {
   const wf = await parseWorkflow(cfgWf);
   const cfgStmts = new Array<Statement>();
   const initInsts = new Array<Statement>();
+  const deleted = new Set<string>();
   for (let i = 0; i < wf.statements.length; ++i) {
     const stmt: Statement = wf.statements[i];
     if (stmt.pattern.crudMap) {
-      initInsts.push(await makeDeleteAllConfigStatement(stmt.pattern.crudMap));
+      if (!deleted.has(stmt.pattern.crudMap?.name)) {
+        initInsts.push(await makeDeleteAllConfigStatement(stmt.pattern.crudMap));
+        deleted.add(stmt.pattern.crudMap.name);
+      }
       initInsts.push(stmt);
     } else {
       cfgStmts.push(stmt);
@@ -1186,17 +1190,23 @@ export async function loadRawConfig(
   }
 }
 
-function filterConfigEntityInstances(rawConfig: any): [any, Map<string, any>] {
-  const cfg = new Map<string, any>();
-  const insts = new Map<string, any>();
+function filterConfigEntityInstances(rawConfig: any): [any, Array<any>] {
+  let cfg: any = undefined;
+  const insts = new Array<any>();
   Object.entries(rawConfig).forEach(([key, value]: [string, any]) => {
-    if (isFqName(key)) {
-      insts.set(key, value);
+    if (key === 'agentlang') {
+      cfg = value;
     } else {
-      cfg.set(key, value);
+      if (value instanceof Array) {
+        value.forEach((v: any) => {
+          insts.push(v);
+        });
+      } else {
+        insts.push(value);
+      }
     }
   });
-  return [Object.fromEntries(cfg), insts];
+  return [cfg, insts];
 }
 
 async function configFromObject(cfgObj: any, validate: boolean = true): Promise<any> {
@@ -1204,8 +1214,10 @@ async function configFromObject(cfgObj: any, validate: boolean = true): Promise<
   if (validate) {
     const [cfg, insts] = filterConfigEntityInstances(rawConfig);
     const pats = new Array<string>();
-    insts.forEach((v: any, k: string) => {
-      pats.push(`{${k} ${objectAsString(v)}}`);
+    insts.forEach((v: any) => {
+      const n = Object.keys(v)[0];
+      const attrs = v[n];
+      pats.push(`{${n} ${objectAsString(attrs)}}`);
     });
     if (pats.length > 0) {
       await evaluateConfigPatterns(pats.join('\n'));
