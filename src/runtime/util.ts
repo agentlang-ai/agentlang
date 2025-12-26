@@ -644,11 +644,22 @@ export function setScecretReader(f: ReadSecret) {
   globalThis.readSecret = f;
 }
 
-export function objectAsString(obj: any) {
+export function objectAsString(obj: any, keyAsString: boolean = false) {
   const entries = new Array<string>();
   Object.entries(obj).forEach(([k, v]) => {
     const vv = typeof v === 'string' ? `"${v}"` : v;
-    entries.push(`${k}: ${vv}`);
+    let fv = vv;
+    if (fv instanceof Array) {
+      fv = fv.map((v: any) => {
+        return objectAsString(v, true);
+      });
+    } else if (fv instanceof Object) {
+      fv = objectAsString(fv, true);
+    }
+    if (keyAsString) {
+      k = `"${k}"`;
+    }
+    entries.push(`${k}: ${fv}`);
   });
   return `{${entries.join(', ')}}`;
 }
