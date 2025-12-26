@@ -57,6 +57,22 @@ export function toFsPath(uri: URI | string): string {
 let fsInstance: ExtendedFileSystem | null = null;
 
 /**
+ * Reset the filesystem instance
+ * This is useful when switching between different filesystem implementations (e.g., CLI backend vs Lightning-FS)
+ */
+export function resetFileSystem(): void {
+  fsInstance = null;
+}
+
+/**
+ * Set the filesystem instance directly
+ * @param fs Filesystem instance to use
+ */
+export function setFileSystem(fs: ExtendedFileSystem): void {
+  fsInstance = fs;
+}
+
+/**
  * Initialize the filesystem with the appropriate implementation based on environment
  * @param options Optional configuration for the filesystem
  * @returns Promise resolving to the filesystem instance

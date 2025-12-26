@@ -55,6 +55,29 @@ export function setLocalEnv(k: string, v: string): string {
   return v;
 }
 
-export function getLocalEnv(k: string): string | undefined {
-  return LocalEnv.get(k);
+/**
+ * Get environment variable with multi-source lookup
+ * Priority: 1) LocalEnv Map (explicit overrides), 2) process.env (Node.js), 3) defaultValue
+ *
+ * @param k - Environment variable key
+ * @param defaultValue - Optional default value if key not found
+ * @returns The value from highest priority source, or undefined
+ */
+export function getLocalEnv(k: string, defaultValue?: string): string | undefined {
+  // Priority 1: Explicitly set values in LocalEnv Map (highest priority)
+  const localValue = LocalEnv.get(k);
+  if (localValue !== undefined) {
+    return localValue;
+  }
+
+  // Priority 2: Node.js process.env (if in Node.js environment)
+  if (typeof process !== 'undefined' && process.env) {
+    const envValue = process.env[k];
+    if (envValue !== undefined) {
+      return envValue;
+    }
+  }
+
+  // Priority 3: Default value (if provided)
+  return defaultValue;
 }
