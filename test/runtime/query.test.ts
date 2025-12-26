@@ -41,9 +41,9 @@ describe('basic-aggregate-queries', () => {
     assert(insts[0].lookup('id') == 3);
     insts = await q(`{${entName}? {}, @orderBy(id)}`);
     assert(insts[0].lookup('id') == 1);
-    insts = await q(`{${entName} {mp @max(price)}, @groupBy(id)}`);
+    insts = await q(`{${entName} {mp? @max(price)}, @groupBy(id)}`);
     assert(insts[0].lookup('price') == insts[0].lookup('mp'));
-    insts = await q(`{${entName} {mp @max(price)}}`, 1);
+    insts = await q(`{${entName} {mp? @max(price)}}`, 1);
     assert(insts[0].lookup('mp') == 784.42);
   });
 });
