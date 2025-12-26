@@ -1193,20 +1193,27 @@ export async function loadRawConfig(
 function filterConfigEntityInstances(rawConfig: any): [any, Array<any>] {
   let cfg: any = undefined;
   const insts = new Array<any>();
-  Object.entries(rawConfig).forEach(([key, value]: [string, any]) => {
-    if (key === 'agentlang') {
-      cfg = value;
-    } else {
-      if (value instanceof Array) {
-        value.forEach((v: any) => {
-          insts.push(v);
-        });
-      } else {
-        insts.push(value);
-      }
-    }
+  const newFormat = Object.keys(rawConfig).find((k: string) => {
+    return k === 'agentlang';
   });
-  return [cfg, insts];
+  if (newFormat) {
+    Object.entries(rawConfig).forEach(([key, value]: [string, any]) => {
+      if (key === 'agentlang') {
+        cfg = value;
+      } else {
+        if (value instanceof Array) {
+          value.forEach((v: any) => {
+            insts.push(v);
+          });
+        } else {
+          insts.push(value);
+        }
+      }
+    });
+    return [cfg, insts];
+  } else {
+    return [rawConfig, insts];
+  }
 }
 
 async function configFromObject(cfgObj: any, validate: boolean = true): Promise<any> {
