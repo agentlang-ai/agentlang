@@ -404,7 +404,11 @@ entity Session {
     lastName User.lastName,
     lastLoginTime User.lastLoginTime,
     status User.status,
-    role Role.name}
+    role Role.name,
+    created User.__created,
+    createdBy User.__created_by,
+    lastModified User.__last_modified,
+    lastModifiedBy User.__last_modified_by}
   }
 }
 
