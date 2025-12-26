@@ -41,6 +41,7 @@ import {
 } from '../../defs.js';
 import { saveMigration } from '../../modules/core.js';
 import { getAppSpec } from '../../loader.js';
+import { WhereClause } from '../interface.js';
 
 export let defaultDataSource: DataSource | undefined;
 
@@ -880,17 +881,30 @@ function objectToRawWhereClause(queryObj: object, queryVals: any, tableName?: st
   }
 }
 
+export type QuerySpec = {
+  queryObj: object | undefined;
+  queryVals: object | undefined;
+  aggregates: Map<string, string> | undefined;
+  groupBy: string[] | undefined;
+  orderBy: string[] | undefined;
+  orderByDesc: 'DESC' | 'ASC';
+  joinClauses: JoinClause[] | undefined;
+  intoSpec: Map<string, string> | undefined;
+  whereClauses: WhereClause[] | undefined;
+  distinct: boolean;
+};
+
 export async function getMany(
   tableName: string,
-  queryObj: object | undefined,
-  queryVals: object | undefined,
-  distinct: boolean,
+  querySpec: QuerySpec,
   ctx: DbContext
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
   const queryStr: string = withNotDeletedClause(
     alias,
-    queryObj !== undefined ? objectToWhereClause(queryObj, queryVals, alias) : ''
+    querySpec.queryObj !== undefined
+      ? objectToWhereClause(querySpec.queryObj, querySpec.queryVals, alias)
+      : ''
   );
   let ownersJoinCond: string[] | undefined;
   let ot: string = '';
@@ -927,30 +941,53 @@ export async function getMany(
   const qb: SelectQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
     .getRepository(tableName)
     .createQueryBuilder();
+  const hasAggregates = querySpec.aggregates !== undefined;
+  if (hasAggregates) {
+    querySpec.aggregates?.forEach((f: string, n: string) => {
+      qb.addSelect(f, n);
+    });
+  }
+  if (querySpec.groupBy !== undefined) {
+    querySpec.groupBy.forEach((gb: string) => {
+      qb.groupBy(gb);
+    });
+  }
+  if (querySpec.orderBy !== undefined) {
+    querySpec.orderBy.forEach((ob: string) => {
+      qb.orderBy(ob, querySpec.orderByDesc);
+    });
+  }
   if (ownersJoinCond) {
     qb.innerJoin(ot, otAlias, ownersJoinCond.join(' AND '));
   }
-  if (distinct) {
+  if (querySpec.distinct) {
     qb.distinct(true);
   }
-  qb.where(queryStr, queryVals);
-  return await qb.getMany();
+  qb.where(queryStr, querySpec.queryVals);
+  if (hasAggregates) return await qb.getRawMany();
+  else return await qb.getMany();
 }
 
 export async function getManyByJoin(
   tableName: string,
-  queryObj: object | undefined,
-  queryVals: object | undefined,
-  joinClauses: JoinClause[],
-  intoSpec: Map<string, string>,
-  distinct: boolean,
+  querySpec: QuerySpec,
   ctx: DbContext
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
-  const queryStr: string = withNotDeletedClause(
+  let queryStr: string = withNotDeletedClause(
     alias,
-    queryObj !== undefined ? objectToRawWhereClause(queryObj, queryVals, alias) : ''
+    querySpec.queryObj !== undefined
+      ? objectToRawWhereClause(querySpec.queryObj, querySpec.queryVals, alias)
+      : ''
   );
+  if (querySpec.whereClauses) {
+    const qs = new Array<string>();
+    querySpec.whereClauses.forEach((wc: WhereClause) => {
+      const v = isString(wc.qval) ? `"${wc.qval}"` : wc.qval;
+      qs.push(`${wc.attrName} ${wc.op} ${v}`);
+    });
+    queryStr = `${queryStr} AND ${qs.join(' AND ')}`;
+  }
   let ot: string = '';
   let otAlias: string = '';
   if (!ctx.isPermitted()) {
@@ -961,7 +998,7 @@ export async function getManyByJoin(
     if (!hasGlobalPerms) {
       ot = ownersTable(tableName);
       otAlias = ot.toLowerCase();
-      joinClauses.push({
+      querySpec.joinClauses?.push({
         tableName: otAlias,
         joinOn: [
           makeJoinOn(`${otAlias}.path`, `${alias}.${PathAttributeName}`),
@@ -972,7 +1009,7 @@ export async function getManyByJoin(
     }
   }
   const joinSql = new Array<string>();
-  joinClauses.forEach((jc: JoinClause) => {
+  querySpec.joinClauses?.forEach((jc: JoinClause) => {
     const joinType = jc.joinType ? jc.joinType : 'inner join';
     joinSql.push(
       `${joinType} ${jc.tableName} as ${jc.tableName} on ${joinOnAsSql(jc.joinOn)} AND ${jc.tableName}.${DeletedFlagAttributeName} = false`
@@ -984,7 +1021,20 @@ export async function getManyByJoin(
       }
     }
   });
-  const sql = `SELECT ${distinct ? 'DISTINCT' : ''} ${intoSpecToSql(intoSpec)} FROM ${tableName} ${joinSql.join('\n')} WHERE ${queryStr}`;
+  if (querySpec.intoSpec === undefined) {
+    throw new Error('SELECT-INTO pattern is missing');
+  }
+  const intos = intoSpecToSql(querySpec.intoSpec);
+  const aggrs =
+    querySpec.aggregates !== undefined ? intoSpecToSql(querySpec.aggregates) : undefined;
+  const cols = aggrs ? `${intos}, ${aggrs}` : intos;
+  let sql = `SELECT ${querySpec.distinct ? 'DISTINCT' : ''} ${cols} FROM ${tableName} ${joinSql.join('\n')} WHERE ${queryStr}`;
+  if (querySpec.groupBy !== undefined) {
+    sql = `${sql} GROUP BY ${querySpec.groupBy.join(', ')}`;
+  }
+  if (querySpec.orderBy !== undefined) {
+    sql = `${sql} ORDER BY ${querySpec.orderBy.join(', ')} ${querySpec.orderByDesc}`;
+  }
   logger.debug(`Join Query: ${sql}`);
   const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
   return await qb.query(sql);

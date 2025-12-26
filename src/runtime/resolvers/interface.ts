@@ -33,6 +33,12 @@ export function getSubscriptionEvent(resolverName: string): string | undefined {
   return subscriptionEvents.get(resolverName);
 }
 
+export type WhereClause = {
+  attrName: string;
+  op: string;
+  qval: any;
+};
+
 export class Resolver {
   protected authInfo: ResolverAuthInfo = DefaultAuthInfo;
   protected env: Environment | undefined;
@@ -131,10 +137,11 @@ export class Resolver {
     joinInfo: JoinInfo[],
     intoSpec: Map<string, string>,
     distinct: boolean = false,
-    rawJoinSpec?: JoinSpec
+    rawJoinSpec?: JoinSpec[],
+    whereClauses?: WhereClause[]
   ): Promise<any> {
     return this.notImpl(
-      `queryByJoin(${inst}, ${joinInfo}, ${intoSpec}, ${distinct} ${rawJoinSpec})`
+      `queryByJoin(${inst}, ${joinInfo}, ${intoSpec}, ${distinct}, ${rawJoinSpec}, ${whereClauses})`
     );
   }
 

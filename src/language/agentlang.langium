@@ -119,8 +119,11 @@ CrudMap: '{' (name=QueryId (':')? '{''}'
              | (name=QualifiedName (':')? '{''}' ',' '@from' source=Literal (',' upsert+='@upsert')?)
              | name=QualifiedName (':')? body=CrudMapBody)
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)?
-             (',' join=JoinSpec)?
+             (',' joins+=JoinSpec)*
              (',' into=SelectIntoSpec)?
+             (',' where=WhereSpec)?
+             (',' groupByClause=GroupByClause)?
+             (',' orderByClause=OrderByClause)?
              (',' upsert+='@upsert')?
              (',' distinct+='@distinct')?
              '}';
@@ -129,11 +132,17 @@ CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ pro
 
 SelectIntoSpec: '@into' '{' entries+=SelectIntoEntry (',' entries+=SelectIntoEntry)* '}';
 
-SelectIntoEntry: alias=ID (':')? attribute=Ref;
+SelectIntoEntry: alias=ID (':')? (attribute=Ref | aggregate=AggregateFunctionSpec);
 
 JoinSpec: type=JoinType name=QualifiedName '{' lhs=QueryId op=SqlComparisonOpr? rhs=Ref '}';
 
 JoinType returns string: ('@join' | '@inner_join' | '@left_join' | '@right_join' | '@full_join');
+
+WhereSpec: '@where' ('{' (clauses+=WhereSpecClause (',' clauses+=WhereSpecClause)*)+ '}');
+WhereSpecClause: lhs=QueryId op=SqlComparisonOpr? rhs=Expr;
+
+GroupByClause: '@groupBy' ('(' (colNames+=QualifiedName (',' colNames+=QualifiedName)*)+ ')');
+OrderByClause: '@orderBy' ('(' (colNames+=QualifiedName (',' colNames+=QualifiedName)*)+ ')') (order=('@asc' | '@desc'))?;
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
@@ -204,7 +213,7 @@ Delete: 'delete' pattern=Pattern;
 
 Purge: 'purge' pattern=Pattern;
 
-SetAttribute: name=QueryId op=SqlComparisonOpr? (':')? value=AttributeValueExpression;
+SetAttribute: name=QueryId op=SqlComparisonOpr? (':')? (value=AttributeValueExpression | aggregate=AggregateFunctionSpec);
 
 SqlComparisonOpr returns string: ('='|'<>' | '!=' |'<'|'<='|'>'|'>='|'in'|'like'|'between');
 
@@ -225,6 +234,8 @@ Comparison infers Expr:
     PrimExpr ({infer BinExpr.e1=current} op=('==' | '!=' | '<>'|'<'|'<='|'>'|'>='|'in'|'like') e2=PrimExpr)*;
 
 PrimExpr: Literal | Group | NegExpr | NotExpr;
+
+AggregateFunctionSpec: '@' name=ID (('(' ')') | ('(' (args+=QualifiedName (',' args+=QualifiedName)*)+ ')'));
 
 // grouped expression with parentheses
 Group:      '(' ge=Expr ')';

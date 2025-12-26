@@ -28,6 +28,7 @@ import {
   SetAttribute,
   Statement,
   ThrowError,
+  WhereSpec,
 } from '../language/generated/ast.js';
 import {
   maybeInstanceAsString,
@@ -52,7 +53,7 @@ import {
   Workflow,
   setMetaAttributes,
 } from './module.js';
-import { JoinInfo, Resolver } from './resolvers/interface.js';
+import { JoinInfo, Resolver, WhereClause } from './resolvers/interface.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
 import {
@@ -1341,6 +1342,11 @@ async function lookupOneOfVals(fqName: string, env: Environment): Promise<Instan
   return await parseAndEvaluateStatement(`{${fqName}? {}}`, undefined, env);
 }
 
+export type AggregateFunctionCall = {
+  name: string;
+  args: string[];
+};
+
 async function patternToInstance(
   entryName: string,
   attributes: SetAttribute[] | undefined,
@@ -1349,6 +1355,7 @@ async function patternToInstance(
   const attrs: InstanceAttributes = newInstanceAttributes();
   let qattrs: InstanceAttributes | undefined;
   let qattrVals: InstanceAttributes | undefined;
+  let aggregates: Map<string, AggregateFunctionCall> | undefined;
   const isQueryAll: boolean = entryName.endsWith(QuerySuffix);
   if (isQueryAll) {
     entryName = entryName.slice(0, entryName.length - 1);
@@ -1356,20 +1363,25 @@ async function patternToInstance(
   if (attributes) {
     for (let i = 0; i < attributes.length; ++i) {
       const a: SetAttribute = attributes[i];
-      await evaluateExpression(a.value, env);
-      const v: Result = env.getLastResult();
-      let aname: string = a.name;
-      if (aname.endsWith(QuerySuffix)) {
-        if (isQueryAll) {
-          throw new Error(`Cannot specifiy query attribute ${aname} here`);
+      if (a.value !== undefined) {
+        await evaluateExpression(a.value, env);
+        const v: Result = env.getLastResult();
+        let aname: string = a.name;
+        if (aname.endsWith(QuerySuffix)) {
+          if (isQueryAll) {
+            throw new Error(`Cannot specifiy query attribute ${aname} here`);
+          }
+          if (qattrs === undefined) qattrs = newInstanceAttributes();
+          if (qattrVals === undefined) qattrVals = newInstanceAttributes();
+          aname = aname.slice(0, aname.length - 1);
+          qattrs.set(aname, a.op === undefined ? '=' : a.op);
+          qattrVals.set(aname, v);
+        } else {
+          attrs.set(aname, v);
         }
-        if (qattrs === undefined) qattrs = newInstanceAttributes();
-        if (qattrVals === undefined) qattrVals = newInstanceAttributes();
-        aname = aname.slice(0, aname.length - 1);
-        qattrs.set(aname, a.op === undefined ? '=' : a.op);
-        qattrVals.set(aname, v);
-      } else {
-        attrs.set(aname, v);
+      } else if (a.aggregate !== undefined) {
+        if (aggregates === undefined) aggregates = new Map<string, AggregateFunctionCall>();
+        aggregates.set(escapeQueryName(a.name), { name: a.aggregate.name, args: a.aggregate.args });
       }
     }
   }
@@ -1379,7 +1391,11 @@ async function patternToInstance(
     if (p.hasModule()) moduleName = p.getModuleName();
     if (p.hasEntry()) entryName = p.getEntryName();
   }
-  return makeInstance(moduleName, entryName, attrs, qattrs, qattrVals, isQueryAll);
+  const inst = makeInstance(moduleName, entryName, attrs, qattrs, qattrVals, isQueryAll);
+  if (aggregates !== undefined) {
+    return inst.setAggregates(aggregates);
+  }
+  return inst;
 }
 
 async function instanceFromSource(crud: CrudMap, env: Environment): Promise<Instance> {
@@ -1431,6 +1447,15 @@ async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
   }
 }
 
+function maybeSetQueryClauses(inst: Instance, crud: CrudMap) {
+  if (crud.groupByClause) {
+    inst.setGroupBy(crud.groupByClause.colNames);
+  }
+  if (crud.orderByClause) {
+    inst.setOrderBy(crud.orderByClause.colNames, crud.orderByClause.order === '@desc');
+  }
+}
+
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   if (!env.isInUpsertMode() && crud.upsert.length > 0) {
     return await evaluateUpsert(crud, env);
@@ -1442,8 +1467,10 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   const moduleName = inst.moduleName;
   const attrs = inst.attributes;
   const qattrs = inst.queryAttributes;
-  const isQueryAll = crud.name.endsWith(QuerySuffix);
+  const onlyAggregates = inst.aggregates !== undefined && qattrs === undefined;
+  const isQueryAll = onlyAggregates || crud.name.endsWith(QuerySuffix);
   const distinct: boolean = crud.distinct.length > 0;
+  maybeSetQueryClauses(inst, crud);
   if (attrs.size > 0) {
     await maybeValidateOneOfRefs(inst, env);
   }
@@ -1456,8 +1483,8 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (qattrs === undefined && !isQueryAll) {
       throw new Error(`Pattern for ${entryName} with 'into' clause must be a query`);
     }
-    if (crud.join) {
-      await evaluateJoinQuery(crud.join, crud.into, inst, distinct, env);
+    if (crud.joins.length > 0) {
+      await evaluateJoinQuery(crud.joins, crud.into, crud.where, inst, distinct, env);
     } else {
       await evaluateJoinQueryWithRelationships(crud.into, inst, crud.relationships, distinct, env);
     }
@@ -1749,7 +1776,7 @@ async function computeExprAttributes(
       for (let i = 0; i < origAttrs.length; ++i) {
         const a: SetAttribute = origAttrs[i];
         const n = a.name;
-        if (!n.endsWith(QuerySuffix) && updatedAttrs.has(n)) {
+        if (!n.endsWith(QuerySuffix) && updatedAttrs.has(n) && a.value !== undefined) {
           await evaluateExpression(a.value, newEnv);
           const v: Result = newEnv.getLastResult();
           updatedAttrs.set(n, v);
@@ -1760,19 +1787,51 @@ async function computeExprAttributes(
   }
 }
 
+async function evalWhereClauses(whereSpec: WhereSpec, env: Environment): Promise<WhereClause[]> {
+  const result = new Array<WhereClause>();
+  const e = new Environment(undefined, env);
+  for (let i = 0; i < whereSpec.clauses.length; ++i) {
+    const c = whereSpec.clauses[i];
+    await evaluateExpression(c.rhs, e);
+    result.push({
+      attrName: escapeQueryName(c.lhs),
+      op: c.op === undefined ? '=' : c.op,
+      qval: e.getLastResult(),
+    });
+  }
+  return result;
+}
+
 async function evaluateJoinQuery(
-  joinSpec: JoinSpec,
+  joinSpec: JoinSpec[],
   intoSpec: SelectIntoSpec,
+  whereSpec: WhereSpec | undefined,
   inst: Instance,
   distinct: boolean,
   env: Environment
 ): Promise<void> {
   const normIntoSpec = new Map<string, string>();
+  let aggregates: Map<string, AggregateFunctionCall> | undefined;
   intoSpec.entries.forEach((entry: SelectIntoEntry) => {
-    normIntoSpec.set(entry.alias, entry.attribute);
+    if (entry.attribute !== undefined) normIntoSpec.set(entry.alias, entry.attribute);
+    else {
+      if (aggregates === undefined) aggregates = new Map<string, AggregateFunctionCall>();
+      if (entry.aggregate !== undefined) aggregates?.set(entry.alias, entry.aggregate);
+    }
   });
+  if (aggregates !== undefined) {
+    inst.setAggregates(aggregates);
+  }
+  const clauses = whereSpec ? await evalWhereClauses(whereSpec, env) : undefined;
   const resolver = await getResolverForPath(inst.name, inst.moduleName, env);
-  const result: Result = await resolver.queryByJoin(inst, [], normIntoSpec, distinct, joinSpec);
+  const result: Result = await resolver.queryByJoin(
+    inst,
+    [],
+    normIntoSpec,
+    distinct,
+    joinSpec,
+    clauses
+  );
 
   const transformedResult = transformDateFieldsInJoinResult(result);
 
@@ -1787,9 +1846,17 @@ async function evaluateJoinQueryWithRelationships(
   env: Environment
 ): Promise<void> {
   const normIntoSpec = new Map<string, string>();
+  let aggregates: Map<string, AggregateFunctionCall> | undefined;
   intoSpec.entries.forEach((entry: SelectIntoEntry) => {
-    normIntoSpec.set(entry.alias, entry.attribute);
+    if (entry.attribute !== undefined) normIntoSpec.set(entry.alias, entry.attribute);
+    else {
+      if (aggregates === undefined) aggregates = new Map<string, AggregateFunctionCall>();
+      if (entry.aggregate !== undefined) aggregates?.set(entry.alias, entry.aggregate);
+    }
   });
+  if (aggregates !== undefined) {
+    inst.setAggregates(aggregates);
+  }
   const moduleName = inst.moduleName;
   let joinsSpec = new Array<JoinInfo>();
   for (let i = 0; i < relationships.length; ++i) {
@@ -2126,7 +2193,7 @@ async function preprocessStep(spec: string, env: Environment): Promise<string> {
       const step = crudMap.name;
       if (crudMap.body) {
         crudMap.body.attributes.forEach((sa: SetAttribute) => {
-          const v = sa.value.$cstNode?.text;
+          const v = sa.value?.$cstNode?.text;
           if (v) env.setTemplateMapping(sa.name, v);
         });
       }
