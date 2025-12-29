@@ -1,4 +1,4 @@
-module chat.core
+module custom_config.core
 
 import "resolver.js" @as r
 
@@ -14,6 +14,6 @@ entity ChatMessage {
     to String
 }
 
-resolver ChatResolver ["chat.core/ChatMessage"] {
+resolver ChatResolver ["custom_config.core/ChatMessage"] {
     create r.createChatMessage
 }

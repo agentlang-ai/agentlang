@@ -21,7 +21,7 @@ This architecture cleanly separates **configuration**, **data**, and **resolver 
 ## 2. Agentlang Module
 
 ```agentlang
-module chat.core
+module custom_config.core
 
 import "resolver.js" @as r
 
@@ -37,7 +37,7 @@ entity ChatMessage {
     to String
 }
 
-resolver ChatResolver ["chat.core/ChatMessage"] {
+resolver ChatResolver ["custom_config.core/ChatMessage"] {
     create r.createChatMessage
 }
 ```
@@ -45,7 +45,7 @@ resolver ChatResolver ["chat.core/ChatMessage"] {
 ### Key Features
 
 * `ChatMessage` is resolved by `ChatResolver`, which implements the **create** handler.
-* The resolver pulls configuration from the `Config` entity using `fetchConfig('chat.core/Config')`.
+* The resolver pulls configuration from the `Config` entity using `fetchConfig('custom_config.core/Config')`.
 
 ---
 
@@ -55,7 +55,7 @@ resolver ChatResolver ["chat.core/ChatMessage"] {
 import { fetchConfig } from "../../../out/runtime/api.js"
 
 export async function createChatMessage(_, inst) {
-    const config = await fetchConfig('chat.core/Config')
+    const config = await fetchConfig('custom_config.core/Config')
     console.log(`Connecting to chat server ${config.server} using key ${config.key}`)
 
     const to = inst.lookup('to')
@@ -83,7 +83,7 @@ The `Chat` package declares that it expects configuration for the `Config` entit
     "name": "Chat",
     "version": "0.0.1",
     "agentlang": {
-        "config": ["chat.core/Config"]
+        "config": ["custom_config.core/Config"]
     }
 }
 ```
@@ -96,7 +96,7 @@ This tells Agentlang that the configuration must be provided in **config.al**.
 
 ```agentlang
 {
-    chat.core/Config: {
+    custom_config.core/Config: {
         server: "https://my.chat",
         key: "#js process.env.CHAT_SECRET" // or "#js readSecret(\"CHAT_SECRET\")"
     }
@@ -132,7 +132,7 @@ This tells Agentlang that the configuration must be provided in **config.al**.
 2. Create a `ChatMessage`:
 
    ```bash
-    curl -X POST http://localhost:8080/chat.core/ChatMessage  \
+    curl -X POST http://localhost:8080/custom_config.core/ChatMessage  \
     -H 'Content-Type: application/json'  \
     -d '{"to": "joe", "message": "hello"}'
    ```
