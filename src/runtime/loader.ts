@@ -388,9 +388,14 @@ export async function loadAppConfig(configDir: string): Promise<Config> {
     }
   }
   try {
-    const cfg = cfgObj
+    let cfg = cfgObj
       ? await configFromObject(cfgObj)
       : await loadRawConfig(`${configDir}${path.sep}app.config.json`);
+    const envAppConfig = process.env.APP_CONFIG;
+    if (envAppConfig) {
+      const envConfig = JSON.parse(envAppConfig);
+      cfg = { ...cfg, ...envConfig };
+    }
     return setAppConfig(cfg);
   } catch (err: any) {
     if (err instanceof z.ZodError) {
