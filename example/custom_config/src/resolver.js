@@ -1,5 +1,5 @@
 export async function createChatMessage(_, inst) {
-    const config = await agentlang.fetchConfig('chat.core/Config')
+    const config = await agentlang.fetchConfig('custom_config.core/Config')
     console.log(`Connecting to chat server ${config.server} using key ${config.key}`)
     const to = inst.lookup('to'); const message = inst.lookup('message')
     console.log(`To: ${to}, Body: ${message}`)
