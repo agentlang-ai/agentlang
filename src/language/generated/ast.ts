@@ -42,26 +42,31 @@ export type AgentlangKeywordNames =
     | "@actions"
     | "@after"
     | "@as"
+    | "@asc"
     | "@async"
     | "@before"
     | "@catch"
+    | "@desc"
     | "@distinct"
     | "@enum"
     | "@expr"
     | "@from"
     | "@full_join"
+    | "@groupBy"
     | "@inner_join"
     | "@into"
     | "@join"
     | "@left_join"
     | "@meta"
     | "@oneof"
+    | "@orderBy"
     | "@public"
     | "@rbac"
     | "@ref"
     | "@right_join"
     | "@then"
     | "@upsert"
+    | "@where"
     | "@with_unique"
     | "["
     | "]"
@@ -298,6 +303,19 @@ export function isAgentXtraSpec(item: unknown): item is AgentXtraSpec {
     return reflection.isInstance(item, AgentXtraSpec);
 }
 
+export interface AggregateFunctionSpec extends langium.AstNode {
+    readonly $container: SelectIntoEntry | SetAttribute;
+    readonly $type: 'AggregateFunctionSpec';
+    args: Array<QualifiedName>;
+    name: string;
+}
+
+export const AggregateFunctionSpec = 'AggregateFunctionSpec';
+
+export function isAggregateFunctionSpec(item: unknown): item is AggregateFunctionSpec {
+    return reflection.isInstance(item, AggregateFunctionSpec);
+}
+
 export interface AliasSpec extends langium.AstNode {
     readonly $container: RuntimeHint;
     readonly $type: 'AliasSpec';
@@ -379,7 +397,7 @@ export function isBeforeTriggerDefinition(item: unknown): item is BeforeTriggerD
 }
 
 export interface BinExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError | WhereSpecClause;
     readonly $type: 'BinExpr';
     e1: Expr | PrimExpr;
     e2: Expr | PrimExpr;
@@ -447,12 +465,15 @@ export interface CrudMap extends langium.AstNode {
     readonly $type: 'CrudMap';
     body?: CrudMapBody;
     distinct: Array<'@distinct'>;
+    groupByClause?: GroupByClause;
     into?: SelectIntoSpec;
-    join?: JoinSpec;
+    joins: Array<JoinSpec>;
     name: QualifiedName | QueryId;
+    orderByClause?: OrderByClause;
     relationships: Array<RelationshipPattern>;
     source?: Literal;
     upsert: Array<'@upsert'>;
+    where?: WhereSpec;
 }
 
 export const CrudMap = 'CrudMap';
@@ -722,7 +743,7 @@ export function isGlossaryEntryDefinition(item: unknown): item is GlossaryEntryD
 }
 
 export interface Group extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError | WhereSpecClause;
     readonly $type: 'Group';
     ge: Expr;
 }
@@ -731,6 +752,18 @@ export const Group = 'Group';
 
 export function isGroup(item: unknown): item is Group {
     return reflection.isInstance(item, Group);
+}
+
+export interface GroupByClause extends langium.AstNode {
+    readonly $container: CrudMap;
+    readonly $type: 'GroupByClause';
+    colNames: Array<QualifiedName>;
+}
+
+export const GroupByClause = 'GroupByClause';
+
+export function isGroupByClause(item: unknown): item is GroupByClause {
+    return reflection.isInstance(item, GroupByClause);
 }
 
 export interface Handler extends langium.AstNode {
@@ -815,7 +848,7 @@ export function isKvPairs(item: unknown): item is KvPairs {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | CaseEntry | CrudMap | FnCall | FullTextSearch | GenericPropertyDef | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | CrudMap | FnCall | FullTextSearch | GenericPropertyDef | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError | WhereSpecClause;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
@@ -899,7 +932,7 @@ export function isModuleDefinition(item: unknown): item is ModuleDefinition {
 }
 
 export interface NegExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError | WhereSpecClause;
     readonly $type: 'NegExpr';
     ne: Expr;
 }
@@ -924,7 +957,7 @@ export function isNodeDefinition(item: unknown): item is NodeDefinition {
 }
 
 export interface NotExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError | WhereSpecClause;
     readonly $type: 'NotExpr';
     ne: Expr;
 }
@@ -945,6 +978,19 @@ export const OneOfSpec = 'OneOfSpec';
 
 export function isOneOfSpec(item: unknown): item is OneOfSpec {
     return reflection.isInstance(item, OneOfSpec);
+}
+
+export interface OrderByClause extends langium.AstNode {
+    readonly $container: CrudMap;
+    readonly $type: 'OrderByClause';
+    colNames: Array<QualifiedName>;
+    order?: '@asc' | '@desc';
+}
+
+export const OrderByClause = 'OrderByClause';
+
+export function isOrderByClause(item: unknown): item is OrderByClause {
+    return reflection.isInstance(item, OrderByClause);
 }
 
 export interface Pattern extends langium.AstNode {
@@ -1334,8 +1380,9 @@ export function isScenarioDefinition(item: unknown): item is ScenarioDefinition 
 export interface SelectIntoEntry extends langium.AstNode {
     readonly $container: SelectIntoSpec;
     readonly $type: 'SelectIntoEntry';
+    aggregate?: AggregateFunctionSpec;
     alias: string;
-    attribute: Ref;
+    attribute?: Ref;
 }
 
 export const SelectIntoEntry = 'SelectIntoEntry';
@@ -1359,9 +1406,10 @@ export function isSelectIntoSpec(item: unknown): item is SelectIntoSpec {
 export interface SetAttribute extends langium.AstNode {
     readonly $container: BackoffSpec | CrudMapBody;
     readonly $type: 'SetAttribute';
+    aggregate?: AggregateFunctionSpec;
     name: QueryId;
     op?: SqlComparisonOpr;
-    value: AttributeValueExpression;
+    value?: AttributeValueExpression;
 }
 
 export const SetAttribute = 'SetAttribute';
@@ -1445,6 +1493,32 @@ export function isTriggerEntry(item: unknown): item is TriggerEntry {
     return reflection.isInstance(item, TriggerEntry);
 }
 
+export interface WhereSpec extends langium.AstNode {
+    readonly $container: CrudMap;
+    readonly $type: 'WhereSpec';
+    clauses: Array<WhereSpecClause>;
+}
+
+export const WhereSpec = 'WhereSpec';
+
+export function isWhereSpec(item: unknown): item is WhereSpec {
+    return reflection.isInstance(item, WhereSpec);
+}
+
+export interface WhereSpecClause extends langium.AstNode {
+    readonly $container: WhereSpec;
+    readonly $type: 'WhereSpecClause';
+    lhs: QueryId;
+    op?: SqlComparisonOpr;
+    rhs: Expr;
+}
+
+export const WhereSpecClause = 'WhereSpecClause';
+
+export function isWhereSpecClause(item: unknown): item is WhereSpecClause {
+    return reflection.isInstance(item, WhereSpecClause);
+}
+
 export interface WorkflowDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition | PublicWorkflowDefinition;
     readonly $type: 'WorkflowDefinition';
@@ -1479,6 +1553,7 @@ export type AgentlangAstType = {
     AgentDefinition: AgentDefinition
     AgentXtraAttribute: AgentXtraAttribute
     AgentXtraSpec: AgentXtraSpec
+    AggregateFunctionSpec: AggregateFunctionSpec
     AliasSpec: AliasSpec
     ArrayLiteral: ArrayLiteral
     AsyncFnCall: AsyncFnCall
@@ -1516,6 +1591,7 @@ export type AgentlangAstType = {
     GenericPropertyDef: GenericPropertyDef
     GlossaryEntryDefinition: GlossaryEntryDefinition
     Group: Group
+    GroupByClause: GroupByClause
     Handler: Handler
     If: If
     Import: Import
@@ -1532,6 +1608,7 @@ export type AgentlangAstType = {
     NodeDefinition: NodeDefinition
     NotExpr: NotExpr
     OneOfSpec: OneOfSpec
+    OrderByClause: OrderByClause
     Pattern: Pattern
     PrePostTriggerDefinition: PrePostTriggerDefinition
     PrimExpr: PrimExpr
@@ -1572,6 +1649,8 @@ export type AgentlangAstType = {
     ThrowError: ThrowError
     TriggerDefinition: TriggerDefinition
     TriggerEntry: TriggerEntry
+    WhereSpec: WhereSpec
+    WhereSpecClause: WhereSpecClause
     WorkflowDefinition: WorkflowDefinition
     WorkflowHeader: WorkflowHeader
 }
@@ -1579,7 +1658,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AgentXtraAttribute, AgentXtraSpec, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BackoffSpec, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FlowStepSpec, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, Handler, If, Import, JoinSpec, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicAgentDefinition, PublicEventDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RetryDefinition, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, ThrowError, TriggerDefinition, TriggerEntry, WorkflowDefinition, WorkflowHeader];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AgentXtraAttribute, AgentXtraSpec, AggregateFunctionSpec, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BackoffSpec, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FlowStepSpec, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, GroupByClause, Handler, If, Import, JoinSpec, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, OrderByClause, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicAgentDefinition, PublicEventDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RetryDefinition, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, ThrowError, TriggerDefinition, TriggerEntry, WhereSpec, WhereSpecClause, WorkflowDefinition, WorkflowHeader];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1679,6 +1758,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: AgentXtraSpec,
                     properties: [
                         { name: 'attributes', defaultValue: [] }
+                    ]
+                };
+            }
+            case AggregateFunctionSpec: {
+                return {
+                    name: AggregateFunctionSpec,
+                    properties: [
+                        { name: 'args', defaultValue: [] },
+                        { name: 'name' }
                     ]
                 };
             }
@@ -1788,12 +1876,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     properties: [
                         { name: 'body' },
                         { name: 'distinct', defaultValue: [] },
+                        { name: 'groupByClause' },
                         { name: 'into' },
-                        { name: 'join' },
+                        { name: 'joins', defaultValue: [] },
                         { name: 'name' },
+                        { name: 'orderByClause' },
                         { name: 'relationships', defaultValue: [] },
                         { name: 'source' },
-                        { name: 'upsert', defaultValue: [] }
+                        { name: 'upsert', defaultValue: [] },
+                        { name: 'where' }
                     ]
                 };
             }
@@ -1985,6 +2076,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case GroupByClause: {
+                return {
+                    name: GroupByClause,
+                    properties: [
+                        { name: 'colNames', defaultValue: [] }
+                    ]
+                };
+            }
             case Handler: {
                 return {
                     name: Handler,
@@ -2133,6 +2232,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     name: OneOfSpec,
                     properties: [
                         { name: 'ref' }
+                    ]
+                };
+            }
+            case OrderByClause: {
+                return {
+                    name: OrderByClause,
+                    properties: [
+                        { name: 'colNames', defaultValue: [] },
+                        { name: 'order' }
                     ]
                 };
             }
@@ -2408,6 +2516,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: SelectIntoEntry,
                     properties: [
+                        { name: 'aggregate' },
                         { name: 'alias' },
                         { name: 'attribute' }
                     ]
@@ -2425,6 +2534,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 return {
                     name: SetAttribute,
                     properties: [
+                        { name: 'aggregate' },
                         { name: 'name' },
                         { name: 'op' },
                         { name: 'value' }
@@ -2479,6 +2589,24 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'async' },
                         { name: 'event' },
                         { name: 'on' }
+                    ]
+                };
+            }
+            case WhereSpec: {
+                return {
+                    name: WhereSpec,
+                    properties: [
+                        { name: 'clauses', defaultValue: [] }
+                    ]
+                };
+            }
+            case WhereSpecClause: {
+                return {
+                    name: WhereSpecClause,
+                    properties: [
+                        { name: 'lhs' },
+                        { name: 'op' },
+                        { name: 'rhs' }
                     ]
                 };
             }

@@ -22,8 +22,8 @@ import {
   splitFqName,
   splitRefs,
 } from '../../util.js';
-import { JoinInfo, Resolver } from '../interface.js';
-import { asTableReference } from './dbutil.js';
+import { JoinInfo, Resolver, WhereClause } from '../interface.js';
+import { asColumnReference, asTableReference } from './dbutil.js';
 import {
   getMany,
   insertRow,
@@ -43,8 +43,9 @@ import {
   JoinOn,
   makeJoinOn,
   getManyByJoin,
+  QuerySpec,
 } from './database.js';
-import { Environment } from '../../interpreter.js';
+import { AggregateFunctionCall, Environment } from '../../interpreter.js';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { Embeddings } from '@langchain/core/embeddings';
 import { DeletedFlagAttributeName, ParentAttributeName, PathAttributeName } from '../../defs.js';
@@ -164,6 +165,26 @@ export class SqlDbResolver extends Resolver {
     return Instance.clone(inst).mergeAttributes(newAttrs);
   }
 
+  private static normalizedAggregates(
+    inst: Instance,
+    tableName: string
+  ): Map<string, string> | undefined {
+    if (inst.aggregates !== undefined) {
+      const entn = inst.name;
+      const entfqn = inst.getFqName();
+      const mn = inst.moduleName;
+      const result = new Map<string, string>();
+      inst.aggregates.forEach((f: AggregateFunctionCall, n: string) => {
+        const args = f.args.map((v: string) => {
+          return asColumnReference(v, tableName, entn, entfqn, mn);
+        });
+        result.set(n, `${f.name}(${args.join(', ')})`);
+      });
+      return result;
+    }
+    return undefined;
+  }
+
   static EmptyResultSet: Array<Instance> = new Array<Instance>();
 
   public override async queryInstances(
@@ -178,7 +199,31 @@ export class SqlDbResolver extends Resolver {
     const ctx = this.getDbContext(fqName);
     const qattrs: any = queryAll ? undefined : inst.queryAttributesAsObject();
     const qvals: any = queryAll ? undefined : inst.queryAttributeValuesAsObject();
-    const rslt: any = await getMany(tableName, qattrs, qvals, distinct, ctx);
+    const groupBy = inst.groupBy
+      ? inst.groupBy.map((gb: string) => {
+          return asColumnReference(gb, tableName, inst.name, fqName, inst.moduleName);
+        })
+      : undefined;
+    const orderBy = inst.orderBy
+      ? inst.orderBy.map((ob: string) => {
+          return asColumnReference(ob, tableName, inst.name, fqName, inst.moduleName);
+        })
+      : undefined;
+    const orderByDesc = inst.orderByDesc ? 'DESC' : 'ASC';
+    const aggregates = SqlDbResolver.normalizedAggregates(inst, tableName);
+    const qspec: QuerySpec = {
+      queryObj: qattrs,
+      queryVals: qvals,
+      distinct,
+      groupBy,
+      orderBy,
+      orderByDesc,
+      aggregates,
+      joinClauses: undefined,
+      intoSpec: undefined,
+      whereClauses: undefined,
+    };
+    const rslt: any = await getMany(tableName, qspec, ctx);
     if (rslt instanceof Array) {
       result = new Array<Instance>();
       rslt.forEach((r: object) => {
@@ -266,12 +311,15 @@ export class SqlDbResolver extends Resolver {
     joinInfo: JoinInfo[],
     intoSpec: Map<string, string>,
     distinct: boolean = false,
-    rawJoinSpec?: JoinSpec
+    rawJoinSpec?: JoinSpec[],
+    whereClauses?: WhereClause[]
   ): Promise<any> {
     const tableName = asTableReference(inst.moduleName, inst.name);
     const joinClauses: JoinClause[] = [];
     if (rawJoinSpec) {
-      this.processRawJoinSpec(tableName, inst, rawJoinSpec, joinClauses);
+      rawJoinSpec.forEach((rjs: JoinSpec) => {
+        this.processRawJoinSpec(tableName, inst, rjs, joinClauses);
+      });
     } else {
       this.processJoinInfo(tableName, inst, joinInfo, joinClauses);
     }
@@ -280,15 +328,35 @@ export class SqlDbResolver extends Resolver {
       const mn = p.hasModule() ? p.getModuleName() : inst.moduleName;
       intoSpec.set(k, asTableReference(mn, p.getEntryName()));
     });
-    const rslt: any = await getManyByJoin(
-      tableName,
-      inst.queryAttributesAsObject(),
-      inst.queryAttributeValuesAsObject(),
-      joinClauses,
-      intoSpec,
+    const fqName = inst.getFqName();
+    const groupBy = inst.groupBy
+      ? inst.groupBy.map((gb: string) => {
+          return asColumnReference(gb, tableName, inst.name, fqName, inst.moduleName);
+        })
+      : undefined;
+    const orderBy = inst.orderBy
+      ? inst.orderBy.map((ob: string) => {
+          return asColumnReference(ob, tableName, inst.name, fqName, inst.moduleName);
+        })
+      : undefined;
+    const orderByDesc = inst.orderByDesc ? 'DESC' : 'ASC';
+    const aggregates = SqlDbResolver.normalizedAggregates(inst, tableName);
+    whereClauses?.forEach((wc: WhereClause) => {
+      wc.attrName = asColumnReference(wc.attrName, tableName, inst.name, fqName, inst.moduleName);
+    });
+    const qspec: QuerySpec = {
+      queryObj: inst.queryAttributesAsObject(),
+      queryVals: inst.queryAttributeValuesAsObject(),
       distinct,
-      this.getDbContext(inst.getFqName())
-    );
+      groupBy,
+      orderBy,
+      orderByDesc,
+      aggregates,
+      joinClauses,
+      whereClauses,
+      intoSpec,
+    };
+    const rslt: any = await getManyByJoin(tableName, qspec, this.getDbContext(inst.getFqName()));
     return rslt;
   }
 
@@ -536,7 +604,7 @@ function maybeNormalizeAttributeNames(
     ks.forEach((k: string) => {
       const v = attrs.get(k);
       attrs.delete(k);
-      attrs.set(k.substring(n + 1), v);
+      attrs.set(k.substring(n + 1) || k, v);
     });
   }
   return attrs;
