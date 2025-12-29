@@ -1,7 +1,7 @@
 {
 	"name": "agentlang",
 	"description": "The easiest way to build the most reliable AI agents - enterprise-grade teams of AI agents that collaborate with each other and humans",
-	"version": "0.7.9",
+	"version": "0.8.0",
 	"license": "Sustainable Use License",
 	"author": "agentlang-ai",
 	"homepage": "https://github.com/agentlang-ai/agentlang#readme",
