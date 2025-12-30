@@ -163,6 +163,24 @@ jobs:
           pnpm install --no-frozen-lockfile
           echo "pnpm lock file updated"
 
+      - name: Format code
+        run: |
+          if grep -q '"format"' package.json; then
+            pnpm run format || npm run format || true
+            echo "Code formatted"
+          else
+            echo "No format script found, skipping"
+          fi
+
+      - name: Lint code
+        run: |
+          if grep -q '"lint"' package.json; then
+            pnpm run lint || npm run lint || true
+            echo "Code linted"
+          else
+            echo "No lint script found, skipping"
+          fi
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8
         with:

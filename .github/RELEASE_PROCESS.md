@@ -10,9 +10,15 @@ This repository uses an automated release preparation workflow that triggers whe
    - Updated `CHANGELOG.md` with all commits since the last tag
    - Updated `package-lock.json` (via `npm install`)
    - Updated `pnpm-lock.yaml` (via `pnpm install`)
+   - Formatted and linted code
    - Links to all commits with author mentions
-3. **Review & Merge**: Review the PR and merge it to apply the changes
-4. **Publish**: The existing publish workflow handles npm publishing when the tag exists
+3. **Review & Merge**: Review the PR and merge it
+4. **Automatic Publish**: When the PR is merged, the publish workflow automatically:
+   - Generates Langium files
+   - Builds the package
+   - Runs tests
+   - Publishes to npm
+   - Creates a GitHub Release
 
 ## Step-by-Step Release Workflow
 
@@ -66,16 +72,12 @@ Review the PR to ensure:
 
 ### 5. Merge the Pull Request
 
-Once approved, merge the PR. This will:
-- Update the repository with the new version
-- Update the CHANGELOG
-- Ensure lock files are in sync
-
-### 6. Publishing to npm
-
-The existing `publish.yml` workflow will handle publishing to npm automatically when:
-- A tag is pushed (which you already did in step 2)
-- A GitHub release is published
+Once approved, merge the PR. This will automatically trigger the publish workflow which:
+- Generates Langium files
+- Builds the package
+- Runs tests
+- Publishes to npm
+- Creates a GitHub Release
 
 ## CHANGELOG Format
 
@@ -117,8 +119,9 @@ git push origin 0.9.0
 
 # 5. Merge the PR after review
 
-# 6. The publish workflow automatically publishes to npm
-#    Check: https://www.npmjs.com/package/agentlang
+# 6. The publish workflow automatically runs, publishes to npm, and creates GitHub Release
+#    Check npm: https://www.npmjs.com/package/agentlang
+#    Check releases: https://github.com/agentlang-ai/agentlang/releases
 ```
 
 ## Lock File Updates
