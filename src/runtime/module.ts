@@ -208,7 +208,7 @@ function attributePropertyValueToString(
     });
     return ss.join(',');
   } else if (propName == 'default') {
-    if (isTextualType(attrType) && propValue != 'now()' && propValue != 'uuid()') {
+    if (isTextualType(attrType) && !defaultValueIsFunctionCall(propValue)) {
       return `"${propValue}"`;
     }
   } else if (propName == 'comment') {
@@ -3763,6 +3763,10 @@ export function findIdAttribute(inst: Instance): AttributeEntry | undefined {
   return undefined;
 }
 
+function defaultValueIsFunctionCall(dv: string): boolean {
+  return dv.endsWith('()');
+}
+
 function maybeSetDefaultAttributeValues(
   schema: RecordSchema,
   attributes: InstanceAttributes
@@ -3772,10 +3776,8 @@ function maybeSetDefaultAttributeValues(
     const cv = attributes.get(k);
     if (cv === undefined || cv === null) {
       if (isString(v)) {
-        if (v == 'uuid()') {
-          v = crypto.randomUUID();
-        } else if (v == 'now()') {
-          v = now();
+        if (defaultValueIsFunctionCall(v)) {
+          v = eval(v);
         }
       }
       attributes.set(k, v);
