@@ -1,0 +1,206 @@
+name: Release Preparation
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*'  # Matches 0.8.2, 1.0.0, etc.
+      - 'v[0-9]+.[0-9]+.[0-9]+*'  # Fallback: also matches v0.8.2, v1.0.0, etc.
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for changelog generation
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          # Extract tag name and strip 'v' prefix if present
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG_NAME#v}"  # Remove 'v' prefix if it exists
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION (from tag: $TAG_NAME)"
+
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          CURRENT_TAG="${{ steps.version.outputs.tag }}"
+          # Get the previous tag (excluding the current one)
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n 1)
+          if [ -z "$PREV_TAG" ]; then
+            # If no previous tag, use first commit
+            PREV_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          echo "Previous tag: $PREV_TAG"
+
+      - name: Generate changelog content
+        id: changelog
+        run: |
+          CURRENT_TAG="${{ steps.version.outputs.tag }}"
+          PREV_TAG="${{ steps.prev_tag.outputs.prev_tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Generate changelog with proper author attribution
+          CHANGELOG_CONTENT=""
+          while IFS= read -r line; do
+            # Extract commit info
+            COMMIT_HASH=$(echo "$line" | cut -d'|' -f1)
+            COMMIT_FULL_HASH=$(echo "$line" | cut -d'|' -f2)
+            AUTHOR_EMAIL=$(echo "$line" | cut -d'|' -f3)
+            COMMIT_MSG=$(echo "$line" | cut -d'|' -f4-)
+
+            # Extract GitHub username from email
+            if [[ "$AUTHOR_EMAIL" == *"@users.noreply.github.com" ]]; then
+              # Extract username from GitHub noreply email format: userid+username@users.noreply.github.com
+              AUTHOR=$(echo "$AUTHOR_EMAIL" | sed -E 's/.*\+([^@]+)@.*/\1/')
+            elif [[ "$AUTHOR_EMAIL" == *"@"* ]]; then
+              # Use the part before @ for regular emails
+              AUTHOR=$(echo "$AUTHOR_EMAIL" | cut -d'@' -f1)
+            else
+              # Fallback to git author name
+              AUTHOR=$(git log -1 --format='%an' "$COMMIT_FULL_HASH")
+            fi
+
+            # Append to changelog
+            CHANGELOG_CONTENT+="* $COMMIT_MSG ([$COMMIT_HASH](https://github.com/${{ github.repository }}/commit/$COMMIT_FULL_HASH)) - @$AUTHOR"$'\n'
+          done < <(git log ${PREV_TAG}..${CURRENT_TAG} --pretty=format:"%h|%H|%ae|%s" --no-merges)
+
+          # Create the new changelog entry
+          NEW_ENTRY="## [$VERSION](https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${CURRENT_TAG}) ($(date +%Y-%m-%d))
+
+          ### Changes
+
+          ${CHANGELOG_CONTENT}
+          ---
+          "
+
+          # Save to file for later use
+          echo "$NEW_ENTRY" > /tmp/new_changelog_entry.md
+          echo "Generated changelog entry for version $VERSION"
+
+      - name: Update CHANGELOG.md
+        run: |
+          NEW_ENTRY=$(cat /tmp/new_changelog_entry.md)
+          VERSION="${{ steps.version.outputs.version }}"
+
+          if [ -f "CHANGELOG.md" ]; then
+            # Check if this version already exists in CHANGELOG
+            if grep -q "## \[$VERSION\]" CHANGELOG.md; then
+              echo "Version $VERSION already exists in CHANGELOG.md"
+              echo "Replacing existing entry with updated content..."
+
+              # Remove the existing entry and insert the new one
+              awk -v version="$VERSION" -v new="$NEW_ENTRY" '
+                BEGIN { in_section=0; skip=0 }
+                /^## \[/ {
+                  if ($0 ~ "\\[" version "\\]") {
+                    in_section=1
+                    skip=1
+                    print new
+                    next
+                  } else if (in_section) {
+                    in_section=0
+                    skip=0
+                  }
+                }
+                /^---$/ && skip { skip=0; next }
+                !skip { print }
+              ' CHANGELOG.md > CHANGELOG.md.tmp
+              mv CHANGELOG.md.tmp CHANGELOG.md
+            else
+              # Insert new entry after the title
+              awk -v new="$NEW_ENTRY" '
+                NR==1 {print; print ""; print new; next}
+                NR==2 && /^$/ {next}
+                {print}
+              ' CHANGELOG.md > CHANGELOG.md.tmp
+              mv CHANGELOG.md.tmp CHANGELOG.md
+            fi
+          else
+            # Create new CHANGELOG.md
+            echo "# Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "$NEW_ENTRY" >> CHANGELOG.md
+            echo "*This CHANGELOG is automatically generated based on git tags and commits.*" >> CHANGELOG.md
+          fi
+
+          echo "CHANGELOG.md updated"
+
+      - name: Update package.json version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Use npm version to update package.json
+          npm version $VERSION --no-git-tag-version --allow-same-version
+          echo "Updated package.json to version $VERSION"
+
+      - name: Setup Node.js for npm
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Update npm lock file
+        run: |
+          npm install
+          echo "npm lock file updated"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Update pnpm lock file
+        run: |
+          pnpm install --no-frozen-lockfile
+          echo "pnpm lock file updated"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            chore: release ${{ steps.version.outputs.version }}
+
+            - Update package.json to ${{ steps.version.outputs.version }}
+            - Update CHANGELOG.md with commits since ${{ steps.prev_tag.outputs.prev_tag }}
+            - Update package-lock.json and pnpm-lock.yaml
+          branch: release/${{ steps.version.outputs.version }}
+          delete-branch: true
+          title: "Release ${{ steps.version.outputs.version }}"
+          body: |
+            ## Release ${{ steps.version.outputs.version }}
+
+            This PR was automatically created by pushing tag `${{ steps.version.outputs.tag }}`.
+
+            ### Changes in this PR:
+            - ✅ Updated `package.json` version to `${{ steps.version.outputs.version }}`
+            - ✅ Updated `CHANGELOG.md` with all commits since `${{ steps.prev_tag.outputs.prev_tag }}`
+            - ✅ Updated `package-lock.json` (npm)
+            - ✅ Updated `pnpm-lock.yaml` (pnpm)
+
+            ### Commits included in this release:
+
+            $(cat /tmp/new_changelog_entry.md)
+
+            ---
+
+            **Next steps:**
+            1. Review the changes in this PR
+            2. Merge this PR to update the version and changelog
+            3. The existing publish workflow will handle npm publishing
+
+            🤖 _This PR was automatically generated by the Release Preparation workflow_
+          labels: |
+            release
+            automated
+          assignees: ${{ github.actor }}
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
