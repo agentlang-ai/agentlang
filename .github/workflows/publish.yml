@@ -24,17 +24,17 @@ jobs:
     steps:
       # Step 1: Checkout your code
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Step 2: Setup pnpm
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           version: latest
 
       # Step 3: Setup Node.js
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -70,12 +70,9 @@ jobs:
       # Step 9: Create GitHub Release (if triggered by tag)
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           body: |
             ## agentlang ${{ github.ref_name }}
 
@@ -100,3 +97,4 @@ jobs:
             - 🔄 [All commits in this release](https://github.com/${{ github.repository }}/compare/0.7.9...${{ github.ref_name }})
           draft: false
           prerelease: false
+          generate_release_notes: false
