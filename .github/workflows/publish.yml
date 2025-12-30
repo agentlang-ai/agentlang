@@ -8,14 +8,22 @@ on:
   release:
     types: [published]
 
-  # Automatic trigger when you push a version tag (without 'v' prefix)
-  push:
-    tags:
-      - '[0-9]+.[0-9]+.[0-9]+*' # Matches 0.0.64, 1.2.3, etc.
+  # Automatic trigger when release PR is merged
+  pull_request:
+    types: [closed]
+    branches:
+      - main
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Only run if PR was merged (not just closed) and is a release PR
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'release' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'release/'))
 
     permissions:
       contents: write
@@ -67,14 +75,25 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Step 9: Create GitHub Release (if triggered by tag)
+      # Step 9: Extract version from branch name
+      - name: Extract version
+        if: github.event_name == 'pull_request'
+        id: extract_version
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          VERSION="${BRANCH_NAME#release/}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      # Step 10: Create GitHub Release (when triggered by PR merge)
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ steps.extract_version.outputs.version }}
+          name: Release ${{ steps.extract_version.outputs.version }}
           body: |
-            ## agentlang ${{ github.ref_name }}
+            ## agentlang ${{ steps.extract_version.outputs.version }}
 
             Published to npm: https://www.npmjs.com/package/agentlang
 
@@ -87,14 +106,14 @@ jobs:
             ### Installation
 
             ```bash
-            npm install agentlang@${{ github.ref_name }}
+            npm install agentlang@${{ steps.extract_version.outputs.version }}
             ```
 
             ### Links
 
             - 📦 [npm package](https://www.npmjs.com/package/agentlang)
             - 📝 [Full CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)
-            - 🔄 [All commits in this release](https://github.com/${{ github.repository }}/compare/0.7.9...${{ github.ref_name }})
+            - 🔄 [All commits in this release](https://github.com/${{ github.repository }}/commits/${{ steps.extract_version.outputs.version }})
           draft: false
           prerelease: false
           generate_release_notes: false
