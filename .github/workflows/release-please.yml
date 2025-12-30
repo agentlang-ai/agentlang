@@ -167,6 +167,7 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          base: main
           commit-message: |
             chore: release ${{ steps.version.outputs.version }}
 
