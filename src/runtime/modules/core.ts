@@ -8,6 +8,7 @@ import {
   isString,
   restoreSpecialChars,
   makeCoreModuleName,
+  nameToPath,
 } from '../util.js';
 import {
   fetchModule,
@@ -48,7 +49,8 @@ entity timer {
   duration Int,
   unit @enum("millisecond", "second", "minute", "hour") @default("second"),
   trigger String,
-  status @enum("I", "C", "R") @default("I") // Inited, Cancelled, Running
+  repeat Boolean @default(true),
+  status @enum("I", "C", "R") @default("I") @indexed // Inited, Cancelled, Running
 }
 
 entity auditlog {
@@ -183,18 +185,87 @@ export function registerCoreModules() {
   });
 }
 
-export function setTimerRunning(timerInst: Instance) {
-  timerInst.attributes.set('status', 'R');
+function isTimerCancelled(inst: Instance): boolean {
+  return inst.lookup('status') === 'C';
 }
 
-export async function maybeCancelTimer(name: string, timer: NodeJS.Timeout, env: Environment) {
+// If the timer is deleted or its status is set to 'C' (cancelled), then clear the associated timer.
+async function maybeClearTimer(name: string, timer: NodeJS.Timeout, env: Environment) {
   await parseAndEvaluateStatement(`{agentlang/timer {name? "${name}"}}`, undefined, env).then(
     (result: any) => {
-      if (result === null || (result instanceof Array && result.length == 0)) {
+      if (
+        result === null ||
+        (result instanceof Array && (result.length == 0 || isTimerCancelled(result[0])))
+      ) {
         clearInterval(timer);
       }
     }
   );
+}
+
+export function triggerTimer(timerInst: Instance): Instance {
+  const dur = timerInst.lookup('duration');
+  const unit = timerInst.lookup('unit');
+  let millisecs = 0;
+  switch (unit) {
+    case 'millisecond': {
+      millisecs = dur;
+      break;
+    }
+    case 'second': {
+      millisecs = dur * 1000;
+      break;
+    }
+    case 'minute': {
+      millisecs = dur * 60 * 1000;
+      break;
+    }
+    case 'hour': {
+      millisecs = dur * 60 * 60 * 1000;
+      break;
+    }
+  }
+  const eventName = nameToPath(timerInst.lookup('trigger'));
+  const m = eventName.hasModule() ? eventName.getModuleName() : timerInst.moduleName;
+  const n = eventName.getEntryName();
+  const inst = makeInstance(m, n, newInstanceAttributes());
+  const name = timerInst.lookup('name');
+  const repeat = timerInst.lookup('repeat');
+  const timer = setInterval(async () => {
+    const env = new Environment();
+    try {
+      await evaluate(
+        inst,
+        (result: any) => logger.debug(`Timer ${name} ran with result ${result}`),
+        env
+      );
+      await env.commitAllTransactions();
+      if (!repeat) clearInterval(timer);
+      else await maybeClearTimer(name, timer, env);
+    } catch (reason: any) {
+      logger.error(`Timer ${name} raised error: ${reason}`);
+    }
+  }, millisecs);
+  timerInst.attributes.set('status', 'R');
+  return timerInst;
+}
+
+export async function saveTimerStatus(timerInst: Instance): Promise<boolean> {
+  const name = timerInst.lookup('name');
+  const status = timerInst.lookup('status');
+  const env = new Environment();
+  try {
+    await parseAndEvaluateStatement(`{agentlang/timer {name? "${name}", "status": "${status}"}}`);
+    await env.commitAllTransactions();
+  } catch (reason: any) {
+    logger.warn(`Failed to save status of timer ${name} - ${reason}`);
+    return false;
+  }
+  return true;
+}
+
+export async function lookupTimersWithRunningStatus(): Promise<Instance[]> {
+  return await parseAndEvaluateStatement(`{agentlang/timer {status? "R"}}`);
 }
 
 async function addAudit(

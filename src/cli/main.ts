@@ -17,7 +17,7 @@ import * as url from 'node:url';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { logger, updateLoggerFromConfig } from '../runtime/logger.js';
-import { Module } from '../runtime/module.js';
+import { Instance, Module } from '../runtime/module.js';
 import { ModuleDefinition } from '../language/generated/ast.js';
 import { Config } from '../runtime/state.js';
 import { prepareIntegrations } from '../runtime/integrations.js';
@@ -32,6 +32,7 @@ import { importModule } from '../runtime/jsmodules.js';
 import {
   isRuntimeMode_dev,
   isRuntimeMode_prod,
+  isRuntimeMode_test,
   setInternDynamicModuleFn,
   setRuntimeMode_generate_migration,
   setRuntimeMode_init_schema,
@@ -41,7 +42,11 @@ import {
   updateEndpoints,
 } from '../runtime/defs.js';
 import { initGlobalApi } from '../runtime/api.js';
-import { initCoreModuleManager } from '../runtime/modules/core.js';
+import {
+  initCoreModuleManager,
+  lookupTimersWithRunningStatus,
+  triggerTimer,
+} from '../runtime/modules/core.js';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
@@ -134,6 +139,7 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   await runInitFunctions();
   await runStandaloneStatements();
   initCoreModuleManager();
+  await runPersistedTimers();
   logger.info(
     `Running application ${appSpec?.name || 'unknown'} version ${appSpec?.version || 'unknown'} on port ${config?.service?.port || 8080}`
   );
@@ -167,6 +173,36 @@ export async function runPreInitTasks(): Promise<boolean> {
     result = false;
   });
   return result;
+}
+
+async function runPersistedTimers() {
+  if (!isRuntimeMode_test()) {
+    const insts: Instance[] = await lookupTimersWithRunningStatus();
+    if (insts) {
+      for (let i = 0; i < insts.length; ++i) {
+        const inst: Instance = insts[i];
+        if (await restartTimer(inst)) {
+          logger.info(`Timer ${inst.lookup('name')} setup to restart`);
+        }
+      }
+    }
+  }
+}
+
+async function restartTimer(timerInst: Instance): Promise<boolean> {
+  const n = timerInst.lookup('name');
+  try {
+    if (isRuntimeMode_prod()) {
+      // TODO: create and configure an independent timer-managerment service.
+      logger.warn(`Cannot restart timer ${n}, timer management service is not configured`);
+    } else {
+      triggerTimer(timerInst);
+      return true;
+    }
+  } catch (reason: any) {
+    logger.warn(`Error while restarting timer ${n} - ${reason}`);
+  }
+  return false;
 }
 
 async function internDynamicModule(name: string, definition: string): Promise<string> {
