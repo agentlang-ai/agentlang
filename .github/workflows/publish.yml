@@ -77,13 +77,26 @@ jobs:
           tag_name: ${{ github.ref_name }}
           release_name: Release ${{ github.ref_name }}
           body: |
-            ## agentlang v${{ github.ref_name }}
+            ## agentlang ${{ github.ref_name }}
 
             Published to npm: https://www.npmjs.com/package/agentlang
 
+            ### What's Changed
+
+            See the full changelog for all changes in this release:
+
+            📝 **[View CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)**
+
             ### Installation
+
             ```bash
             npm install agentlang@${{ github.ref_name }}
             ```
+
+            ### Links
+
+            - 📦 [npm package](https://www.npmjs.com/package/agentlang)
+            - 📝 [Full CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)
+            - 🔄 [All commits in this release](https://github.com/${{ github.repository }}/compare/0.7.9...${{ github.ref_name }})
           draft: false
           prerelease: false
