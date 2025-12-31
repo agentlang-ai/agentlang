@@ -20,6 +20,7 @@ import {
   Decision,
   fetchModule,
   getDecision,
+  getGlobalRetry,
   Instance,
   instanceToObject,
   isAgent,
@@ -198,11 +199,16 @@ export class AgentInstance {
     if (agent.retry) {
       let n = agent.retry;
       if (!isFqName(n)) {
-        n = `${agent.moduleName}/${n}`;
+        agent.retryObj = getGlobalRetry(n);
+        if (agent.retryObj === undefined) {
+          n = `${agent.moduleName}/${n}`;
+        }
       }
-      const parts = splitFqName(n);
-      const m = fetchModule(parts[0]);
-      agent.retryObj = m.getRetry(parts[1]);
+      if (agent.retryObj === undefined) {
+        const parts = splitFqName(n);
+        const m = fetchModule(parts[0]);
+        agent.retryObj = m.getRetry(parts[1]);
+      }
     }
     return agent;
   }

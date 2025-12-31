@@ -1801,6 +1801,11 @@ export class Retry extends ModuleEntry {
     };
   }
 
+  setBackoffStrategy(s: BackoffStrategy): Retry {
+    this.backoff.strategy = s;
+    return this;
+  }
+
   setExponentialBackoff(): Retry {
     this.backoff.strategy = 'e';
     return this;
@@ -1831,6 +1836,17 @@ export class Retry extends ModuleEntry {
   setBackoffDelay(n: number): Retry {
     if (n > 0) {
       this.backoff.delay = n;
+    }
+    return this;
+  }
+
+  setBackoffMagnitude(m: string): Retry {
+    if (m[0] === 's') {
+      this.backoff.magnitude = 's';
+    } else if (m.startsWith('milli')) {
+      this.backoff.magnitude = 'ms';
+    } else {
+      this.backoff.magnitude = 'm';
     }
     return this;
   }
@@ -2492,6 +2508,25 @@ export class Module {
     });
     return `module ${this.name}\n${this.importsAsString()}\n${ss.join('\n')}`;
   }
+}
+
+let GlobalRetries: Array<Retry> | undefined = undefined;
+
+export function addGlobalRetry(r: Retry): Retry {
+  if (GlobalRetries === undefined) {
+    GlobalRetries = new Array<Retry>();
+  }
+  GlobalRetries?.push(r);
+  return r;
+}
+
+export function getGlobalRetry(name: string): Retry | undefined {
+  if (GlobalRetries !== undefined) {
+    return GlobalRetries.find((r: Retry) => {
+      return r.name === name;
+    });
+  }
+  return undefined;
 }
 
 declare global {

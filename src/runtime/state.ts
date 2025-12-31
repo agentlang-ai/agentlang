@@ -116,6 +116,20 @@ export const ConfigSchema = z.object({
       level: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
     })
     .optional(),
+  retry: z
+    .array(
+      z.object({
+        name: z.string(),
+        attempts: z.number(),
+        backoff: z.object({
+          strategy: z.enum(['linear', 'exponential', 'constant']),
+          delay: z.number(),
+          magnitude: z.enum(['seconds', 'milliSeconds', 'minutes']),
+          factor: z.number(),
+        }),
+      })
+    )
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
