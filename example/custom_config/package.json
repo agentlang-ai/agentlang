@@ -1,5 +1,5 @@
 {
-    "name": "CustomConfig",
+    "name": "custom_config",
     "version": "0.0.1",
-    "agentlang": {"config": ["chat.core/Config"]}
+    "agentlang": {"config": ["custom_config.core/Config"]}
 }
