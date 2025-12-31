@@ -30,7 +30,7 @@
 	    }
 	}
     ],
-    "custom_config.core": {
+    "custom_config": {
 	"custom_config.core/Config": {
 	    "server": "https://my.chat",
 	    "key": "#js process.env.CHAT_SECRET"
