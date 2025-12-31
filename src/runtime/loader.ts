@@ -69,6 +69,7 @@ import {
   addAgent,
   fetchModule,
   Retry,
+  addGlobalRetry,
 } from './module.js';
 import {
   asStringLiteralsMap,
@@ -81,6 +82,7 @@ import {
   preprocessRawConfig,
   registerInitFunction,
   rootRef,
+  ScratchModuleName,
 } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
@@ -1235,7 +1237,16 @@ async function configFromObject(cfgObj: any, validate: boolean = true): Promise<
     if (pats.length > 0) {
       await evaluateConfigPatterns(pats.join('\n'));
     }
-    return ConfigSchema.parse(cfg);
+    const result = ConfigSchema.parse(cfg);
+    cfg.retry?.forEach((r: any) => {
+      const retry: Retry = new Retry(r.name, ScratchModuleName, r.attempts)
+        .setBackoffDelay(r.backoff.delay)
+        .setBackoffFactor(r.backoff.factor)
+        .setBackoffStrategy(r.backoff.strategy[0])
+        .setBackoffMagnitude(r.backoff.magnitude);
+      addGlobalRetry(retry);
+    });
+    return result;
   }
   return rawConfig;
 }
