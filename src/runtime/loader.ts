@@ -395,7 +395,7 @@ export async function loadAppConfig(configDir: string): Promise<Config> {
     let cfg = cfgObj
       ? await configFromObject(cfgObj)
       : await loadRawConfig(`${configDir}${path.sep}app.config.json`);
-    const envAppConfig = process.env.APP_CONFIG;
+    const envAppConfig = typeof process !== 'undefined' ? process.env.APP_CONFIG : undefined;
     if (envAppConfig) {
       const envConfig = JSON.parse(envAppConfig);
       cfg = { ...cfg, ...envConfig };
