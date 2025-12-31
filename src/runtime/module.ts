@@ -1995,9 +1995,15 @@ export function isEmptyWorkflow(wf: Workflow): boolean {
   return wf == EmptyWorkflow;
 }
 
+export type ModuleImportEntry = {
+  path: string;
+  name: string;
+};
+
 export class Module {
   name: string;
   entries: ModuleEntry[];
+  imports: ModuleImportEntry[] | undefined;
 
   constructor(name: string) {
     this.name = name;
@@ -2007,6 +2013,21 @@ export class Module {
   addEntry(entry: ModuleEntry): ModuleEntry {
     this.entries.push(entry);
     return entry;
+  }
+
+  addImport(entry: ModuleImportEntry): Module {
+    if (this.imports === undefined) {
+      this.imports = new Array<ModuleImportEntry>();
+    }
+    this.imports?.push(entry);
+    return this;
+  }
+
+  removeImportAt(index: number): Module {
+    if (index >= 0) {
+      this.imports?.splice(index, 1);
+    }
+    return this;
   }
 
   getConfigEntity(): Entity | undefined {
@@ -2450,6 +2471,17 @@ export class Module {
     return false;
   }
 
+  private importsAsString(): string {
+    if (this.imports !== undefined) {
+      const ss = new Array<string>();
+      this.imports.forEach((me: ModuleImportEntry) => {
+        ss.push(`import "${me.path}" @as ${me.name}`);
+      });
+      return `\n${ss.join('\n')}\n`;
+    }
+    return '';
+  }
+
   toString(): string {
     const ss: Array<string> = [];
     this.entries.forEach((me: ModuleEntry) => {
@@ -2458,7 +2490,7 @@ export class Module {
       }
       ss.push(me.toString());
     });
-    return `module ${this.name}\n\n${ss.join('\n')}`;
+    return `module ${this.name}\n${this.importsAsString()}\n${ss.join('\n')}`;
   }
 }
 

@@ -1170,6 +1170,7 @@ export async function internModule(
   // Process imports sequentially to ensure all JS modules are loaded before definitions
   for (const imp of module.imports as Import[]) {
     await importModule(imp.path, imp.name, moduleFileName);
+    r.addImport({ name: imp.name, path: imp.path });
   }
   for (let i = 0; i < module.defs.length; ++i) {
     const def = module.defs[i];
