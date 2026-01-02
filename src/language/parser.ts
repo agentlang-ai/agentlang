@@ -33,7 +33,7 @@ import {
   Statement,
   WorkflowDefinition,
 } from './generated/ast.js';
-import { firstAliasSpec, firstCatchSpec, QuerySuffix } from '../runtime/util.js';
+import { firstAliasSpec, firstCatchSpec, isString, QuerySuffix } from '../runtime/util.js';
 import {
   BasePattern,
   CrudPattern,
@@ -508,4 +508,37 @@ export function canParse(s: string): boolean {
     return contents.length > 0;
   }
   return false;
+}
+
+export function objectToQueryPattern(obj: any): string {
+  const strs = new Array<string>();
+  Object.keys(obj).forEach((k: string) => {
+    if (k.startsWith('@')) {
+      const xs: any = obj[k];
+      if (k.endsWith('join')) {
+        xs.forEach((x: any[]) => {
+          strs.push(`${k} ${x[0]} ${objectToQuerySpecPattern(x[1], true)}`);
+        });
+      } else if (k === '@groupBy' || k === '@orderBy') {
+        strs.push(`${k} ( ${xs.join(', ')} )`);
+      } else {
+        strs.push(`${k} ${objectToQuerySpecPattern(xs, true)}`);
+      }
+    } else {
+      strs.push(`${k} ${objectToQuerySpecPattern(obj[k])}`);
+    }
+  });
+  return `{${strs.join(',\n')}}`;
+}
+
+function objectToQuerySpecPattern(obj: any, refMode: boolean = false): string {
+  const strs = new Array<string>();
+  Object.keys(obj).forEach((k: string) => {
+    let v = obj[k];
+    if (!refMode && isString(v)) {
+      v = `"${v}"`;
+    }
+    strs.push(`${k} ${v}`);
+  });
+  return `{${strs.join(', ')}}`;
 }
