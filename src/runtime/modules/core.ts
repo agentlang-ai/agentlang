@@ -28,7 +28,7 @@ import {
 } from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Statement } from '../../language/generated/ast.js';
-import { parseModule, parseStatements } from '../../language/parser.js';
+import { objectToQueryPattern, parseModule, parseStatements } from '../../language/parser.js';
 import { GenericResolver, Resolver } from '../resolvers/interface.js';
 import {
   FlowSuspensionTag,
@@ -162,6 +162,14 @@ entity Migration {
   appVersion String @id,
   ups String @optional,
   downs String @optional
+}
+
+@public event Query {
+  q Any
+}
+
+workflow Query {
+  await Core.doRawQuery(Query.q)
 }
 `;
 
@@ -734,4 +742,9 @@ export function migrationDowns(inst: Instance): string[] | undefined {
     return restoreSpecialChars(downs).split(SqlSep);
   }
   return undefined;
+}
+
+export async function doRawQuery(q: any): Promise<any> {
+  const qs = objectToQueryPattern(q);
+  return await parseAndEvaluateStatement(qs);
 }

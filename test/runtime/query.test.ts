@@ -2,6 +2,7 @@ import { assert, describe, test } from 'vitest';
 import { doInternModule } from '../util.js';
 import { Instance, isInstanceOfType } from '../../src/runtime/module.js';
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
+import { objectToQueryPattern } from '../../src/language/parser.js';
 
 describe('basic-aggregate-queries', () => {
   test('Aggegates like count, min and max', async () => {
@@ -19,6 +20,7 @@ describe('basic-aggregate-queries', () => {
     const isp = (inst: any) => {
       return isInstanceOfType(inst, entName);
     };
+    let totalPrice = 0.0
     const crp = async (id: number, name: string, price: number): Promise<Instance> => {
       const inst: Instance = await parseAndEvaluateStatement(`{${entName} {
                 id ${id},
@@ -26,6 +28,7 @@ describe('basic-aggregate-queries', () => {
                 price ${price}
       }}`);
       assert(isp(inst));
+      totalPrice += price
       return inst;
     };
     await crp(1, 'p01', 673.44);
@@ -41,8 +44,12 @@ describe('basic-aggregate-queries', () => {
     assert(insts[0].lookup('id') == 3);
     insts = await q(`{${entName}? {}, @orderBy(id)}`);
     assert(insts[0].lookup('id') == 1);
-    insts = await q(`{${entName} {mp? @max(price)}, @groupBy(id)}`);
-    assert(insts[0].lookup('price') == insts[0].lookup('mp'));
+    insts = await q(`{${entName} {mp? @max(price)}, @groupBy(__path__)}`);
+    let tp = 0.0
+    insts.forEach((inst: Instance) => {
+      tp += Number(inst.lookup('mp'))
+    })
+    assert(Math.round(tp) == Math.round(totalPrice))
     insts = await q(`{${entName} {mp? @max(price)}}`, 1);
     assert(insts[0].lookup('mp') == 784.42);
   });
@@ -150,7 +157,7 @@ describe('olap-test01', () => {
            @where {ProductDim.category categoryRevenueForYear.category,
                    RegionDim.country categoryRevenueForYear.country,
                    DateDim.year? categoryRevenueForYear.year},
-           @groupBy(RegionDim.state),
+           @groupBy(RegionDim.state, SalesFact.revenue),
            @orderBy(revenue)
         }
     }
@@ -270,25 +277,70 @@ describe('olap-test01', () => {
     rbyqm(r4.slice(1));
 
     const r5: any[] = await parseAndEvaluateStatement(`{${moduleName}/revenueForYear {year 2024}}`);
-    assert(r5.length == 2);
-    assert(
-      r5.every((v: any) => {
-        const r = v.category == 'Cat01' || v.category == 'Cat02';
-        if (r) {
-          if (v.category == 'Cat01') {
-            return Math.round(Number(v.revenue)) == Math.round(56788.89 + 22001.1);
-          } else {
-            return Math.round(Number(v.revenue)) == 45000;
+    const chkry = (r: any[]) => {
+      assert(r.length == 2);
+      assert(
+        r.every((v: any) => {
+          const r = v.category == 'Cat01' || v.category == 'Cat02';
+          if (r) {
+            if (v.category == 'Cat01') {
+              return Math.round(Number(v.revenue)) == Math.round(56788.89 + 22001.1);
+            } else {
+              return Math.round(Number(v.revenue)) == 45000;
+            }
           }
-        }
-        return r;
-      })
-    );
+          return r;
+        })
+      );
+    };
+    chkry(r5)
     const r6: any[] = await parseAndEvaluateStatement(
       `{${moduleName}/categoryRevenueForYear {year 2024, category "Cat01", country "India"}}`
     );
     assert(r6.length === 2);
     assert(r6[0].state === 'Kerala' && Math.round(r6[0].revenue) === Math.round(22001.1));
     assert(r6[1].state === 'Tamilnadu' && Math.round(r6[1].revenue) === Math.round(56788.89));
+
+    //
+    // JSON encoded queries
+    //
+    const qobj1 = { 'olap01/SalesFact?': {} };
+    const qs1 = objectToQueryPattern(qobj1);
+    const qr1: Instance[] = await parseAndEvaluateStatement(qs1);
+    assert(qr1.length === 4);
+    assert(
+      qr1.every((inst: Instance) => {
+        return isInstanceOfType(inst, 'olap01/SalesFact');
+      })
+    );
+    const qobj2 = {
+      'olap01/SalesFact': { 'revenue?>=': 45000 },
+    };
+    const qs2 = objectToQueryPattern(qobj2);
+    const qr2 = await parseAndEvaluateStatement(qs2);
+    assert(qr2.length === 2);
+    assert(
+      qr2.every((inst: Instance) => {
+        return isInstanceOfType(inst, 'olap01/SalesFact') && inst.lookup('revenue') >= 45000;
+      })
+    );
+
+    // workflow revenueForYear:
+    const qobj3 = {
+      'olap01/SalesFact?': {},
+      '@join': [
+        ['olap01/ProductDim', { 'product_id?': 'olap01/SalesFact.product_id' }],
+        ['olap01/DateDim', { 'date_id?': 'olap01/SalesFact.date_id' }],
+      ],
+      '@into': {
+        category: 'olap01/ProductDim.category',
+        revenue: '@sum(olap01/SalesFact.revenue)',
+      },
+      '@where': { 'olap01/DateDim.year?': 2024 },
+      '@groupBy': ['olap01/ProductDim.category'],
+    };
+    const qs3 = objectToQueryPattern(qobj3);
+    const qr3 = await parseAndEvaluateStatement(qs3);
+    chkry(qr3);
   });
 });
