@@ -3844,7 +3844,11 @@ function maybeSetDefaultAttributeValues(
     if (cv === undefined || cv === null) {
       if (isString(v)) {
         if (defaultValueIsFunctionCall(v)) {
-          v = eval(v);
+          try {
+            v = eval(v);
+          } catch {
+            v = (0, eval)(`globalThis.${v}`);
+          }
         }
       }
       attributes.set(k, v);
