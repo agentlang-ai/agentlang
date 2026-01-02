@@ -943,18 +943,19 @@ export async function getMany(
     .createQueryBuilder();
   const hasAggregates = querySpec.aggregates !== undefined;
   if (hasAggregates) {
+    qb.select([]);
     querySpec.aggregates?.forEach((f: string, n: string) => {
       qb.addSelect(f, n);
     });
   }
   if (querySpec.groupBy !== undefined) {
     querySpec.groupBy.forEach((gb: string) => {
-      qb.groupBy(gb);
+      qb.addGroupBy(gb);
     });
   }
   if (querySpec.orderBy !== undefined) {
     querySpec.orderBy.forEach((ob: string) => {
-      qb.orderBy(ob, querySpec.orderByDesc);
+      qb.addOrderBy(ob, querySpec.orderByDesc);
     });
   }
   if (ownersJoinCond) {
@@ -983,7 +984,7 @@ export async function getManyByJoin(
   if (querySpec.whereClauses) {
     const qs = new Array<string>();
     querySpec.whereClauses.forEach((wc: WhereClause) => {
-      const v = isString(wc.qval) ? `"${wc.qval}"` : wc.qval;
+      const v = isString(wc.qval) ? `'${wc.qval}'` : wc.qval;
       qs.push(`${wc.attrName} ${wc.op} ${v}`);
     });
     queryStr = `${queryStr} AND ${qs.join(' AND ')}`;

@@ -535,7 +535,7 @@ function objectToQuerySpecPattern(obj: any, refMode: boolean = false): string {
   const strs = new Array<string>();
   Object.keys(obj).forEach((k: string) => {
     let v = obj[k];
-    if (!refMode && isString(v)) {
+    if (!refMode && isString(v) && !v.startsWith('@')) {
       v = `"${v}"`;
     }
     strs.push(`${k} ${v}`);

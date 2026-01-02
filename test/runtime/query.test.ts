@@ -20,6 +20,7 @@ describe('basic-aggregate-queries', () => {
     const isp = (inst: any) => {
       return isInstanceOfType(inst, entName);
     };
+    let totalPrice = 0.0
     const crp = async (id: number, name: string, price: number): Promise<Instance> => {
       const inst: Instance = await parseAndEvaluateStatement(`{${entName} {
                 id ${id},
@@ -27,6 +28,7 @@ describe('basic-aggregate-queries', () => {
                 price ${price}
       }}`);
       assert(isp(inst));
+      totalPrice += price
       return inst;
     };
     await crp(1, 'p01', 673.44);
@@ -42,8 +44,12 @@ describe('basic-aggregate-queries', () => {
     assert(insts[0].lookup('id') == 3);
     insts = await q(`{${entName}? {}, @orderBy(id)}`);
     assert(insts[0].lookup('id') == 1);
-    insts = await q(`{${entName} {mp? @max(price)}, @groupBy(id)}`);
-    assert(insts[0].lookup('price') == insts[0].lookup('mp'));
+    insts = await q(`{${entName} {mp? @max(price)}, @groupBy(__path__)}`);
+    let tp = 0.0
+    insts.forEach((inst: Instance) => {
+      tp += Number(inst.lookup('mp'))
+    })
+    assert(Math.round(tp) == Math.round(totalPrice))
     insts = await q(`{${entName} {mp? @max(price)}}`, 1);
     assert(insts[0].lookup('mp') == 784.42);
   });
@@ -151,7 +157,7 @@ describe('olap-test01', () => {
            @where {ProductDim.category categoryRevenueForYear.category,
                    RegionDim.country categoryRevenueForYear.country,
                    DateDim.year? categoryRevenueForYear.year},
-           @groupBy(RegionDim.state),
+           @groupBy(RegionDim.state, SalesFact.revenue),
            @orderBy(revenue)
         }
     }
