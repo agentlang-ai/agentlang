@@ -433,32 +433,32 @@ export class Record extends ModuleEntry {
     return this;
   }
 
-  public getSecretAttributes(): Set<string> {
-    const result = new Set<string>();
+  public getSecretAttributes(): Array<string> {
+    const result = new Array<string>();
     this.schema.forEach((spec: AttributeSpec, n: string) => {
       if (spec.properties?.get('secret') === true) {
-        result.add(n);
+        result.push(n);
       }
     });
     return result;
   }
 
-  private static WriteOnlyAttributes = new Map<string, Set<string>>();
+  private static WriteOnlyAttributes = new Map<string, Array<string>>();
 
-  public getWriteOnlyAttributes(): Set<string> | undefined {
+  public getWriteOnlyAttributes(): Array<string> | undefined {
     const fqn = this.getFqName();
     const cachedResult = Record.WriteOnlyAttributes.get(fqn);
     if (cachedResult !== undefined) {
-      if (cachedResult.size === 0) return undefined;
+      if (cachedResult.length === 0) return undefined;
       return cachedResult;
     } else {
-      const result = new Set<string>();
+      const result = new Array<string>();
       this.schema.forEach((spec: AttributeSpec, n: string) => {
         if (spec.properties?.get('writeonly') === true) {
-          result.add(n);
+          result.push(n);
         }
       });
-      const finalResult = result.union(this.getSecretAttributes());
+      const finalResult = result.concat(this.getSecretAttributes());
       Record.WriteOnlyAttributes.set(fqn, finalResult);
       return finalResult;
     }
