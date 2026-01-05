@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.4](https://github.com/agentlang-ai/agentlang/compare/0.8.3...0.8.4) (2026-01-02)
+
+### Changes
+
+* Add fallback for `eval` to use indirect eval with globalThis ([2eef3c8](https://github.com/agentlang-ai/agentlang/commit/2eef3c888bb426c751623f822e8c389f22e8ab7c)) - @pratik
+
+---
 ## [0.8.3](https://github.com/agentlang-ai/agentlang/compare/0.8.2...0.8.3) (2025-12-31)
 
 ### Changes
