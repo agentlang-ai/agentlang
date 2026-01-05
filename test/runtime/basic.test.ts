@@ -1231,3 +1231,37 @@ entity E
 `)
   });
 });
+
+describe('read-only-attributes', () => {
+  test('queries must not return readOnly attributes', async () => {
+    const moduleName = 'rda'
+    await doInternModule(
+      moduleName,
+      `entity E {
+        id Int @id,
+        x String,
+        y String @readonly(true),
+        z String @secret(true),
+        p1 Password,
+        p2 Password @readonly(true),
+        a Int
+      }`
+    );
+    const ename = `${moduleName}/E`
+    const cre = async (id: number, x: string, y: string, z: string, a: number): Promise<Instance> => {
+      const inst: Instance = await parseAndEvaluateStatement(`{${ename} {
+        id ${id}, x "${x}", y "${y}", z "${z}", p1 "${x}-${y}", p2 "${x}-${z}", a ${a}}}`)
+        assert(isInstanceOfType(inst, ename))
+        return inst
+    }
+    await cre(1, "a", "b", "c", 10)
+    await cre(2, "p", "q", "r", 20)
+    const r1: Instance[] = await parseAndEvaluateStatement(`{${ename}? {}}`)
+    assert(r1.length === 2)
+    assert(r1.every((inst: Instance) => {
+      return isInstanceOfType(inst, ename) && inst.lookup('id') > 0 && inst.lookup('a') >= 10 &&
+      inst.lookup('x').length >= 1 && inst.lookup('y') === undefined && inst.lookup('z') === undefined &&
+      inst.lookup('p1').length >= 5 && inst.lookup('p2') === undefined
+    }))
+  })
+})

@@ -223,6 +223,7 @@ export class SqlDbResolver extends Resolver {
       intoSpec: undefined,
       whereClauses: undefined,
     };
+    const readOnlyAttrs = inst.record.getReadOnlyAttributes();
     const rslt: any = await getMany(tableName, qspec, ctx);
     if (rslt instanceof Array) {
       result = new Array<Instance>();
@@ -232,6 +233,9 @@ export class SqlDbResolver extends Resolver {
           new Map(Object.entries(r))
         );
         attrs.delete(DeletedFlagAttributeName);
+        readOnlyAttrs?.forEach((n: string) => {
+          attrs.delete(n);
+        });
         result.push(Instance.newWithAttributes(inst, attrs));
       });
     }

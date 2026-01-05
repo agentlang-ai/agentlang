@@ -312,7 +312,8 @@ export function asSqlType(type: string): ColumnType {
     t == 'url' ||
     t == 'map' ||
     t == 'any' ||
-    t == 'path'
+    t == 'path' ||
+    t == 'password'
   )
     return 'varchar';
   else if (t == 'int') return 'integer';
