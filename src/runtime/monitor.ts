@@ -289,6 +289,7 @@ export class Monitor {
 
   decrement(): Monitor {
     if (this.parent !== undefined) {
+      this.parent.totalLatency += this.totalLatency;
       return this.parent;
     }
     return this;
