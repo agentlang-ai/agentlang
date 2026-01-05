@@ -443,23 +443,23 @@ export class Record extends ModuleEntry {
     return result;
   }
 
-  private static ReadOnlyAttributes = new Map<string, Set<string>>();
+  private static WriteOnlyAttributes = new Map<string, Set<string>>();
 
-  public getReadOnlyAttributes(): Set<string> | undefined {
+  public getWriteOnlyAttributes(): Set<string> | undefined {
     const fqn = this.getFqName();
-    const cachedResult = Record.ReadOnlyAttributes.get(fqn);
+    const cachedResult = Record.WriteOnlyAttributes.get(fqn);
     if (cachedResult !== undefined) {
       if (cachedResult.size === 0) return undefined;
       return cachedResult;
     } else {
       const result = new Set<string>();
       this.schema.forEach((spec: AttributeSpec, n: string) => {
-        if (spec.properties?.get('readonly') === true) {
+        if (spec.properties?.get('writeonly') === true) {
           result.add(n);
         }
       });
       const finalResult = result.union(this.getSecretAttributes());
-      Record.ReadOnlyAttributes.set(fqn, finalResult);
+      Record.WriteOnlyAttributes.set(fqn, finalResult);
       return finalResult;
     }
   }
@@ -2685,6 +2685,7 @@ export const propertyNames = new Set([
   '@fk',
   '@ref',
   '@readonly',
+  '@writeonly',
   '@secret',
   '@enum',
   '@oneof',

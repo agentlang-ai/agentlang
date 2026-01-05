@@ -1232,18 +1232,18 @@ entity E
   });
 });
 
-describe('read-only-attributes', () => {
-  test('queries must not return readOnly attributes', async () => {
+describe('write-only-attributes', () => {
+  test('queries must not return writeonly attributes', async () => {
     const moduleName = 'rda'
     await doInternModule(
       moduleName,
       `entity E {
         id Int @id,
         x String,
-        y String @readonly(true),
+        y String @writeonly(true),
         z String @secret(true),
         p1 Password,
-        p2 Password @readonly(true),
+        p2 Password @writeonly(true),
         a Int
       }`
     );

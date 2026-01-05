@@ -223,7 +223,7 @@ export class SqlDbResolver extends Resolver {
       intoSpec: undefined,
       whereClauses: undefined,
     };
-    const readOnlyAttrs = inst.record.getReadOnlyAttributes();
+    const readOnlyAttrs = inst.record.getWriteOnlyAttributes();
     const rslt: any = await getMany(tableName, qspec, ctx);
     if (rslt instanceof Array) {
       result = new Array<Instance>();
