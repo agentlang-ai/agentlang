@@ -433,6 +433,37 @@ export class Record extends ModuleEntry {
     return this;
   }
 
+  public getSecretAttributes(): Array<string> {
+    const result = new Array<string>();
+    this.schema.forEach((spec: AttributeSpec, n: string) => {
+      if (spec.properties?.get('secret') === true) {
+        result.push(n);
+      }
+    });
+    return result;
+  }
+
+  private static WriteOnlyAttributes = new Map<string, Array<string>>();
+
+  public getWriteOnlyAttributes(): Array<string> | undefined {
+    const fqn = this.getFqName();
+    const cachedResult = Record.WriteOnlyAttributes.get(fqn);
+    if (cachedResult !== undefined) {
+      if (cachedResult.length === 0) return undefined;
+      return cachedResult;
+    } else {
+      const result = new Array<string>();
+      this.schema.forEach((spec: AttributeSpec, n: string) => {
+        if (spec.properties?.get('writeonly') === true) {
+          result.push(n);
+        }
+      });
+      const finalResult = result.concat(this.getSecretAttributes());
+      Record.WriteOnlyAttributes.set(fqn, finalResult);
+      return finalResult;
+    }
+  }
+
   getCompositeUniqueAttributes(): Array<string> | undefined {
     return this.compositeUqAttributes;
   }
@@ -2654,6 +2685,8 @@ export const propertyNames = new Set([
   '@fk',
   '@ref',
   '@readonly',
+  '@writeonly',
+  '@secret',
   '@enum',
   '@oneof',
   '@comment',
@@ -2722,7 +2755,7 @@ export function defaultAttributes(schema: RecordSchema): Map<string, any> {
 export function passwordAttributes(schema: RecordSchema): Set<string> | undefined {
   let result: Set<string> | undefined = undefined;
   schema.forEach((v: AttributeSpec, k: string) => {
-    if (v.type == 'Password') {
+    if (v.type == 'Password' || v.properties?.get('secret') === true) {
       if (result === undefined) {
         result = new Set<string>();
       }
