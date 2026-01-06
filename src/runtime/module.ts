@@ -405,7 +405,8 @@ export class Record extends ModuleEntry {
       .set(SysAttr_Created, SysAttr_CreatedSpec)
       .set(SysAttr_CreatedBy, SysAttr_CreatedBySpec)
       .set(SysAttr_LastModified, SysAttr_LastModifiedSpec)
-      .set(SysAttr_LastModifiedBy, SysAttr_LastModifiedBySpec);
+      .set(SysAttr_LastModifiedBy, SysAttr_LastModifiedBySpec)
+      .set(SysAttr_Tenant, SysAttr_TenantSpec);
     return this;
   }
 
@@ -1167,6 +1168,7 @@ const SysAttr_Created = '__created';
 const SysAttr_LastModified = '__last_modified';
 const SysAttr_CreatedBy = '__created_by';
 const SysAttr_LastModifiedBy = '__last_modified_by';
+const SysAttr_Tenant = '__tenant';
 
 const SysAttr_CreatedSpec: AttributeSpec = asSystemAttribute({
   type: 'DateTime',
@@ -1175,12 +1177,14 @@ const SysAttr_CreatedSpec: AttributeSpec = asSystemAttribute({
 
 const SysAttr_LastModifiedSpec = SysAttr_CreatedSpec;
 
-const SysAttr_CreatedBySpec: AttributeSpec = asSystemAttribute({
+const SysAttr_OptionalString: AttributeSpec = asSystemAttribute({
   type: 'String',
   properties: new Map<string, any>().set('optional', true),
 });
 
-const SysAttr_LastModifiedBySpec = SysAttr_CreatedBySpec;
+const SysAttr_CreatedBySpec = SysAttr_OptionalString;
+const SysAttr_TenantSpec = SysAttr_OptionalString;
+const SysAttr_LastModifiedBySpec = SysAttr_OptionalString;
 
 export class Entity extends Record {
   override type: RecordType = RecordType.ENTITY;

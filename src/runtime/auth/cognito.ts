@@ -572,6 +572,7 @@ export class CognitoAuth implements AgentlangAuth {
         const refreshToken = result.getRefreshToken().getToken();
         const localSess: Instance = await ensureUserSession(
           userid,
+          username,
           idToken,
           accessToken,
           refreshToken,
@@ -650,6 +651,7 @@ export class CognitoAuth implements AgentlangAuth {
         const refreshToken = result.getRefreshToken().getToken();
         const localSess: Instance = await ensureUserSession(
           userid,
+          username,
           idToken,
           accessToken,
           refreshToken,
@@ -999,6 +1001,7 @@ export class CognitoAuth implements AgentlangAuth {
       // Update local session
       const updatedSession = await ensureUserSession(
         userId,
+        userEmail,
         newIdToken,
         newAccessToken,
         newRefreshToken,
@@ -1298,7 +1301,14 @@ export class CognitoAuth implements AgentlangAuth {
         await ensureUserRoles(userId, userGroups, env);
       }
 
-      const localSession = await ensureUserSession(userId, IdToken, AccessToken, RefreshToken, env);
+      const localSession = await ensureUserSession(
+        userId,
+        userEmail,
+        IdToken,
+        AccessToken,
+        RefreshToken,
+        env
+      );
 
       const sessionInfo: SessionInfo = {
         sessionId: localSession.lookup('id'),

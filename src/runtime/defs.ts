@@ -442,3 +442,5 @@ export let InternDynamicModule: Function | undefined;
 export function setInternDynamicModuleFn(f: Function) {
   InternDynamicModule = f;
 }
+
+export const DefaultTenantId = '00000000-0000-0000-0000-000000000000';
