@@ -3673,6 +3673,10 @@ export class Instance {
     return {};
   }
 
+  getQueryValue(k: string): any {
+    return this.queryAttributeValues?.get(k);
+  }
+
   addQuery(attrName: string, op: string = '=', attrVal: any = undefined) {
     if (this.queryAttributes === undefined) this.queryAttributes = newInstanceAttributes();
     this.queryAttributes.set(attrName, op);
