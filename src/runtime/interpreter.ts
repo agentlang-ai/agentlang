@@ -1500,7 +1500,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
       let r: Instance | undefined;
       await computeExprAttributes(inst, undefined, undefined, env);
-      setMetaAttributes(inst.attributes, env);
+      await setMetaAttributes(inst.attributes, env);
       if (env.isInUpsertMode()) {
         await runPreUpdateEvents(inst, env);
         r = await res.upsertInstance(inst);
@@ -1639,7 +1639,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
               await computeExprAttributes(lastRes[i], crud.body?.attributes, attrs, env);
               env.attributes.set('__patch', attrs);
               await runPreUpdateEvents(lastRes[i], env);
-              setMetaAttributes(attrs, env, true);
+              await setMetaAttributes(attrs, env, true);
               const finalInst: Instance = await resolver.updateInstance(lastRes[i], attrs);
               await runPostUpdateEvents(finalInst, lastRes[i], env);
               res.push(finalInst);

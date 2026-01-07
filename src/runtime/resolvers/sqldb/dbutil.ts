@@ -34,6 +34,7 @@ import {
   FkSpec,
   ParentAttributeName,
   PathAttributeName,
+  TenantAttributeName,
 } from '../../defs.js';
 
 export const DefaultVectorDimension = 1536;
@@ -140,6 +141,7 @@ function ormSchemaFromRecordSchema(
   const indices = new Array<any>();
   const chkforpk: boolean = hasOwnPk == undefined ? false : true;
   let needPath = true;
+  const globalEnt = entry.isGlobal()
   scm.forEach((attrSpec: AttributeSpec, attrName: string) => {
     let d: any = getAttributeDefaultValue(attrSpec);
     const autoUuid: boolean = d && d == 'uuid()' ? true : false;
@@ -176,6 +178,9 @@ function ormSchemaFromRecordSchema(
   if (needPath) {
     cols.set(PathAttributeName, { type: 'varchar', primary: true });
     cols.set(ParentAttributeName, { type: 'varchar', default: '', indexed: true });
+  }
+  if (!globalEnt) {
+    cols.set(TenantAttributeName, { type: 'varchar', primary: true });
   }
   cols.set(DeletedFlagAttributeName, { type: 'boolean', default: false });
   const allBetRels = getAllBetweenRelationships();

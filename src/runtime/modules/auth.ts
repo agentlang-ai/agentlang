@@ -29,6 +29,7 @@ import {
   CodeMismatchError,
   BadRequestError,
   DefaultTenantId,
+  set_getUserTenantId,
 } from '../defs.js';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
@@ -38,9 +39,10 @@ export default `module ${CoreAuthModuleName}
 import "./modules/auth.js" @as Auth
 
 entity Tenant {
-  id UUID @default(uuid()),
+  id UUID @id @default(uuid()),
   name String @unique,
-  domain String @unique
+  domain String @unique,
+  @meta {"global": true}
 }
 
 entity User {
@@ -1728,6 +1730,7 @@ export async function getTenantIdForUserDomain(userEmail?: string): Promise<stri
   }
   const domain = userEmail.substring(idx + 1);
   if (domain) {
+    // TODO: directly query global tables.
     const insts: Instance[] = await parseAndEvaluateStatement(
       `{agentlang.auth/Tenant {domain? "${domain}"}}`
     );
@@ -1743,18 +1746,23 @@ export async function getTenantIdForUserDomain(userEmail?: string): Promise<stri
 
 const UserTenantIds = new Map<string, string>();
 
-export async function getUserTenantId(userId: string, env: Environment): Promise<string> {
-  let tid = UserTenantIds.get(userId);
+async function getUserTenantId(userId: string, _: Environment): Promise<string> {
+  const tid = UserTenantIds.get(userId);
   if (tid !== undefined) {
     return tid;
   }
+  /*
   const sess: Instance = await findUserSession(userId, env);
-  tid = sess.lookup('tenantId');
-  if (tid !== undefined) {
-    UserTenantIds.set(userId, tid);
-    return tid;
-  }
+  if (sess) {
+    tid = sess.lookup('tenantId');
+    if (tid !== undefined) {
+      UserTenantIds.set(userId, tid);
+      return tid;
+    }
+  }*/
   logger.warn(`Failed to find tenantId for user ${userId}, using default tenantId`);
   UserTenantIds.set(userId, DefaultTenantId);
   return DefaultTenantId;
 }
+
+set_getUserTenantId(getUserTenantId);

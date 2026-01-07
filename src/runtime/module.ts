@@ -52,7 +52,13 @@ import {
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
-import { FetchModuleFn, FkSpec, PathAttributeName } from './defs.js';
+import {
+  FetchModuleFn,
+  FkSpec,
+  getUserTenantId,
+  PathAttributeName,
+  TenantAttributeName,
+} from './defs.js';
 import { logger } from './logger.js';
 import { CasePattern, FlowStepPattern } from '../language/syntax.js';
 import {
@@ -405,8 +411,7 @@ export class Record extends ModuleEntry {
       .set(SysAttr_Created, SysAttr_CreatedSpec)
       .set(SysAttr_CreatedBy, SysAttr_CreatedBySpec)
       .set(SysAttr_LastModified, SysAttr_LastModifiedSpec)
-      .set(SysAttr_LastModifiedBy, SysAttr_LastModifiedBySpec)
-      .set(SysAttr_Tenant, SysAttr_TenantSpec);
+      .set(SysAttr_LastModifiedBy, SysAttr_LastModifiedBySpec);
     return this;
   }
 
@@ -442,6 +447,10 @@ export class Record extends ModuleEntry {
       }
     });
     return result;
+  }
+
+  public isGlobal(): boolean {
+    return this.meta?.get('global') === true;
   }
 
   private static WriteOnlyAttributes = new Map<string, Array<string>>();
@@ -1168,7 +1177,6 @@ const SysAttr_Created = '__created';
 const SysAttr_LastModified = '__last_modified';
 const SysAttr_CreatedBy = '__created_by';
 const SysAttr_LastModifiedBy = '__last_modified_by';
-const SysAttr_Tenant = '__tenant';
 
 const SysAttr_CreatedSpec: AttributeSpec = asSystemAttribute({
   type: 'DateTime',
@@ -1183,7 +1191,6 @@ const SysAttr_OptionalString: AttributeSpec = asSystemAttribute({
 });
 
 const SysAttr_CreatedBySpec = SysAttr_OptionalString;
-const SysAttr_TenantSpec = SysAttr_OptionalString;
 const SysAttr_LastModifiedBySpec = SysAttr_OptionalString;
 
 export class Entity extends Record {
@@ -4166,7 +4173,7 @@ export function getAttributeNames(entityFqName: string): Array<string> {
   return [...scm.keys()];
 }
 
-export function setMetaAttributes(
+export async function setMetaAttributes(
   attrs: InstanceAttributes,
   env: Environment,
   inUpdateMode: boolean = false
@@ -4176,15 +4183,16 @@ export function setMetaAttributes(
   if (!inUpdateMode && attrs.get(SysAttr_CreatedBy) === undefined) {
     attrs.set(SysAttr_CreatedBy, user);
   }
+  attrs.set(TenantAttributeName, await getUserTenantId(user, env));
 }
 
-export function setAllMetaAttributes(
+export async function setAllMetaAttributes(
   attrs: InstanceAttributes,
   env: Environment,
   inUpdateMode: boolean = false
 ) {
   attrs.set(SysAttr_Created, now());
-  setMetaAttributes(attrs, env, inUpdateMode);
+  await setMetaAttributes(attrs, env, inUpdateMode);
 }
 
 function linkEventName(moduleName: string, relName: string, unlink: boolean): string {

@@ -30,6 +30,7 @@ import { isString } from '../../util.js';
 import {
   DeletedFlagAttributeName,
   ForceReadPermFlag,
+  getUserTenantId,
   isRuntimeMode_dev,
   isRuntimeMode_generate_migration,
   isRuntimeMode_init_schema,
@@ -37,6 +38,7 @@ import {
   isRuntimeMode_test,
   isRuntimeMode_undo_migration,
   PathAttributeName,
+  TenantAttributeName,
   UnauthorisedError,
 } from '../../defs.js';
 import { saveMigration } from '../../modules/core.js';
@@ -53,6 +55,7 @@ export class DbContext {
   activeEnv: Environment;
   private needAuthCheckFlag: boolean = true;
   rbacRules: RbacSpecification[] | undefined;
+  tenantId: string | undefined;
 
   constructor(
     resourceFqName: string,
@@ -95,6 +98,13 @@ export class DbContext {
       this.txnId,
       this.inKernelMode
     );
+  }
+
+  async getTenantId(): Promise<string> {
+    if (this.tenantId === undefined) {
+      this.tenantId = await getUserTenantId(this.authInfo.userId, this.activeEnv);
+    }
+    return this.tenantId;
   }
 
   getUserId(): string {
@@ -429,11 +439,12 @@ export async function addRowForFullTextSearch(
   try {
     const vecTableName = tableName + VectorSuffix;
     const qb = getDatasourceForTransaction(ctx.txnId).createQueryBuilder();
+    const tenantId = await ctx.getTenantId();
     const { default: pgvector } = await import('pgvector');
     await qb
       .insert()
       .into(vecTableName)
-      .values([{ id: id, embedding: pgvector.toSql(vect) }])
+      .values([{ id: id, embedding: pgvector.toSql(vect), __tenant__: tenantId }])
       .execute();
   } catch (err: any) {
     logger.error(`Failed to add row to vector store - ${err}`);
@@ -491,10 +502,12 @@ export async function vectorStoreSearch(
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const { default: pgvector } = await import('pgvector');
     let ownersJoinCond: string = '';
+    const tenantId = await ctx.getTenantId();
     if (!hasGlobalPerms) {
       const ot = ownersTable(tableName);
       ownersJoinCond = `inner join ${ot} on
-${ot}.path = ${vecTableName}.id and ${ot}.user_id = '${ctx.authInfo.userId}' and ${ot}.r = true`;
+${ot}.path = ${vecTableName}.id and ${ot}.user_id = '${ctx.authInfo.userId}' and ${ot}.r = true
+and ${ot}.${TenantAttributeName} = '${tenantId}' and ${vecTableName}.${TenantAttributeName} = '${tenantId}'`;
     }
     const sql = `select ${vecTableName}.id from ${vecTableName} ${ownersJoinCond} order by embedding <-> $1 LIMIT ${limit}`;
     return await qb.query(sql, [pgvector.toSql(searchVec)]);
@@ -513,7 +526,11 @@ export async function vectorStoreSearchEntryExists(
   try {
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const vecTableName = tableName + VectorSuffix;
-    const result: any[] = await qb.query(`select id from ${vecTableName} where id = $1`, [id]);
+    const tenantId = await ctx.getTenantId();
+    const result: any[] = await qb.query(
+      `select id from ${vecTableName} where id = $1 abd ${TenantAttributeName} = '${tenantId}'`,
+      [id]
+    );
     return result !== null && result.length > 0;
   } catch (err: any) {
     logger.error(`Vector store search failed - ${err}`);
@@ -526,7 +543,11 @@ export async function deleteFullTextSearchEntry(tableName: string, id: string, c
   try {
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const vecTableName = tableName + VectorSuffix;
-    await qb.query(`delete from ${vecTableName} where id = $1`, [id]);
+    const tenantId = await ctx.getTenantId();
+    await qb.query(
+      `delete from ${vecTableName} where id = $1 and ${TenantAttributeName} = '${tenantId}'`,
+      [id]
+    );
   } catch (err: any) {
     logger.error(`Vector store delete failed - ${err}`);
   }
@@ -653,7 +674,7 @@ export async function insertBetweenRow(
     if (relEntry.isOneToMany()) {
       attrs.set(relEntry.joinNodesAttributeName(), `${p1}_${p2}`);
     }
-    setAllMetaAttributes(attrs, ctx.activeEnv);
+    await setAllMetaAttributes(attrs, ctx.activeEnv);
     const row = Object.fromEntries(attrs);
     await insertRow(n, row, ctx.clone().setNeedAuthCheck(false), false);
   } else {
@@ -691,6 +712,7 @@ async function createLimitedOwnership(
   ctx: DbContext
 ): Promise<void> {
   const ownerRows: object[] = [];
+  const tenantId = await ctx.getTenantId();
   rows.forEach((r: object) => {
     ownerRows.push({
       id: crypto.randomUUID(),
@@ -700,6 +722,7 @@ async function createLimitedOwnership(
       r: perms.has(RbacPermissionFlag.READ),
       d: perms.has(RbacPermissionFlag.DELETE),
       u: perms.has(RbacPermissionFlag.UPDATE),
+      __tenant__: tenantId,
     });
   });
   const tname = ownersTable(tableName);
@@ -900,8 +923,10 @@ export async function getMany(
   ctx: DbContext
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
+  const tenantId = await ctx.getTenantId();
   const queryStr: string = withNotDeletedClause(
     alias,
+    tenantId,
     querySpec.queryObj !== undefined
       ? objectToWhereClause(querySpec.queryObj, querySpec.queryVals, alias)
       : ''
@@ -975,8 +1000,10 @@ export async function getManyByJoin(
   ctx: DbContext
 ): Promise<any> {
   const alias: string = tableName.toLowerCase();
+  const tenantId = await ctx.getTenantId();
   let queryStr: string = withNotDeletedClause(
     alias,
+    tenantId,
     querySpec.queryObj !== undefined
       ? objectToRawWhereClause(querySpec.queryObj, querySpec.queryVals, alias)
       : ''
@@ -1013,7 +1040,9 @@ export async function getManyByJoin(
   querySpec.joinClauses?.forEach((jc: JoinClause) => {
     const joinType = jc.joinType ? jc.joinType : 'inner join';
     joinSql.push(
-      `${joinType} ${jc.tableName} as ${jc.tableName} on ${joinOnAsSql(jc.joinOn)} AND ${jc.tableName}.${DeletedFlagAttributeName} = false`
+      `${joinType} ${jc.tableName} as ${jc.tableName} on ${joinOnAsSql(jc.joinOn)} 
+      AND ${jc.tableName}.${DeletedFlagAttributeName} = false
+      AND ${jc.tableName}.${TenantAttributeName} = '${tenantId}'`
     );
     if (jc.queryObject) {
       const q = objectToRawWhereClause(jc.queryObject, jc.queryValues, jc.tableName);
@@ -1057,15 +1086,15 @@ function joinOnAsSql(joinOn: JoinOn | JoinOn[]): string {
   }
 }
 
-function notDeletedClause(alias: string): string {
-  return `${alias}.${DeletedFlagAttributeName} = false`;
+function notDeletedClause(alias: string, tenantId: string): string {
+  return `${alias}.${DeletedFlagAttributeName} = false AND ${alias}.${TenantAttributeName} = '${tenantId}'`;
 }
 
-function withNotDeletedClause(alias: string, sql: string): string {
+function withNotDeletedClause(alias: string, tenantId: string, sql: string): string {
   if (sql == '') {
-    return notDeletedClause(alias);
+    return notDeletedClause(alias, tenantId);
   } else {
-    return `${sql} AND ${notDeletedClause(alias)}`;
+    return `${sql} AND ${notDeletedClause(alias, tenantId)}`;
   }
 }
 
@@ -1096,6 +1125,8 @@ export async function getAllConnected(
   const connAlias: string = connInfo.connectionTable.toLowerCase();
   queryObj[DeletedFlagAttributeName] = '=';
   queryVals[DeletedFlagAttributeName] = false;
+  queryObj[TenantAttributeName] = '=';
+  queryVals[TenantAttributeName] = await ctx.getTenantId();
   const qb = getDatasourceForTransaction(ctx.txnId)
     .createQueryBuilder()
     .select()
