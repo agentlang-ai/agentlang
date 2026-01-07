@@ -1,7 +1,6 @@
 module mcpdemo.core
 
-agent chatAgent {
-    llm "mcpdemo_llm",
+@public agent chatAgent {
     instruction "Answer user queries",
     tools [deepwiki]
 }

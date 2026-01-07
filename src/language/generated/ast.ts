@@ -208,6 +208,12 @@ export function isRef(item: unknown): item is Ref {
     return typeof item === 'string';
 }
 
+export type ResolverPathEntry = GenericName | QualifiedName;
+
+export function isResolverPathEntry(item: unknown): item is ResolverPathEntry {
+    return isQualifiedName(item) || isGenericName(item);
+}
+
 export type SchemaDefinition = EntityDefinition | EventDefinition | PublicEventDefinition | RecordDefinition;
 
 export const SchemaDefinition = 'SchemaDefinition';
@@ -1276,8 +1282,8 @@ export interface ResolverDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'ResolverDefinition';
     methods: Array<ResolverMethodSpec>;
-    name: GenericName;
-    paths: Array<GenericName>;
+    name: QualifiedName;
+    paths: Array<ResolverPathEntry>;
 }
 
 export const ResolverDefinition = 'ResolverDefinition';
