@@ -2520,7 +2520,7 @@ export async function runPostUpdateEvents(
     if (oldInst !== undefined) {
       const oldAttrs = oldInst.userAttributesAsObject();
       const d = detailedDiff(oldAttrs, inst.userAttributesAsObject());
-      diff = { original: oldAttrs, updated: d.updated, deleted: d.deleted };
+      diff = { original: oldAttrs, updated: d.updated };
     }
     await addUpdateAudit(inst.getPath(), diff, env);
   }
