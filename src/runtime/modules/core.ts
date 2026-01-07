@@ -304,23 +304,15 @@ async function addAudit(
   }
 }
 
-export async function addCreateAudit(resource: string, env: Environment) {
-  await addAudit(env, 'c', resource);
+export async function addCreateAudit(resource: string, env: Environment, init: object) {
+  await addAudit(env, 'c', resource, init);
 }
 
-export async function addDeleteAudit(
-  resource: string,
-  diff: object | undefined,
-  env: Environment
-) {
+export async function addDeleteAudit(resource: string, diff: object | undefined, env: Environment) {
   await addAudit(env, 'd', resource, diff);
 }
 
-export async function addUpdateAudit(
-  resource: string,
-  diff: object | undefined,
-  env: Environment
-) {
+export async function addUpdateAudit(resource: string, diff: object | undefined, env: Environment) {
   await addAudit(env, 'u', resource, diff);
 }
 

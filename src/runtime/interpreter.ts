@@ -2501,7 +2501,7 @@ async function runPreCreateEvents(inst: Instance, env: Environment) {
 
 export async function runPostCreateEvents(inst: Instance, env: Environment) {
   if (inst.requireAudit()) {
-    await addCreateAudit(inst.getPath(), env);
+    await addCreateAudit(inst.getPath(), env, { original: inst.userAttributesAsObject() });
   }
   await runPrePostEvents(CrudType.CREATE, false, inst, env);
 }
@@ -2518,8 +2518,9 @@ export async function runPostUpdateEvents(
   if (inst.requireAudit()) {
     let diff: object | undefined;
     if (oldInst !== undefined) {
-      const d = detailedDiff(oldInst?.attributesAsObject(), inst.attributesAsObject())
-      diff = {added: d.added, updated: d.updated, deleted: d.deleted};
+      const oldAttrs = oldInst.userAttributesAsObject();
+      const d = detailedDiff(oldAttrs, inst.userAttributesAsObject());
+      diff = { original: oldAttrs, updated: d.updated, deleted: d.deleted };
     }
     await addUpdateAudit(inst.getPath(), diff, env);
   }
@@ -2532,7 +2533,7 @@ async function runPreDeleteEvents(inst: Instance, env: Environment) {
 
 export async function runPostDeleteEvents(inst: Instance, env: Environment) {
   if (inst.requireAudit()) {
-    await addDeleteAudit(inst.getPath(), inst, env);
+    await addDeleteAudit(inst.getPath(), { deleted: inst.userAttributesAsObject() }, env);
   }
   await runPrePostEvents(CrudType.DELETE, false, inst, env);
 }
