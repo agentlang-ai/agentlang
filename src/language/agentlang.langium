@@ -188,8 +188,10 @@ RetryDefinition: 'agentlang/retry' name=ID '{' ('attempts' attempts=Decimal)? ('
 
 BackoffSpec: 'backoff' '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ '}';
 
-ResolverDefinition: 'resolver' name=GenericName '[' (paths+=GenericName (',' paths+=GenericName)*)+ ']'
+ResolverDefinition: 'resolver' name=QualifiedName '[' (paths+=ResolverPathEntry (',' paths+=ResolverPathEntry)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
+
+ResolverPathEntry returns string: QualifiedName | GenericName;
 
 ResolverMethodSpec: key=ResolverMethodName fn=ResolverFnName;
 
