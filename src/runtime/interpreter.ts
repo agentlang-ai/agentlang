@@ -106,6 +106,7 @@ import { fetchDoc } from './docs.js';
 import { FlowSpec, FlowStep, getAgentFlow } from './agents/flows.js';
 import { isMonitoringEnabled } from './state.js';
 import { Monitor, MonitorEntry } from './monitor.js';
+import { detailedDiff } from 'deep-object-diff';
 
 export type Result = any;
 
@@ -2515,7 +2516,12 @@ export async function runPostUpdateEvents(
   env: Environment
 ) {
   if (inst.requireAudit()) {
-    await addUpdateAudit(inst.getPath(), oldInst, env);
+    let diff: object | undefined;
+    if (oldInst !== undefined) {
+      const d = detailedDiff(oldInst?.attributesAsObject(), inst.attributesAsObject())
+      diff = {added: d.added, updated: d.updated, deleted: d.deleted};
+    }
+    await addUpdateAudit(inst.getPath(), diff, env);
   }
   await runPrePostEvents(CrudType.UPDATE, false, inst, env);
 }
