@@ -682,18 +682,27 @@ export class Record extends ModuleEntry {
     return s.concat('\n{', scms, '\n}\n');
   }
 
+  private userAttrsSchema: RecordSchema | undefined;
+
   getUserAttributes(): RecordSchema {
-    const recSchema: RecordSchema = newRecordSchema();
-    this.schema.forEach((attrSpec: AttributeSpec, n: string) => {
-      if (!isSystemAttribute(attrSpec)) {
-        recSchema.set(n, attrSpec);
-      }
-    });
-    return recSchema;
+    if (this.userAttrsSchema === undefined) {
+      this.userAttrsSchema = newRecordSchema();
+      this.schema.forEach((attrSpec: AttributeSpec, n: string) => {
+        if (!isSystemAttribute(attrSpec)) {
+          this.userAttrsSchema?.set(n, attrSpec);
+        }
+      });
+    }
+    return this.userAttrsSchema;
   }
 
-  getUserAttributeNames(): string[] {
-    return [...this.getUserAttributes().keys()];
+  private userAttrNames: Set<string> | undefined;
+
+  getUserAttributeNames(): Set<string> {
+    if (this.userAttrNames === undefined) {
+      this.userAttrNames = new Set([...this.getUserAttributes().keys()]);
+    }
+    return this.userAttrNames;
   }
 }
 
@@ -3650,6 +3659,15 @@ export class Instance {
     return Object.fromEntries(attrs);
   }
 
+  userAttributesAsObject(forSerialization: boolean = false): object {
+    const attrs = newInstanceAttributes();
+    const userAttrNames = this.getAllUserAttributeNames();
+    this.attributes.forEach((v: any, k: string) => {
+      if (userAttrNames.has(k)) attrs.set(k, Instance.asSerializableValue(v, forSerialization));
+    });
+    return Object.fromEntries(attrs);
+  }
+
   static stringifyObjects(attributes: InstanceAttributes): object {
     const attrs = newInstanceAttributes();
     attributes.forEach((v: any, k: string) => {
@@ -3745,7 +3763,7 @@ export class Instance {
     return undefined;
   }
 
-  getAllUserAttributeNames(): string[] {
+  getAllUserAttributeNames(): Set<string> {
     return this.record.getUserAttributeNames();
   }
 

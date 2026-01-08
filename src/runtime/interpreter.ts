@@ -106,6 +106,7 @@ import { fetchDoc } from './docs.js';
 import { FlowSpec, FlowStep, getAgentFlow } from './agents/flows.js';
 import { isMonitoringEnabled } from './state.js';
 import { Monitor, MonitorEntry } from './monitor.js';
+import { detailedDiff } from 'deep-object-diff';
 
 export type Result = any;
 
@@ -2500,7 +2501,7 @@ async function runPreCreateEvents(inst: Instance, env: Environment) {
 
 export async function runPostCreateEvents(inst: Instance, env: Environment) {
   if (inst.requireAudit()) {
-    await addCreateAudit(inst.getPath(), env);
+    await addCreateAudit(inst.getPath(), env, { original: inst.userAttributesAsObject() });
   }
   await runPrePostEvents(CrudType.CREATE, false, inst, env);
 }
@@ -2515,7 +2516,13 @@ export async function runPostUpdateEvents(
   env: Environment
 ) {
   if (inst.requireAudit()) {
-    await addUpdateAudit(inst.getPath(), oldInst, env);
+    let diff: object | undefined;
+    if (oldInst !== undefined) {
+      const oldAttrs = oldInst.userAttributesAsObject();
+      const d = detailedDiff(oldAttrs, inst.userAttributesAsObject());
+      diff = { original: oldAttrs, updated: d.updated };
+    }
+    await addUpdateAudit(inst.getPath(), diff, env);
   }
   await runPrePostEvents(CrudType.UPDATE, false, inst, env);
 }
@@ -2526,7 +2533,7 @@ async function runPreDeleteEvents(inst: Instance, env: Environment) {
 
 export async function runPostDeleteEvents(inst: Instance, env: Environment) {
   if (inst.requireAudit()) {
-    await addDeleteAudit(inst.getPath(), inst, env);
+    await addDeleteAudit(inst.getPath(), { deleted: inst.userAttributesAsObject() }, env);
   }
   await runPrePostEvents(CrudType.DELETE, false, inst, env);
 }
