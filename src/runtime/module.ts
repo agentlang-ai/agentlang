@@ -52,7 +52,13 @@ import {
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
-import { FetchModuleFn, FkSpec, PathAttributeName } from './defs.js';
+import {
+  FetchModuleFn,
+  FkSpec,
+  getUserTenantId,
+  PathAttributeName,
+  TenantAttributeName,
+} from './defs.js';
 import { logger } from './logger.js';
 import { CasePattern, FlowStepPattern } from '../language/syntax.js';
 import {
@@ -441,6 +447,10 @@ export class Record extends ModuleEntry {
       }
     });
     return result;
+  }
+
+  public isGlobal(): boolean {
+    return this.meta?.get('global') === true;
   }
 
   private static WriteOnlyAttributes = new Map<string, Array<string>>();
@@ -1184,12 +1194,13 @@ const SysAttr_CreatedSpec: AttributeSpec = asSystemAttribute({
 
 const SysAttr_LastModifiedSpec = SysAttr_CreatedSpec;
 
-const SysAttr_CreatedBySpec: AttributeSpec = asSystemAttribute({
+const SysAttr_OptionalString: AttributeSpec = asSystemAttribute({
   type: 'String',
   properties: new Map<string, any>().set('optional', true),
 });
 
-const SysAttr_LastModifiedBySpec = SysAttr_CreatedBySpec;
+const SysAttr_CreatedBySpec = SysAttr_OptionalString;
+const SysAttr_LastModifiedBySpec = SysAttr_OptionalString;
 
 export class Entity extends Record {
   override type: RecordType = RecordType.ENTITY;
@@ -4180,7 +4191,7 @@ export function getAttributeNames(entityFqName: string): Array<string> {
   return [...scm.keys()];
 }
 
-export function setMetaAttributes(
+export async function setMetaAttributes(
   attrs: InstanceAttributes,
   env: Environment,
   inUpdateMode: boolean = false
@@ -4190,15 +4201,16 @@ export function setMetaAttributes(
   if (!inUpdateMode && attrs.get(SysAttr_CreatedBy) === undefined) {
     attrs.set(SysAttr_CreatedBy, user);
   }
+  attrs.set(TenantAttributeName, await getUserTenantId(user, env));
 }
 
-export function setAllMetaAttributes(
+export async function setAllMetaAttributes(
   attrs: InstanceAttributes,
   env: Environment,
   inUpdateMode: boolean = false
 ) {
   attrs.set(SysAttr_Created, now());
-  setMetaAttributes(attrs, env, inUpdateMode);
+  await setMetaAttributes(attrs, env, inUpdateMode);
 }
 
 function linkEventName(moduleName: string, relName: string, unlink: boolean): string {

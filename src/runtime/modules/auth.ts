@@ -1,4 +1,9 @@
-import { Result, Environment, makeEventEvaluator } from '../interpreter.js';
+import {
+  Result,
+  Environment,
+  makeEventEvaluator,
+  parseAndEvaluateStatement,
+} from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Instance, makeInstance, newInstanceAttributes, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
@@ -23,6 +28,8 @@ import {
   ExpiredCodeError,
   CodeMismatchError,
   BadRequestError,
+  DefaultTenantId,
+  set_getUserTenantId,
 } from '../defs.js';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
@@ -30,6 +37,13 @@ export const CoreAuthModuleName = makeCoreModuleName('auth');
 export default `module ${CoreAuthModuleName}
 
 import "./modules/auth.js" @as Auth
+
+entity Tenant {
+  id UUID @id @default(uuid()),
+  name String @unique,
+  domain String @unique,
+  @meta {"global": true}
+}
 
 entity User {
     id UUID @id @default(uuid()) @unique,
@@ -239,6 +253,7 @@ entity Session {
   authToken String @optional,
   accessToken String @optional,
   refreshToken String @optional,
+  tenantId String @optional,
   isActive Boolean,
   @rbac [(allow: [read, delete, update, create], where: auth.user = this.userId)]
 }
@@ -248,6 +263,7 @@ entity Session {
             authToken CreateSession.authToken,
             accessToken CreateSession.accessToken,
             refreshToken CreateSession.refreshToken,
+            tenantId CreateSession.tenantId,
             isActive true}}
 }
 
@@ -256,6 +272,7 @@ entity Session {
             authToken UpdateSession.authToken,
             accessToken UpdateSession.accessToken,
             refreshToken UpdateSession.refreshToken,
+            tenantId UpdateSession.tenantId,
             isActive true}, @upsert}
 }
 
@@ -685,20 +702,22 @@ export async function ensureUserRoles(userid: string, userRoles: string[], env: 
 
 export async function ensureUserSession(
   userId: string,
+  userEmail: string,
   token: string,
   accessToken: string,
   refreshToken: string,
   env: Environment
 ): Promise<Instance> {
+  const tenantId = await getTenantIdForUserDomain(userEmail);
   const sess: Instance = await findUserSession(userId, env);
   if (sess) {
     // Update existing session instead of deleting and recreating
-    await updateSession(sess.lookup('id'), token, accessToken, refreshToken, env);
+    await updateSession(sess.lookup('id'), token, accessToken, refreshToken, tenantId, env);
     // Return the updated session by finding it again
     return await findUserSession(userId, env);
   }
   const sessionId = crypto.randomUUID();
-  await createSession(sessionId, userId, token, accessToken, refreshToken, env);
+  await createSession(sessionId, userId, token, accessToken, refreshToken, tenantId, env);
   // Return the created session by finding it
   return await findSession(sessionId, env);
 }
@@ -709,6 +728,7 @@ export async function createSession(
   token: string,
   accessToken: string,
   refreshToken: string,
+  tenantId: string,
   env: Environment
 ): Promise<Result> {
   return await evalEvent(
@@ -719,6 +739,7 @@ export async function createSession(
       authToken: token,
       accessToken: accessToken,
       refreshToken: refreshToken,
+      tenantId: tenantId,
     },
     env
   );
@@ -749,6 +770,7 @@ export async function updateSession(
   token: string,
   accessToken: string,
   refreshToken: string,
+  tenantId: string,
   env: Environment
 ): Promise<Result> {
   return await evalEvent(
@@ -758,6 +780,7 @@ export async function updateSession(
       authToken: token,
       accessToken: accessToken,
       refreshToken: refreshToken,
+      tenantId: tenantId,
     },
     env
   );
@@ -1695,3 +1718,51 @@ export function isRetryableError(error: Error): boolean {
       : false)
   );
 }
+
+export async function getTenantIdForUserDomain(userEmail?: string): Promise<string> {
+  if (userEmail === undefined) {
+    return DefaultTenantId;
+  }
+  const idx = userEmail.indexOf('@');
+  if (idx <= 0) {
+    logger.warn(`Invalid email - ${userEmail}, will use default tenantId`);
+    return DefaultTenantId;
+  }
+  const domain = userEmail.substring(idx + 1);
+  if (domain) {
+    // TODO: directly query global tables.
+    const insts: Instance[] = await parseAndEvaluateStatement(
+      `{agentlang.auth/Tenant {domain? "${domain}"}}`
+    );
+    if (insts.length > 0) {
+      return insts[0].lookup('id');
+    } else {
+      return DefaultTenantId;
+    }
+  } else {
+    return DefaultTenantId;
+  }
+}
+
+const UserTenantIds = new Map<string, string>();
+
+async function getUserTenantId(userId: string, _: Environment): Promise<string> {
+  const tid = UserTenantIds.get(userId);
+  if (tid !== undefined) {
+    return tid;
+  }
+  /*
+  const sess: Instance = await findUserSession(userId, env);
+  if (sess) {
+    tid = sess.lookup('tenantId');
+    if (tid !== undefined) {
+      UserTenantIds.set(userId, tid);
+      return tid;
+    }
+  }*/
+  logger.warn(`Failed to find tenantId for user ${userId}, using default tenantId`);
+  UserTenantIds.set(userId, DefaultTenantId);
+  return DefaultTenantId;
+}
+
+set_getUserTenantId(getUserTenantId);
