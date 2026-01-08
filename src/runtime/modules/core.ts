@@ -58,7 +58,7 @@ entity auditlog {
   action @enum("c", "d", "u"), // Create, Delete, Update
   resource String, // __path__
   timestamp DateTime @default(now()),
-  previous_value Any @optional,
+  diff Any @optional,
   user String,
   token String @optional
 }
@@ -280,7 +280,7 @@ async function addAudit(
   env: Environment,
   action: 'c' | 'd' | 'u',
   resource: string,
-  previuos_value?: Instance
+  diff?: object
 ) {
   const user = env.getActiveUser();
   const token = env.getActiveToken();
@@ -290,7 +290,7 @@ async function addAudit(
     `{agentlang/auditlog {
         action "${action}",
         resource "${resource}",
-        previous_value "${previuos_value ? escapeSpecialChars(JSON.stringify(previuos_value.asObject())) : ''}",
+        diff "${diff ? escapeSpecialChars(JSON.stringify(diff)) : ''}",
         user "${user}",
         token "${token ? token : ''}"
 }}`,
@@ -304,24 +304,16 @@ async function addAudit(
   }
 }
 
-export async function addCreateAudit(resource: string, env: Environment) {
-  await addAudit(env, 'c', resource);
+export async function addCreateAudit(resource: string, env: Environment, init: object) {
+  await addAudit(env, 'c', resource, init);
 }
 
-export async function addDeleteAudit(
-  resource: string,
-  previous_value: Instance | undefined,
-  env: Environment
-) {
-  await addAudit(env, 'd', resource, previous_value);
+export async function addDeleteAudit(resource: string, diff: object | undefined, env: Environment) {
+  await addAudit(env, 'd', resource, diff);
 }
 
-export async function addUpdateAudit(
-  resource: string,
-  previous_value: Instance | undefined,
-  env: Environment
-) {
-  await addAudit(env, 'u', resource, previous_value);
+export async function addUpdateAudit(resource: string, diff: object | undefined, env: Environment) {
+  await addAudit(env, 'u', resource, diff);
 }
 
 export async function createSuspension(
