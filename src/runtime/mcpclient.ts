@@ -1,6 +1,13 @@
 // Ref: https://github.com/modelcontextprotocol/typescript-sdk/tree/v1.x
 import { Client } from '@modelcontextprotocol/sdk/client';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {
+  ClientCredentialsProvider,
+  PrivateKeyJwtProvider,
+} from '@modelcontextprotocol/sdk/client/auth-extensions.js';
+import {
+  StreamableHTTPClientTransport,
+  StreamableHTTPClientTransportOptions,
+} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import {
   ListToolsRequest,
   ListToolsResultSchema,
@@ -23,6 +30,35 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { getDisplayName } from '@modelcontextprotocol/sdk/shared/metadataUtils.js';
 import { logger } from './logger.js';
+import { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
+import { Instance } from './module.js';
+
+export function createProvider(
+  clientId: string,
+  clientSecret?: string,
+  privateKeyPem?: string
+): OAuthClientProvider {
+  if (privateKeyPem) {
+    const algorithm = process.env.MCP_CLIENT_ALGORITHM || 'RS256';
+    return new PrivateKeyJwtProvider({
+      clientId,
+      privateKey: privateKeyPem,
+      algorithm,
+    });
+  }
+  if (clientSecret) {
+    return new ClientCredentialsProvider({
+      clientId,
+      clientSecret,
+    });
+  }
+  throw Error(`Either clientSecret or privateKeyPem is required for client: ${clientId}`);
+}
+
+export type McpAuthInfo = {
+  provider?: OAuthClientProvider;
+  bearerToken?: string;
+};
 
 export type McpTool = {
   id: string;
@@ -53,7 +89,7 @@ export class McpClient {
     return this;
   }
 
-  public async connect(): Promise<void> {
+  public async connect(authInfo?: McpAuthInfo): Promise<void> {
     if (this.client) {
       return;
     }
@@ -96,9 +132,21 @@ export class McpClient {
         return { action: 'cancel' };
       });
 
-      this.transport = new StreamableHTTPClientTransport(new URL(this.serverUrl), {
+      const transArgs: StreamableHTTPClientTransportOptions = {
         sessionId: this.sessionId,
-      });
+      };
+      if (authInfo?.provider) {
+        transArgs.authProvider = authInfo.provider;
+      } else if (authInfo?.bearerToken) {
+        const customHeaders = {
+          Authorization: `Bearer ${authInfo.bearerToken}`,
+        };
+        transArgs.requestInit = {
+          headers: customHeaders,
+        };
+      }
+
+      this.transport = new StreamableHTTPClientTransport(new URL(this.serverUrl), transArgs);
 
       // Set up notification handlers
       this.client.setNotificationHandler(LoggingMessageNotificationSchema, notification => {
@@ -433,5 +481,29 @@ export class McpClient {
       }
     }
     return false;
+  }
+}
+
+const ConnectedClients = new Map<string, McpClient>()
+
+export async function listClientTools(clientInst: Instance): Promise<any> {
+  if (clientInst) {
+    const n = clientInst.lookup('name')
+    let mcpClient: McpClient | undefined = ConnectedClients.get(n)
+    if (mcpClient === undefined) {
+      mcpClient = new McpClient(n, clientInst.lookup('serverUrl')).setVersion(clientInst.lookup('version'))
+      let authInfo: McpAuthInfo | undefined
+      const clientId = clientInst.lookup('clientId')
+      const clientSecret = clientInst.lookup('clientSecret')
+      if (clientId && clientSecret) {
+        authInfo = {provider: createProvider(clientId, clientSecret)}
+      } else {
+        const bearerToken = clientInst.lookup('bearerToken')
+        authInfo = {bearerToken}
+      }
+      await mcpClient.connect(authInfo)
+      ConnectedClients.set(n, mcpClient)
+    }
+    return await mcpClient.listTools()
   }
 }

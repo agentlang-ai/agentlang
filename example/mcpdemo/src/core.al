@@ -11,3 +11,10 @@ module mcpdemo.core
     "server_url": "https://mcp.deepwiki.com/mcp",
     "require_approval": "never"
 } @as deepwiki
+
+{
+    agentlang.mcp/Client {
+        name "deepwiki",
+        serverUrl "https://mcp.deepwiki.com/mcp"
+    }
+}
