@@ -419,6 +419,7 @@ export function isRuntimeMode_undo_migration(): boolean {
 
 let UpdateEventEndpoints: Function | undefined;
 let UpdateEntityEndpoints: Function | undefined;
+let UpdateRelationshipEndpoints: Function | undefined;
 
 export function setEventEndpointsUpdater(f: Function) {
   UpdateEventEndpoints = f;
@@ -428,12 +429,19 @@ export function setEntityEndpointsUpdater(f: Function) {
   UpdateEntityEndpoints = f;
 }
 
+export function setRelationshipEndpointsUpdater(f: Function) {
+  UpdateRelationshipEndpoints = f;
+}
+
 export function updateEndpoints(moduleName: string) {
   if (UpdateEventEndpoints !== undefined) {
     UpdateEventEndpoints(moduleName);
   }
   if (UpdateEntityEndpoints !== undefined) {
     UpdateEntityEndpoints(moduleName);
+  }
+  if (UpdateRelationshipEndpoints !== undefined) {
+    UpdateRelationshipEndpoints(moduleName);
   }
 }
 

@@ -2511,6 +2511,14 @@ export class Module {
     return names;
   }
 
+  getBetweenRelationshipNames(): string[] {
+    const names: string[] = [];
+    this.getRelationshipEntries().forEach((re: Relationship) => {
+      if (re.isBetween()) names.push(re.name);
+    });
+    return names;
+  }
+
   isContainsRelationship(entryName: string): boolean {
     if (this.hasEntry(entryName)) {
       const entry: ModuleEntry = this.getEntry(entryName);
