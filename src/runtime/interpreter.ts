@@ -52,6 +52,7 @@ import {
   Relationship,
   Workflow,
   setMetaAttributes,
+  Event,
 } from './module.js';
 import { JoinInfo, Resolver, WhereClause } from './resolvers/interface.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
@@ -107,6 +108,7 @@ import { FlowSpec, FlowStep, getAgentFlow } from './agents/flows.js';
 import { isMonitoringEnabled } from './state.js';
 import { Monitor, MonitorEntry } from './monitor.js';
 import { detailedDiff } from 'deep-object-diff';
+import { callMcpTool, mcpClientNameFromToolEvent } from './mcpclient.js';
 
 export type Result = any;
 
@@ -1403,7 +1405,9 @@ async function instanceFromSource(crud: CrudMap, env: Environment): Promise<Inst
     await evaluateLiteral(crud.source, env);
     const attrsSrc = env.getLastResult();
     if (attrsSrc && attrsSrc instanceof Object) {
-      const attrs: InstanceAttributes = new Map(Object.entries(attrsSrc));
+      const obj =
+        attrsSrc instanceof Instance ? (attrsSrc as Instance).userAttributesAsObject() : attrsSrc;
+      const attrs: InstanceAttributes = new Map(Object.entries(obj));
       const nparts = nameToPath(crud.name);
       const n = nparts.getEntryName();
       const m = nparts.hasModule() ? nparts.getModuleName() : env.getActiveModuleName();
@@ -1663,6 +1667,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
     else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
     else if (isDocEventInstance(inst)) await handleDocEvent(inst, env);
+    else if (isMcpEventInstance(inst)) await handleMcpEvent(inst, env);
     else {
       const eventExec = env.getEventExecutor();
       const newEnv = new Environment(`${inst.name}.env`, env);
@@ -1686,6 +1691,11 @@ function isDocEventInstance(inst: Instance): boolean {
   return isInstanceOfType(inst, DocEventName);
 }
 
+export function isMcpEventInstance(inst: Instance): boolean {
+  const event: Event = inst.record as Event;
+  return event.isMcpTool();
+}
+
 async function handleDocEvent(inst: Instance, env: Environment): Promise<void> {
   const s = await fetchDoc(inst.lookup('url'));
   if (s) {
@@ -1696,6 +1706,17 @@ async function handleDocEvent(inst: Instance, env: Environment): Promise<void> {
       env
     );
   }
+}
+
+export async function handleMcpEvent(inst: Instance, env: Environment): Promise<void> {
+  const mcpClientName = mcpClientNameFromToolEvent(inst);
+  const clientInsts: Instance[] = await parseAndEvaluateStatement(
+    `{agentlang.mcp/Client {name? "${mcpClientName}"}}`,
+    undefined,
+    env
+  );
+  const result = await callMcpTool(clientInsts[0], inst);
+  env.setLastResult(result);
 }
 
 async function computeExprAttributes(

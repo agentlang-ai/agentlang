@@ -124,6 +124,7 @@ function normalizePropertyNames(props: Map<string, any>) {
 
 const SystemAttributeProperty: string = 'system-attribute';
 const SystemDefinedEvent = 'system-event';
+const McpToolEvent = 'mcp-tool';
 
 function asSystemAttribute(attrSpec: AttributeSpec): AttributeSpec {
   const props: Map<string, any> = attrSpec.properties ? attrSpec.properties : new Map();
@@ -1224,6 +1225,10 @@ export class Event extends Record {
 
   isSystemDefined(): boolean {
     return this.meta?.get(SystemDefinedEvent) === 'true';
+  }
+
+  isMcpTool(): boolean {
+    return this.meta?.get(McpToolEvent) === 'true';
   }
 }
 
@@ -2904,6 +2909,14 @@ export function addEvent(
   if (module.getAgent(name)) {
     event.addMeta(IsAgentEventMeta, 'y');
   }
+  return event;
+}
+
+export function addMcpEvent(name: string, moduleName: string): Event {
+  const event = addEvent(name, moduleName);
+  event.addMeta(SystemDefinedEvent, 'true');
+  event.addMeta(McpToolEvent, 'true');
+  event.setPublic(true);
   return event;
 }
 

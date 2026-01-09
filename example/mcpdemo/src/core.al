@@ -13,8 +13,17 @@ module mcpdemo.core
 } @as deepwiki
 
 {
-    agentlang.mcp/Client {
+    agentlang.mcp/createClient {
         name "deepwiki",
         serverUrl "https://mcp.deepwiki.com/mcp"
+    }
+}
+
+@public workflow askDeepWiki {
+    {
+        deepwiki.mcp/ask_question {
+            repoName: askDeepWiki.repoName,
+            question: askDeepWiki.question
+        }
     }
 }

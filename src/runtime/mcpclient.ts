@@ -31,7 +31,7 @@ import {
 import { getDisplayName } from '@modelcontextprotocol/sdk/shared/metadataUtils.js';
 import { logger } from './logger.js';
 import { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
-import { Instance } from './module.js';
+import { addMcpEvent, addModule, Instance, isModule } from './module.js';
 
 export function createProvider(
   clientId: string,
@@ -484,26 +484,59 @@ export class McpClient {
   }
 }
 
-const ConnectedClients = new Map<string, McpClient>()
+const ConnectedClients = new Map<string, McpClient>();
 
 export async function listClientTools(clientInst: Instance): Promise<any> {
   if (clientInst) {
-    const n = clientInst.lookup('name')
-    let mcpClient: McpClient | undefined = ConnectedClients.get(n)
+    const n = clientInst.lookup('name');
+    let mcpClient: McpClient | undefined = ConnectedClients.get(n);
     if (mcpClient === undefined) {
-      mcpClient = new McpClient(n, clientInst.lookup('serverUrl')).setVersion(clientInst.lookup('version'))
-      let authInfo: McpAuthInfo | undefined
-      const clientId = clientInst.lookup('clientId')
-      const clientSecret = clientInst.lookup('clientSecret')
+      mcpClient = new McpClient(n, clientInst.lookup('serverUrl')).setVersion(
+        clientInst.lookup('version')
+      );
+      let authInfo: McpAuthInfo | undefined;
+      const clientId = clientInst.lookup('clientId');
+      const clientSecret = clientInst.lookup('clientSecret');
       if (clientId && clientSecret) {
-        authInfo = {provider: createProvider(clientId, clientSecret)}
+        authInfo = { provider: createProvider(clientId, clientSecret) };
       } else {
-        const bearerToken = clientInst.lookup('bearerToken')
-        authInfo = {bearerToken}
+        const bearerToken = clientInst.lookup('bearerToken');
+        authInfo = { bearerToken };
       }
-      await mcpClient.connect(authInfo)
-      ConnectedClients.set(n, mcpClient)
+      await mcpClient.connect(authInfo);
+      ConnectedClients.set(n, mcpClient);
     }
-    return await mcpClient.listTools()
+    const tools: any[] = await mcpClient.listTools();
+    if (tools && tools.length > 0) {
+      const moduleName = `${n}.mcp`;
+      if (!isModule(moduleName)) {
+        addModule(moduleName);
+      }
+      tools.forEach((tool: any) => {
+        addMcpEvent(tool.id, moduleName);
+      });
+    }
+    return tools;
+  }
+  return [];
+}
+
+export function mcpClientNameFromToolEvent(toolEventInst: Instance): string {
+  const parts = toolEventInst.moduleName.split('.');
+  return parts[0];
+}
+
+export async function callMcpTool(clientInst: Instance, toolEventInst: Instance): Promise<any> {
+  if (clientInst) {
+    const n = clientInst.lookup('name');
+    const mcpClient: McpClient | undefined = ConnectedClients.get(n);
+    if (mcpClient !== undefined) {
+      const args = toolEventInst.attributesAsObject();
+      return await mcpClient.callTool(toolEventInst.name, args as Record<string, unknown>);
+    } else {
+      return { error: `MCP client ${n} is not connected to server` };
+    }
+  } else {
+    return { error: 'MCP client not found' };
   }
 }
