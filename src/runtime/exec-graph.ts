@@ -24,7 +24,9 @@ import {
   evaluatePattern,
   evaluateStatement,
   handleAgentInvocation,
+  handleMcpEvent,
   handleOpenApiEvent,
+  isMcpEventInstance,
   maybeBindStatementResultToAlias,
   maybeDeleteQueriedInstances,
   PatternHandler,
@@ -436,6 +438,10 @@ export async function executeEventHelper(eventInstance: Instance, env?: Environm
   if (isOpenApiEventInstance(eventInstance)) {
     env = env || new Environment();
     await handleOpenApiEvent(eventInstance, env);
+    return env.getLastResult();
+  } else if (isMcpEventInstance(eventInstance)) {
+    env = env || new Environment();
+    await handleMcpEvent(eventInstance, env);
     return env.getLastResult();
   }
   const fqn = eventInstance.getFqName();

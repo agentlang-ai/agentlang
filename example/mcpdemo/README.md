@@ -1,36 +1,66 @@
-# MCP Integration Example (Agentlang)
+# Agentlang MCP Integration Example
 
-This example demonstrates how **Agentlang** can integrate with **MCP (Model Context Protocol) servers** to extend agent capabilities beyond the local application. By wiring agents to MCP-backed tools, Agentlang allows agents to delegate tasks such as knowledge retrieval and issue management to external, specialized systems—without embedding custom integration code.
+This example demonstrates **two supported ways to interact with MCP (Model Context Protocol) servers in Agentlang**:
+
+1. **Attaching an MCP server as a tool to an agent**
+2. **Explicitly creating an MCP client and invoking MCP tools from workflows**
+
+Both approaches connect Agentlang applications to external MCP servers, such as **DeepWiki**, but they differ in how much control you want over tool invocation.
 
 ---
 
 ## Overview
 
-In this application:
+* **Module**: `mcpdemo.core`
+* **MCP Server Used**: DeepWiki (`https://mcp.deepwiki.com/mcp`)
+* **Capabilities Demonstrated**:
 
-* Agents are connected to **remote MCP servers**.
-* Each MCP server is exposed as a **tool** that agents can invoke.
-* The agent focuses on intent and orchestration, while MCP servers handle execution.
-* No resolver or workflow code is required for the integration.
-
-The example includes two agents:
-
-* A **chat agent** that queries DeepWiki for factual and analytical responses.
-* An **issue manager agent** that creates Jira tickets via an MCP-enabled Jira service.
+  * Agent-driven MCP tool usage
+  * Workflow-driven MCP tool invocation
+  * Dynamic creation of MCP clients
+  * Exposure of MCP tools as Agentlang events
 
 ---
 
-## Module Definition
+## Example Code
 
 ```agentlang
 module mcpdemo.core
+
+@public agent chatAgent {
+    instruction "Answer user queries",
+    tools [deepwiki]
+}
+
+{
+    "type": "mcp",
+    "server_label": "deepwiki",
+    "server_url": "https://mcp.deepwiki.com/mcp",
+    "require_approval": "never"
+} @as deepwiki
+
+{
+    agentlang.mcp/createClient {
+        name "deepwiki",
+        serverUrl "https://mcp.deepwiki.com/mcp"
+    }
+}
+
+@public workflow askDeepWiki {
+    {
+        deepwiki.mcp/ask_question {
+            repoName: askDeepWiki.repName,
+            question: askDeepWiki.question
+        }
+    }
+}
 ```
 
 ---
 
-## Chat Agent (DeepWiki MCP)
+## Approach 1: Using an MCP Server as an Agent Tool
 
-### Agent Definition
+In this approach, the MCP server is declared as a **tool** and attached directly to an agent.
 
 ```agentlang
 @public agent chatAgent {
@@ -39,35 +69,113 @@ module mcpdemo.core
 }
 ```
 
-### MCP Server Configuration
+### How it works
+
+* Agentlang automatically creates and manages the MCP client.
+* All tools exposed by the MCP server become available to the agent.
+* The agent decides *when* and *how* to invoke those tools during reasoning.
+* No explicit workflow calls are required.
+
+### When to use this
+
+* Conversational agents
+* Assistants and copilots
+* Scenarios where the agent should autonomously choose MCP tools
+
+---
+
+## Approach 2: Explicit MCP Client Creation for Workflow Use
+
+This approach explicitly creates an MCP client using the built-in `agentlang.mcp/createClient` event.
 
 ```agentlang
 {
-    "type": "mcp",
-    "server_label": "deepwiki",
-    "server_url": "https://mcp.deepwiki.com/mcp",
-    "require_approval": "never"
-} @as deepwiki
+    agentlang.mcp/createClient {
+        name "deepwiki",
+        serverUrl "https://mcp.deepwiki.com/mcp"
+    }
+}
 ```
 
-### What This Does
+### What this does
 
-* Registers an MCP server labeled `deepwiki`
-* Makes it available to the agent as a tool
-* Allows the agent to fetch insights, forecasts, and explanations from DeepWiki
+* Creates an MCP client named `deepwiki`
+* Connects it to the specified MCP server
+* Dynamically exposes all MCP tools as **Agentlang events**
+* These events appear under a new module named:
 
-### Example Request
+```
+<client-name>.mcp
+```
+
+In this example, tools are exposed under:
+
+```
+deepwiki.mcp
+```
+
+---
+
+## Calling MCP Tools from a Workflow
+
+Once the client is created, MCP tools can be invoked deterministically from workflows.
+
+```agentlang
+@public workflow askDeepWiki {
+    {
+        deepwiki.mcp/ask_question {
+            repoName: askDeepWiki.repName,
+            question: askDeepWiki.question
+        }
+    }
+}
+```
+
+### Characteristics
+
+* MCP tools behave like native Agentlang events
+* Fully deterministic and programmable
+* Suitable for pipelines, APIs, and backend integrations
+
+---
+
+## Invoking the Workflow
+
+You can invoke the workflow using a standard HTTP request:
 
 ```bash
-curl -X POST http://localhost:8080/mcpdemo.core/chatAgent \
+curl -X POST http://localhost:8080/mcpdemo.core/askDeepWiki \
   -H 'Content-Type: application/json' \
-  -d '{"message": "What will Indian economy look like in 2040?"}'
+  -d '{"repoName": "python/cpython", "question": "what is GIL?"}'
 ```
 
-**Result:**
-The agent invokes the DeepWiki MCP server and returns an analysis or forecast of the Indian economy in 2040.
+### Expected Behavior
 
+* The workflow calls the DeepWiki MCP server
+* The `ask_question` tool is executed
+* The response contains DeepWiki’s explanation of the Global Interpreter Lock (GIL)
+
+---
+
+## Choosing the Right Approach
+
+| Use Case             | Recommended Approach |
+| -------------------- | -------------------- |
+| Conversational AI    | Agent + MCP tool     |
+| Deterministic APIs   | Explicit MCP client  |
+| Data pipelines       | Explicit MCP client  |
+| Autonomous reasoning | Agent + MCP tool     |
+| Fine-grained control | Explicit MCP client  |
+
+---
 
 ## Summary
 
-With MCP support, Agentlang agents can seamlessly interact with powerful external systems such as knowledge engines, ticketing platforms, and automation tools. This enables rapid composition of intelligent, real-world applications by combining Agentlang’s declarative agent model with MCP’s standardized tool interface.
+This example highlights Agentlang’s flexible MCP integration model:
+
+* **Agents** can use MCP tools autonomously
+* **Workflows** can call MCP tools explicitly
+* MCP clients can be dynamically created at runtime
+* MCP tools seamlessly map to Agentlang events
+
+Together, these features make Agentlang a powerful platform for building applications that integrate LLMs, external knowledge systems, and enterprise tools via MCP.
