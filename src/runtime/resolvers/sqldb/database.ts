@@ -917,6 +917,21 @@ export type QuerySpec = {
   distinct: boolean;
 };
 
+export function makeSimpleQuerySpec(queryObj: object, queryVals: object): QuerySpec {
+  return {
+    queryObj,
+    queryVals,
+    aggregates: undefined,
+    groupBy: undefined,
+    orderBy: undefined,
+    orderByDesc: 'ASC',
+    joinClauses: undefined,
+    intoSpec: undefined,
+    whereClauses: undefined,
+    distinct: false,
+  };
+}
+
 export async function getMany(
   tableName: string,
   querySpec: QuerySpec,
@@ -992,6 +1007,18 @@ export async function getMany(
   qb.where(queryStr, querySpec.queryVals);
   if (hasAggregates) return await qb.getRawMany();
   else return await qb.getMany();
+}
+
+export async function getManyByRawQuery(
+  tableName: string,
+  querySpec: QuerySpec,
+  ctx: DbContext
+): Promise<any> {
+  const qb: SelectQueryBuilder<any> = getDatasourceForTransaction(ctx.txnId)
+    .getRepository(tableName)
+    .createQueryBuilder();
+  qb.where('', querySpec.queryVals);
+  return await qb.getMany();
 }
 
 export async function getManyByJoin(

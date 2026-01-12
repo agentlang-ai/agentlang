@@ -1,13 +1,8 @@
-import {
-  Result,
-  Environment,
-  makeEventEvaluator,
-  parseAndEvaluateStatement,
-} from '../interpreter.js';
+import { Result, Environment, makeEventEvaluator } from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Instance, makeInstance, newInstanceAttributes, RbacPermissionFlag } from '../module.js';
 import { makeCoreModuleName } from '../util.js';
-import { isSqlTrue } from '../resolvers/sqldb/dbutil.js';
+import { asTableReference, isSqlTrue } from '../resolvers/sqldb/dbutil.js';
 import { AgentlangAuth, SessionInfo, UserInfo } from '../auth/interface.js';
 import {
   ActiveSessionInfo,
@@ -30,7 +25,15 @@ import {
   BadRequestError,
   DefaultTenantId,
   set_getUserTenantId,
+  PathAttributeName,
 } from '../defs.js';
+import {
+  DbContext,
+  getManyByRawQuery,
+  hardDeleteRow,
+  insertRow,
+  makeSimpleQuerySpec,
+} from '../resolvers/sqldb/database.js';
 
 export const CoreAuthModuleName = makeCoreModuleName('auth');
 
@@ -55,6 +58,12 @@ entity User {
     status @enum("Active", "Invited", "Inactive") @default("Active"),
     @rbac [(allow: [read, delete, update, create], where: auth.user = this.id)],
     @after {delete AfterDeleteUser}
+}
+
+entity UserTenant {
+    userId UUID @id,
+    tenantId UUID,
+    @meta {"global": true}
 }
 
 workflow AfterDeleteUser {
@@ -253,7 +262,6 @@ entity Session {
   authToken String @optional,
   accessToken String @optional,
   refreshToken String @optional,
-  tenantId String @optional,
   isActive Boolean,
   @rbac [(allow: [read, delete, update, create], where: auth.user = this.userId)]
 }
@@ -263,7 +271,6 @@ entity Session {
             authToken CreateSession.authToken,
             accessToken CreateSession.accessToken,
             refreshToken CreateSession.refreshToken,
-            tenantId CreateSession.tenantId,
             isActive true}}
 }
 
@@ -272,7 +279,6 @@ entity Session {
             authToken UpdateSession.authToken,
             accessToken UpdateSession.accessToken,
             refreshToken UpdateSession.refreshToken,
-            tenantId UpdateSession.tenantId,
             isActive true}, @upsert}
 }
 
@@ -700,6 +706,18 @@ export async function ensureUserRoles(userid: string, userRoles: string[], env: 
   }
 }
 
+const UserTenantTable = asTableReference('agentlang.auth', 'UserTenant');
+const TenantTable = asTableReference('agentlang.auth', 'Tenant');
+
+async function mapUserToTenant(userId: string, tenantId: string): Promise<void> {
+  const path = `${tenantId}/${userId}`;
+  const ctx = DbContext.getGlobalContext();
+  await hardDeleteRow(UserTenantTable, [[PathAttributeName, path]], ctx);
+  const rowObj: any = { userId: userId, tenantId: tenantId };
+  rowObj[PathAttributeName] = path;
+  await insertRow(UserTenantTable, rowObj, ctx, false);
+}
+
 export async function ensureUserSession(
   userId: string,
   userEmail: string,
@@ -708,16 +726,17 @@ export async function ensureUserSession(
   refreshToken: string,
   env: Environment
 ): Promise<Instance> {
-  const tenantId = await getTenantIdForUserDomain(userEmail);
+  const tenantId = await getTenantIdForUserDomain(userEmail, env);
+  await mapUserToTenant(userId, tenantId);
   const sess: Instance = await findUserSession(userId, env);
   if (sess) {
     // Update existing session instead of deleting and recreating
-    await updateSession(sess.lookup('id'), token, accessToken, refreshToken, tenantId, env);
+    await updateSession(sess.lookup('id'), token, accessToken, refreshToken, env);
     // Return the updated session by finding it again
     return await findUserSession(userId, env);
   }
   const sessionId = crypto.randomUUID();
-  await createSession(sessionId, userId, token, accessToken, refreshToken, tenantId, env);
+  await createSession(sessionId, userId, token, accessToken, refreshToken, env);
   // Return the created session by finding it
   return await findSession(sessionId, env);
 }
@@ -728,7 +747,6 @@ export async function createSession(
   token: string,
   accessToken: string,
   refreshToken: string,
-  tenantId: string,
   env: Environment
 ): Promise<Result> {
   return await evalEvent(
@@ -739,7 +757,6 @@ export async function createSession(
       authToken: token,
       accessToken: accessToken,
       refreshToken: refreshToken,
-      tenantId: tenantId,
     },
     env
   );
@@ -770,7 +787,6 @@ export async function updateSession(
   token: string,
   accessToken: string,
   refreshToken: string,
-  tenantId: string,
   env: Environment
 ): Promise<Result> {
   return await evalEvent(
@@ -780,7 +796,6 @@ export async function updateSession(
       authToken: token,
       accessToken: accessToken,
       refreshToken: refreshToken,
-      tenantId: tenantId,
     },
     env
   );
@@ -1719,7 +1734,21 @@ export function isRetryableError(error: Error): boolean {
   );
 }
 
-export async function getTenantIdForUserDomain(userEmail?: string): Promise<string> {
+async function queryTenant(domain: string, env: Environment): Promise<any> {
+  const q = makeSimpleQuerySpec({ domain: '=' }, { domain: domain });
+  const ctx = DbContext.getGlobalContext().clone();
+  ctx.activeEnv = env;
+  const insts: any[] = await getManyByRawQuery(TenantTable, q, ctx);
+  if (insts && insts.length > 0) {
+    return insts[0];
+  }
+  return undefined;
+}
+
+export async function getTenantIdForUserDomain(
+  userEmail?: string,
+  env?: Environment
+): Promise<string> {
   if (userEmail === undefined) {
     return DefaultTenantId;
   }
@@ -1730,12 +1759,10 @@ export async function getTenantIdForUserDomain(userEmail?: string): Promise<stri
   }
   const domain = userEmail.substring(idx + 1);
   if (domain) {
-    // TODO: directly query global tables.
-    const insts: Instance[] = await parseAndEvaluateStatement(
-      `{agentlang.auth/Tenant {domain? "${domain}"}}`
-    );
-    if (insts.length > 0) {
-      return insts[0].lookup('id');
+    const newenv = env ? env : new Environment('tenant-env', env);
+    const tenant = await queryTenant(domain, newenv);
+    if (tenant) {
+      return tenant.id;
     } else {
       return DefaultTenantId;
     }
@@ -1744,22 +1771,33 @@ export async function getTenantIdForUserDomain(userEmail?: string): Promise<stri
   }
 }
 
+async function queryUserTenant(userId: string, env: Environment): Promise<any> {
+  const q = makeSimpleQuerySpec({ userId: '=' }, { userId: userId });
+  const ctx = DbContext.getGlobalContext().clone();
+  ctx.activeEnv = env;
+  const insts: any[] = await getManyByRawQuery(UserTenantTable, q, ctx);
+  if (insts && insts.length > 0) {
+    return insts[0];
+  }
+  return undefined;
+}
+
 const UserTenantIds = new Map<string, string>();
 
-async function getUserTenantId(userId: string, _: Environment): Promise<string> {
-  const tid = UserTenantIds.get(userId);
+async function getUserTenantId(userId: string, env: Environment): Promise<string> {
+  let tid = UserTenantIds.get(userId);
   if (tid !== undefined) {
     return tid;
   }
-  /*
-  const sess: Instance = await findUserSession(userId, env);
-  if (sess) {
-    tid = sess.lookup('tenantId');
+
+  const ut = await queryUserTenant(userId, env);
+  if (ut) {
+    tid = ut.tenantId;
     if (tid !== undefined) {
       UserTenantIds.set(userId, tid);
       return tid;
     }
-  }*/
+  }
   logger.warn(`Failed to find tenantId for user ${userId}, using default tenantId`);
   UserTenantIds.set(userId, DefaultTenantId);
   return DefaultTenantId;
