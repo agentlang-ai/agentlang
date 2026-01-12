@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.6](https://github.com/agentlang-ai/agentlang/compare/0.8.5...0.8.6) (2026-01-09)
+
+### Changes
+
+* update between-rel endpoints (#518) ([6ea0eb8](https://github.com/agentlang-ai/agentlang/commit/6ea0eb8448b965a2cc37ce5d11940df948cde3d3)) - @vijayfractl
+
+---
 ## [0.8.5](https://github.com/agentlang-ai/agentlang/compare/0.8.4...0.8.5) (2026-01-08)
 
 ### Changes
