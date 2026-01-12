@@ -383,20 +383,75 @@ async function evaluateConfigPatterns(cfgPats: string): Promise<any> {
   return undefined;
 }
 
-export async function loadAppConfig(configDir: string): Promise<Config> {
+export async function loadAppConfig(configDirOrContent: string): Promise<Config> {
+  // Auto-detect if input is JSON content (starts with '{') or a directory path
+  const isJsonContent = configDirOrContent.trim().startsWith('{');
+
   let cfgObj: any = undefined;
-  const fs = await getFileSystem();
-  const alCfgFile = `${configDir}${path.sep}config.al`;
-  if (await fs.exists(alCfgFile)) {
-    const cfgPats = await fs.readFile(alCfgFile);
-    if (canParse(cfgPats)) {
-      cfgObj = await evaluateConfigPatterns(cfgPats);
+
+  if (isJsonContent) {
+    // Load from JSON content string
+    const parsedConfig = JSON.parse(configDirOrContent);
+    const rawConfig = preprocessRawConfig(parsedConfig);
+    const [cfg, insts] = filterConfigEntityInstances(rawConfig);
+
+    // Generate patterns for entity instances
+    const pats = new Array<string>();
+    insts.forEach((v: any) => {
+      const n = Object.keys(v)[0];
+      const attrs = v[n];
+      pats.push(`{${n} ${objectAsString(attrs)}}`);
+    });
+
+    // Evaluate entity instance patterns
+    if (pats.length > 0) {
+      await evaluateConfigPatterns(pats.join('\n'));
+    }
+
+    cfgObj = cfg;
+  } else {
+    // Load from filesystem directory
+    const fs = await getFileSystem();
+    const alCfgFile = `${configDirOrContent}${path.sep}config.al`;
+    if (await fs.exists(alCfgFile)) {
+      const cfgPats = await fs.readFile(alCfgFile);
+      if (canParse(cfgPats)) {
+        const trimmed = cfgPats.trim();
+        if (trimmed.startsWith('{')) {
+          // config.al contains JSON format
+          const parsedConfig = JSON.parse(cfgPats);
+          const rawConfig = preprocessRawConfig(parsedConfig);
+          const [cfg, insts] = filterConfigEntityInstances(rawConfig);
+
+          const pats = new Array<string>();
+          insts.forEach((v: any) => {
+            const n = Object.keys(v)[0];
+            const attrs = v[n];
+            pats.push(`{${n} ${objectAsString(attrs)}}`);
+          });
+
+          if (pats.length > 0) {
+            await evaluateConfigPatterns(pats.join('\n'));
+          }
+
+          cfgObj = cfg;
+        } else {
+          cfgObj = await evaluateConfigPatterns(cfgPats);
+        }
+      }
     }
   }
+
   try {
-    let cfg = cfgObj
-      ? await configFromObject(cfgObj)
-      : await loadRawConfig(`${configDir}${path.sep}app.config.json`);
+    let cfg: Config;
+    if (cfgObj) {
+      cfg = await configFromObject(cfgObj);
+    } else if (isJsonContent) {
+      cfg = await configFromObject({});
+    } else {
+      cfg = await loadRawConfig(`${configDirOrContent}${path.sep}app.config.json`);
+    }
+
     const envAppConfig = typeof process !== 'undefined' ? process.env.APP_CONFIG : undefined;
     if (envAppConfig) {
       const envConfig = JSON.parse(envAppConfig);
