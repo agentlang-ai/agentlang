@@ -48,6 +48,7 @@ import {
   PathAttributeNameQuery,
   setEntityEndpointsUpdater,
   setEventEndpointsUpdater,
+  setRelationshipEndpointsUpdater,
   UnauthorisedError,
 } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
@@ -309,6 +310,13 @@ export async function startServer(
     const entityNames = m.getEntityNames();
     entityNames.forEach((n: string) => {
       addEntityHandlers(moduleName, n);
+    });
+  });
+  setRelationshipEndpointsUpdater((moduleName: string) => {
+    const m = fetchModule(moduleName);
+    const relNames = m.getBetweenRelationshipNames();
+    relNames.forEach((n: string) => {
+      addBetweenHandlers(moduleName, n);
     });
   });
 }

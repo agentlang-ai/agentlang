@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.6](https://github.com/agentlang-ai/agentlang/compare/0.8.5...0.8.6) (2026-01-09)
+
+### Changes
+
+* update between-rel endpoints (#518) ([6ea0eb8](https://github.com/agentlang-ai/agentlang/commit/6ea0eb8448b965a2cc37ce5d11940df948cde3d3)) - @vijayfractl
+
+---
+## [0.8.5](https://github.com/agentlang-ai/agentlang/compare/0.8.4...0.8.5) (2026-01-08)
+
+### Changes
+
+* Audit with diff (#515) ([5d2fdc1](https://github.com/agentlang-ai/agentlang/commit/5d2fdc108f54c72aeb40a99108ddce90129a34a9)) - @vijayfractl
+* parse json objects to query patterns (#510) ([16e1ca5](https://github.com/agentlang-ai/agentlang/commit/16e1ca54d09fda6dbb54903f49abd80f4b1f2717)) - @vijayfractl
+* External api demo (#512) ([e353032](https://github.com/agentlang-ai/agentlang/commit/e353032eb3eec3222910328718e7af3b4f9f7d52)) - @vijayfractl
+* Write only secrets (#513) ([f022695](https://github.com/agentlang-ai/agentlang/commit/f0226954e00f1ed31c7e568688105e3ba15118fe)) - @vijayfractl
+* addup total latency for parent monitors (#511) ([e49be4a](https://github.com/agentlang-ai/agentlang/commit/e49be4acd71f6afe73e3be91179a72334eb5e3cd)) - @vijayfractl
+
+---
 ## [0.8.4](https://github.com/agentlang-ai/agentlang/compare/0.8.3...0.8.4) (2026-01-02)
 
 ### Changes
