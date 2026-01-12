@@ -383,32 +383,45 @@ async function evaluateConfigPatterns(cfgPats: string): Promise<any> {
   return undefined;
 }
 
+function isJsonConfig(content: string): boolean {
+  const trimmed = content.trim();
+  if (!trimmed.startsWith('{')) {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(content);
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
+  } catch {
+    return false;
+  }
+}
+
+async function processJsonConfig(jsonContent: string): Promise<any> {
+  const parsedConfig = JSON.parse(jsonContent);
+  const rawConfig = preprocessRawConfig(parsedConfig);
+  const [cfg, insts] = filterConfigEntityInstances(rawConfig);
+
+  const pats = new Array<string>();
+  insts.forEach((v: any) => {
+    const n = Object.keys(v)[0];
+    const attrs = v[n];
+    pats.push(`{${n} ${objectAsString(attrs)}}`);
+  });
+
+  if (pats.length > 0) {
+    await evaluateConfigPatterns(pats.join('\n'));
+  }
+
+  return cfg;
+}
+
 export async function loadAppConfig(configDirOrContent: string): Promise<Config> {
-  // Auto-detect if input is JSON content (starts with '{') or a directory path
-  const isJsonContent = configDirOrContent.trim().startsWith('{');
+  const isJsonContent = isJsonConfig(configDirOrContent);
 
   let cfgObj: any = undefined;
 
   if (isJsonContent) {
-    // Load from JSON content string
-    const parsedConfig = JSON.parse(configDirOrContent);
-    const rawConfig = preprocessRawConfig(parsedConfig);
-    const [cfg, insts] = filterConfigEntityInstances(rawConfig);
-
-    // Generate patterns for entity instances
-    const pats = new Array<string>();
-    insts.forEach((v: any) => {
-      const n = Object.keys(v)[0];
-      const attrs = v[n];
-      pats.push(`{${n} ${objectAsString(attrs)}}`);
-    });
-
-    // Evaluate entity instance patterns
-    if (pats.length > 0) {
-      await evaluateConfigPatterns(pats.join('\n'));
-    }
-
-    cfgObj = cfg;
+    cfgObj = await processJsonConfig(configDirOrContent);
   } else {
     // Load from filesystem directory
     const fs = await getFileSystem();
@@ -416,25 +429,8 @@ export async function loadAppConfig(configDirOrContent: string): Promise<Config>
     if (await fs.exists(alCfgFile)) {
       const cfgPats = await fs.readFile(alCfgFile);
       if (canParse(cfgPats)) {
-        const trimmed = cfgPats.trim();
-        if (trimmed.startsWith('{')) {
-          // config.al contains JSON format
-          const parsedConfig = JSON.parse(cfgPats);
-          const rawConfig = preprocessRawConfig(parsedConfig);
-          const [cfg, insts] = filterConfigEntityInstances(rawConfig);
-
-          const pats = new Array<string>();
-          insts.forEach((v: any) => {
-            const n = Object.keys(v)[0];
-            const attrs = v[n];
-            pats.push(`{${n} ${objectAsString(attrs)}}`);
-          });
-
-          if (pats.length > 0) {
-            await evaluateConfigPatterns(pats.join('\n'));
-          }
-
-          cfgObj = cfg;
+        if (isJsonConfig(cfgPats)) {
+          cfgObj = await processJsonConfig(cfgPats);
         } else {
           cfgObj = await evaluateConfigPatterns(cfgPats);
         }

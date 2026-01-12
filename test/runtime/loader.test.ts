@@ -200,4 +200,19 @@ describe('loadAppConfig', () => {
 
     assert(result.length === 1, 'LLM should be created even with empty agentlang section');
   });
+
+  test('should handle AgentLang pattern format config files', async () => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentlang-test-pattern-'));
+
+    const patternConfig = `{
+    "type": "sqlite",
+    "dbname": "test.db"
+} @as store`;
+
+    const configFile = path.join(tempDir, 'config.al');
+    fs.writeFileSync(configFile, patternConfig);
+
+    const config = await loadAppConfig(tempDir);
+    assert(config !== undefined, 'Should handle AgentLang pattern format');
+  });
 });
