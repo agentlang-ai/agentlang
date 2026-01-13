@@ -27,3 +27,16 @@ module mcpdemo.core
         }
     }
 }
+
+{
+    "type": "mcp",
+    "server_label": "jiraMcp",
+    "server_url": "https://backend.composio.dev/v3/mcp/57a5a76d-4cbf-4acf-a01e-13b14adf3bdc/mcp?user_id=pg-test-61166010-51d9-4ca4-b304-27a06028fb1d",
+    "require_approval": "never",
+    "authorization": process.env.COMPOSIO_TOKEN
+} @as jiraMcp
+
+@public agent jiraManager {
+    instruction "Manage Jira for the user",
+    tools [jiraMcp]
+}
