@@ -383,25 +383,16 @@ async function evaluateConfigPatterns(cfgPats: string): Promise<any> {
   return undefined;
 }
 
-function isJsonConfig(content: string): boolean {
-  const trimmed = content.trim();
-  if (!trimmed.startsWith('{')) {
-    return false;
-  }
-  try {
-    const parsed = JSON.parse(content);
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
-  } catch {
-    return false;
-  }
+function isStringContent(content: string): boolean {
+  return content.includes('{');
 }
 
 export async function loadAppConfig(configDirOrContent: string): Promise<Config> {
-  const isJsonContent = isJsonConfig(configDirOrContent);
+  const stringContent = isStringContent(configDirOrContent);
 
   let cfgObj: any = undefined;
 
-  if (isJsonContent) {
+  if (stringContent) {
     if (canParse(configDirOrContent)) {
       cfgObj = await evaluateConfigPatterns(configDirOrContent);
     }
