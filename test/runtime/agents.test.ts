@@ -666,6 +666,69 @@ if (process.env.AL_TEST === 'true') {
       assert(rs[0].lookup('segment') == 'luxury');
     });
   });
+
+  describe('flow-with-patterns', () => {
+    test('Agent flow with patterns', async () => {
+      const moduleName = 'FlowPatterns'
+      await doInternModule(
+        moduleName,
+        `record UserRequest {
+          type @enum("Employee", "Manager"),
+          name String,
+          email String
+        }
+
+        entity Employee {
+          email Email @id,
+          name String
+        }
+
+        entity Manager {
+          email Email @id,
+          name String
+        }
+
+        agent classifyUserRequest {
+          instruction "Analyse the user request and classify it as an Employee or Manager",
+          responseSchema UserRequest
+        }
+
+        flow userRequestManager {
+          classifyUserRequest --> "type is Employee"
+          {
+            Employee {
+              email classifyUserRequest.email,
+              name classifyUserRequest.name
+            }
+          }
+          classifyUserRequest --> "type is Manager" {
+              Manager {
+                  email classifyUserRequest.email,
+                  name classifyUserRequest.name
+              }
+          }
+        }
+        agent userRequestManager
+        {role "You are a user request manager"}
+          `
+      );
+      const k = async (ins: string) => {
+        return await parseAndEvaluateStatement(
+          `{${moduleName}/userRequestManager {message "${ins}"}}`
+        );
+      };
+      await k(`employee Jose with email jose@acme.com`);
+      const r1: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/Employee? {}}`);
+      assert(r1.length === 1)
+      assert(isInstanceOfType(r1[0], `${moduleName}/Employee`))
+      const r2: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/Manager? {}}`);
+      assert(r2.length === 0)
+      await k(`manager Kiran with email kiran@acme.com`);
+      const r3: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/Manager? {}}`);
+      assert(r3.length === 1)
+      assert(isInstanceOfType(r3[0], `${moduleName}/Manager`))
+    });
+  });
 } else {
   describe('Skipping agent tests', () => {
     test('test01', async () => {});
