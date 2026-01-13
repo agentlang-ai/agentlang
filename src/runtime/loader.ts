@@ -392,19 +392,16 @@ export async function loadAppConfig(configDirOrContent: string): Promise<Config>
 
   let cfgObj: any = undefined;
 
-  if (stringContent) {
-    if (canParse(configDirOrContent)) {
-      cfgObj = await evaluateConfigPatterns(configDirOrContent);
-    }
-  } else {
+  if (!stringContent) {
     const fs = await getFileSystem();
     const alCfgFile = `${configDirOrContent}${path.sep}config.al`;
     if (await fs.exists(alCfgFile)) {
-      const cfgPats = await fs.readFile(alCfgFile);
-      if (canParse(cfgPats)) {
-        cfgObj = await evaluateConfigPatterns(cfgPats);
-      }
+      configDirOrContent = await fs.readFile(alCfgFile);
     }
+  }
+
+  if (canParse(configDirOrContent)) {
+    cfgObj = await evaluateConfigPatterns(configDirOrContent);
   }
 
   try {
