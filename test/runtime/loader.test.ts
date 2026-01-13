@@ -129,7 +129,9 @@ describe('loadAppConfig', () => {
     const patternConfig = `{
     "type": "sqlite",
     "dbname": "test.db"
-} @as store`;
+} @as store
+
+{"store": store}`;
 
     const configFile = path.join(tempDir, 'config.al');
     fs.writeFileSync(configFile, patternConfig);
