@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.8.7](https://github.com/agentlang-ai/agentlang/compare/0.8.6...0.8.7) (2026-01-13)
+
+### Changes
+
+* handle null config (#523) ([344f7a5](https://github.com/agentlang-ai/agentlang/commit/344f7a5521b4e34056df1400ecde1763be7a65d1)) - @vijayfractl
+* Quote aggregate colnames (#525) ([878dcab](https://github.com/agentlang-ai/agentlang/commit/878dcab1110171b1144e1b8f4c3ce0f73e8b3307)) - @vijayfractl
+* Add empty "agentlang" config in test ([9990f50](https://github.com/agentlang-ai/agentlang/commit/9990f5045d3e94db5981f9829b2a45968b7de5bc)) - @pratik
+* fix config format ([b79cc96](https://github.com/agentlang-ai/agentlang/commit/b79cc968f2f246f78c8ed499e9c9a2b9528f55e9)) - @vijay
+* make agentlang config optional ([2207d7e](https://github.com/agentlang-ai/agentlang/commit/2207d7e10a5735ccf5144ea182d6cb774293d46c)) - @vijay
+* Simplify the logic ([4c62937](https://github.com/agentlang-ai/agentlang/commit/4c629377d79f6e4f3c2e83ba858039488b969499)) - @pratik
+* Fix parsing and fix tests ([ccdf529](https://github.com/agentlang-ai/agentlang/commit/ccdf529f5db86b6066f94e8af358c71c09908cfd)) - @pratik
+* Update tests ([991b0cb](https://github.com/agentlang-ai/agentlang/commit/991b0cb9a7234db758bd56f7197e3bdacdaf547d)) - @pratik
+* Cleanup use internal calls ([987d697](https://github.com/agentlang-ai/agentlang/commit/987d697c570d03c906156ecbd7a28cbb93a923f8)) - @pratik
+* Remove duplicate processing use configFromObject ([ee873fa](https://github.com/agentlang-ai/agentlang/commit/ee873fa2cab477ed17d1c9fe4403d7fd3503587b)) - @pratik
+* Better JSON config parser ([6d6f24f](https://github.com/agentlang-ai/agentlang/commit/6d6f24fd8e39d7634b9ce78a0c7b9c7b394d9cda)) - @pratik
+* Update package-lock ([19252e1](https://github.com/agentlang-ai/agentlang/commit/19252e12a2609a13dbb07f80eb054ef85c403ba8)) - @pratik
+* Support loading app config from config.al contents ([dde78d9](https://github.com/agentlang-ai/agentlang/commit/dde78d9c4424a89385df615d39b97c73acd47f55)) - @pratik
+* duplicate names and definitions are allowed (#520) ([ab7a39d](https://github.com/agentlang-ai/agentlang/commit/ab7a39d163bdfaf89e367ea8eac692637b8eab15)) - @vijayfractl
+
+---
 ## [0.8.6](https://github.com/agentlang-ai/agentlang/compare/0.8.5...0.8.6) (2026-01-09)
 
 ### Changes
