@@ -396,32 +396,14 @@ function isJsonConfig(content: string): boolean {
   }
 }
 
-async function processJsonConfig(jsonContent: string): Promise<any> {
-  const parsedConfig = JSON.parse(jsonContent);
-  const rawConfig = preprocessRawConfig(parsedConfig);
-  const [cfg, insts] = filterConfigEntityInstances(rawConfig);
-
-  const pats = new Array<string>();
-  insts.forEach((v: any) => {
-    const n = Object.keys(v)[0];
-    const attrs = v[n];
-    pats.push(`{${n} ${objectAsString(attrs)}}`);
-  });
-
-  if (pats.length > 0) {
-    await evaluateConfigPatterns(pats.join('\n'));
-  }
-
-  return cfg;
-}
-
 export async function loadAppConfig(configDirOrContent: string): Promise<Config> {
   const isJsonContent = isJsonConfig(configDirOrContent);
 
   let cfgObj: any = undefined;
 
   if (isJsonContent) {
-    cfgObj = await processJsonConfig(configDirOrContent);
+    // Just parse JSON - configFromObject will handle all processing
+    cfgObj = JSON.parse(configDirOrContent);
   } else {
     // Load from filesystem directory
     const fs = await getFileSystem();
@@ -430,7 +412,8 @@ export async function loadAppConfig(configDirOrContent: string): Promise<Config>
       const cfgPats = await fs.readFile(alCfgFile);
       if (canParse(cfgPats)) {
         if (isJsonConfig(cfgPats)) {
-          cfgObj = await processJsonConfig(cfgPats);
+          // Just parse JSON - configFromObject will handle all processing
+          cfgObj = JSON.parse(cfgPats);
         } else {
           cfgObj = await evaluateConfigPatterns(cfgPats);
         }
