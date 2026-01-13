@@ -106,9 +106,9 @@ describe('loadAppConfig', () => {
     assert(configMap.get('maxTokens') === 2000, 'MaxTokens should match from file');
   });
 
-  test('should not be empty agentlang config section', async () => {
+  test('can be empty agentlang config section', async () => {
     const configContent =
-  "{\n  \"agentlang\": {\n    \"service\": {\n      \"port\": 8080\n    }\n  },\n  \"agentlang.ai\": [\n    {\n      \"agentlang.ai/LLM\": {\n        \"name\": \"minimal_llm\",\n        \"service\": \"anthropic\",\n        \"config\": {\n          \"model\": \"claude-sonnet-4-5\",\n          \"maxTokens\": 1000,\n          \"temperature\": 0.7\n        }\n      }\n    }\n  ]\n}"
+      "{\n  \"agentlang.ai\": [\n    {\n      \"agentlang.ai/LLM\": {\n        \"name\": \"minimal_llm\",\n        \"service\": \"anthropic\",\n        \"config\": {\n          \"model\": \"claude-sonnet-4-5\",\n          \"maxTokens\": 1000,\n          \"temperature\": 0.7\n        }\n      }\n    }\n  ]\n}"
 
     const config = await loadAppConfig(configContent);
     assert(config !== undefined, 'Config with empty agentlang section should work');
@@ -120,7 +120,7 @@ describe('loadAppConfig', () => {
       undefined
     );
 
-    assert(result.length === 1, 'LLM should not be created even with empty agentlang section');
+    assert(result.length === 1, 'LLM can be created even with empty agentlang section');
   });
 
   test('should handle AgentLang pattern format config files', async () => {
