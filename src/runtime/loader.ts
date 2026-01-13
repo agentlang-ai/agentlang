@@ -1240,7 +1240,7 @@ function filterConfigEntityInstances(rawConfig: any): [any, Array<any>] {
 
 async function configFromObject(cfgObj: any, validate: boolean = true): Promise<any> {
   const rawConfig = preprocessRawConfig(cfgObj);
-  if (validate) {
+  if (validate && rawConfig) {
     const [cfg, insts] = filterConfigEntityInstances(rawConfig);
     const pats = new Array<string>();
     insts.forEach((v: any) => {

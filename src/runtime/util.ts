@@ -621,16 +621,18 @@ export function generateLoggerCallId() {
 const JS_PREFIX = '#js';
 
 export function preprocessRawConfig(rawConfig: any): any {
-  const keys = Object.keys(rawConfig);
-  keys.forEach((k: any) => {
-    const v = rawConfig[k];
-    if (isString(v) && v.startsWith(JS_PREFIX)) {
-      const s = v.substring(3).trim();
-      rawConfig[k] = eval(s);
-    } else if (typeof v == 'object') {
-      preprocessRawConfig(v);
-    }
-  });
+  if (rawConfig) {
+    const keys = Object.keys(rawConfig);
+    keys.forEach((k: any) => {
+      const v = rawConfig[k];
+      if (isString(v) && v.startsWith(JS_PREFIX)) {
+        const s = v.substring(3).trim();
+        rawConfig[k] = eval(s);
+      } else if (typeof v == 'object') {
+        preprocessRawConfig(v);
+      }
+    });
+  }
   return rawConfig;
 }
 
