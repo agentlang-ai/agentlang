@@ -55,18 +55,18 @@ export function asTableReference(moduleName: string, ref: string): string {
   }
 }
 
-export function asColumnReference(n: string, tableName: string, entityName: string, entityFqName: string, moduleName: string): string {
+export function asColumnReference(n: string, tableName: string, entityName: string, entityFqName: string, moduleName: string, quoted: boolean = false): string {
   const refs = splitRefs(n);
   const rlen = refs.length
   if (rlen == 1 || refs[0] == entityName || refs[0] == entityFqName) {
     const r = rlen == 1 ? refs[0] : refs[1]
-    return `${tableName}.${r}`;
+    return quoted ? `"${tableName}"."${r}"` : `${tableName}.${r}`;
   } else {
     const p = splitFqName(refs[0]);
     if (p.length == 2) {
-      return `${asTableReference(p[0], p[1])}.${refs[1]}`;
+      return quoted ? `"${asTableReference(p[0], p[1])}"."${refs[1]}"` : `${asTableReference(p[0], p[1])}.${refs[1]}`;
     } else {
-      return `${asTableReference(moduleName, p[0])}.${refs[1]}`;
+      return quoted ? `"${asTableReference(moduleName, p[0])}"."${refs[1]}"` : `${asTableReference(moduleName, p[0])}.${refs[1]}`;
     }
   }
 }
