@@ -30,22 +30,25 @@ describe('loadAppConfig', () => {
   });
 
   test('should load config from JSON content string', async () => {
-    const configContent = JSON.stringify({
-      agentlang: {},
-      'agentlang.ai': [
+    const configContent =
+      `
+      {
+       "agentlang": {},
+       "agentlang.ai": [
         {
-          'agentlang.ai/LLM': {
-            name: 'test_llm',
-            service: 'anthropic',
-            config: {
-              model: 'claude-sonnet-4-5',
-              maxTokens: 1000,
-              temperature: 0.7,
-            },
-          },
-        },
-      ],
-    });
+          "agentlang.ai/LLM": {
+            "name": "test_llm",
+            "service": "anthropic",
+            "config": {
+              "model": "claude-sonnet-4-5",
+              "maxTokens": 1000,
+              "temperature": 0.7
+           }
+          }
+        }
+      ]
+    }
+    `
 
     const config = await loadAppConfig(configContent);
     assert(config !== undefined, 'Config should be defined');
@@ -74,30 +77,32 @@ describe('loadAppConfig', () => {
   });
 
   test('should load multiple entity instances from JSON content', async () => {
-    const configContent = JSON.stringify({
-      agentlang: {},
-      'agentlang.ai': [
+    const configContent =
+      `
+      {
+       "agentlang": {},
+       "agentlang.ai": [
         {
-          'agentlang.ai/LLM': {
-            name: 'llm_one',
-            service: 'anthropic',
-            config: {
-              model: 'claude-sonnet-4-5',
-            },
-          },
+          "agentlang.ai/LLM": {
+            "name": "llm_one",
+            "service": "anthropic",
+            "config": {
+              "model": "claude-sonnet-4-5"
+            }
+          }
         },
         {
-          'agentlang.ai/LLM': {
-            name: 'llm_two',
-            service: 'openai',
-            config: {
-              model: 'gpt-4',
-            },
-          },
-        },
-      ],
-    });
-
+          "agentlang.ai/LLM": {
+            "name": "llm_two",
+            "service": "openai",
+            "config": {
+              "model": "gpt-4o"
+            }
+          }
+        }
+      ]
+    }
+    `
     await loadAppConfig(configContent);
     await runInitFunctions();
     const result1: Instance[] = await parseAndEvaluateStatement(
@@ -117,24 +122,27 @@ describe('loadAppConfig', () => {
 
   test('should load config from file path', async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentlang-test-'));
-    const configContent = {
-      agentlang: {},
-      'agentlang.ai': [
-        {
-          'agentlang.ai/LLM': {
-            name: 'file_llm',
-            service: 'anthropic',
-            config: {
-              model: 'claude-sonnet-4-5',
-              maxTokens: 2000,
-            },
-          },
-        },
-      ],
-    };
+    const configContent =
+      `
+      {
+       "agentlang": {},
+       "agentlang.ai": [
+         {
+          "agentlang.ai/LLM": {
+            "name": "file_llm",
+            "service": "anthropic",
+            "config": {
+              "model": "claude-sonnet-4-5",
+              "maxTokens": 2000
+            }
+          }
+        }
+      ]
+    }
+    `
 
     const configFile = path.join(tempDir, 'config.al');
-    fs.writeFileSync(configFile, JSON.stringify(configContent, null, 2));
+    fs.writeFileSync(configFile, configContent);
 
     const config = await loadAppConfig(tempDir);
     assert(config !== undefined, 'Config should be loaded from file path');
@@ -173,20 +181,23 @@ describe('loadAppConfig', () => {
   });
 
   test('should handle empty agentlang config section', async () => {
-    const configContent = JSON.stringify({
-      agentlang: {},
-      'agentlang.ai': [
+    const configContent =
+      `
+      {
+       "agentlang": {},
+       "agentlang.ai": [
         {
-          'agentlang.ai/LLM': {
-            name: 'minimal_llm',
-            service: 'anthropic',
-            config: {
-              model: 'claude-haiku-4-5',
-            },
-          },
-        },
-      ],
-    });
+          "agentlang.ai/LLM": {
+            "name": "minimal_llm",
+            "service": "anthropic",
+            "config": {
+              "model": "claude-haiku-4-5"
+            }
+          }
+        }
+       ]
+      }
+      `
 
     const config = await loadAppConfig(configContent);
     assert(config !== undefined, 'Config with empty agentlang section should work');
