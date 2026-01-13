@@ -402,34 +402,24 @@ export async function loadAppConfig(configDirOrContent: string): Promise<Config>
   let cfgObj: any = undefined;
 
   if (isJsonContent) {
-    // Just parse JSON - configFromObject will handle all processing
-    cfgObj = JSON.parse(configDirOrContent);
+    if (canParse(configDirOrContent)) {
+      cfgObj = await evaluateConfigPatterns(configDirOrContent);
+    }
   } else {
-    // Load from filesystem directory
     const fs = await getFileSystem();
     const alCfgFile = `${configDirOrContent}${path.sep}config.al`;
     if (await fs.exists(alCfgFile)) {
       const cfgPats = await fs.readFile(alCfgFile);
       if (canParse(cfgPats)) {
-        if (isJsonConfig(cfgPats)) {
-          // Just parse JSON - configFromObject will handle all processing
-          cfgObj = JSON.parse(cfgPats);
-        } else {
-          cfgObj = await evaluateConfigPatterns(cfgPats);
-        }
+        cfgObj = await evaluateConfigPatterns(cfgPats);
       }
     }
   }
 
   try {
-    let cfg: Config;
-    if (cfgObj) {
-      cfg = await configFromObject(cfgObj);
-    } else if (isJsonContent) {
-      cfg = await configFromObject({});
-    } else {
-      cfg = await loadRawConfig(`${configDirOrContent}${path.sep}app.config.json`);
-    }
+    let cfg = cfgObj
+      ? await configFromObject(cfgObj)
+      : await loadRawConfig(`${configDirOrContent}${path.sep}app.config.json`);
 
     const envAppConfig = typeof process !== 'undefined' ? process.env.APP_CONFIG : undefined;
     if (envAppConfig) {
