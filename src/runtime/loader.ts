@@ -1216,9 +1216,10 @@ export async function loadRawConfig(
 function filterConfigEntityInstances(rawConfig: any): [any, Array<any>] {
   let cfg: any = undefined;
   const insts = new Array<any>();
-  const newFormat = Object.keys(rawConfig).find((k: string) => {
-    return k === 'agentlang';
+  const oldFormat = Object.keys(rawConfig).some((k: string) => {
+    return k === 'store' || k === 'service';
   });
+  const newFormat = !oldFormat;
   if (newFormat) {
     Object.entries(rawConfig).forEach(([key, value]: [string, any]) => {
       if (key === 'agentlang') {
@@ -1233,6 +1234,7 @@ function filterConfigEntityInstances(rawConfig: any): [any, Array<any>] {
         }
       }
     });
+    if (cfg === undefined) cfg = {};
     return [cfg, insts];
   } else {
     return [rawConfig, insts];
