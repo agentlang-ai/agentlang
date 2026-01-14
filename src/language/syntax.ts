@@ -1,6 +1,11 @@
 import { parseHelper } from 'langium/test';
 import { escapeQueryName, trimQuotes } from '../runtime/util.js';
-import { isDecisionDefinition, ModuleDefinition } from './generated/ast.js';
+import {
+  FlowEntry,
+  isDecisionDefinition,
+  isFlowDefinition,
+  ModuleDefinition,
+} from './generated/ast.js';
 import { createAgentlangServices } from './agentlang-module.js';
 import { EmptyFileSystem } from 'langium';
 import { introspect, parseModule } from './parser.js';
@@ -811,18 +816,26 @@ export class FlowStepPattern extends BasePattern {
     this.condition = condition ? trimQuotes(condition) : undefined;
   }
 
-  static Parse(s: string): FlowStepPattern {
-    const parts = s.trim().split(' ');
-    const first = parts[0];
-    if (parts[1] == '-->') {
-      if (parts.length == 3) {
-        return new FlowStepPattern(first, parts[2]);
-      } else {
-        return new FlowStepPattern(first, parts[3], parts[2]);
-      }
-    } else {
-      throw new Error(`Invalid flow-step format in ${s}`);
+  static async Parse(s: string): Promise<FlowStepPattern> {
+    const p = await parseModule(`module Temp
+      flow tempFlow {
+          ${s}
+      }`);
+    let result: FlowStepPattern | undefined;
+    const d = p.defs[0];
+    if (isFlowDefinition(d)) {
+      d.body?.entries.forEach((fe: FlowEntry) => {
+        if (fe.cond) {
+          result = new FlowStepPattern(fe.root, fe.cond.next.$cstNode?.text || '', fe.cond.expr);
+        } else {
+          result = new FlowStepPattern(fe.root, fe.next?.$cstNode?.text || '');
+        }
+      });
     }
+    if (result !== undefined) {
+      return result;
+    }
+    throw new Error(`Failed to parse flow-step - ${s}`);
   }
 
   override toString(): string {

@@ -914,7 +914,7 @@ function addFlowDefinition(def: FlowDefinition, moduleName: string) {
       f = sdef;
     }
   }
-  m.addFlow(def.name, f);
+  m.addFlow(def.name, def);
   registerFlow(`${moduleName}/${def.name}`, f);
 }
 

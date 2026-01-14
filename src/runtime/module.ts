@@ -20,6 +20,8 @@ import {
   RbacSpecEntries,
   RbacOpr,
   WorkflowHeader,
+  FlowDefinition,
+  FlowEntry,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -1632,18 +1634,21 @@ export type FlowGraphNode = {
   next: string[];
 };
 
+function splitFlowSteps(flow: FlowDefinition): string[] {
+  const steps = new Array<string>();
+  flow.body?.entries.forEach((fe: FlowEntry) => {
+    steps.push(fe.$cstNode?.text || '');
+  });
+  return steps;
+}
+
 export class Flow extends ModuleEntry {
   flowSteps: string[];
 
-  constructor(name: string, moduleName: string, flow?: string) {
+  constructor(name: string, moduleName: string, flow?: FlowDefinition) {
     super(name, moduleName);
-    this.flowSteps = new Array<string>();
-    flow?.split('\n').forEach((step: string) => {
-      const s = step.trim();
-      if (s.length > 0) {
-        this.flowSteps.push(s);
-      }
-    });
+    if (flow) this.flowSteps = splitFlowSteps(flow);
+    else this.flowSteps = new Array<string>();
   }
 
   getFlow(): string {
@@ -1669,10 +1674,11 @@ export class Flow extends ModuleEntry {
     return this.flowSteps.length;
   }
 
-  toGraph(): FlowGraphNode[] {
+  async toGraph(): Promise<FlowGraphNode[]> {
     const result = new Array<FlowGraphNode>();
-    this.flowSteps.forEach((s: string) => {
-      const fp = FlowStepPattern.Parse(s);
+    for (let i = 0; i < this.flowSteps.length; ++i) {
+      const s = this.flowSteps[i];
+      const fp = await FlowStepPattern.Parse(s);
       if (fp.condition) {
         const orig = result.find((v: FlowGraphNode) => {
           return v.label == fp.first;
@@ -1697,7 +1703,7 @@ export class Flow extends ModuleEntry {
           next: [fp.next],
         });
       }
-    });
+    }
     return result;
   }
 
@@ -2108,8 +2114,8 @@ export class Module {
     return this.removeEntry(Agent.EscapeName(agentName));
   }
 
-  addFlow(name: string, flowString?: string): Flow {
-    const flow: Flow = new Flow(Flow.asFlowName(name), this.name, flowString);
+  addFlow(name: string, flowDef?: FlowDefinition): Flow {
+    const flow: Flow = new Flow(Flow.asFlowName(name), this.name, flowDef);
     this.addEntry(flow);
     return flow;
   }
