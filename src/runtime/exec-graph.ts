@@ -506,7 +506,7 @@ async function executeStatementsHelper(
   env?: Environment,
   activeModule?: string
 ): Promise<any> {
-  const g = await graphFromStatements(stmts);
+  const g = await graphFromStatements(stmts, env?.getActiveModuleName());
   let isLocalEnv = false;
   if (env === undefined) {
     env = new Environment(`stmt-exec-env`);
