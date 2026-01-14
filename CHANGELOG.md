@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.8](https://github.com/agentlang-ai/agentlang/compare/0.8.7...0.8.8) (2026-01-14)
+
+### Changes
+
+* fix flow parsing for graph creation ([02e6605](https://github.com/agentlang-ai/agentlang/commit/02e660575a7afd0a36906926deac28ec75b7a2e8)) - @vijay
+
+---
 ## [0.8.7](https://github.com/agentlang-ai/agentlang/compare/0.8.6...0.8.7) (2026-01-13)
 
 ### Changes
