@@ -375,7 +375,6 @@ entity incident
     created DateTime @default(now())
 }
 
-
 workflow @after create:WfSyntaxGen/incident {
     {orchestratorAgent {message this}}
 }
@@ -407,7 +406,6 @@ entity incident
     created DateTime @default(now())
 }
 
-
 workflow @after create:WfSyntaxGen/incident {
     {orchestratorAgent {message this}}
 }
@@ -419,7 +417,6 @@ workflow @after create:WfSyntaxGen/incident {
 workflow onIncident {
     {orchestratorAgent {message onIncident.incident}}
 }
-
 workflow @before delete:WfSyntaxGen/incident {
     {abc/incidentAdded {id this.id}}
 }`
@@ -629,7 +626,6 @@ agent xaaAgent
     glossary [{"name":"jackpot","meaning":"sales of 5000 or above","synonyms":"high sales, block-buster"},{"name":"hit","meaning":"sales above 400","synonyms":"block-buster"}],
    responseSchema acme/response
 }
-
 workflow chat {
     {xaaAgent {message chat.msg}}
 }`
@@ -717,7 +713,6 @@ describe('agent-xtras-to-string', () => {
       s ===
         `module StdAloneAgentXtras
 
-
 workflow scenario01 {
     {GA/Employee {name? "Jake"}} @as [employee];
     {GA/Employee {id? employee.id, salary employee.salary + employee.salary * 0.5}}
@@ -743,7 +738,6 @@ glossaryEntry ga.ge
     meaning "low-sales",
     synonyms "bad"
 }
-
 workflow chat {
     {ga {message chat.msg}}
 }
@@ -985,7 +979,6 @@ entity EntityC
 
 }
 
-
 workflow @after create:expaugust.core/EntityA {
 
 }
@@ -1071,9 +1064,7 @@ describe('retry-construct', () => {
     );
     const m = fetchModule(mname);
     const s = m.toString();
-    assert(
-      s ===
-        `module retryTest
+    assert(s === `module retryTest
 
 entity A
 {
@@ -1089,7 +1080,6 @@ agentlang/retry r1 {
        magnitude seconds
     }
 }
-
 workflow v1 {
 
 }
@@ -1098,8 +1088,7 @@ agent a1
     instruction "test agent",
     validate "v1",
     retry "r1"
-}`
-    );
+}`)
     const s1 = s.substring(s.indexOf('entity')).trim();
     await doInternModule(`${mname}1`, s1);
     const m2 = fetchModule(`${mname}1`);
