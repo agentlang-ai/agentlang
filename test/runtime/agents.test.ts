@@ -11,6 +11,7 @@ import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import {
   Agent,
   fetchModule,
+  FlowGraphNode,
   Instance,
   isInstanceOfType,
   newInstanceAttributes,
@@ -647,6 +648,14 @@ if (process.env.AL_TEST === 'true') {
         }
         `
       );
+      const m = fetchModule('CarCompany')
+      const g: FlowGraphNode[] | undefined = await m.getFlow('carOrderRequestManager')?.toGraph()
+      assert(g?.length == 2)
+      assert(g[0]?.label == 'analyseCarOrderRequest')
+      assert(g[0]?.next.length == 1)
+      assert(g[0]?.next[0] == 'classifyOrder')
+      assert(g[1]?.label == 'classifyOrder')
+      assert(g[1]?.next.length == 4)
       const k = async (ins: string) => {
         return await parseAndEvaluateStatement(
           `{CarCompany/carOrderRequestManager {message "${ins}"}}`
@@ -712,6 +721,10 @@ if (process.env.AL_TEST === 'true') {
         {role "You are a user request manager"}
           `
       );
+       const m = fetchModule(moduleName)
+      const g: FlowGraphNode[] | undefined = await m.getFlow('userRequestManager')?.toGraph()
+      assert(g?.length == 1)
+      assert(g[0]?.next.length == 2)
       const k = async (ins: string) => {
         return await parseAndEvaluateStatement(
           `{${moduleName}/userRequestManager {message "${ins}"}}`
