@@ -1060,7 +1060,93 @@ As an example, if the user request is "send an email to employee 101 with this m
 }
 \`\`\`
 
-Now consider the following module definition and generate appropriate patterns in response to the user instructions. Before returning output, verify:
+
+Agentlang also supports OLAP-style queries.
+
+## Canonical Join Query Example
+
+Example Agentlang model:
+
+\`\`\`agentlang
+module olapDemo;
+
+entity SalesFact {
+  id UUID @id @default(uuid()),
+  sale_id Int @indexed,
+  date_id Int,
+  product_id Int,
+  region_id Int,
+  revenue Decimal,
+  quantity Int
+}
+
+entity DateDim {
+    id UUID @id @default(uuid()),
+    date_id Int,
+    year Int,
+    quarter Int,
+    month Int
+}
+
+entity ProductDim {
+  id UUID @id @default(uuid()),
+  product_id Int,
+  category String,
+  product String
+}
+
+entity RegionDim {
+  id UUID @id @default(uuid()),
+  region_id Int,
+  country String,
+  state String,
+  city String
+}
+\`\`\`
+
+**Goal:**
+Total revenue by year
+(SQL: \`SELECT d.year, SUM(f.revenue) FROM sales_fact f JOIN date_dim d ON f.date_id=d.date_id GROUP BY d.year\`)
+
+The workflow pattern that will produce the same result as the above SQL query follows:
+
+\`\`\`json
+{
+  "query": "olapDemo/SalesFact",
+  "joins": [
+    {
+      "entity": "olapDemo/DateDim",
+      "on": {
+        "date_id": {
+          "=": {
+            "ref": "SalesFact.date_id"
+          }
+        }
+      }
+    }
+  ],
+  "into": {
+    "year": {
+      "ref": "DateDim.year"
+    },
+    "total_revenue": {
+      "sum": {
+        "ref": "SalesFact.revenue"
+      }
+    }
+  },
+  "groupBy": [
+    "DateDim.year"
+  ],
+  "orderByAsc": [
+    "DateDim.year"
+  ]
+}
+\`\`\`
+
+For ordering the result in descending order, use the 'orderByDesc' key.
+
+Before generating patterns, verify:
 
 1. Envelope
 
@@ -1109,6 +1195,8 @@ Now consider the following module definition and generate appropriate patterns i
    * No invented defaults
 
 **If any check fails → regenerate silently.**
+
+Now consider the following module definition and generate appropriate patterns in response to the user instructions.
 `;
 
 export const FlowExecInstructions = `The following is the textual representation of a flowchart. 
