@@ -383,20 +383,32 @@ async function evaluateConfigPatterns(cfgPats: string): Promise<any> {
   return undefined;
 }
 
-export async function loadAppConfig(configDir: string): Promise<Config> {
+function isStringContent(content: string): boolean {
+  return content.includes('{');
+}
+
+export async function loadAppConfig(configDirOrContent: string): Promise<Config> {
+  const stringContent = isStringContent(configDirOrContent);
+
   let cfgObj: any = undefined;
-  const fs = await getFileSystem();
-  const alCfgFile = `${configDir}${path.sep}config.al`;
-  if (await fs.exists(alCfgFile)) {
-    const cfgPats = await fs.readFile(alCfgFile);
-    if (canParse(cfgPats)) {
-      cfgObj = await evaluateConfigPatterns(cfgPats);
+
+  if (!stringContent) {
+    const fs = await getFileSystem();
+    const alCfgFile = `${configDirOrContent}${path.sep}config.al`;
+    if (await fs.exists(alCfgFile)) {
+      configDirOrContent = await fs.readFile(alCfgFile);
     }
   }
+
+  if (canParse(configDirOrContent)) {
+    cfgObj = await evaluateConfigPatterns(configDirOrContent);
+  }
+
   try {
     let cfg = cfgObj
       ? await configFromObject(cfgObj)
-      : await loadRawConfig(`${configDir}${path.sep}app.config.json`);
+      : await loadRawConfig(`${configDirOrContent}${path.sep}app.config.json`);
+
     const envAppConfig = typeof process !== 'undefined' ? process.env.APP_CONFIG : undefined;
     if (envAppConfig) {
       const envConfig = JSON.parse(envAppConfig);
@@ -902,7 +914,7 @@ function addFlowDefinition(def: FlowDefinition, moduleName: string) {
       f = sdef;
     }
   }
-  m.addFlow(def.name, f);
+  m.addFlow(def.name, def);
   registerFlow(`${moduleName}/${def.name}`, f);
 }
 
@@ -1201,9 +1213,10 @@ export async function loadRawConfig(
 function filterConfigEntityInstances(rawConfig: any): [any, Array<any>] {
   let cfg: any = undefined;
   const insts = new Array<any>();
-  const newFormat = Object.keys(rawConfig).find((k: string) => {
-    return k === 'agentlang';
+  const oldFormat = Object.keys(rawConfig).some((k: string) => {
+    return k === 'store' || k === 'service';
   });
+  const newFormat = !oldFormat;
   if (newFormat) {
     Object.entries(rawConfig).forEach(([key, value]: [string, any]) => {
       if (key === 'agentlang') {
@@ -1218,6 +1231,7 @@ function filterConfigEntityInstances(rawConfig: any): [any, Array<any>] {
         }
       }
     });
+    if (cfg === undefined) cfg = {};
     return [cfg, insts];
   } else {
     return [rawConfig, insts];
@@ -1226,7 +1240,7 @@ function filterConfigEntityInstances(rawConfig: any): [any, Array<any>] {
 
 async function configFromObject(cfgObj: any, validate: boolean = true): Promise<any> {
   const rawConfig = preprocessRawConfig(cfgObj);
-  if (validate) {
+  if (validate && rawConfig) {
     const [cfg, insts] = filterConfigEntityInstances(rawConfig);
     const pats = new Array<string>();
     insts.forEach((v: any) => {

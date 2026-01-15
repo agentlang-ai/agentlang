@@ -489,7 +489,7 @@ in the incident's description."
 
     const mod = fetchModule(mname);
     const flow = mod.getFlow('orchestrator');
-    const fg = flow?.toGraph();
+    const fg = await flow?.toGraph();
     assert(fg);
     const n0 = flowGraphNext(fg);
     assert(n0?.label == 'incidentTriager');
