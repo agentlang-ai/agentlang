@@ -1066,6 +1066,7 @@ Now consider the following module definition and generate appropriate patterns i
 
    * Output is **only JSON**
    * Top-level key is **exactly one of**: \`patterns\` or \`workflow\`
+   * Generated code MUST NOT be wrapped in markdown code block, i.e never return code wrapped in \`\`\`json and \`\`\`.
 
 2. Workflow Decision
 
