@@ -20,7 +20,7 @@ describe('basic-aggregate-queries', () => {
     const isp = (inst: any) => {
       return isInstanceOfType(inst, entName);
     };
-    let totalPrice = 0.0
+    let totalPrice = 0.0;
     const crp = async (id: number, name: string, price: number): Promise<Instance> => {
       const inst: Instance = await parseAndEvaluateStatement(`{${entName} {
                 id ${id},
@@ -28,7 +28,7 @@ describe('basic-aggregate-queries', () => {
                 price ${price}
       }}`);
       assert(isp(inst));
-      totalPrice += price
+      totalPrice += price;
       return inst;
     };
     await crp(1, 'p01', 673.44);
@@ -45,11 +45,11 @@ describe('basic-aggregate-queries', () => {
     insts = await q(`{${entName}? {}, @orderBy(id)}`);
     assert(insts[0].lookup('id') == 1);
     insts = await q(`{${entName} {mp? @max(price)}, @groupBy(__path__)}`);
-    let tp = 0.0
+    let tp = 0.0;
     insts.forEach((inst: Instance) => {
-      tp += Number(inst.lookup('mp'))
-    })
-    assert(Math.round(tp) == Math.round(totalPrice))
+      tp += Number(inst.lookup('mp'));
+    });
+    assert(Math.round(tp) == Math.round(totalPrice));
     insts = await q(`{${entName} {mp? @max(price)}}`, 1);
     assert(insts[0].lookup('mp') == 784.42);
   });
@@ -293,7 +293,7 @@ describe('olap-test01', () => {
         })
       );
     };
-    chkry(r5)
+    chkry(r5);
     const r6: any[] = await parseAndEvaluateStatement(
       `{${moduleName}/categoryRevenueForYear {year 2024, category "Cat01", country "India"}}`
     );
@@ -342,5 +342,60 @@ describe('olap-test01', () => {
     const qs3 = objectToQueryPattern(qobj3);
     const qr3 = await parseAndEvaluateStatement(qs3);
     chkry(qr3);
+  });
+});
+
+describe('aggregates-for-relationships', () => {
+  test('Aggregate queries over relationships', async () => {
+    const moduleName = 'AgrQrs';
+    await doInternModule(
+      moduleName,
+      `entity Employee {
+          id Int @id,
+          name String
+       }
+      entity Task {
+        id Int @id,
+        description String
+      }
+      relationship EmployeeTask between(Employee, Task)
+      workflow countTasks {
+          {Task? {},
+           EmployeeTask {Employee {id? countTasks.employeeId}},
+           @into{n @count(Task.id)}}
+      }`
+    );
+    const ee = `${moduleName}/Employee`;
+    const te = `${moduleName}/Task`;
+    const etr = `${moduleName}/EmployeeTask`;
+    const cre = async (id: number, name: string) => {
+      const r = await parseAndEvaluateStatement(`{${ee} {id ${id}, name "${name}"}}`);
+      assert(isInstanceOfType(r, ee));
+      return r;
+    };
+    const crt = async (empId: number, id: number, desc: string) => {
+      const r: Instance[] = await parseAndEvaluateStatement(`{${ee} {id? ${empId}},
+          ${etr} {${te} {id ${id},  description "${desc}"}}}`);
+      assert(isInstanceOfType(r[0], ee));
+      const ri = r[0].getRelatedInstances(etr);
+      assert(ri);
+      if (ri !== undefined) assert(isInstanceOfType(ri[0], te));
+      return ri[0];
+    };
+    await cre(345, 'joe');
+    await crt(345, 101, 'test01');
+    const ct = `${moduleName}/countTasks`;
+    const cnt = async (id: number, n: number) => {
+      const r: any[] = await parseAndEvaluateStatement(`{${ct} {employeeId ${id}}}`);
+      assert(r.length === 1);
+      assert(r[0].n === n);
+    };
+    await cnt(345, 1);
+    await crt(345, 102, 'test02');
+    await cnt(345, 2);
+    await cre(290, 'mat');
+    await crt(290, 103, 'test03');
+    await cnt(290, 1);
+    await cnt(345, 2);
   });
 });
