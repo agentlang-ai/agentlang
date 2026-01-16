@@ -4,6 +4,7 @@ export const PathAttributeName: string = '__path__';
 export const PathAttributeNameQuery: string = '__path__?';
 export const ParentAttributeName: string = '__parent__';
 export const DeletedFlagAttributeName: string = '__is_deleted__';
+export const TenantAttributeName: string = '__tenant__';
 
 export function isPathAttribute(n: string): boolean {
   return n.startsWith(PathAttributeName);
@@ -449,4 +450,15 @@ export let InternDynamicModule: Function | undefined;
 
 export function setInternDynamicModuleFn(f: Function) {
   InternDynamicModule = f;
+}
+
+export const DefaultTenantId = '00000000-0000-0000-0000-000000000000';
+
+export let getUserTenantId = async function (_: string, env: any): Promise<string> {
+  env;
+  return DefaultTenantId;
+};
+
+export function set_getUserTenantId(f: (s: string, env: any) => Promise<string>) {
+  getUserTenantId = f;
 }
