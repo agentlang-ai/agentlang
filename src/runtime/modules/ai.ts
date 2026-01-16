@@ -765,7 +765,9 @@ Only return a pure JSON object with no extra text, annotations etc.`;
             }
             if (entry) {
               const s =
-                entry instanceof Record ? (entry as Record).toString_(true) : entry.toString();
+                entry instanceof Record
+                  ? (entry as Record).toString_(true, true)
+                  : entry.toString();
               // Add full qualified name comment so LLM knows how to reference it
               const fqName = `${moduleName}/${entryName}`;
               defs?.push(

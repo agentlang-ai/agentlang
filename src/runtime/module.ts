@@ -494,11 +494,12 @@ export class Record extends ModuleEntry {
     return undefined;
   }
 
-  addMeta(k: string, v: any): void {
+  addMeta(k: string, v: any): Record {
     if (!this.meta) {
       this.meta = newMeta();
     }
     this.meta.set(k, v);
+    return this;
   }
 
   getMeta(k: string): any {
@@ -642,8 +643,9 @@ export class Record extends ModuleEntry {
     return this.toString_();
   }
 
-  toString_(internParentSchema: boolean = false): string {
-    if (this.type == RecordType.EVENT && this.meta && this.meta.get(SystemDefinedEvent)) {
+  toString_(internParentSchema: boolean = false, toolCall: boolean = false): string {
+    const isevent = this.type == RecordType.EVENT;
+    if (isevent && this.meta?.get(SystemDefinedEvent) && !toolCall) {
       return '';
     }
     let s: string = `${RecordType[this.type].toLowerCase()} ${this.name}`;
@@ -674,9 +676,23 @@ export class Record extends ModuleEntry {
       scms = `${scms},\n    @rbac [${rbs.join(',\n')}]`;
     }
     if (this.meta && this.meta.size > 0) {
-      const metaObj = Object.fromEntries(this.meta);
-      const ms = `@meta ${JSON.stringify(metaObj)}`;
-      scms = `${scms},\n    ${ms}`;
+      let metaObj: any = undefined;
+      if (isevent && isAgentEvent(this) && toolCall) {
+        const m = new Map<string, any>();
+        this.meta?.forEach((v: any, k: string) => {
+          if (!(k === IsAgentEventMeta || k === EventAgentName || k === DocumentationMetaTag))
+            m.set(k, v);
+        });
+        if (m.size > 0) {
+          metaObj = Object.fromEntries(m);
+        }
+      } else {
+        metaObj = Object.fromEntries(this.meta);
+      }
+      if (metaObj) {
+        const ms = `@meta ${JSON.stringify(metaObj)}`;
+        scms = `${scms},\n    ${ms}`;
+      }
     }
     if (this.isPublic()) {
       s = `@public ${s}`;
@@ -2566,7 +2582,7 @@ export class Module {
   toString(): string {
     const ss: Array<string> = [];
     this.entries.forEach((me: ModuleEntry) => {
-      if (me instanceof Event && isAgentEvent(me)) {
+      if (me instanceof Event && me.isSystemDefined()) {
         return;
       }
       ss.push(me.toString());
@@ -2927,7 +2943,7 @@ export function addEvent(
   const module: Module = fetchModule(moduleName);
   const event = module.addEntry(new Event(name, moduleName, scm, ext)) as Event;
   if (module.getAgent(name)) {
-    event.addMeta(IsAgentEventMeta, 'y');
+    defineAgentEvent(moduleName, name);
   }
   return event;
 }
@@ -3225,6 +3241,14 @@ export function getEvent(name: string, moduleName: string): Event {
     return fr.module.getEntry(fr.entryName) as Event;
   }
   throw new Error(`Event ${fr.entryName} not found in module ${fr.moduleName}`);
+}
+
+export function maybeGetEvent(name: string, moduleName: string): Event | undefined {
+  try {
+    return getEvent(name, moduleName);
+  } catch {
+    return undefined;
+  }
 }
 
 export function getRecord(name: string, moduleName: string): Record {
@@ -4089,13 +4113,16 @@ function markAsAgentEvent(event: Event): Event {
 }
 
 export function defineAgentEvent(moduleName: string, agentName: string, instruction?: string) {
-  const module = fetchModule(moduleName);
-  const event: Record = new Event(agentName, moduleName);
-  markAsAgentEvent(event as Event)
-    .addAttribute('message', { type: 'Any' })
-    .addAttribute('chatId', asOptionalAttribute({ type: 'String' }))
-    .addAttribute('mode', asSystemAttribute(asOptionalAttribute({ type: 'String' })))
-    .addMeta(EventAgentName, agentName);
+  let event: Record | undefined = maybeGetEvent(agentName, moduleName);
+  const newEvent = event === undefined;
+  if (event === undefined) {
+    event = new Event(agentName, moduleName)
+      .addAttribute('message', { type: 'Any' })
+      .addAttribute('chatId', asOptionalAttribute({ type: 'String' }))
+      .addAttribute('mode', asSystemAttribute(asOptionalAttribute({ type: 'String' })))
+      .addMeta(SystemDefinedEvent, 'true');
+  }
+  markAsAgentEvent(event as Event).addMeta(EventAgentName, agentName);
   if (instruction) {
     event.addMeta(
       DocumentationMetaTag,
@@ -4103,11 +4130,12 @@ export function defineAgentEvent(moduleName: string, agentName: string, instruct
     So make sure to pass all relevant information in the 'message' attribute of this event.`
     );
   }
+  const module = fetchModule(moduleName);
   const agent = module.getAgent(agentName);
   if (agent && agent.isPublic()) {
     event.setPublic(true);
   }
-  module.addEntry(event);
+  if (newEvent) module.addEntry(event);
 }
 
 export function isTimer(eventInst: Instance): boolean {
