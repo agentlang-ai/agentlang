@@ -132,37 +132,20 @@ Instances may be queried by conditions applied to attributes, some examples are:
     }
   }
 }
-\`\`\
+\`\`\`
 
-To select an employee with a given email AND salary:
+To select an employee with a given email and salary:
 
 \`\`\`json
 {
   "query": "erp/Employee",
   "where": {
-    "and": {
       "email": {
         "=": {"val": "samk@acme.com"}
       },
       "salary": {
         "=": {"val": 7800}
       }
-    }
-  }
-}
-\`\`\`
-
-Similarly, you may also use the OR logical operator:
-
-\`\`\`json
-{
-  "query": "erp/Employee",
-  "where": {
-    "or": {
-      "email": {
-        "=": {"val": "joej@acme.com"}
-      }
-    }
   }
 }
 \`\`\`
@@ -582,6 +565,274 @@ Another example of the 'if' pattern:
 
 Note the use of the 'as' keyword - this binds the result of a pattern to an 'alias', which is the same as a variable in other programming languages.
 
+For your reference, a few examples of \`if\` condition in C-like syntax and their translation to the JSON-format are given below:
+
+## 1. Simple Equality
+
+### C
+
+\`\`\`c
+if (status == "active") {
+    result = "ok";
+}
+\`\`\`
+
+### Agentlang JSON
+
+\`\`\`json
+{
+  "if": {
+    "condition": {
+      "=": [
+        { "ref": "status" },
+        { "val": "active" }
+      ]
+    },
+    "then": [
+      { "val": "ok" }
+    ]
+  }
+}
+\`\`\`
+
+---
+
+## 2. Not Equals
+
+### C
+
+\`\`\`c
+if (role != "admin") {
+    access = "denied";
+}
+\`\`\`
+
+### Agentlang JSON
+
+\`\`\`json
+{
+  "if": {
+    "condition": {
+      "!=": [
+        { "ref": "role" },
+        { "val": "admin" }
+      ]
+    },
+    "then": [
+      { "val": "denied" }
+    ]
+  }
+}
+\`\`\`
+
+## 3. Numeric Comparison
+
+### C-like
+
+\`\`\`c
+if (salary > 5000) {
+    grade = "senior";
+}
+\`\`\`
+
+### Agentlang JSON
+
+\`\`\`json
+{
+  "if": {
+    "condition": {
+      ">": [
+        { "ref": "salary" },
+        { "val": 5000 }
+      ]
+    },
+    "then": [
+      { "val": "senior" }
+    ]
+  }
+}
+\`\`\`
+
+## 4. Logical AND
+
+### C
+
+\`\`\`c
+if (age >= 18 && age <= 60) {
+    eligible = true;
+}
+\`\`\`
+
+### Agentlang JSON
+
+\`\`\`json
+{
+  "if": {
+    "condition": {
+      "and": [
+        {
+          ">=": [
+            { "ref": "age" },
+            { "val": 18 }
+          ]
+        },
+        {
+          "<=": [
+            { "ref": "age" },
+            { "val": 60 }
+          ]
+        }
+      ]
+    },
+    "then": [
+      { "val": true }
+    ]
+  }
+}
+\`\`\`
+
+## 5. Logical OR
+
+### C
+
+\`\`\`c
+if (country == "US" || country == "Canada") {
+    region = "NorthAmerica";
+}
+\`\`\`
+
+### Agentlang JSON
+
+\`\`\`json
+{
+  "if": {
+    "condition": {
+      "or": [
+        {
+          "=": [
+            { "ref": "country" },
+            { "val": "US" }
+          ]
+        },
+        {
+          "=": [
+            { "ref": "country" },
+            { "val": "Canada" }
+          ]
+        }
+      ]
+    },
+    "then": [
+      { "val": "NorthAmerica" }
+    ]
+  }
+}
+\`\`\`
+
+## 6. \`in\` Operator
+
+### C-like
+
+\`\`\`c
+if (status in ["open", "pending", "new"]) {
+    queue = "active";
+}
+\`\`\`
+
+### Agentlang JSON
+
+\`\`\`json
+{
+  "if": {
+    "condition": {
+      "in": [
+        { "ref": "status" },
+        { "val": ["open", "pending", "new"] }
+      ]
+    },
+    "then": [
+      { "val": "active" }
+    ]
+  }
+}
+\`\`\`
+
+## 7. \`like\` Operator (starts-with)
+
+### C-like
+
+\`\`\`c
+if (email like "admin@") {
+    priority = "high";
+}
+\`\`\`
+
+### Agentlang JSON
+
+\`\`\`json
+{
+  "if": {
+    "condition": {
+      "like": [
+        { "ref": "email" },
+        { "val": "admin@" }
+      ]
+    },
+    "then": [
+      { "val": "high" }
+    ]
+  }
+}
+\`\`\`
+
+## 8. Nested Composition
+
+### C
+
+\`\`\`c
+if ((role == "manager" || role == "lead") && salary >= 8000) {
+    bonus = true;
+}
+\`\`\`
+
+### Agentlang JSON
+
+\`\`\`json
+{
+  "if": {
+    "condition": {
+      "and": [
+        {
+          "or": [
+            {
+              "=": [
+                { "ref": "role" },
+                { "val": "manager" }
+              ]
+            },
+            {
+              "=": [
+                { "ref": "role" },
+                { "val": "lead" }
+              ]
+            }
+          ]
+        },
+        {
+          ">=": [
+            { "ref": "salary" },
+            { "val": 8000 }
+          ]
+        }
+      ]
+    },
+    "then": [
+      { "val": true }
+    ]
+  }
+}
+\`\`\`
+
 A successful query pattern will return an array of instances. The 'for' pattern can be used to iterate over an array. An example follows:
 
 \`\`\`json
@@ -873,7 +1124,7 @@ The workflow pattern that will produce the same result as the above SQL query fo
   "groupBy": [
     "DateDim.year"
   ],
-  "orderByAsc": [
+  ""or"derByAsc": [
     "DateDim.year"
   ]
 }
