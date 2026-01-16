@@ -524,6 +524,11 @@ export class Record extends ModuleEntry {
     }
   }
 
+  private resetUserAttrs() {
+    this.userAttrNames = undefined;
+    this.userAttrsSchema = undefined;
+  }
+
   addAttribute(n: string, attrSpec: AttributeSpec): Record {
     if (this.schema.has(n)) {
       throw new Error(`Attribute named ${n} already exists in ${this.moduleName}.${this.name}`);
@@ -532,11 +537,13 @@ export class Record extends ModuleEntry {
       normalizePropertyNames(attrSpec.properties);
     }
     this.schema.set(n, attrSpec);
+    this.resetUserAttrs();
     return this;
   }
 
   removeAttribute(n: string): Record {
     this.schema.delete(n);
+    this.resetUserAttrs();
     return this;
   }
 
