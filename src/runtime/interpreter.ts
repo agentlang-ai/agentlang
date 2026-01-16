@@ -200,7 +200,8 @@ export class Environment extends Instance {
   static from(
     parent: Environment,
     name?: string | undefined,
-    isAsync: boolean = false
+    isAsync: boolean = false,
+    mergeScratchPad: boolean = false
   ): Environment {
     const env = new Environment(name, parent);
     if (isAsync) {
@@ -208,6 +209,11 @@ export class Environment extends Instance {
       env.activeTransactions = new Map<string, string>();
       env.activeCatchHandlers = new Array<CatchHandlers>();
       env.preGeneratedSuspensionId = parent.preGeneratedSuspensionId;
+    }
+    if (mergeScratchPad && parent.scratchPad) {
+      Object.keys(parent.scratchPad).forEach((k: string) => {
+        env.bind(k, parent.scratchPad[k]);
+      });
     }
     return env;
   }
@@ -517,6 +523,11 @@ export class Environment extends Instance {
 
   getActiveModuleName(): string {
     return this.activeModule;
+  }
+
+  setActiveModuleName(n: string): Environment {
+    this.activeModule = n;
+    return this;
   }
 
   switchActiveModuleName(newModuleName: string): string {
@@ -2081,7 +2092,10 @@ async function iterateOnFlow(
   Important: Return only the next flow-step or DONE. Do not return any additional description, like your thinking process.\n`;
   env.setFlowContext(initContext);
   await agentInvoke(rootAgent, s, env);
-  let step = await preprocessStep(env.getLastResult().trim(), env);
+  const rootModuleName = rootAgent.moduleName;
+  let preprocResult = await preprocessStep(env.getLastResult().trim(), rootModuleName, env);
+  let step = preprocResult.step;
+  let needAgentProcessing = preprocResult.needAgentProcessing;
   let context = initContext;
   let stepc = 0;
   const iterId = crypto.randomUUID();
@@ -2091,6 +2105,7 @@ async function iterateOnFlow(
   if (monitoringEnabled) {
     env.flagMonitorEntryAsFlow().incrementMonitor();
   }
+  let isfxc = false;
   try {
     while (step != 'DONE' && !executedSteps.has(step)) {
       if (stepc > MaxFlowSteps) {
@@ -2098,20 +2113,26 @@ async function iterateOnFlow(
       }
       executedSteps.add(step);
       ++stepc;
-      const agent = AgentInstance.FromFlowStep(step, rootAgent, context);
-      console.debug(`\n---------------------------------------------------\n`);
-      console.debug(
-        `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
-      );
-      const isfxc = agent.isFlowExecutor();
-      const isdec = agent.isDecisionExecutor();
-      if (isfxc || isdec) env.setFlowContext(context);
-      else env.setFlowContext(initContext);
-      if (monitoringEnabled) {
-        env.appendEntryToMonitor(step);
+      const agent = needAgentProcessing
+        ? AgentInstance.FromFlowStep(step, rootAgent, context)
+        : undefined;
+      if (agent) {
+        console.debug(`\n---------------------------------------------------\n`);
+        console.debug(
+          `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
+        );
+        isfxc = agent.isFlowExecutor();
+        const isdec = agent.isDecisionExecutor();
+        if (isfxc || isdec) env.setFlowContext(context);
+        else env.setFlowContext(initContext);
+        if (monitoringEnabled) {
+          env.appendEntryToMonitor(step);
+        }
+        const inst = agent.swapInstruction('');
+        await agentInvoke(agent, inst, env);
+      } else {
+        rootAgent.maybeAddScratchData(env);
       }
-      const inst = agent.swapInstruction('');
-      await agentInvoke(agent, inst, env);
       if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());
       if (env.isSuspended()) {
         console.debug(`${iterId} suspending iteration on step ${step}`);
@@ -2126,12 +2147,14 @@ async function iterateOnFlow(
       );
       context = `${context}\n${step} --> ${rs}\n`;
       if (isfxc) {
-        step = await preprocessStep(rs.trim(), env);
+        preprocResult = await preprocessStep(rs.trim(), rootModuleName, env);
       } else {
         env.setFlowContext(context);
         await agentInvoke(rootAgent, `${s}\n${context}`, env);
-        step = await preprocessStep(env.getLastResult().trim(), env);
+        preprocResult = await preprocessStep(env.getLastResult().trim(), rootModuleName, env);
       }
+      step = preprocResult.step;
+      needAgentProcessing = preprocResult.needAgentProcessing;
     }
   } finally {
     env.decrementMonitor().revokeLastResult().setMonitorFlowResult();
@@ -2139,26 +2162,26 @@ async function iterateOnFlow(
   console.debug(`No more flow steps, completed iteration ${iterId} on flow:\n${flow}`);
 }
 
-async function preprocessStep(spec: string, env: Environment): Promise<string> {
+type PreprocStepResult = {
+  step: string;
+  needAgentProcessing: boolean;
+};
+
+async function preprocessStep(
+  spec: string,
+  activeModuleName: string,
+  env: Environment
+): Promise<PreprocStepResult> {
+  let needAgentProcessing = true;
   if (spec.startsWith('{')) {
-    const stmt = await parseStatement(spec);
-    const crudMap = stmt.pattern.crudMap;
-    if (crudMap) {
-      env.resetTemplateMappings();
-      const step = crudMap.name;
-      if (crudMap.body) {
-        crudMap.body.attributes.forEach((sa: SetAttribute) => {
-          const v = sa.value?.$cstNode?.text;
-          if (v) env.setTemplateMapping(sa.name, v);
-        });
-      }
-      return step;
-    } else {
-      throw new Error(`Invalid step - ${spec}`);
-    }
-  } else {
-    return spec;
+    const newEnv = Environment.from(env, env.name + '_flow_eval', false, true).setActiveModuleName(
+      activeModuleName
+    );
+    const r = await parseAndEvaluateStatement(spec, undefined, newEnv);
+    env.setLastResult(r);
+    needAgentProcessing = false;
   }
+  return { step: spec, needAgentProcessing };
 }
 
 export async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
