@@ -360,10 +360,15 @@ describe('aggregates-for-relationships', () => {
       }
       relationship EmployeeTask between(Employee, Task)
       workflow countTasks {
-          {Task? {},
-           EmployeeTask {Employee {id? countTasks.employeeId}},
-           @into{n @count(Task.id)}}
-      }`
+          {AgrQrs/Task? {},
+           AgrQrs/EmployeeTask {AgrQrs/Employee {id? AgrQrs/countTasks.employeeId}},
+           @into{n @count(AgrQrs/Task.id)}}
+      }
+      workflow countEmployees {
+          {AgrQrs/Employee? {},
+           @into{n @count(AgrQrs/Employee.id)}}
+      }
+      `
     );
     const ee = `${moduleName}/Employee`;
     const te = `${moduleName}/Task`;
@@ -388,14 +393,22 @@ describe('aggregates-for-relationships', () => {
     const cnt = async (id: number, n: number) => {
       const r: any[] = await parseAndEvaluateStatement(`{${ct} {employeeId ${id}}}`);
       assert(r.length === 1);
-      assert(r[0].n === n);
+      assert(Number(r[0].n) === n);
+    };
+     const ce = `${moduleName}/countEmployees`;
+    const cne = async (n: number) => {
+      const r: any[] = await parseAndEvaluateStatement(`{${ce} {}}`);
+      assert(r.length === 1);
+      assert(Number(r[0].n) === n);
     };
     await cnt(345, 1);
     await crt(345, 102, 'test02');
     await cnt(345, 2);
+    await cne(1)
     await cre(290, 'mat');
     await crt(290, 103, 'test03');
     await cnt(290, 1);
     await cnt(345, 2);
+    await cne(2)
   });
 });
