@@ -196,12 +196,20 @@ Simple aggregate functions can be specified in queries, some examples are:
 
 \`\`\`json
 {
-  "count": "erp/Employee",
+  "query": "erp/Employee",
   "where": {
     "salary": {
-      "<=": {"val": 2000}
+      "<=": {
+        "val": 2000
+      }
     },
-  "into": "employeeCount"
+    "into": {
+      "employeeCount": {
+        "count": {
+          "ref": "erp/Employee.employeeId"
+        }
+      }
+    }
   }
 }
 \`\`\`
@@ -426,19 +434,25 @@ This patterns returns the number of tasks under an 'Employee'. The result of the
 
 \`\`\`json
 {
-  "query": "erp/Employee",
-  "where": {
-    "employeeId": {
-      "=": {
-        "val": "56392e13-0d9a-42f7-b556-0d7cd9468a24"
+  "query": "erp/TaskAssignment",
+  "into": {
+    "taskCount": {
+      "count": {
+        "ref": "erp/TaskAssignment.id"
       }
     }
   },
   "links": [
     {
       "relationship": "erp/EmployeeTaskAssignment",
-      "count": "erp/TaskAssignment",
-      "into": "taskCount"
+      "query": "erp/Employee",
+      "where": {
+        "employeeId": {
+          "=": {
+            "val": "56392e13-0d9a-42f7-b556-0d7cd9468a24"
+          }
+        }
+      }
     }
   ]
 }
@@ -1113,19 +1127,19 @@ The workflow pattern that will produce the same result as the above SQL query fo
   ],
   "into": {
     "year": {
-      "ref": "DateDim.year"
+      "ref": "olapDemo/DateDim.year"
     },
     "total_revenue": {
       "sum": {
-        "ref": "SalesFact.revenue"
+        "ref": "olapDemo/SalesFact.revenue"
       }
     }
   },
   "groupBy": [
-    "DateDim.year"
+    "olapDemo/DateDim.year"
   ],
-  ""or"derByAsc": [
-    "DateDim.year"
+  "orderByAsc": [
+    "olapDemo/DateDim.year"
   ]
 }
 \`\`\`

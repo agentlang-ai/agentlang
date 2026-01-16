@@ -14,7 +14,7 @@ export function workflowFromJson(json: string): string {
   }
   const pats = pObjs
     .map((patObj: any) => {
-      return asPattern(patObj);
+      return parsePattern(patObj);
     })
     .join(';\n');
 
@@ -27,65 +27,127 @@ export function workflowFromJson(json: string): string {
   }
 }
 
-function asPattern(pObj: any): string {
+function parsePattern(pObj: any): string {
   if (pObj.create) {
-    return asCreate(pObj);
+    return parseCreate(pObj);
   } else if (pObj.query) {
-    return asQuery(pObj);
+    return parseQuery(pObj);
   } else if (pObj.update) {
-    return asUpdate(pObj);
+    return parseUpdate(pObj);
   } else if (pObj.delete) {
-    return asDelete(pObj);
+    return parseDelete(pObj);
   } else if (pObj.if) {
-    return asIf(pObj);
+    return parseIf(pObj);
   } else if (pObj.for) {
-    return asFor(pObj);
+    return parseFor(pObj);
   } else {
     throw new Error(`Invalid pattern object: ${pObj}`);
   }
 }
 
-function asCreate(pObj: any): string {
-  const n: string | undefined = pObj.create;
-  if (n === undefined) {
-    throw new Error(`Entity, event or record name missing in ${pObj}`);
-  }
-  const ss = asAttributes(pObj.with);
+function parseCreate(pObj: any): string {
+  const n: string = pObj.create;
+  const attrs = asAttributes(pObj.with);
   const result = `{${n} {
-    ${ss.join(',\n')}
-    }}`;
+    ${attrs}`;
+  return maybeAddAlias(pObj, maybeAddRelationships(pObj, result));
+}
+
+function parseUpdate(pObj: any): string {
+  const n: string = pObj.update;
+  const attrs = asAttributes(pObj.set);
+  const qattrs = asQueryAttributes(pObj.where);
+  const result = `{${n} {
+    ${qattrs},
+    ${attrs}`;
+  return maybeAddAlias(pObj, maybeAddRelationships(pObj, result));
+}
+
+function parseDelete(pObj: any): string {
+  const result = parseQuery(pObj);
+  return `delete ${result}`;
+}
+
+function parseQuery(pObj: any): string {
+  const n = pObj.query || pObj.delete;
+  const where: any = pObj.where;
+  let result = '';
+  if (where) {
+    result = `{${n}? {`;
+  } else {
+    result = `{${n} {
+        ${asQueryAttributes(where)}`;
+  }
+  return maybeAddAlias(pObj, maybeAddRelationships(pObj, result));
+}
+
+function parseIf(pObj: any): string {
+  if (pObj) throw new Error(`parseIf not implemented`);
+  return '';
+}
+
+function parseFor(pObj: any): string {
+  if (pObj) throw new Error(`parseFor not implemented`);
+  return '';
+}
+
+function asAttributes(attrsObj: any): string {
+  if (attrsObj === undefined) {
+    attrsObj = {};
+  }
+  return Object.keys(attrsObj)
+    .map((k: string) => {
+      const spec: any = attrsObj[k];
+      const v: any = asAttributeValue(spec);
+      return `${k} ${v}`;
+    })
+    .join(',\n');
+}
+
+function asQueryAttributes(whereObj: any): string {
+  return Object.keys(whereObj)
+    .map((k: string) => {
+      const q: any = whereObj[k];
+      const opr = Object.keys(q)[0];
+      const v: any = asAttributeValue(q[opr]);
+      if (opr === '=') {
+        return `${k}? ${v}`;
+      } else {
+        return `${k}?${opr} ${v}`;
+      }
+    })
+    .join(',\n');
+}
+
+function asAttributeValue(spec: any): any {
+  let v: any = spec.ref || spec.expr;
+  if (v === undefined) {
+    v = spec.val;
+    if (isString(v)) {
+      v = `"${v}"`;
+    }
+  }
+  return v;
+}
+
+function maybeAddAlias(pObj: any, result: string): string {
   const alias: string | undefined = pObj.as;
   if (alias === undefined) return result;
   else return `${result} @as ${alias}`;
 }
 
-function asUpdate(pObj: any): string {}
-
-function asDelete(pObj: any): string {}
-
-function asQuery(pObj: any): string {}
-
-function asIf(pObj: any): string {}
-
-function asFor(pObj: any): string {}
-
-function asAttributes(attrsObj: any): string[] {
-  if (attrsObj === undefined) {
-    attrsObj = {};
+function maybeAddRelationships(pObj: any, result: string): string {
+  const links: any[] | undefined = pObj.links;
+  if (links === undefined) {
+    return `${result}}}`;
   }
-  return Object.keys(attrsObj).map((k: string) => {
-    const spec: any = attrsObj[k];
-    let v: any = spec.ref || spec.expr;
-    if (v === undefined) {
-      v = spec.val;
-      if (isString(v)) {
-        v = `"${v}"`;
-      }
+  const rels = links.map((spec: any) => {
+    const r: string | undefined = spec.relationship;
+    if (r === undefined) {
+      throw new Error(`Relationship name is required in ${spec}`);
     }
-    return `${k} ${v}`;
+    const s = parsePattern(spec);
+    return `${r} ${s}`;
   });
-}
-
-function asQueryAttributes(whereObj: any): string[] {
-    return Object.keys(whereObj)
+  return `${result},\n${rels.join(',\n')}}}`;
 }
