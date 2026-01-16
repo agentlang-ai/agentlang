@@ -78,6 +78,7 @@ function parseQuery(pObj: any): string {
     result = `{${n} {
         ${asQueryAttributes(where)}`;
   }
+  result = maybeAddInto(pObj, result);
   return maybeAddAlias(pObj, maybeAddRelationships(pObj, result));
 }
 
@@ -150,4 +151,24 @@ function maybeAddRelationships(pObj: any, result: string): string {
     return `${r} ${s}`;
   });
   return `${result},\n${rels.join(',\n')}}}`;
+}
+
+function maybeAddInto(pObj: any, result: string): string {
+  const into: any = pObj.into;
+  if (into === undefined) {
+    return result;
+  } else {
+    const r = Object.keys(into).map((k: string) => {
+      const spec: any = into[k];
+      let v = '';
+      if (spec.ref || spec.val || spec.expr) {
+        v = asAttributeValue(spec);
+      } else {
+        const f = Object.keys(spec)[0];
+        v = `@${f}(${asAttributeValue(spec[f])})`;
+      }
+      return `${k} ${v}`;
+    });
+    return `${result},\n@into {${r.join(', ')}}`;
+  }
 }
