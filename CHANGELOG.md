@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/agentlang-ai/agentlang/compare/0.8.10...0.9.0) (2026-01-19)
+
+### Changes
+
+* handle between-rel delete along with entities (#536) ([596189d](https://github.com/agentlang-ai/agentlang/commit/596189dd02ca77843f791273dbdcd19e31776f6d)) - @vijayfractl
+
+---
 ## [0.8.10](https://github.com/agentlang-ai/agentlang/compare/0.8.8...0.8.10) (2026-01-19)
 
 ### Changes
