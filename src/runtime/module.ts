@@ -4071,6 +4071,14 @@ export function isBetweenRelationship(relName: string, moduleName: string): bool
   return mod.isBetweenRelationship(fr.entryName);
 }
 
+export function isOneToOneBetweenRelationship(relName: string, moduleName: string): boolean {
+  if (isBetweenRelationship(relName, moduleName)) {
+    const rel = getRelationship(relName, moduleName);
+    return rel.isOneToOne();
+  }
+  return false;
+}
+
 export function isContainsRelationship(relName: string, moduleName: string): boolean {
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(relName, moduleName);
   const mod: Module = fr.module;

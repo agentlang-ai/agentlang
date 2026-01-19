@@ -5,6 +5,7 @@ import {
   ForEach,
   FullTextSearch,
   If,
+  IfWithAlias,
   isPattern,
   isStatement,
   isWorkflowDefinition,
@@ -12,6 +13,7 @@ import {
   Pattern,
   Purge,
   Return,
+  RuntimeHint,
   Statement,
   ThrowError,
 } from '../language/generated/ast.js';
@@ -135,6 +137,12 @@ class GraphGenerator extends PatternHandler {
     this.addSubGraph(SubGraphType.IF, cond, env);
   }
 
+  override async handleIfWithAlias(ifWithAlias: IfWithAlias, env: Environment) {
+    const handler = new GraphGenerator();
+    await handler.handleIf(ifWithAlias.if, env);
+    this.addSubGraph(SubGraphType.IF_WITH_ALIAS, handler.getGraph(), env);
+  }
+
   private async handleSubPattern(subGraphType: SubGraphType, pat: Pattern, env: Environment) {
     const newEnv = Environment.from(env).setActiveUserData(pat);
     const handler = new GraphGenerator();
@@ -256,6 +264,12 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
                 env.setLastResult(newEnv.getLastResult());
                 break;
               }
+              case SubGraphType.IF_WITH_ALIAS: {
+                const newEnv = new Environment(`${env.name}-if`, env);
+                await executeIfSubGraph(subg.fetchIfWithAliasSubGraph(), newEnv);
+                env.setLastResult(newEnv.getLastResult());
+                break;
+              }
               case SubGraphType.FOR_EACH: {
                 const newEnv = new Environment(`${env.name}-forEach`, env);
                 await executeForEachSubGraph(subg, node, newEnv);
@@ -278,7 +292,10 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
                 throw new Error(`Invalid sub-graph type: ${node.subGraphType}`);
             }
           }
-          maybeSetAlias(node, env);
+          const aliasHints = fetchAliasHints(node);
+          if (aliasHints) {
+            maybeBindStatementResultToAlias(aliasHints, env);
+          }
         }
       } catch (reason: any) {
         if (monitoringEnabled) env.setMonitorEntryError(reason);
@@ -568,6 +585,17 @@ export async function parseAndExecuteStatement(
       }
     }
   }
+}
+
+function fetchAliasHints(node: ExecGraphNode): RuntimeHint[] | undefined {
+  const stmt = node.code as Statement;
+  const hints = stmt.hints;
+  if (hints && hints.length > 0) {
+    return hints.filter((rh: RuntimeHint) => {
+      return rh.aliasSpec;
+    });
+  }
+  return undefined;
 }
 
 function maybeSetAlias(node: ExecGraphNode, env: Environment) {

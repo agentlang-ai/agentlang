@@ -8,6 +8,7 @@ import {
   FullTextSearch,
   Handler,
   If,
+  IfWithAlias,
   isBinExpr,
   isGroup,
   isLiteral,
@@ -52,6 +53,7 @@ import {
   Relationship,
   Workflow,
   setMetaAttributes,
+  isOneToOneBetweenRelationship,
 } from './module.js';
 import { JoinInfo, Resolver, WhereClause } from './resolvers/interface.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
@@ -1215,6 +1217,10 @@ export class PatternHandler {
     await evaluateIf(_if, env);
   }
 
+  async handleIfWithAlias(ifWithAlias: IfWithAlias, env: Environment) {
+    await evaluateIfWithAlias(ifWithAlias, env);
+  }
+
   async handleDelete(del: Delete, env: Environment) {
     await evaluateDelete(del, env);
   }
@@ -1251,6 +1257,8 @@ export async function evaluatePattern(
     await handler.handleForEach(pat.forEach, env);
   } else if (pat.if) {
     await handler.handleIf(pat.if, env);
+  } else if (pat.ifWithAlias) {
+    await handler.handleIfWithAlias(pat.ifWithAlias, env);
   } else if (pat.delete) {
     await handler.handleDelete(pat.delete, env);
   } else if (pat.purge) {
@@ -1606,8 +1614,25 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           isReadForUpdate,
           env.isInDeleteMode()
         );
-        const insts: Instance[] = await res.queryInstances(inst, isQueryAll, distinct);
-        env.setLastResult(insts);
+        let oneToOne = false;
+        let rel: Relationship | undefined;
+        if (isBetRel && env.isInDeleteMode()) {
+          rel = getRelationship(inst.name, inst.moduleName);
+          oneToOne = rel.isOneToOne();
+        }
+        if (oneToOne && rel !== undefined) {
+          await res.handleInstancesLink(
+            inst.lookupQueryVal(rel.node1.alias),
+            inst.lookupQueryVal(rel.node2.alias),
+            rel,
+            false,
+            true
+          );
+          env.setLastResult(inst);
+        } else {
+          const insts: Instance[] = await res.queryInstances(inst, isQueryAll, distinct);
+          env.setLastResult(insts);
+        }
       }
       if (crud.relationships !== undefined) {
         const lastRes: Instance[] = env.getLastResult();
@@ -2229,6 +2254,10 @@ async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
   }
 }
 
+async function evaluateIfWithAlias(ifWithAlias: IfWithAlias, env: Environment): Promise<void> {
+  await evaluateIf(ifWithAlias.if, env);
+}
+
 async function evaluateDeleteHelper(
   pattern: Pattern,
   purge: boolean,
@@ -2248,6 +2277,11 @@ export async function maybeDeleteQueriedInstances(
   let resolver: Resolver = Resolver.Default;
   if (inst instanceof Array) {
     if (inst.length > 0) {
+      if (isOneToOneBetweenRelationship(inst[0].name, inst[0].moduleName)) {
+        // delete already handled in evaluateCrudMap
+        env.setLastResult(inst);
+        return;
+      }
       resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, queryEnv);
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
@@ -2261,6 +2295,11 @@ export async function maybeDeleteQueriedInstances(
       queryEnv.setLastResult(inst);
     }
   } else {
+    if (isOneToOneBetweenRelationship(inst.name, inst.moduleName)) {
+      // delete already handled in evaluateCrudMap
+      env.setLastResult([inst]);
+      return;
+    }
     resolver = await getResolverForPath(inst.name, inst.moduleName, queryEnv);
     await runPreDeleteEvents(inst, env);
     const r: Instance | null = await resolver.deleteInstance(inst, purge);

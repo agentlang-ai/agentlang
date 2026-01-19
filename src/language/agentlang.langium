@@ -105,9 +105,11 @@ WorkflowHeaderPrefix returns string: 'create' | 'update' | 'delete';
 PublicWorkflowDefinition: '@public' def=WorkflowDefinition;
 
 Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
-| fullTextSearch=FullTextSearch | return=Return |  throwError=ThrowError;
+| fullTextSearch=FullTextSearch | return=Return | throwError=ThrowError | ifWithAlias=IfWithAlias;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
+
+IfWithAlias: '(' if=If ')';
 
 RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec | thenSpec=ThenSpec;
 
