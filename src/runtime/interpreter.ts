@@ -2247,7 +2247,7 @@ export async function maybeDeleteQueriedInstances(
   const inst: Instance[] | Instance = queryEnv.getLastResult();
   let resolver: Resolver = Resolver.Default;
   if (inst instanceof Array) {
-    if (inst.length > 0 && isEntityInstance(inst[0])) {
+    if (inst.length > 0) {
       resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, queryEnv);
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
@@ -2260,7 +2260,7 @@ export async function maybeDeleteQueriedInstances(
     } else {
       queryEnv.setLastResult(inst);
     }
-  } else if (isEntityInstance(inst)) {
+  } else {
     resolver = await getResolverForPath(inst.name, inst.moduleName, queryEnv);
     await runPreDeleteEvents(inst, env);
     const r: Instance | null = await resolver.deleteInstance(inst, purge);
