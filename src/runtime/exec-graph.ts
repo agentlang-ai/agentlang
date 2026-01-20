@@ -470,6 +470,7 @@ export async function executeEventHelper(eventInstance: Instance, env?: Environm
   }
   const oldModuleName = env.switchActiveModuleName(eventInstance.moduleName);
   env.bind(eventInstance.name, eventInstance);
+  env.bind(eventInstance.getFqName(), eventInstance);
   try {
     if (g) {
       await executeGraph(g, env);
