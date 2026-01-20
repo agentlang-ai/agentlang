@@ -54,7 +54,13 @@ import {
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
-import { FetchModuleFn, FkSpec, PathAttributeName } from './defs.js';
+import {
+  FetchModuleFn,
+  FkSpec,
+  getUserTenantId,
+  PathAttributeName,
+  TenantAttributeName,
+} from './defs.js';
 import { logger } from './logger.js';
 import { CasePattern, FlowStepPattern } from '../language/syntax.js';
 import {
@@ -446,6 +452,10 @@ export class Record extends ModuleEntry {
     return result;
   }
 
+  public isGlobal(): boolean {
+    return this.meta?.get('global') === true;
+  }
+
   private static WriteOnlyAttributes = new Map<string, Array<string>>();
 
   public getWriteOnlyAttributes(): Array<string> | undefined {
@@ -485,11 +495,12 @@ export class Record extends ModuleEntry {
     return undefined;
   }
 
-  addMeta(k: string, v: any): void {
+  addMeta(k: string, v: any): Record {
     if (!this.meta) {
       this.meta = newMeta();
     }
     this.meta.set(k, v);
+    return this;
   }
 
   getMeta(k: string): any {
@@ -515,6 +526,11 @@ export class Record extends ModuleEntry {
     }
   }
 
+  private resetUserAttrs() {
+    this.userAttrNames = undefined;
+    this.userAttrsSchema = undefined;
+  }
+
   addAttribute(n: string, attrSpec: AttributeSpec): Record {
     if (this.schema.has(n)) {
       throw new Error(`Attribute named ${n} already exists in ${this.moduleName}.${this.name}`);
@@ -523,11 +539,13 @@ export class Record extends ModuleEntry {
       normalizePropertyNames(attrSpec.properties);
     }
     this.schema.set(n, attrSpec);
+    this.resetUserAttrs();
     return this;
   }
 
   removeAttribute(n: string): Record {
     this.schema.delete(n);
+    this.resetUserAttrs();
     return this;
   }
 
@@ -633,8 +651,9 @@ export class Record extends ModuleEntry {
     return this.toString_();
   }
 
-  toString_(internParentSchema: boolean = false): string {
-    if (this.type == RecordType.EVENT && this.meta && this.meta.get(SystemDefinedEvent)) {
+  toString_(internParentSchema: boolean = false, toolCall: boolean = false): string {
+    const isevent = this.type == RecordType.EVENT;
+    if (isevent && this.meta?.get(SystemDefinedEvent) && !toolCall) {
       return '';
     }
     let s: string = `${RecordType[this.type].toLowerCase()} ${this.name}`;
@@ -665,9 +684,23 @@ export class Record extends ModuleEntry {
       scms = `${scms},\n    @rbac [${rbs.join(',\n')}]`;
     }
     if (this.meta && this.meta.size > 0) {
-      const metaObj = Object.fromEntries(this.meta);
-      const ms = `@meta ${JSON.stringify(metaObj)}`;
-      scms = `${scms},\n    ${ms}`;
+      let metaObj: any = undefined;
+      if (isevent && isAgentEvent(this) && toolCall) {
+        const m = new Map<string, any>();
+        this.meta?.forEach((v: any, k: string) => {
+          if (!(k === IsAgentEventMeta || k === EventAgentName || k === DocumentationMetaTag))
+            m.set(k, v);
+        });
+        if (m.size > 0) {
+          metaObj = Object.fromEntries(m);
+        }
+      } else {
+        metaObj = Object.fromEntries(this.meta);
+      }
+      if (metaObj) {
+        const ms = `@meta ${JSON.stringify(metaObj)}`;
+        scms = `${scms},\n    ${ms}`;
+      }
     }
     if (this.isPublic()) {
       s = `@public ${s}`;
@@ -1187,12 +1220,13 @@ const SysAttr_CreatedSpec: AttributeSpec = asSystemAttribute({
 
 const SysAttr_LastModifiedSpec = SysAttr_CreatedSpec;
 
-const SysAttr_CreatedBySpec: AttributeSpec = asSystemAttribute({
+const SysAttr_OptionalString: AttributeSpec = asSystemAttribute({
   type: 'String',
   properties: new Map<string, any>().set('optional', true),
 });
 
-const SysAttr_LastModifiedBySpec = SysAttr_CreatedBySpec;
+const SysAttr_CreatedBySpec = SysAttr_OptionalString;
+const SysAttr_LastModifiedBySpec = SysAttr_OptionalString;
 
 export class Entity extends Record {
   override type: RecordType = RecordType.ENTITY;
@@ -2560,7 +2594,7 @@ export class Module {
   toString(): string {
     const ss: Array<string> = [];
     this.entries.forEach((me: ModuleEntry) => {
-      if (me instanceof Event && isAgentEvent(me)) {
+      if (me instanceof Event && me.isSystemDefined()) {
         return;
       }
       ss.push(me.toString());
@@ -2921,7 +2955,7 @@ export function addEvent(
   const module: Module = fetchModule(moduleName);
   const event = module.addEntry(new Event(name, moduleName, scm, ext)) as Event;
   if (module.getAgent(name)) {
-    event.addMeta(IsAgentEventMeta, 'y');
+    defineAgentEvent(moduleName, name);
   }
   return event;
 }
@@ -3227,6 +3261,14 @@ export function getEvent(name: string, moduleName: string): Event {
     return fr.module.getEntry(fr.entryName) as Event;
   }
   throw new Error(`Event ${fr.entryName} not found in module ${fr.moduleName}`);
+}
+
+export function maybeGetEvent(name: string, moduleName: string): Event | undefined {
+  try {
+    return getEvent(name, moduleName);
+  } catch {
+    return undefined;
+  }
 }
 
 export function getRecord(name: string, moduleName: string): Record {
@@ -4042,6 +4084,14 @@ export function isBetweenRelationship(relName: string, moduleName: string): bool
   return mod.isBetweenRelationship(fr.entryName);
 }
 
+export function isOneToOneBetweenRelationship(relName: string, moduleName: string): boolean {
+  if (isBetweenRelationship(relName, moduleName)) {
+    const rel = getRelationship(relName, moduleName);
+    return rel.isOneToOne();
+  }
+  return false;
+}
+
 export function isContainsRelationship(relName: string, moduleName: string): boolean {
   const fr: FetchModuleByEntryNameResult = fetchModuleByEntryName(relName, moduleName);
   const mod: Module = fr.module;
@@ -4091,13 +4141,16 @@ function markAsAgentEvent(event: Event): Event {
 }
 
 export function defineAgentEvent(moduleName: string, agentName: string, instruction?: string) {
-  const module = fetchModule(moduleName);
-  const event: Record = new Event(agentName, moduleName);
-  markAsAgentEvent(event as Event)
-    .addAttribute('message', { type: 'Any' })
-    .addAttribute('chatId', asOptionalAttribute({ type: 'String' }))
-    .addAttribute('mode', asSystemAttribute(asOptionalAttribute({ type: 'String' })))
-    .addMeta(EventAgentName, agentName);
+  let event: Record | undefined = maybeGetEvent(agentName, moduleName);
+  const newEvent = event === undefined;
+  if (event === undefined) {
+    event = new Event(agentName, moduleName)
+      .addAttribute('message', { type: 'Any' })
+      .addAttribute('chatId', asOptionalAttribute({ type: 'String' }))
+      .addAttribute('mode', asSystemAttribute(asOptionalAttribute({ type: 'String' })))
+      .addMeta(SystemDefinedEvent, 'true');
+  }
+  markAsAgentEvent(event as Event).addMeta(EventAgentName, agentName);
   if (instruction) {
     event.addMeta(
       DocumentationMetaTag,
@@ -4105,11 +4158,12 @@ export function defineAgentEvent(moduleName: string, agentName: string, instruct
     So make sure to pass all relevant information in the 'message' attribute of this event.`
     );
   }
+  const module = fetchModule(moduleName);
   const agent = module.getAgent(agentName);
   if (agent && agent.isPublic()) {
     event.setPublic(true);
   }
-  module.addEntry(event);
+  if (newEvent) module.addEntry(event);
 }
 
 export function isTimer(eventInst: Instance): boolean {
@@ -4207,7 +4261,7 @@ export function getAttributeNames(entityFqName: string): Array<string> {
   return [...scm.keys()];
 }
 
-export function setMetaAttributes(
+export async function setMetaAttributes(
   attrs: InstanceAttributes,
   env: Environment,
   inUpdateMode: boolean = false
@@ -4217,15 +4271,16 @@ export function setMetaAttributes(
   if (!inUpdateMode && attrs.get(SysAttr_CreatedBy) === undefined) {
     attrs.set(SysAttr_CreatedBy, user);
   }
+  attrs.set(TenantAttributeName, await getUserTenantId(user, env));
 }
 
-export function setAllMetaAttributes(
+export async function setAllMetaAttributes(
   attrs: InstanceAttributes,
   env: Environment,
   inUpdateMode: boolean = false
 ) {
   attrs.set(SysAttr_Created, now());
-  setMetaAttributes(attrs, env, inUpdateMode);
+  await setMetaAttributes(attrs, env, inUpdateMode);
 }
 
 function linkEventName(moduleName: string, relName: string, unlink: boolean): string {

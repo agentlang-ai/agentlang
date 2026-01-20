@@ -8,6 +8,7 @@ import {
   FullTextSearch,
   Handler,
   If,
+  IfWithAlias,
   isBinExpr,
   isGroup,
   isLiteral,
@@ -53,6 +54,7 @@ import {
   Workflow,
   setMetaAttributes,
   Event,
+  isOneToOneBetweenRelationship,
 } from './module.js';
 import { JoinInfo, Resolver, WhereClause } from './resolvers/interface.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
@@ -202,7 +204,8 @@ export class Environment extends Instance {
   static from(
     parent: Environment,
     name?: string | undefined,
-    isAsync: boolean = false
+    isAsync: boolean = false,
+    mergeScratchPad: boolean = false
   ): Environment {
     const env = new Environment(name, parent);
     if (isAsync) {
@@ -210,6 +213,11 @@ export class Environment extends Instance {
       env.activeTransactions = new Map<string, string>();
       env.activeCatchHandlers = new Array<CatchHandlers>();
       env.preGeneratedSuspensionId = parent.preGeneratedSuspensionId;
+    }
+    if (mergeScratchPad && parent.scratchPad) {
+      Object.keys(parent.scratchPad).forEach((k: string) => {
+        env.bind(k, parent.scratchPad[k]);
+      });
     }
     return env;
   }
@@ -519,6 +527,11 @@ export class Environment extends Instance {
 
   getActiveModuleName(): string {
     return this.activeModule;
+  }
+
+  setActiveModuleName(n: string): Environment {
+    this.activeModule = n;
+    return this;
   }
 
   switchActiveModuleName(newModuleName: string): string {
@@ -1206,6 +1219,10 @@ export class PatternHandler {
     await evaluateIf(_if, env);
   }
 
+  async handleIfWithAlias(ifWithAlias: IfWithAlias, env: Environment) {
+    await evaluateIfWithAlias(ifWithAlias, env);
+  }
+
   async handleDelete(del: Delete, env: Environment) {
     await evaluateDelete(del, env);
   }
@@ -1242,6 +1259,8 @@ export async function evaluatePattern(
     await handler.handleForEach(pat.forEach, env);
   } else if (pat.if) {
     await handler.handleIf(pat.if, env);
+  } else if (pat.ifWithAlias) {
+    await handler.handleIfWithAlias(pat.ifWithAlias, env);
   } else if (pat.delete) {
     await handler.handleDelete(pat.delete, env);
   } else if (pat.purge) {
@@ -1505,7 +1524,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
       let r: Instance | undefined;
       await computeExprAttributes(inst, undefined, undefined, env);
-      setMetaAttributes(inst.attributes, env);
+      await setMetaAttributes(inst.attributes, env);
       if (env.isInUpsertMode()) {
         await runPreUpdateEvents(inst, env);
         r = await res.upsertInstance(inst);
@@ -1599,8 +1618,25 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           isReadForUpdate,
           env.isInDeleteMode()
         );
-        const insts: Instance[] = await res.queryInstances(inst, isQueryAll, distinct);
-        env.setLastResult(insts);
+        let oneToOne = false;
+        let rel: Relationship | undefined;
+        if (isBetRel && env.isInDeleteMode()) {
+          rel = getRelationship(inst.name, inst.moduleName);
+          oneToOne = rel.isOneToOne();
+        }
+        if (oneToOne && rel !== undefined) {
+          await res.handleInstancesLink(
+            inst.lookupQueryVal(rel.node1.alias),
+            inst.lookupQueryVal(rel.node2.alias),
+            rel,
+            false,
+            true
+          );
+          env.setLastResult(inst);
+        } else {
+          const insts: Instance[] = await res.queryInstances(inst, isQueryAll, distinct);
+          env.setLastResult(insts);
+        }
       }
       if (crud.relationships !== undefined) {
         const lastRes: Instance[] = env.getLastResult();
@@ -1644,7 +1680,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
               await computeExprAttributes(lastRes[i], crud.body?.attributes, attrs, env);
               env.attributes.set('__patch', attrs);
               await runPreUpdateEvents(lastRes[i], env);
-              setMetaAttributes(attrs, env, true);
+              await setMetaAttributes(attrs, env, true);
               const finalInst: Instance = await resolver.updateInstance(lastRes[i], attrs);
               await runPostUpdateEvents(finalInst, lastRes[i], env);
               res.push(finalInst);
@@ -2102,7 +2138,10 @@ async function iterateOnFlow(
   Important: Return only the next flow-step or DONE. Do not return any additional description, like your thinking process.\n`;
   env.setFlowContext(initContext);
   await agentInvoke(rootAgent, s, env);
-  let step = await preprocessStep(env.getLastResult().trim(), env);
+  const rootModuleName = rootAgent.moduleName;
+  let preprocResult = await preprocessStep(env.getLastResult().trim(), rootModuleName, env);
+  let step = preprocResult.step;
+  let needAgentProcessing = preprocResult.needAgentProcessing;
   let context = initContext;
   let stepc = 0;
   const iterId = crypto.randomUUID();
@@ -2112,6 +2151,7 @@ async function iterateOnFlow(
   if (monitoringEnabled) {
     env.flagMonitorEntryAsFlow().incrementMonitor();
   }
+  let isfxc = false;
   try {
     while (step != 'DONE' && !executedSteps.has(step)) {
       if (stepc > MaxFlowSteps) {
@@ -2119,20 +2159,26 @@ async function iterateOnFlow(
       }
       executedSteps.add(step);
       ++stepc;
-      const agent = AgentInstance.FromFlowStep(step, rootAgent, context);
-      console.debug(`\n---------------------------------------------------\n`);
-      console.debug(
-        `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
-      );
-      const isfxc = agent.isFlowExecutor();
-      const isdec = agent.isDecisionExecutor();
-      if (isfxc || isdec) env.setFlowContext(context);
-      else env.setFlowContext(initContext);
-      if (monitoringEnabled) {
-        env.appendEntryToMonitor(step);
+      const agent = needAgentProcessing
+        ? AgentInstance.FromFlowStep(step, rootAgent, context)
+        : undefined;
+      if (agent) {
+        console.debug(`\n---------------------------------------------------\n`);
+        console.debug(
+          `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
+        );
+        isfxc = agent.isFlowExecutor();
+        const isdec = agent.isDecisionExecutor();
+        if (isfxc || isdec) env.setFlowContext(context);
+        else env.setFlowContext(initContext);
+        if (monitoringEnabled) {
+          env.appendEntryToMonitor(step);
+        }
+        const inst = agent.swapInstruction('');
+        await agentInvoke(agent, inst, env);
+      } else {
+        rootAgent.maybeAddScratchData(env);
       }
-      const inst = agent.swapInstruction('');
-      await agentInvoke(agent, inst, env);
       if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());
       if (env.isSuspended()) {
         console.debug(`${iterId} suspending iteration on step ${step}`);
@@ -2147,12 +2193,14 @@ async function iterateOnFlow(
       );
       context = `${context}\n${step} --> ${rs}\n`;
       if (isfxc) {
-        step = await preprocessStep(rs.trim(), env);
+        preprocResult = await preprocessStep(rs.trim(), rootModuleName, env);
       } else {
         env.setFlowContext(context);
         await agentInvoke(rootAgent, `${s}\n${context}`, env);
-        step = await preprocessStep(env.getLastResult().trim(), env);
+        preprocResult = await preprocessStep(env.getLastResult().trim(), rootModuleName, env);
       }
+      step = preprocResult.step;
+      needAgentProcessing = preprocResult.needAgentProcessing;
     }
   } finally {
     env.decrementMonitor().revokeLastResult().setMonitorFlowResult();
@@ -2160,26 +2208,26 @@ async function iterateOnFlow(
   console.debug(`No more flow steps, completed iteration ${iterId} on flow:\n${flow}`);
 }
 
-async function preprocessStep(spec: string, env: Environment): Promise<string> {
+type PreprocStepResult = {
+  step: string;
+  needAgentProcessing: boolean;
+};
+
+async function preprocessStep(
+  spec: string,
+  activeModuleName: string,
+  env: Environment
+): Promise<PreprocStepResult> {
+  let needAgentProcessing = true;
   if (spec.startsWith('{')) {
-    const stmt = await parseStatement(spec);
-    const crudMap = stmt.pattern.crudMap;
-    if (crudMap) {
-      env.resetTemplateMappings();
-      const step = crudMap.name;
-      if (crudMap.body) {
-        crudMap.body.attributes.forEach((sa: SetAttribute) => {
-          const v = sa.value?.$cstNode?.text;
-          if (v) env.setTemplateMapping(sa.name, v);
-        });
-      }
-      return step;
-    } else {
-      throw new Error(`Invalid step - ${spec}`);
-    }
-  } else {
-    return spec;
+    const newEnv = Environment.from(env, env.name + '_flow_eval', false, true).setActiveModuleName(
+      activeModuleName
+    );
+    const r = await parseAndEvaluateStatement(spec, undefined, newEnv);
+    env.setLastResult(r);
+    needAgentProcessing = false;
   }
+  return { step: spec, needAgentProcessing };
 }
 
 export async function handleOpenApiEvent(eventInst: Instance, env: Environment): Promise<void> {
@@ -2227,6 +2275,10 @@ async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
   }
 }
 
+async function evaluateIfWithAlias(ifWithAlias: IfWithAlias, env: Environment): Promise<void> {
+  await evaluateIf(ifWithAlias.if, env);
+}
+
 async function evaluateDeleteHelper(
   pattern: Pattern,
   purge: boolean,
@@ -2245,7 +2297,12 @@ export async function maybeDeleteQueriedInstances(
   const inst: Instance[] | Instance = queryEnv.getLastResult();
   let resolver: Resolver = Resolver.Default;
   if (inst instanceof Array) {
-    if (inst.length > 0 && isEntityInstance(inst[0])) {
+    if (inst.length > 0) {
+      if (isOneToOneBetweenRelationship(inst[0].name, inst[0].moduleName)) {
+        // delete already handled in evaluateCrudMap
+        env.setLastResult(inst);
+        return;
+      }
       resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, queryEnv);
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
@@ -2258,7 +2315,12 @@ export async function maybeDeleteQueriedInstances(
     } else {
       queryEnv.setLastResult(inst);
     }
-  } else if (isEntityInstance(inst)) {
+  } else {
+    if (isOneToOneBetweenRelationship(inst.name, inst.moduleName)) {
+      // delete already handled in evaluateCrudMap
+      env.setLastResult([inst]);
+      return;
+    }
     resolver = await getResolverForPath(inst.name, inst.moduleName, queryEnv);
     await runPreDeleteEvents(inst, env);
     const r: Instance | null = await resolver.deleteInstance(inst, purge);

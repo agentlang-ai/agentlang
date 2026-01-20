@@ -22,6 +22,13 @@ export function isExecGraphEnabled(): boolean {
   return true;
 }
 
+export function base64Encode(str: string): string {
+  if (isNodeEnv) {
+    return Buffer.from(str, 'utf-8').toString('base64');
+  }
+  return btoa(String.fromCharCode(...new TextEncoder().encode(str)));
+}
+
 // Browser-compatible path utilities
 export const browserPath = {
   extname: (path: string): string => {

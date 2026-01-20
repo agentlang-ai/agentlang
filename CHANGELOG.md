@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.0](https://github.com/agentlang-ai/agentlang/compare/0.8.10...0.9.0) (2026-01-19)
+
+### Changes
+
+* handle between-rel delete along with entities (#536) ([596189d](https://github.com/agentlang-ai/agentlang/commit/596189dd02ca77843f791273dbdcd19e31776f6d)) - @vijayfractl
+
+---
+## [0.8.10](https://github.com/agentlang-ai/agentlang/compare/0.8.8...0.8.10) (2026-01-19)
+
+### Changes
+
+* use safe base64 encode ([a3f8508](https://github.com/agentlang-ai/agentlang/commit/a3f8508c19fd9c3672e5bbffc9e8e64910d3017e)) - @muazzam
+* fix user-attribute updates (#533) ([138eaaa](https://github.com/agentlang-ai/agentlang/commit/138eaaaad7246835e93bd33133e859cda49906a3)) - @vijayfractl
+* fix custom agent event toString (#529) ([9fa773b](https://github.com/agentlang-ai/agentlang/commit/9fa773b113d18d9a9fe127cfdfc36e4204e5dac5)) - @vijayfractl
+* avoid explicit agent invocation for patterns (#527) ([15c5498](https://github.com/agentlang-ai/agentlang/commit/15c549823a04b3f1738ab167c547c63e55fb0857)) - @vijayfractl
+* support tenants in auth-layer (#514) ([5a6e635](https://github.com/agentlang-ai/agentlang/commit/5a6e635b8cad9d79e0f0c918f9fae4156bd30770)) - @vijayfractl
+
+---
 ## [0.8.8](https://github.com/agentlang-ai/agentlang/compare/0.8.7...0.8.8) (2026-01-14)
 
 ### Changes
