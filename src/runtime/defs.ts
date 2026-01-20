@@ -121,6 +121,7 @@ export const FlowSuspensionTag = `--`;
 export enum SubGraphType {
   EVENT,
   IF,
+  IF_WITH_ALIAS,
   FOR_EACH,
   DELETE,
   PURGE,
@@ -203,6 +204,10 @@ export class ExecGraph {
   }
 
   fetchForEachBodySubGraph(): ExecGraph {
+    return this.fetchSubGraphAt(this.subGraphs.length - 1);
+  }
+
+  fetchIfWithAliasSubGraph(): ExecGraph {
     return this.fetchSubGraphAt(this.subGraphs.length - 1);
   }
 

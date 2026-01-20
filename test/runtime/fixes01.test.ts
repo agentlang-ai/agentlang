@@ -723,12 +723,14 @@ describe('Issue-339', () => {
             }
             workflow EF {
                 EF.e @as e;
-                if (EF.mode == 1) {
+                (if (EF.mode == 1) {
                     100 @as e
                     {E {id 1, x e}}
+                } else if (EF.mode == 3) {
+                   {E {id 3, x e}}
                 } else {
-                    {E {id 2, x e}}
-                } @as r;
+                   {E {id 2, x e}}
+                }) @as r;
                 {E {id EF.mode+10, x e}} @as s
                 [r, s]
             }
@@ -745,16 +747,19 @@ describe('Issue-339', () => {
     const [e3, e4]: Instance[] = await parseAndEvaluateStatement(`{I339/EF {mode 0, e 10}}`);
     chk(e3, 2, 10);
     chk(e4, 10, 10);
+    const [e5, e6]: Instance[] = await parseAndEvaluateStatement(`{I339/EF {mode 3, e 30}}`);
+    chk(e5, 3, 30);
+    chk(e6, 13, 30);
     const es: Instance[] = await parseAndEvaluateStatement(`{I339/E? {}}`);
-    assert(es.length == 4);
+    assert(es.length == 6);
     let ids = 0;
     let xs = 0;
     es.forEach((inst: Instance) => {
       ids += inst.lookup('id');
       xs += inst.lookup('x');
     });
-    assert(ids == 1 + 11 + 2 + 10);
-    assert(xs == 100 + 10 + 10 + 10);
+    assert(ids == 1 + 11 + 2 + 10 + 3 + 13);
+    assert(xs == 100 + 10 + 10 + 10 + 30 + 30);
   });
 });
 
@@ -880,14 +885,16 @@ describe('rel-alias-order', () => {
         addBetweenRelationship(name, moduleName, [node1, node2]);
       }
     };
-    const a = {module: moduleName, entity: 'A'}
-    const b = {module: moduleName, entity: 'B'}
-    f('AB1', 'between', a, b)
-    f('AB2', 'contains', a, b)
-    f('BA1', 'between', b, a)
-    f('BA2', 'contains', b, a)
-    const s = fetchModule(moduleName).toString()
-    assert(s === `module RelAlias
+    const a = { module: moduleName, entity: 'A' };
+    const b = { module: moduleName, entity: 'B' };
+    f('AB1', 'between', a, b);
+    f('AB2', 'contains', a, b);
+    f('BA1', 'between', b, a);
+    f('BA2', 'contains', b, a);
+    const s = fetchModule(moduleName).toString();
+    assert(
+      s ===
+        `module RelAlias
 
 entity A
 {
@@ -906,6 +913,89 @@ relationship AB2 contains (RelAlias/A @as A, RelAlias/B @as B)
 relationship BA1 between (RelAlias/B @as B, RelAlias/A @as A)
 
 relationship BA2 contains (RelAlias/B @as B, RelAlias/A @as A)
-`)
+`
+    );
+  });
+});
+
+describe('between-relationship-delete-bug', () => {
+  test('directly delete between relationship instances stored in dedicated tables', async () => {
+    const moduleName = 'BetRelBug';
+    await doInternModule(
+      moduleName,
+      `entity A {
+          id Int @id
+       }
+       entity B {
+          id Int @id
+       }
+       relationship AB1 between(A, B)
+       relationship AB2 between(A, B) @one_many
+       relationship AB3 between(A, B) @one_one
+
+       workflow crAB {
+           {A {id? crAB.a}} @as [A]
+           {B {id? crAB.b}} @as [B]
+           if (crAB.r == 1) {
+             {AB1 {A A, B B}}
+           } else if (crAB.r == 2) {
+             {AB2 {A A, B B}}
+           } else {
+             {AB3 {A A, B B}}   
+           }
+       }
+       workflow delAB {
+           {B {id? delAB.b}} @as [B]
+           if (delAB.r == 1) {
+             purge {AB1 {B? B.__path__}}
+           } else if (delAB.r == 2) {
+             purge {AB2 {B? B.__path__}}
+           } else {
+             {A {id? delAB.a}} @as [A]
+             purge {AB3 {A? A, B? B}}  
+           }
+       }
+      `
+    );
+    const cre = async (n: string, id: number) => {
+      const inst = await parseAndEvaluateStatement(`{${moduleName}/${n} {id ${id}}}`);
+      assert(isInstanceOfType(inst, `${moduleName}/${n}`));
+      return inst;
+    };
+    const crr = async (n: number, aid: number, bid: number, shouldFail: boolean = false) => {
+      try {
+        const inst = await parseAndEvaluateStatement(
+          `{${moduleName}/crAB {r ${n}, a ${aid}, b ${bid}}}`
+        );
+        assert(inst?.name == `AB${n}`);
+        return inst;
+      } catch (r: any) {
+        assert(shouldFail && r);
+      }
+    };
+    const delr = async (n: number, aid: number, bid: number) => {
+      const inst: Instance[] = await parseAndEvaluateStatement(
+        `{${moduleName}/delAB {r ${n}, a ${aid}, b ${bid}}}`
+      );
+      assert(inst[0]?.name == `AB${n}`);
+      return inst[0];
+    };
+    await cre('A', 101);
+    await cre('A', 102);
+    await cre('B', 201);
+    await cre('B', 202);
+    await cre('B', 203);
+    await crr(1, 101, 201);
+    await crr(1, 101, 201);
+    await crr(2, 101, 201);
+    await crr(2, 101, 202);
+    await crr(2, 101, 201, true); // one_many should fail
+    // recreate rel
+    await delr(2, 101, 201)
+    await crr(2, 101, 201)
+    await crr(3, 101, 201);
+    await crr(3, 101, 202, true); // one_one should fail
+    await crr(3, 102, 202);
+    await delr(3, 101, 201);
   });
 });
