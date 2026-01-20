@@ -312,7 +312,8 @@ Generally a flowchart has the following two types of entries:
   2. a --> "x" b - this means if 'a' returns the string "x", then do step 'b'.
 The node 'b' can be a simple name of the next step or a complex pattern like: \`{acme.core/createProduct {productNo 19089, name "X200"}}\` or
 \`{acme.core/createProduct {productNo 19089, name "X200"}} @as NewProductCreated\`. In all cases, you must return the complete step-specification
-when you are required the next step to execute.
+when you are required to produce the next step to execute. That is, return the spec -- complete with the enclosing \`{\` and \`}\` and the \`@as <alias>\` specification,
+if that's provided.
 
 If you detect that you have reached the end of the chart, return 'DONE'. Otherwise, return only the name of the next step. Never return
 any additional description, direction or comments.

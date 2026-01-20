@@ -2139,7 +2139,7 @@ async function iterateOnFlow(
   env.setFlowContext(initContext);
   await agentInvoke(rootAgent, s, env);
   const rootModuleName = rootAgent.moduleName;
-  let preprocResult = await preprocessStep(env.getLastResult().trim(), rootModuleName, env);
+  let preprocResult = await preprocessStep(env.getLastResult(), rootModuleName, env);
   let step = preprocResult.step;
   let needAgentProcessing = preprocResult.needAgentProcessing;
   let context = initContext;
@@ -2153,7 +2153,6 @@ async function iterateOnFlow(
   }
   let isfxc = false;
   try {
-    step = trimGeneratedCode(step);
     while (step != 'DONE' && !executedSteps.has(step)) {
       if (stepc > MaxFlowSteps) {
         throw new Error(`Flow execution exceeded maximum steps limit`);
@@ -2194,13 +2193,13 @@ async function iterateOnFlow(
       );
       context = `${context}\n${step} --> ${rs}\n`;
       if (isfxc) {
-        preprocResult = await preprocessStep(rs.trim(), rootModuleName, env);
+        preprocResult = await preprocessStep(rs, rootModuleName, env);
       } else {
         env.setFlowContext(context);
         await agentInvoke(rootAgent, `${s}\n${context}`, env);
-        preprocResult = await preprocessStep(env.getLastResult().trim(), rootModuleName, env);
+        preprocResult = await preprocessStep(env.getLastResult(), rootModuleName, env);
       }
-      step = trimGeneratedCode(preprocResult.step);
+      step = preprocResult.step;
       needAgentProcessing = preprocResult.needAgentProcessing;
     }
   } finally {
@@ -2220,7 +2219,8 @@ async function preprocessStep(
   env: Environment
 ): Promise<PreprocStepResult> {
   let needAgentProcessing = true;
-  if (spec.startsWith('{')) {
+  spec = trimGeneratedCode(spec);
+  if (spec.startsWith('{') || spec.indexOf(' ') > 0) {
     const newEnv = Environment.from(env, env.name + '_flow_eval', false, true).setActiveModuleName(
       activeModuleName
     );
