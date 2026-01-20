@@ -2153,6 +2153,7 @@ async function iterateOnFlow(
   }
   let isfxc = false;
   try {
+    step = trimGeneratedCode(step)
     while (step != 'DONE' && !executedSteps.has(step)) {
       if (stepc > MaxFlowSteps) {
         throw new Error(`Flow execution exceeded maximum steps limit`);
@@ -2199,7 +2200,7 @@ async function iterateOnFlow(
         await agentInvoke(rootAgent, `${s}\n${context}`, env);
         preprocResult = await preprocessStep(env.getLastResult().trim(), rootModuleName, env);
       }
-      step = preprocResult.step;
+      step = trimGeneratedCode(preprocResult.step);
       needAgentProcessing = preprocResult.needAgentProcessing;
     }
   } finally {

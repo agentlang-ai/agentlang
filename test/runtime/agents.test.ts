@@ -743,9 +743,9 @@ if (process.env.AL_TEST === 'true') {
                   email classifyUserRequest.email,
                   name classifyUserRequest.name
               }
-          }
+          } @as ManagerCreated
           erp.test/Employee --> SendEmployeeWelcomeEmail
-          erp.test/Manager --> SendManagerWelcomeEmail
+          ManagerCreated --> SendManagerWelcomeEmail
         }
         agent userRequestManager
         {role "You are a user request manager"}
@@ -778,6 +778,83 @@ if (process.env.AL_TEST === 'true') {
         else
           assert(email.lookup('message') === 'hi')
       })
+      const s = fetchModule(moduleName).toString()
+      assert(s === `module erp.test
+
+record UserRequest
+{
+    type  @enum("Employee","Manager"),
+    name String,
+    email String
+}
+
+entity Employee
+{
+    email Email @id,
+    name String
+}
+
+entity Manager
+{
+    email Email @id,
+    name String
+}
+
+entity EmailMessage
+{
+    id UUID @id  @default(uuid()),
+    email Email,
+    message String
+}
+
+event SendEmployeeWelcomeEmail
+{
+    to Email
+}
+
+event SendManagerWelcomeEmail
+{
+    to Email
+}
+
+workflow SendEmployeeWelcomeEmail {
+    {EmailMessage {
+                email SendEmployeeWelcomeEmail.to,
+                message "hello"
+            }}
+}
+workflow SendManagerWelcomeEmail {
+    {EmailMessage {
+                email SendManagerWelcomeEmail.to,
+                message "hi"
+            }}
+}
+agent classifyUserRequest
+{
+    instruction "Analyse the user request and classify it as an Employee or Manager",
+   responseSchema erp.test/UserRequest
+}
+flow userRequestManager {
+      classifyUserRequest --> "type is Employee"
+          {
+            erp.test/Employee {
+              email classifyUserRequest.email,
+              name classifyUserRequest.name
+            }
+          }
+classifyUserRequest --> "type is Manager" {
+              erp.test/Manager {
+                  email classifyUserRequest.email,
+                  name classifyUserRequest.name
+              }
+          } @as ManagerCreated
+erp.test/Employee --> SendEmployeeWelcomeEmail
+ManagerCreated --> SendManagerWelcomeEmail
+    }
+agent userRequestManager
+{
+    role "You are a user request manager"
+}`)
     });
   });
 } else {
