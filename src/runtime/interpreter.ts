@@ -2153,7 +2153,7 @@ async function iterateOnFlow(
   }
   let isfxc = false;
   try {
-    step = trimGeneratedCode(step)
+    step = trimGeneratedCode(step);
     while (step != 'DONE' && !executedSteps.has(step)) {
       if (stepc > MaxFlowSteps) {
         throw new Error(`Flow execution exceeded maximum steps limit`);
