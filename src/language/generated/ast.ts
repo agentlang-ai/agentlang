@@ -162,7 +162,7 @@ export function isExpr(item: unknown): item is Expr {
     return reflection.isInstance(item, Expr);
 }
 
-export type FlowStepSpec = CrudMap;
+export type FlowStepSpec = Statement;
 
 export const FlowStepSpec = 'FlowStepSpec';
 
@@ -467,7 +467,7 @@ export function isConditionalFlowStep(item: unknown): item is ConditionalFlowSte
 }
 
 export interface CrudMap extends langium.AstNode {
-    readonly $container: ConditionalFlowStep | FlowEntry | Pattern;
+    readonly $container: Pattern;
     readonly $type: 'CrudMap';
     body?: CrudMapBody;
     distinct: Array<'@distinct'>;
@@ -659,7 +659,7 @@ export interface FlowEntry extends langium.AstNode {
     readonly $type: 'FlowEntry';
     cond?: ConditionalFlowStep;
     next?: FlowStepSpec;
-    root: GenericName;
+    root: QueryId;
 }
 
 export const FlowEntry = 'FlowEntry';
@@ -786,7 +786,7 @@ export function isHandler(item: unknown): item is Handler {
 }
 
 export interface If extends langium.AstNode {
-    readonly $container: DirectiveDefinition | Pattern | ScenarioDefinition;
+    readonly $container: DirectiveDefinition | IfWithAlias | Pattern | ScenarioDefinition;
     readonly $type: 'If';
     cond: Expr;
     else?: Else;
@@ -797,6 +797,18 @@ export const If = 'If';
 
 export function isIf(item: unknown): item is If {
     return reflection.isInstance(item, If);
+}
+
+export interface IfWithAlias extends langium.AstNode {
+    readonly $container: Pattern;
+    readonly $type: 'IfWithAlias';
+    if: If;
+}
+
+export const IfWithAlias = 'IfWithAlias';
+
+export function isIfWithAlias(item: unknown): item is IfWithAlias {
+    return reflection.isInstance(item, IfWithAlias);
 }
 
 export interface Import extends langium.AstNode {
@@ -1008,6 +1020,7 @@ export interface Pattern extends langium.AstNode {
     forEach?: ForEach;
     fullTextSearch?: FullTextSearch;
     if?: If;
+    ifWithAlias?: IfWithAlias;
     purge?: Purge;
     return?: Return;
     throwError?: ThrowError;
@@ -1437,7 +1450,7 @@ export function isStandaloneStatement(item: unknown): item is StandaloneStatemen
 }
 
 export interface Statement extends langium.AstNode {
-    readonly $container: ArrayLiteral | CaseEntry | Else | ForEach | Handler | If | StandaloneStatement | ThenSpec | WorkflowDefinition;
+    readonly $container: ArrayLiteral | CaseEntry | ConditionalFlowStep | Else | FlowEntry | ForEach | Handler | If | StandaloneStatement | ThenSpec | WorkflowDefinition;
     readonly $type: 'Statement';
     hints: Array<RuntimeHint>;
     pattern: Pattern;
@@ -1600,6 +1613,7 @@ export type AgentlangAstType = {
     GroupByClause: GroupByClause
     Handler: Handler
     If: If
+    IfWithAlias: IfWithAlias
     Import: Import
     JoinSpec: JoinSpec
     KvPair: KvPair
@@ -1664,7 +1678,7 @@ export type AgentlangAstType = {
 export class AgentlangAstReflection extends langium.AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AgentXtraAttribute, AgentXtraSpec, AggregateFunctionSpec, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BackoffSpec, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FlowStepSpec, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, GroupByClause, Handler, If, Import, JoinSpec, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, OrderByClause, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicAgentDefinition, PublicEventDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RetryDefinition, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, ThrowError, TriggerDefinition, TriggerEntry, WhereSpec, WhereSpecClause, WorkflowDefinition, WorkflowHeader];
+        return [ActionEntry, AfterTriggerDefinition, AgentDefinition, AgentXtraAttribute, AgentXtraSpec, AggregateFunctionSpec, AliasSpec, ArrayLiteral, AsyncFnCall, AttributeDefinition, AttributeValueExpression, BackoffSpec, BeforeTriggerDefinition, BinExpr, CaseEntry, CatchSpec, CompositeUniqueDefinition, ConditionalFlowStep, CrudMap, CrudMapBody, DecisionDefBody, DecisionDefinition, Definition, Delete, DirectiveDefinition, Else, EntityActionsDefinitions, EntityDefinition, EnumSpec, EventDefinition, Expr, ExtendsClause, FlowDefBody, FlowDefinition, FlowEntry, FlowStepSpec, FnCall, ForEach, FullTextSearch, GenericDefBody, GenericPropertyDef, GlossaryEntryDefinition, Group, GroupByClause, Handler, If, IfWithAlias, Import, JoinSpec, KvPair, KvPairs, Literal, MapEntry, MapKey, MapLiteral, MetaDefinition, ModuleDefinition, NegExpr, NodeDefinition, NotExpr, OneOfSpec, OrderByClause, Pattern, PrePostTriggerDefinition, PrimExpr, PropertyDefinition, PublicAgentDefinition, PublicEventDefinition, PublicWorkflowDefinition, Purge, RbacAllowSpec, RbacExpressionSpec, RbacOpr, RbacRolesSpec, RbacSpecDefinition, RbacSpecEntries, RbacSpecEntry, RecordDefinition, RecordExtraDefinition, RecordSchemaDefinition, RefSpec, RelNodes, RelationshipDefinition, RelationshipPattern, ResolverDefinition, ResolverFnName, ResolverMethodName, ResolverMethodSpec, RetryDefinition, Return, RuntimeHint, ScenarioDefinition, SchemaDefinition, SelectIntoEntry, SelectIntoSpec, SetAttribute, StandaloneStatement, Statement, ThenSpec, ThrowError, TriggerDefinition, TriggerEntry, WhereSpec, WhereSpecClause, WorkflowDefinition, WorkflowHeader];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -1689,9 +1703,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case PrimExpr: {
                 return this.isSubtype(Expr, supertype);
             }
-            case CrudMap: {
-                return this.isSubtype(FlowStepSpec, supertype);
-            }
             case EntityDefinition:
             case EventDefinition:
             case PublicEventDefinition:
@@ -1706,6 +1717,9 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case NegExpr:
             case NotExpr: {
                 return this.isSubtype(PrimExpr, supertype);
+            }
+            case Statement: {
+                return this.isSubtype(FlowStepSpec, supertype);
             }
             default: {
                 return false;
@@ -2109,6 +2123,14 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                     ]
                 };
             }
+            case IfWithAlias: {
+                return {
+                    name: IfWithAlias,
+                    properties: [
+                        { name: 'if' }
+                    ]
+                };
+            }
             case Import: {
                 return {
                     name: Import,
@@ -2260,6 +2282,7 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                         { name: 'forEach' },
                         { name: 'fullTextSearch' },
                         { name: 'if' },
+                        { name: 'ifWithAlias' },
                         { name: 'purge' },
                         { name: 'return' },
                         { name: 'throwError' }

@@ -105,9 +105,11 @@ WorkflowHeaderPrefix returns string: 'create' | 'update' | 'delete';
 PublicWorkflowDefinition: '@public' def=WorkflowDefinition;
 
 Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
-| fullTextSearch=FullTextSearch | return=Return |  throwError=ThrowError;
+| fullTextSearch=FullTextSearch | return=Return | throwError=ThrowError | ifWithAlias=IfWithAlias;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
+
+IfWithAlias: '(' if=If ')';
 
 RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec | thenSpec=ThenSpec;
 
@@ -162,11 +164,11 @@ FlowDefinition: 'flow' name=GenericName (body=FlowDefBody? | '{''}');
 
 FlowDefBody: '{' (entries+=FlowEntry (entries+=FlowEntry)*)+ '}';
 
-FlowEntry: root=GenericName '-->' (cond=ConditionalFlowStep | next=FlowStepSpec);
+FlowEntry: root=QueryId '-->' (cond=ConditionalFlowStep | next=FlowStepSpec);
 
 ConditionalFlowStep: expr=STRING next=FlowStepSpec;
 
-FlowStepSpec: GenericName | CrudMap;
+FlowStepSpec: Statement;
 
 DecisionDefinition: 'decision' name=GenericName (body=DecisionDefBody? | '{''}');
 

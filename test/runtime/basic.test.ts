@@ -1037,7 +1037,8 @@ describe('Flow API', () => {
     mod.removeFlow('orchestrator');
     flows = mod.getAllFlows();
     assert(flows.length == 1);
-    const s0 = new FlowStepPattern('analyseEmail', 'archiveEmail', 'ARC');
+    const s0 = new FlowStepPattern('analyseEmail').setCondition('ARC');
+    await s0.setNextFromString('archiveEmail');
     flows[0].appendStep(s0.toString());
     const s = mod.toString();
     assert(

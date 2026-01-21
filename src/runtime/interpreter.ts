@@ -8,6 +8,7 @@ import {
   FullTextSearch,
   Handler,
   If,
+  IfWithAlias,
   isBinExpr,
   isGroup,
   isLiteral,
@@ -52,6 +53,8 @@ import {
   Relationship,
   Workflow,
   setMetaAttributes,
+  Event,
+  isOneToOneBetweenRelationship,
 } from './module.js';
 import { JoinInfo, Resolver, WhereClause } from './resolvers/interface.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
@@ -107,6 +110,7 @@ import { FlowSpec, FlowStep, getAgentFlow } from './agents/flows.js';
 import { isMonitoringEnabled } from './state.js';
 import { Monitor, MonitorEntry } from './monitor.js';
 import { detailedDiff } from 'deep-object-diff';
+import { callMcpTool, mcpClientNameFromToolEvent } from './mcpclient.js';
 
 export type Result = any;
 
@@ -1215,6 +1219,10 @@ export class PatternHandler {
     await evaluateIf(_if, env);
   }
 
+  async handleIfWithAlias(ifWithAlias: IfWithAlias, env: Environment) {
+    await evaluateIfWithAlias(ifWithAlias, env);
+  }
+
   async handleDelete(del: Delete, env: Environment) {
     await evaluateDelete(del, env);
   }
@@ -1251,6 +1259,8 @@ export async function evaluatePattern(
     await handler.handleForEach(pat.forEach, env);
   } else if (pat.if) {
     await handler.handleIf(pat.if, env);
+  } else if (pat.ifWithAlias) {
+    await handler.handleIfWithAlias(pat.ifWithAlias, env);
   } else if (pat.delete) {
     await handler.handleDelete(pat.delete, env);
   } else if (pat.purge) {
@@ -1414,7 +1424,9 @@ async function instanceFromSource(crud: CrudMap, env: Environment): Promise<Inst
     await evaluateLiteral(crud.source, env);
     const attrsSrc = env.getLastResult();
     if (attrsSrc && attrsSrc instanceof Object) {
-      const attrs: InstanceAttributes = new Map(Object.entries(attrsSrc));
+      const obj =
+        attrsSrc instanceof Instance ? (attrsSrc as Instance).userAttributesAsObject() : attrsSrc;
+      const attrs: InstanceAttributes = new Map(Object.entries(obj));
       const nparts = nameToPath(crud.name);
       const n = nparts.getEntryName();
       const m = nparts.hasModule() ? nparts.getModuleName() : env.getActiveModuleName();
@@ -1606,8 +1618,25 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           isReadForUpdate,
           env.isInDeleteMode()
         );
-        const insts: Instance[] = await res.queryInstances(inst, isQueryAll, distinct);
-        env.setLastResult(insts);
+        let oneToOne = false;
+        let rel: Relationship | undefined;
+        if (isBetRel && env.isInDeleteMode()) {
+          rel = getRelationship(inst.name, inst.moduleName);
+          oneToOne = rel.isOneToOne();
+        }
+        if (oneToOne && rel !== undefined) {
+          await res.handleInstancesLink(
+            inst.lookupQueryVal(rel.node1.alias),
+            inst.lookupQueryVal(rel.node2.alias),
+            rel,
+            false,
+            true
+          );
+          env.setLastResult(inst);
+        } else {
+          const insts: Instance[] = await res.queryInstances(inst, isQueryAll, distinct);
+          env.setLastResult(insts);
+        }
       }
       if (crud.relationships !== undefined) {
         const lastRes: Instance[] = env.getLastResult();
@@ -1674,6 +1703,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (isAgentEventInstance(inst)) await handleAgentInvocation(inst, env);
     else if (isOpenApiEventInstance(inst)) await handleOpenApiEvent(inst, env);
     else if (isDocEventInstance(inst)) await handleDocEvent(inst, env);
+    else if (isMcpEventInstance(inst)) await handleMcpEvent(inst, env);
     else {
       const eventExec = env.getEventExecutor();
       const newEnv = new Environment(`${inst.name}.env`, env);
@@ -1697,6 +1727,11 @@ function isDocEventInstance(inst: Instance): boolean {
   return isInstanceOfType(inst, DocEventName);
 }
 
+export function isMcpEventInstance(inst: Instance): boolean {
+  const event: Event = inst.record as Event;
+  return event.isMcpTool();
+}
+
 async function handleDocEvent(inst: Instance, env: Environment): Promise<void> {
   const s = await fetchDoc(inst.lookup('url'));
   if (s) {
@@ -1707,6 +1742,17 @@ async function handleDocEvent(inst: Instance, env: Environment): Promise<void> {
       env
     );
   }
+}
+
+export async function handleMcpEvent(inst: Instance, env: Environment): Promise<void> {
+  const mcpClientName = mcpClientNameFromToolEvent(inst);
+  const clientInsts: Instance[] = await parseAndEvaluateStatement(
+    `{agentlang.mcp/Client {name? "${mcpClientName}"}}`,
+    undefined,
+    env
+  );
+  const result = await callMcpTool(clientInsts[0], inst);
+  env.setLastResult(result);
 }
 
 async function computeExprAttributes(
@@ -2093,7 +2139,7 @@ async function iterateOnFlow(
   env.setFlowContext(initContext);
   await agentInvoke(rootAgent, s, env);
   const rootModuleName = rootAgent.moduleName;
-  let preprocResult = await preprocessStep(env.getLastResult().trim(), rootModuleName, env);
+  let preprocResult = await preprocessStep(env.getLastResult(), rootModuleName, env);
   let step = preprocResult.step;
   let needAgentProcessing = preprocResult.needAgentProcessing;
   let context = initContext;
@@ -2147,11 +2193,11 @@ async function iterateOnFlow(
       );
       context = `${context}\n${step} --> ${rs}\n`;
       if (isfxc) {
-        preprocResult = await preprocessStep(rs.trim(), rootModuleName, env);
+        preprocResult = await preprocessStep(rs, rootModuleName, env);
       } else {
         env.setFlowContext(context);
         await agentInvoke(rootAgent, `${s}\n${context}`, env);
-        preprocResult = await preprocessStep(env.getLastResult().trim(), rootModuleName, env);
+        preprocResult = await preprocessStep(env.getLastResult(), rootModuleName, env);
       }
       step = preprocResult.step;
       needAgentProcessing = preprocResult.needAgentProcessing;
@@ -2173,7 +2219,8 @@ async function preprocessStep(
   env: Environment
 ): Promise<PreprocStepResult> {
   let needAgentProcessing = true;
-  if (spec.startsWith('{')) {
+  spec = trimGeneratedCode(spec);
+  if (spec.startsWith('{') || spec.indexOf(' ') > 0) {
     const newEnv = Environment.from(env, env.name + '_flow_eval', false, true).setActiveModuleName(
       activeModuleName
     );
@@ -2229,6 +2276,10 @@ async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
   }
 }
 
+async function evaluateIfWithAlias(ifWithAlias: IfWithAlias, env: Environment): Promise<void> {
+  await evaluateIf(ifWithAlias.if, env);
+}
+
 async function evaluateDeleteHelper(
   pattern: Pattern,
   purge: boolean,
@@ -2247,7 +2298,12 @@ export async function maybeDeleteQueriedInstances(
   const inst: Instance[] | Instance = queryEnv.getLastResult();
   let resolver: Resolver = Resolver.Default;
   if (inst instanceof Array) {
-    if (inst.length > 0 && isEntityInstance(inst[0])) {
+    if (inst.length > 0) {
+      if (isOneToOneBetweenRelationship(inst[0].name, inst[0].moduleName)) {
+        // delete already handled in evaluateCrudMap
+        env.setLastResult(inst);
+        return;
+      }
       resolver = await getResolverForPath(inst[0].name, inst[0].moduleName, queryEnv);
       const finalResult: Array<any> = new Array<any>();
       for (let i = 0; i < inst.length; ++i) {
@@ -2260,7 +2316,12 @@ export async function maybeDeleteQueriedInstances(
     } else {
       queryEnv.setLastResult(inst);
     }
-  } else if (isEntityInstance(inst)) {
+  } else {
+    if (isOneToOneBetweenRelationship(inst.name, inst.moduleName)) {
+      // delete already handled in evaluateCrudMap
+      env.setLastResult([inst]);
+      return;
+    }
     resolver = await getResolverForPath(inst.name, inst.moduleName, queryEnv);
     await runPreDeleteEvents(inst, env);
     const r: Instance | null = await resolver.deleteInstance(inst, purge);

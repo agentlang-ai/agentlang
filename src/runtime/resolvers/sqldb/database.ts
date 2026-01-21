@@ -1081,10 +1081,11 @@ export async function getManyByJoin(
   if (querySpec.intoSpec === undefined) {
     throw new Error('SELECT-INTO pattern is missing');
   }
-  const intos = intoSpecToSql(querySpec.intoSpec);
+  const intos = querySpec.intoSpec.size > 0 ? intoSpecToSql(querySpec.intoSpec) : '';
+  const intos_sep = intos.length === 0 ? '' : ',';
   const aggrs =
     querySpec.aggregates !== undefined ? intoSpecToSql(querySpec.aggregates) : undefined;
-  const cols = aggrs ? `${intos}, ${aggrs}` : intos;
+  const cols = aggrs ? `${intos} ${intos_sep} ${aggrs}` : intos;
   let sql = `SELECT ${querySpec.distinct ? 'DISTINCT' : ''} ${cols} FROM ${tableName} ${joinSql.join('\n')} WHERE ${queryStr}`;
   if (querySpec.groupBy !== undefined) {
     sql = `${sql} GROUP BY ${querySpec.groupBy.join(', ')}`;

@@ -653,7 +653,7 @@ if (process.env.AL_TEST === 'true') {
       assert(g?.length == 2)
       assert(g[0]?.label == 'analyseCarOrderRequest')
       assert(g[0]?.next.length == 1)
-      assert(g[0]?.next[0] == 'classifyOrder')
+      assert(g[0]?.next[0].label == 'classifyOrder')
       assert(g[1]?.label == 'classifyOrder')
       assert(g[1]?.next.length == 4)
       const k = async (ins: string) => {
@@ -678,7 +678,7 @@ if (process.env.AL_TEST === 'true') {
 
   describe('flow-with-patterns', () => {
     test('Agent flow with patterns', async () => {
-      const moduleName = 'FlowPatterns'
+      const moduleName = 'erp.test'
       await doInternModule(
         moduleName,
         `record UserRequest {
@@ -697,6 +697,34 @@ if (process.env.AL_TEST === 'true') {
           name String
         }
 
+        entity EmailMessage {
+          id UUID @id @default(uuid()),
+          email Email,
+          message String
+        }
+
+        event SendEmployeeWelcomeEmail {
+            to Email
+        }
+
+        event SendManagerWelcomeEmail {
+            to Email
+        }
+
+        workflow SendEmployeeWelcomeEmail {
+            {EmailMessage {
+                email SendEmployeeWelcomeEmail.to,
+                message "hello"
+            }}
+        }
+
+        workflow SendManagerWelcomeEmail {
+            {EmailMessage {
+                email SendManagerWelcomeEmail.to,
+                message "hi"
+            }}
+        }
+
         agent classifyUserRequest {
           instruction "Analyse the user request and classify it as an Employee or Manager",
           responseSchema UserRequest
@@ -705,17 +733,19 @@ if (process.env.AL_TEST === 'true') {
         flow userRequestManager {
           classifyUserRequest --> "type is Employee"
           {
-            Employee {
+            erp.test/Employee {
               email classifyUserRequest.email,
               name classifyUserRequest.name
             }
           }
           classifyUserRequest --> "type is Manager" {
-              Manager {
+              erp.test/Manager {
                   email classifyUserRequest.email,
                   name classifyUserRequest.name
               }
-          }
+          } @as ManagerCreated
+          erp.test/Employee --> SendEmployeeWelcomeEmail
+          ManagerCreated --> SendManagerWelcomeEmail
         }
         agent userRequestManager
         {role "You are a user request manager"}
@@ -723,7 +753,7 @@ if (process.env.AL_TEST === 'true') {
       );
        const m = fetchModule(moduleName)
       const g: FlowGraphNode[] | undefined = await m.getFlow('userRequestManager')?.toGraph()
-      assert(g?.length == 1)
+      assert(g?.length == 3)
       assert(g[0]?.next.length == 2)
       const k = async (ins: string) => {
         return await parseAndEvaluateStatement(
@@ -740,6 +770,91 @@ if (process.env.AL_TEST === 'true') {
       const r3: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/Manager? {}}`);
       assert(r3.length === 1)
       assert(isInstanceOfType(r3[0], `${moduleName}/Manager`))
+      const emails: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/EmailMessage? {}}`)
+      assert(emails.length == 2)
+      emails.forEach((email: Instance) => {
+        if (email.lookup('email') === 'jose@acme.com')
+          assert(email.lookup('message') === 'hello')
+        else
+          assert(email.lookup('message') === 'hi')
+      })
+      const s = fetchModule(moduleName).toString()
+      assert(s === `module erp.test
+
+record UserRequest
+{
+    type  @enum("Employee","Manager"),
+    name String,
+    email String
+}
+
+entity Employee
+{
+    email Email @id,
+    name String
+}
+
+entity Manager
+{
+    email Email @id,
+    name String
+}
+
+entity EmailMessage
+{
+    id UUID @id  @default(uuid()),
+    email Email,
+    message String
+}
+
+event SendEmployeeWelcomeEmail
+{
+    to Email
+}
+
+event SendManagerWelcomeEmail
+{
+    to Email
+}
+
+workflow SendEmployeeWelcomeEmail {
+    {EmailMessage {
+                email SendEmployeeWelcomeEmail.to,
+                message "hello"
+            }}
+}
+workflow SendManagerWelcomeEmail {
+    {EmailMessage {
+                email SendManagerWelcomeEmail.to,
+                message "hi"
+            }}
+}
+agent classifyUserRequest
+{
+    instruction "Analyse the user request and classify it as an Employee or Manager",
+   responseSchema erp.test/UserRequest
+}
+flow userRequestManager {
+      classifyUserRequest --> "type is Employee"
+          {
+            erp.test/Employee {
+              email classifyUserRequest.email,
+              name classifyUserRequest.name
+            }
+          }
+classifyUserRequest --> "type is Manager" {
+              erp.test/Manager {
+                  email classifyUserRequest.email,
+                  name classifyUserRequest.name
+              }
+          } @as ManagerCreated
+erp.test/Employee --> SendEmployeeWelcomeEmail
+ManagerCreated --> SendManagerWelcomeEmail
+    }
+agent userRequestManager
+{
+    role "You are a user request manager"
+}`)
     });
   });
 } else {

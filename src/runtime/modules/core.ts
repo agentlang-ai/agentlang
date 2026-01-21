@@ -1,6 +1,7 @@
 import { default as ai } from './ai.js';
 import { default as auth } from './auth.js';
 import { default as files } from './files.js';
+import { default as mcp } from './mcp.js';
 import {
   DefaultModuleName,
   DefaultModules,
@@ -39,6 +40,7 @@ import {
 } from '../defs.js';
 import { getMonitor, getMonitorsForEvent, Monitor } from '../monitor.js';
 import { registerResolver, setResolver } from '../resolvers/registry.js';
+import { base64Encode } from '../../utils/runtime.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
@@ -184,6 +186,7 @@ export function registerCoreModules() {
     { def: auth, name: makeCoreModuleName('auth') },
     { def: ai, name: makeCoreModuleName('ai') },
     { def: files, name: makeCoreModuleName('files') },
+    { def: mcp, name: makeCoreModuleName('mcp') },
   ];
 
   coreModuleInfo.forEach(({ def, name }) => {
@@ -438,9 +441,9 @@ function getMonitoringEventName(inst: Instance): string {
 }
 
 async function saveMonitoringData(m: Monitor) {
-  const data = btoa(JSON.stringify(m.asObject()));
+  const data = base64Encode(JSON.stringify(m.asObject()));
   const inst = m.getEventInstance();
-  const eventInstance = inst ? btoa(JSON.stringify(inst.asSerializableObject())) : '';
+  const eventInstance = inst ? base64Encode(JSON.stringify(inst.asSerializableObject())) : '';
   const user = m.getUser() || 'admin';
   const latency = m.getTotalLatencyMs();
   const monitorId = m.getId();
