@@ -21,7 +21,7 @@ export function parseJsonIR(json: any): string[] {
   } else {
     return [
       `workflow ${wf.event} {
-        ${pats}
+        ${pats.join(';\n')}
      }`,
     ];
   }
@@ -41,7 +41,7 @@ function parsePattern(pObj: any): string {
   } else if (pObj.for) {
     return parseFor(pObj.for);
   } else if (pObj.val) {
-    return pObj.val;
+    return asAttributeValue(pObj);
   } else if (pObj.ref) {
     return pObj.ref;
   } else {
@@ -103,36 +103,44 @@ function parseCondition(c: any): string {
 }
 
 function parseIf(pObj: any): string {
-  const cond = pObj.condition.map((c: any) => {
-    return parseCondition(c);
-  });
+  const cond = parseCondition(pObj.condition);
   const then = pObj.then.map((v: any) => {
     return parsePattern(v);
   });
   const else_ = pObj.else?.map((v: any) => {
     return parsePattern(v);
   });
-  const result = `if (${cond[0]}) {
+  const alias = pObj.as;
+  let result = `if (${cond[0]}) {
       ${then.join(';\n')}
   }`;
   if (else_) {
-    return `${result} else {\n
+    result = `${result} else {\n
         ${else_.join(';\n')}
     }`;
   } else {
-    return result;
+    result = result;
   }
+  if (alias) {
+    return `${result} @as ${alias}`;
+  }
+  return result;
 }
 
 function parseFor(pObj: any): string {
   const each = parsePattern(pObj.each);
-  const v = pObj.as;
+  const v = pObj.in;
   const body = pObj.do.map((v: any) => {
     return parsePattern(v);
   });
-  return `for ${v} in ${each} {
+  const result = `for ${v} in ${each} {
       ${body.join(';\n')}
   }`;
+  const alias = pObj.as;
+  if (alias) {
+    return `${result} @as ${alias}`;
+  }
+  return result;
 }
 
 function asAttributes(attrsObj: any): string {

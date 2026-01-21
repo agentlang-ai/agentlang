@@ -4,6 +4,8 @@ import { doInternModule } from '../util.js';
 import { parseJsonIR } from '../../src/runtime/agents/parse-ir.js';
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import { Instance, isInstanceOfType } from '../../src/runtime/module.js';
+import { parseWorkflow } from '../../src/language/parser.js';
+import { isWorkflowDefinition } from '../../src/language/generated/ast.js';
 
 const pr = (obj: any) => {
   if (obj.workflow || obj.patterns) return parseJsonIR(obj);
@@ -74,7 +76,7 @@ describe('control-patterns', () => {
               each: {
                 ref: 'employees',
               },
-              as: 'emp',
+              in: 'emp',
               do: [
                 {
                   create: 'erp/sendMail',
@@ -94,6 +96,101 @@ describe('control-patterns', () => {
       },
     };
     const pat1 = pr(obj1);
-    pat1;
+    assert(pat1[0] === `workflow erp/notifyEmployees {
+        {erp/Employee {
+        salary?> 1000}} @as employees;
+for emp in employees {
+      {erp/sendMail {
+    email emp.email,
+body "You are selected for an increment!"}}
+  }
+     }`)
+    const r1 = await parseWorkflow(pat1[0]);
+    assert(isWorkflowDefinition(r1));
+    assert(r1.statements.length === 2);
+    assert(r1.statements[0].pattern.crudMap);
+    assert(r1.statements[1].pattern.forEach);
+    assert(r1.statements[1].pattern.forEach?.statements.length === 1);
+    assert(r1.statements[1].pattern.forEach?.statements[0].pattern.crudMap);
+
+    const obj2 = {
+      workflow: {
+        event: 'mvd/validateLicense',
+        patterns: [
+          {
+            create: 'mvd/checkLicenseNumber',
+            with: {
+              number: {
+                ref: 'mvd/validateLicense.number',
+              },
+            },
+            as: 'response',
+          },
+          {
+            if: {
+              condition: {
+                '=': [
+                  {
+                    ref: 'response',
+                  },
+                  {
+                    val: 'ok',
+                  },
+                ],
+              },
+              then: [
+                {
+                  val: 'active',
+                },
+              ],
+              else: [
+                {
+                  val: 'canceled',
+                },
+              ],
+              as: 'newStatus',
+            },
+          },
+          {
+            update: 'mvd/license',
+            set: {
+              status: {
+                ref: 'newStatus',
+              },
+            },
+            where: {
+              number: {
+                '=': {
+                  ref: 'mvd/validateLicense.number',
+                },
+              },
+            },
+          },
+        ],
+      },
+    };
+    const pat2 = pr(obj2);
+    assert(
+      pat2[0] ===
+        `workflow mvd/validateLicense {
+        {mvd/checkLicenseNumber {
+    number mvd/validateLicense.number}} @as response;
+if (r) {
+      "active"
+  } else {
+
+        "canceled"
+    } @as newStatus;
+{mvd/license {
+    number? mvd/validateLicense.number,
+    status newStatus}}
+     }`
+    );
+    const r2 = await parseWorkflow(pat2[0]);
+    assert(isWorkflowDefinition(r2));
+    assert(r2.statements.length === 3);
+    assert(r2.statements[0].pattern.crudMap);
+    assert(r2.statements[1].pattern.if);
+    assert(r2.statements[2].pattern.crudMap);
   });
 });

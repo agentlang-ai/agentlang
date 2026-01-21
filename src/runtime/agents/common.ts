@@ -870,7 +870,7 @@ A successful query pattern will return an array of instances. The 'for' pattern 
           "each": {
             "ref": "employees"
           },
-          "as": "emp",
+          "in": "emp",
           "do": [
             {
               "create": "erp/sendMail",
