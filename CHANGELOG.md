@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.1](https://github.com/agentlang-ai/agentlang/compare/0.9.0...0.9.1) (2026-01-21)
+
+### Changes
+
+* ignore mcp in browser ([e0ab3d3](https://github.com/agentlang-ai/agentlang/commit/e0ab3d338499306f06ae4ceb7ec6a07606d1ccf9)) - @vijay
+* change mcp import path ([209a8bd](https://github.com/agentlang-ai/agentlang/commit/209a8bd156fd7fe52d8b7bc3909f81548cb0cb40)) - @vijay
+* Support statements with aliases in flow-nodes. (#540) ([b9a196f](https://github.com/agentlang-ai/agentlang/commit/b9a196f52468377c2f5343b5068c66c5fa9ebf45)) - @vijayfractl
+* Update package-lock ([dae269d](https://github.com/agentlang-ai/agentlang/commit/dae269d7d137533928ceff0a5c27399e37aa4098)) - @pratik
+* Use proper agentlang comment format ([95d686d](https://github.com/agentlang-ai/agentlang/commit/95d686d21595e3443d7fe3941d2841c428013a95)) - @pratik
+* Mcp client (#516) ([4d580e0](https://github.com/agentlang-ai/agentlang/commit/4d580e05ef9eb1fea216e4175534375261929a75)) - @vijayfractl
+* Fix join queries with only aggregates (#534) ([27c8eb5](https://github.com/agentlang-ai/agentlang/commit/27c8eb562ed59aabdfa749cf0b71929314636367)) - @vijayfractl
+* test for between-rel deletes, handle alias-binding precedence issue is if-else (#539) ([d88798f](https://github.com/agentlang-ai/agentlang/commit/d88798f755f1414c752ef5a9509a2025ddb9746d)) - @vijayfractl
+
+---
 ## [0.9.0](https://github.com/agentlang-ai/agentlang/compare/0.8.10...0.9.0) (2026-01-19)
 
 ### Changes
