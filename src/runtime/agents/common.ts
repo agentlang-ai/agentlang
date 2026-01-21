@@ -870,21 +870,21 @@ A successful query pattern will return an array of instances. The 'for' pattern 
           "each": {
             "ref": "employees"
           },
-          "as": "emp"
-        },
-        "do": [
-          {
-            "create": "erp/sendMail",
-            "with": {
-              "email": {
-                "ref": "emp.email"
-              },
-              "body": {
-                "val": "You are selected for an increment!"
+          "as": "emp",
+          "do": [
+            {
+              "create": "erp/sendMail",
+              "with": {
+                "email": {
+                  "ref": "emp.email"
+                },
+                "body": {
+                  "val": "You are selected for an increment!"
+                }
               }
             }
-          }
-        ]
+          ]
+        }
       }
     ]
   }

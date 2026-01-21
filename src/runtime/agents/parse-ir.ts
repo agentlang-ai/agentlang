@@ -37,9 +37,13 @@ function parsePattern(pObj: any): string {
   } else if (pObj.delete) {
     return parseDelete(pObj);
   } else if (pObj.if) {
-    return parseIf(pObj);
+    return parseIf(pObj.if);
   } else if (pObj.for) {
-    return parseFor(pObj);
+    return parseFor(pObj.for);
+  } else if (pObj.val) {
+    return pObj.val;
+  } else if (pObj.ref) {
+    return pObj.ref;
   } else {
     throw new Error(`Invalid pattern object: ${pObj}`);
   }
@@ -82,14 +86,53 @@ function parseQuery(pObj: any): string {
   return maybeAddAlias(pObj, maybeAddRelationships(pObj, result));
 }
 
+function parseCondition(c: any): string {
+  const opr = Object.keys(c)[0];
+  if (opr === 'and' || opr === 'or') {
+    return c[opr]
+      .map((cc: any) => {
+        return parseCondition(cc);
+      })
+      .join(` ${opr} `);
+  } else {
+    const vals = c[opr].map((v: any) => {
+      return parsePattern(v);
+    });
+    return vals.join(` ${opr} `);
+  }
+}
+
 function parseIf(pObj: any): string {
-  if (pObj) throw new Error(`parseIf not implemented`);
-  return '';
+  const cond = pObj.condition.map((c: any) => {
+    return parseCondition(c);
+  });
+  const then = pObj.then.map((v: any) => {
+    return parsePattern(v);
+  });
+  const else_ = pObj.else?.map((v: any) => {
+    return parsePattern(v);
+  });
+  const result = `if (${cond[0]}) {
+      ${then.join(';\n')}
+  }`;
+  if (else_) {
+    return `${result} else {\n
+        ${else_.join(';\n')}
+    }`;
+  } else {
+    return result;
+  }
 }
 
 function parseFor(pObj: any): string {
-  if (pObj) throw new Error(`parseFor not implemented`);
-  return '';
+  const each = parsePattern(pObj.each);
+  const v = pObj.as;
+  const body = pObj.do.map((v: any) => {
+    return parsePattern(v);
+  });
+  return `for ${v} in ${each} {
+      ${body.join(';\n')}
+  }`;
 }
 
 function asAttributes(attrsObj: any): string {

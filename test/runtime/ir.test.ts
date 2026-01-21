@@ -6,6 +6,7 @@ import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import { Instance, isInstanceOfType } from '../../src/runtime/module.js';
 
 const pr = (obj: any) => {
+  if (obj.workflow || obj.patterns) return parseJsonIR(obj);
   return parseJsonIR({ patterns: [obj] });
 };
 
@@ -48,5 +49,51 @@ describe('basic-crud-patterns', () => {
     const rr2: Instance[] | undefined = r2[0].getRelatedInstances(rname);
     assert(rr2 !== undefined);
     assert(isInstanceOfType(rr2[0], bname));
+  });
+});
+
+describe('control-patterns', () => {
+  test('translate if and for-each', async () => {
+    const obj1 = {
+      workflow: {
+        event: 'erp/notifyEmployees',
+        patterns: [
+          {
+            query: 'erp/Employee',
+            where: {
+              salary: {
+                '>': {
+                  val: 1000,
+                },
+              },
+            },
+            as: 'employees',
+          },
+          {
+            for: {
+              each: {
+                ref: 'employees',
+              },
+              as: 'emp',
+              do: [
+                {
+                  create: 'erp/sendMail',
+                  with: {
+                    email: {
+                      ref: 'emp.email',
+                    },
+                    body: {
+                      val: 'You are selected for an increment!',
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    };
+    const pat1 = pr(obj1);
+    pat1;
   });
 });
