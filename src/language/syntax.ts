@@ -5,10 +5,11 @@ import {
   isDecisionDefinition,
   isFlowDefinition,
   ModuleDefinition,
+  Statement,
 } from './generated/ast.js';
 import { createAgentlangServices } from './agentlang-module.js';
 import { EmptyFileSystem } from 'langium';
-import { introspect, parseModule } from './parser.js';
+import { introspect, parseModule, parseStatement } from './parser.js';
 
 export class BasePattern {
   alias: string | undefined;
@@ -806,14 +807,29 @@ function patternsToString(body: BasePattern[], sep = ';\n'): string {
 
 export class FlowStepPattern extends BasePattern {
   first: string;
-  next: string;
+  next: Statement | undefined;
   condition?: string;
 
-  constructor(first: string, next: string, condition?: string) {
+  constructor(first: string, next?: Statement, condition?: string) {
     super();
     this.first = first;
     this.next = next;
     this.condition = condition ? trimQuotes(condition) : undefined;
+  }
+
+  async setNextFromString(pattern: string): Promise<FlowStepPattern> {
+    this.next = await parseStatement(pattern);
+    return this;
+  }
+
+  setNext(next: Statement): FlowStepPattern {
+    this.next = next;
+    return this;
+  }
+
+  setCondition(condition: string): FlowStepPattern {
+    this.condition = condition;
+    return this;
   }
 
   static async Parse(s: string): Promise<FlowStepPattern> {
@@ -826,9 +842,9 @@ export class FlowStepPattern extends BasePattern {
     if (isFlowDefinition(d)) {
       d.body?.entries.forEach((fe: FlowEntry) => {
         if (fe.cond) {
-          result = new FlowStepPattern(fe.root, fe.cond.next.$cstNode?.text || '', fe.cond.expr);
+          result = new FlowStepPattern(fe.root, fe.cond.next, fe.cond.expr);
         } else {
-          result = new FlowStepPattern(fe.root, fe.next?.$cstNode?.text || '');
+          result = new FlowStepPattern(fe.root, fe.next);
         }
       });
     }
@@ -839,10 +855,11 @@ export class FlowStepPattern extends BasePattern {
   }
 
   override toString(): string {
+    const nxt = this.next === undefined ? '' : this.next.$cstNode?.text;
     if (this.condition) {
-      return `${this.first} --> "${this.condition}" ${this.next}`;
+      return `${this.first} --> "${this.condition}" ${nxt}`;
     } else {
-      return `${this.first} --> ${this.next}`;
+      return `${this.first} --> ${nxt}`;
     }
   }
 }

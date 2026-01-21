@@ -164,11 +164,11 @@ FlowDefinition: 'flow' name=GenericName (body=FlowDefBody? | '{''}');
 
 FlowDefBody: '{' (entries+=FlowEntry (entries+=FlowEntry)*)+ '}';
 
-FlowEntry: root=GenericName '-->' (cond=ConditionalFlowStep | next=FlowStepSpec);
+FlowEntry: root=QueryId '-->' (cond=ConditionalFlowStep | next=FlowStepSpec);
 
 ConditionalFlowStep: expr=STRING next=FlowStepSpec;
 
-FlowStepSpec: GenericName | CrudMap;
+FlowStepSpec: Statement;
 
 DecisionDefinition: 'decision' name=GenericName (body=DecisionDefBody? | '{''}');
 

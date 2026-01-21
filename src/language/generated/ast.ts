@@ -162,7 +162,7 @@ export function isExpr(item: unknown): item is Expr {
     return reflection.isInstance(item, Expr);
 }
 
-export type FlowStepSpec = CrudMap;
+export type FlowStepSpec = Statement;
 
 export const FlowStepSpec = 'FlowStepSpec';
 
@@ -467,7 +467,7 @@ export function isConditionalFlowStep(item: unknown): item is ConditionalFlowSte
 }
 
 export interface CrudMap extends langium.AstNode {
-    readonly $container: ConditionalFlowStep | FlowEntry | Pattern;
+    readonly $container: Pattern;
     readonly $type: 'CrudMap';
     body?: CrudMapBody;
     distinct: Array<'@distinct'>;
@@ -659,7 +659,7 @@ export interface FlowEntry extends langium.AstNode {
     readonly $type: 'FlowEntry';
     cond?: ConditionalFlowStep;
     next?: FlowStepSpec;
-    root: GenericName;
+    root: QueryId;
 }
 
 export const FlowEntry = 'FlowEntry';
@@ -1450,7 +1450,7 @@ export function isStandaloneStatement(item: unknown): item is StandaloneStatemen
 }
 
 export interface Statement extends langium.AstNode {
-    readonly $container: ArrayLiteral | CaseEntry | Else | ForEach | Handler | If | StandaloneStatement | ThenSpec | WorkflowDefinition;
+    readonly $container: ArrayLiteral | CaseEntry | ConditionalFlowStep | Else | FlowEntry | ForEach | Handler | If | StandaloneStatement | ThenSpec | WorkflowDefinition;
     readonly $type: 'Statement';
     hints: Array<RuntimeHint>;
     pattern: Pattern;
@@ -1703,9 +1703,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case PrimExpr: {
                 return this.isSubtype(Expr, supertype);
             }
-            case CrudMap: {
-                return this.isSubtype(FlowStepSpec, supertype);
-            }
             case EntityDefinition:
             case EventDefinition:
             case PublicEventDefinition:
@@ -1720,6 +1717,9 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             case NegExpr:
             case NotExpr: {
                 return this.isSubtype(PrimExpr, supertype);
+            }
+            case Statement: {
+                return this.isSubtype(FlowStepSpec, supertype);
             }
             default: {
                 return false;

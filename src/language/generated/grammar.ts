@@ -4851,7 +4851,7 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@122"
+                "$ref": "#/rules@118"
               },
               "arguments": []
             }
@@ -4941,23 +4941,11 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
       "$type": "ParserRule",
       "name": "FlowStepSpec",
       "definition": {
-        "$type": "Alternatives",
-        "elements": [
-          {
-            "$type": "RuleCall",
-            "rule": {
-              "$ref": "#/rules@122"
-            },
-            "arguments": []
-          },
-          {
-            "$type": "RuleCall",
-            "rule": {
-              "$ref": "#/rules@58"
-            },
-            "arguments": []
-          }
-        ]
+        "$type": "RuleCall",
+        "rule": {
+          "$ref": "#/rules@53"
+        },
+        "arguments": []
       },
       "definesHiddenTokens": false,
       "entry": false,

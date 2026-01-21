@@ -1666,12 +1666,31 @@ export class Workflow extends ModuleEntry {
   }
 }
 
+type FlowGraphEdge = {
+  rep: string;
+  label: string;
+};
+
 export type FlowGraphNode = {
   label: string;
   type: 'action' | 'condition';
   on?: string[] | undefined;
-  next: string[];
+  next: FlowGraphEdge[];
 };
+
+function asFlowGraphEdge(stmt: Statement | undefined): FlowGraphEdge {
+  if (stmt === undefined) {
+    return {
+      rep: '',
+      label: '',
+    };
+  } else {
+    return {
+      rep: stmt.$cstNode?.text || '',
+      label: statementLabel(stmt),
+    };
+  }
+}
 
 function splitFlowSteps(flow: FlowDefinition): string[] {
   const steps = new Array<string>();
@@ -1724,7 +1743,7 @@ export class Flow extends ModuleEntry {
         });
         if (orig) {
           const nxs = orig.next;
-          nxs?.push(fp.next);
+          nxs?.push(asFlowGraphEdge(fp.next));
           const conds = orig.on;
           conds?.push(fp.condition);
         } else {
@@ -1732,14 +1751,14 @@ export class Flow extends ModuleEntry {
             label: fp.first,
             type: 'condition',
             on: [fp.condition],
-            next: [fp.next],
+            next: [asFlowGraphEdge(fp.next)],
           });
         }
       } else {
         result.push({
           label: fp.first,
           type: 'action',
-          next: [fp.next],
+          next: [asFlowGraphEdge(fp.next)],
         });
       }
     }
@@ -1827,6 +1846,29 @@ export class GlossaryEntry extends ModuleEntry {
   }
 }
 
+function statementLabel(stmt: Statement | undefined): string {
+  if (stmt === undefined) return '';
+  let lbl: string | undefined = undefined;
+  if (isLiteral(stmt.pattern.expr)) {
+    lbl = stmt.pattern.expr.id || stmt.pattern.expr.ref || stmt.pattern.expr.str;
+  }
+  if (lbl !== undefined) return lbl;
+  if (stmt.hints.length > 0) {
+    for (let i = 0; i < stmt.hints.length; ++i) {
+      const rh = stmt.hints[i];
+      if (rh.aliasSpec?.alias) {
+        lbl = rh.aliasSpec.alias;
+        break;
+      }
+    }
+  }
+  if (lbl !== undefined) return lbl;
+  if (stmt.pattern.crudMap) {
+    return stmt.pattern.crudMap.name;
+  }
+  throw new Error(`Failed to extract label from flow step - ${stmt.$cstNode?.text}`);
+}
+
 export function flowGraphNext(
   graph: FlowGraphNode[],
   currentNode?: FlowGraphNode,
@@ -1846,15 +1888,15 @@ export function flowGraphNext(
       if (c !== undefined) {
         const next = node.next[c];
         const r = graph.find((n: FlowGraphNode) => {
-          return n.label == next;
+          return n.label == next.label;
         });
-        return r || { label: next, type: 'action', next: [] };
+        return r || { label: next.label, type: 'action', next: [] };
       } else {
         return undefined;
       }
     } else {
       return graph.find((n: FlowGraphNode) => {
-        return n.label == node.next[0];
+        return n.label == node.next[0].label;
       });
     }
   }
