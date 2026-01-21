@@ -1,10 +1,11 @@
+import { listClientTools } from '../mcpclient.js';
 import { makeCoreModuleName } from '../util.js';
 
 export const CoreMcpModuleName = makeCoreModuleName('mcp');
 
 export default `module ${CoreMcpModuleName}
 
-import "./mcpclient.js" @as mcp
+import "./modules/mcp.js" @as mcp
 
 entity Client {
     name String @id,
@@ -21,7 +22,7 @@ entity Client {
 
 workflow listTools {
     {Client {name? listTools.clientName}} @as [client];
-    await mcp.listClientTools(client)
+    await mcp.listClientTools_(client)
 }
 
 @public event createClient {
@@ -40,3 +41,5 @@ workflow createClient {
     client
 }
 `;
+
+export const listClientTools_ = listClientTools;

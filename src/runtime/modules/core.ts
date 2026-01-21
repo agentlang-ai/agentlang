@@ -40,7 +40,7 @@ import {
 } from '../defs.js';
 import { getMonitor, getMonitorsForEvent, Monitor } from '../monitor.js';
 import { registerResolver, setResolver } from '../resolvers/registry.js';
-import { base64Encode } from '../../utils/runtime.js';
+import { base64Encode, isNodeEnv } from '../../utils/runtime.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
@@ -181,15 +181,17 @@ export function registerCoreModules() {
   DefaultModules.add(DefaultModuleName);
   CoreModules.push(CoreModuleDefinition);
 
+  const mcpn = makeCoreModuleName('mcp');
   // Map of module definitions to their names for proper DefaultModules registration
   const coreModuleInfo: Array<{ def: string; name: string }> = [
     { def: auth, name: makeCoreModuleName('auth') },
     { def: ai, name: makeCoreModuleName('ai') },
     { def: files, name: makeCoreModuleName('files') },
-    { def: mcp, name: makeCoreModuleName('mcp') },
+    { def: mcp, name: mcpn },
   ];
 
   coreModuleInfo.forEach(({ def, name }) => {
+    if (!isNodeEnv && name == mcpn) return;
     CoreModules.push(def);
     // Add module NAME (not definition) to DefaultModules so flushAllModules() doesn't remove core modules
     DefaultModules.add(name);
