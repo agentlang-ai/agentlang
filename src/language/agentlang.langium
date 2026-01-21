@@ -268,7 +268,11 @@ terminal ID returns string: NAME ('/' NAME)?;
 terminal NAME returns string: /[_a-zA-Z][\w_]*/;
 
 // quoted strings
-terminal STRING returns string:  '"' ( '\\' . | !('\\' | '"' | '\r' | '\n') | '\r'? '\n' )* '"';
+terminal QUOTED_STRING returns string:  '"' ( '\\' . | !('\\' | '"' | '\r' | '\n') | '\r'? '\n' )* '"';
+
+terminal TICK_QUOTED_STRING returns string:  '`' ( '\\' . | !('\\' | '`' | '\r' | '\n') | '\r'? '\n' )* '`';
+
+STRING returns string: QUOTED_STRING | TICK_QUOTED_STRING;
 
 // recognize an Integer (but represented via a 'number' type)
 terminal INT returns number: /-?[0-9]+/;
