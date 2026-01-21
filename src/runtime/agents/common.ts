@@ -4,7 +4,6 @@ import { trimQuotes } from '../util.js';
 export const PlannerInstructions = `Agentlang is a very-high-level declarative language that makes it easy to define business applications as 'models'.
 The model of a business application consists of entity definitions and workflows defined in "modules". A module is encoded in a syntax inspired by JavaScript and JSON. Example of a simple module follows:
 
-\`\`\`agentlang
 module erp
 
 entity Employee {
@@ -14,7 +13,6 @@ entity Employee {
    salary Number,
    email Email @indexed
 }
-\`\`\`
 
 The Employee entity is part of the "erp" module and it has four attributes: 'employeeId', 'firstName', 'lastName', 'salary' and 'email'.
 The 'employeeId' attribute uniquely identifies an instance of the Employee entity and it's automatically filled-in by the system by calling the "uuid()" function.
@@ -22,19 +20,16 @@ Instead of the keyword 'entity', the keyword 'record' may also be used. The diff
 
 This is an example of a record:
 
-\`\`\`agentlang
 record EmailMessage {
     to Email,
     from Email,
     subject String,
     body String
 }
-\`\`\`
 
 Another major construct in Agentlang is the 'workflow'. Workflows contain "patterns" expressed in JSON format that encode CRUD operations on entities.
 For example, here's is a workflow that creates a new instance of the Employee entity:
 
-\`\`\`agentlang
 {
   "workflow": {
     "event": "erp/createEmployee",
@@ -59,24 +54,20 @@ For example, here's is a workflow that creates a new instance of the Employee en
     ]
   }
 }
-\`\`\`
 
 The attribute-values of the new Employee are derived from the "event" that triggers the workflow. In this example the event is called "createEmployee".
 An event need not have an explicit schema, because its attributes can always be inferred from the workflow definition. But a model may also contain
 explicit definitions of events, as follows,
 
-\`\`\`agentlang
 event createEmployee {
    firstName String,
    lastName String,
    salary Number,
    email Email
 }
-\`\`\`
 
-A workflow attached to an event is invoked by creating an instance of the event, as shown in the following pattern:
+A workflow attached to an event is invoked by creating an instance of the event, as shown in the following pattern encoded in JSON format:
 
-\`\`\`json
 {
   "create": "erp/createEmployee",
   "with": {
@@ -94,7 +85,6 @@ A workflow attached to an event is invoked by creating an instance of the event,
     }
   }
 }
-\`\`\`
 
 This means a workflow can be invoked from another workflow, simply by having the event-creation pattern.
 
@@ -106,15 +96,12 @@ specified as the value for the attribute.
 
 A pattern that can be used to query all instances of an entity is shown below:
 
-\`\`\`json
 {
   "query": "erp/Employee"
 }
-\`\`\`
 
 Instances may be queried by conditions applied to attributes, some examples are:
 
-\`\`\`json
 {
   "query": "erp/Employee",
   "where": {
@@ -132,11 +119,9 @@ Instances may be queried by conditions applied to attributes, some examples are:
     }
   }
 }
-\`\`\`
 
 To select an employee with a given email and salary:
 
-\`\`\`json
 {
   "query": "erp/Employee",
   "where": {
@@ -148,11 +133,9 @@ To select an employee with a given email and salary:
       }
   }
 }
-\`\`\`
 
 The following pattern shows how to update instances based on a condition:
 
-\`\`\`json
 {
   "update": "erp/Employee",
   "set": {
@@ -166,11 +149,9 @@ The following pattern shows how to update instances based on a condition:
     }
   }
 }
-\`\`\`
 
 Deleting an instance:
 
-\`\`\`json
 {
   "delete": "erp/Employee",
   "where": {
@@ -179,7 +160,6 @@ Deleting an instance:
     }
   }
 }
-\`\`\`
 
 The default query operator is equals ('='). Other comparison operators supported by a query pattern are:
 
@@ -194,7 +174,6 @@ between   - between given values (argument must be an array)
 
 Simple aggregate functions can be specified in queries, some examples are:
 
-\`\`\`json
 {
   "query": "erp/Employee",
   "where": {
@@ -212,7 +191,6 @@ Simple aggregate functions can be specified in queries, some examples are:
     }
   }
 }
-\`\`\`
 
 The supported aggregate functions are: 'count', 'max', 'min', 'sum' and 'avg'.
 
@@ -226,7 +204,7 @@ like two 'Profiles' in a social media app is connected as friends. A 'between' r
 
 The following example shows how additional profile data for an employee could be defined as a new entity and attached to the 'Employee' entity as a between-relationship:
 
-\`\`\`agentlang
+
 entity Profile {
     id UUID @id @default(uuid()),
     address String @optional,
@@ -235,13 +213,12 @@ entity Profile {
 }
 
 relationship EmployeeProfile between (erp/Employee, erp/Profile) @one_one
-\`\`\`
+
 
 The '@one_one' annotation means exactly one 'Employee' and 'Profile' can be related to each other via 'EmployeeProfile'.
 
 Here's the 'createEmployee' workflow updated to create the 'Employee' with the his/her 'Profile' attached:
 
-\`\`\`json
 {
   "workflow": {
     "event": "erp/createEmployee",
@@ -283,11 +260,9 @@ Here's the 'createEmployee' workflow updated to create the 'Employee' with the h
     ]
   }
 }
-\`\`\`
 
 Pattern to link a new 'Employee' with an existing 'Profile':
 
-\`\`\`json
 {
   "create": "erp/Employee",
   "with": {
@@ -318,11 +293,9 @@ Pattern to link a new 'Employee' with an existing 'Profile':
     }
   ]
 }
-\`\`\`
 
 To connect an existing instance of 'Employee' with an existing instance of 'Profile':
 
-\`\`\`json
 {
   "create": "erp/EmployeeProfile",
   "with": {
@@ -334,11 +307,9 @@ To connect an existing instance of 'Employee' with an existing instance of 'Prof
     }
   }
 }
-\`\`\`
 
 The following pattern can be used to query an 'Employee' along with his 'Profile':
 
-\`\`\`json
 {
   "query": "erp/Employee",
   "where": {
@@ -355,11 +326,9 @@ The following pattern can be used to query an 'Employee' along with his 'Profile
     }
   ]
 }
-\`\`\`
 
 As an example of 'contains' relationships, consider modelling task-assignments for an 'Employee' as folllows:
 
-\`\`\`agentlang
 entity TaskAssignment {
     id UUID @id @default(uuid()),
     description String,
@@ -367,11 +336,9 @@ entity TaskAssignment {
 }
 
 relationship EmployeeTaskAssignment contains (erp/Employee, erp/TaskAssignment)
-\`\`\`
 
 The following workflow shows how to assign a new task to an Employee:
 
-\`\`\`json
 {
   "workflow": {
     "event": "erp/assignNewTask",
@@ -400,11 +367,9 @@ The following workflow shows how to assign a new task to an Employee:
     ]
   }
 }
-\`\`\`
 
 The following workflow queries an Employee along with all his tasks:
 
-\`\`\`json
 {
   "workflow": {
     "event": "erp/getEmployeeTaskAssignments",
@@ -428,11 +393,9 @@ The following workflow queries an Employee along with all his tasks:
     ]
   }
 }
-\`\`\`
 
 This patterns returns the number of tasks under an 'Employee'. The result of the query will be returned in the temporary column named 'taskCount':
 
-\`\`\`json
 {
   "query": "erp/TaskAssignment",
   "into": {
@@ -456,11 +419,9 @@ This patterns returns the number of tasks under an 'Employee'. The result of the
     }
   ]
 }
-\`\`\`
 
 In addition to the basic CRUD patterns, you can execute conditional-logic with the help of the 'if' pattern. An example follows,
 
-\`\`\`json
 {
   "workflow": {
     "event": "erp/incrementSalary",
@@ -512,13 +473,11 @@ In addition to the basic CRUD patterns, you can execute conditional-logic with t
     ]
   }
 }
-\`\`\`
 
 Note the value passed to the 'salary' attribute - it's an arithmetic expression. All normal arithmetic expressions are supported by workflow patterns.
 
 Another example of the 'if' pattern:
 
-\`\`\`json
 {
   "workflow": {
     "event": "mvd/validateLicense",
@@ -575,243 +534,12 @@ Another example of the 'if' pattern:
     ]
   }
 }
-\`\`\`
 
 Note the use of the 'as' keyword - this binds the result of a pattern to an 'alias', which is the same as a variable in other programming languages.
 
-For your reference, a few examples of \`if\` condition in C-like syntax and their translation to the JSON-format are given below:
+One more 'if' condition example that demonstartes the use of the logical 'and' and 'or' operators follows. I captures the logic \`if ((role == "manager" or role == "lead") and salary >= 8000) then return true;
+\`:
 
-## 1. Simple Equality
-
-### C
-
-\`\`\`c
-if (status == "active") {
-    result = "ok";
-}
-\`\`\`
-
-### Agentlang JSON
-
-\`\`\`json
-{
-  "if": {
-    "condition": {
-      "=": [
-        { "ref": "status" },
-        { "val": "active" }
-      ]
-    },
-    "then": [
-      { "val": "ok" }
-    ]
-  }
-}
-\`\`\`
-
----
-
-## 2. Not Equals
-
-### C
-
-\`\`\`c
-if (role != "admin") {
-    access = "denied";
-}
-\`\`\`
-
-### Agentlang JSON
-
-\`\`\`json
-{
-  "if": {
-    "condition": {
-      "!=": [
-        { "ref": "role" },
-        { "val": "admin" }
-      ]
-    },
-    "then": [
-      { "val": "denied" }
-    ]
-  }
-}
-\`\`\`
-
-## 3. Numeric Comparison
-
-### C-like
-
-\`\`\`c
-if (salary > 5000) {
-    grade = "senior";
-}
-\`\`\`
-
-### Agentlang JSON
-
-\`\`\`json
-{
-  "if": {
-    "condition": {
-      ">": [
-        { "ref": "salary" },
-        { "val": 5000 }
-      ]
-    },
-    "then": [
-      { "val": "senior" }
-    ]
-  }
-}
-\`\`\`
-
-## 4. Logical AND
-
-### C
-
-\`\`\`c
-if (age >= 18 && age <= 60) {
-    eligible = true;
-}
-\`\`\`
-
-### Agentlang JSON
-
-\`\`\`json
-{
-  "if": {
-    "condition": {
-      "and": [
-        {
-          ">=": [
-            { "ref": "age" },
-            { "val": 18 }
-          ]
-        },
-        {
-          "<=": [
-            { "ref": "age" },
-            { "val": 60 }
-          ]
-        }
-      ]
-    },
-    "then": [
-      { "val": true }
-    ]
-  }
-}
-\`\`\`
-
-## 5. Logical OR
-
-### C
-
-\`\`\`c
-if (country == "US" || country == "Canada") {
-    region = "NorthAmerica";
-}
-\`\`\`
-
-### Agentlang JSON
-
-\`\`\`json
-{
-  "if": {
-    "condition": {
-      "or": [
-        {
-          "=": [
-            { "ref": "country" },
-            { "val": "US" }
-          ]
-        },
-        {
-          "=": [
-            { "ref": "country" },
-            { "val": "Canada" }
-          ]
-        }
-      ]
-    },
-    "then": [
-      { "val": "NorthAmerica" }
-    ]
-  }
-}
-\`\`\`
-
-## 6. \`in\` Operator
-
-### C-like
-
-\`\`\`c
-if (status in ["open", "pending", "new"]) {
-    queue = "active";
-}
-\`\`\`
-
-### Agentlang JSON
-
-\`\`\`json
-{
-  "if": {
-    "condition": {
-      "in": [
-        { "ref": "status" },
-        { "val": ["open", "pending", "new"] }
-      ]
-    },
-    "then": [
-      { "val": "active" }
-    ]
-  }
-}
-\`\`\`
-
-## 7. \`like\` Operator (starts-with)
-
-### C-like
-
-\`\`\`c
-if (email like "admin@") {
-    priority = "high";
-}
-\`\`\`
-
-### Agentlang JSON
-
-\`\`\`json
-{
-  "if": {
-    "condition": {
-      "like": [
-        { "ref": "email" },
-        { "val": "admin@" }
-      ]
-    },
-    "then": [
-      { "val": "high" }
-    ]
-  }
-}
-\`\`\`
-
-## 8. Nested Composition
-
-### C
-
-\`\`\`c
-if ((role == "manager" || role == "lead") && salary >= 8000) {
-    bonus = true;
-}
-\`\`\`
-
-### Agentlang JSON
-
-\`\`\`json
 {
   "if": {
     "condition": {
@@ -845,11 +573,9 @@ if ((role == "manager" || role == "lead") && salary >= 8000) {
     ]
   }
 }
-\`\`\`
 
 A successful query pattern will return an array of instances. The 'for' pattern can be used to iterate over an array. An example follows:
 
-\`\`\`json
 {
   "workflow": {
     "event": "erp/notifyEmployees",
@@ -889,12 +615,10 @@ A successful query pattern will return an array of instances. The 'for' pattern 
     ]
   }
 }
-\`\`\`
 
 Here the result of the query is bound to the alias named 'employees'. Any pattern can have an alias, including 'if' and 'for'. An alias can be used to refer to the attributes of the instance,
 via the dot(.) notation. Aliases can also be used to destructure a query result - here's an example:
 
-\`\`\`json
 {
   "query": "erp/Employee",
   "where": {
@@ -909,11 +633,9 @@ via the dot(.) notation. Aliases can also be used to destructure a query result 
     "emp2"
   ]
 }
-\`\`\`
 
 This alias will bind the first two instances to 'a' and 'b' and the rest of the instances to an array named 'xs':
 
-\`\`\`json
 {
   "query": "someModule/someEntity",
   "where": {
@@ -930,7 +652,6 @@ This alias will bind the first two instances to 'a' and 'b' and the rest of the 
     "xs"
   ]
 }
-\`\`\`
 
 Make sure all references based on a preceding pattern is based either on an actual alias or the name of the workflow. 
 Apply the following rules while deciding how to specify values in a generated pattern:
@@ -953,7 +674,6 @@ A general rule regarding generating workflows - as much as possible, do not incl
 fill-in values from the available context. For example, if your instruction is "create a workflow to send an email to employee 101 with this message -
 'please call me as soon as possible'", the best workflow to return is:
 
-\`\`\`json
 {
   "workflow": {
     "event": "erp/sendEmail",
@@ -985,12 +705,10 @@ fill-in values from the available context. For example, if your instruction is "
     ]
   }
 }
-\`\`\`
 
-because all the information needed is available in the context. If the instruction is "create a workflow to send an email by employee-id with this message -
+Because all the information needed is available in the context. If the instruction is "create a workflow to send an email by employee-id with this message -
 'please call me as soon as possible'", then you can return:
 
-\`\`\`json
 {
   "workflow": {
     "event": "erp/sendEmail",
@@ -1022,14 +740,12 @@ because all the information needed is available in the context. If the instructi
     ]
   }
 }
-\`\`\`
 
 The point is, use the immediate context to fill-in values in generated patterns, as much as possible.
 
 Also generate a workflow only if required explicitly by the user or the contextual information is incomplete. Otherwise, just return an array of patterns.
 As an example, if the user request is "send an email to employee 101 with this message - 'please call me as soon as possible'", you must return:
 
-\`\`\`json
 {
   "patterns": [
     {
@@ -1058,16 +774,11 @@ As an example, if the user request is "send an email to employee 101 with this m
     }
   ]
 }
-\`\`\`
-
 
 Agentlang also supports OLAP-style queries.
-
-## Canonical Join Query Example
-
 Example Agentlang model:
 
-\`\`\`agentlang
+
 module olapDemo;
 
 entity SalesFact {
@@ -1102,15 +813,9 @@ entity RegionDim {
   state String,
   city String
 }
-\`\`\`
 
-**Goal:**
-Total revenue by year
-(SQL: \`SELECT d.year, SUM(f.revenue) FROM sales_fact f JOIN date_dim d ON f.date_id=d.date_id GROUP BY d.year\`)
+Total revenue by year:
 
-The workflow pattern that will produce the same result as the above SQL query follows:
-
-\`\`\`json
 {
   "query": "olapDemo/SalesFact",
   "joins": [
@@ -1142,61 +847,13 @@ The workflow pattern that will produce the same result as the above SQL query fo
     "olapDemo/DateDim.year"
   ]
 }
-\`\`\`
 
 For ordering the result in descending order, use the 'orderByDesc' key.
+Now consider the following module definition and generate appropriate JSON response in response to the user instructions, keeping the following
+strict rules:
 
-Before generating patterns, verify:
-
-1. Envelope
-
-   * Output is **only JSON**
-   * Top-level key is **exactly one of**: \`patterns\` or \`workflow\`
-   * Generated code MUST NOT be wrapped in markdown code block, i.e never return code wrapped in \`\`\`json and \`\`\`.
-
-2. Workflow Decision
-
-   * Use \`workflow\` **only if**:
-
-     * user explicitly asked for a workflow, **or**
-     * event name is given, **or**
-     * required inputs are missing and must come from an event
-   * Otherwise use \`patterns\`
-
-3. Values
-
-   * Each attribute uses **exactly one** of: \`val\`, \`ref\`, or \`expr\`
-   * Value resolution order respected: \`val\` → alias \`ref\` → event \`ref\`
-
-4. Aliases
-
-   * Every \`ref\` points to:
-
-     * a previously defined alias, **or**
-     * the workflow event
-   * No forward references
-   * Alias scope respected (\`if\` / \`for\` do not leak unless \`as\` used)
-
-5. Schema Safety
-
-   * No fields, entities, or relationships not defined in the module
-   * Correct module prefixes used
-
-6. Patterns
-
-   * Each pattern is valid standalone Agentlang JSON
-   * Aggregates used **only if explicitly requested**
-
-7. Clean Output
-
-   * No comments
-   * No explanatory text
-   * No trailing commas
-   * No invented defaults
-
-**If any check fails → regenerate silently.**
-
-Now consider the following module definition and generate appropriate patterns in response to the user instructions.
+1. Only return valid JSON response, without \`\`\`json prefix and \`\`\`suffix.
+2. Do not return any other comments or instructions before or after the JSON.
 `;
 
 export const FlowExecInstructions = `The following is the textual representation of a flowchart. 

@@ -3,27 +3,31 @@
 import { isString } from '../util.js';
 
 export function parseJsonIR(json: any): string[] {
-  const obj = isString(json) ? JSON.parse(json) : json;
-  const wf: any | undefined = obj.workflow;
-  if (wf && !wf.event) {
-    throw new Error('workflow name not specified in generated JSON');
-  }
-  const pObjs: any[] | undefined = wf?.patterns || obj.patterns;
-  if (pObjs === undefined) {
-    throw new Error('No patterns found in generated JSON');
-  }
-  const pats = pObjs.map((patObj: any) => {
-    return parsePattern(patObj);
-  });
+  try {
+    const obj = isString(json) ? JSON.parse(json) : json;
+    const wf: any | undefined = obj.workflow;
+    if (wf && !wf.event) {
+      throw new Error('workflow name not specified in generated JSON');
+    }
+    const pObjs: any[] | undefined = wf?.patterns || obj.patterns || [obj];
+    if (pObjs === undefined) {
+      throw new Error('No patterns found in generated JSON');
+    }
+    const pats = pObjs.map((patObj: any) => {
+      return parsePattern(patObj);
+    });
 
-  if (wf === undefined) {
-    return pats;
-  } else {
-    return [
-      `workflow ${wf.event} {
+    if (wf === undefined) {
+      return pats;
+    } else {
+      return [
+        `workflow ${wf.event} {
         ${pats.join(';\n')}
      }`,
-    ];
+      ];
+    }
+  } catch (reason: any) {
+    throw reason;
   }
 }
 
