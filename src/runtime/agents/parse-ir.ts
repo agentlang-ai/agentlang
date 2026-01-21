@@ -2,28 +2,28 @@
 
 import { isString } from '../util.js';
 
-export function workflowFromJson(json: string): string {
-  const obj = JSON.parse(json);
+export function parseJsonIR(json: any): string[] {
+  const obj = isString(json) ? JSON.parse(json) : json;
   const wf: any | undefined = obj.workflow;
   if (wf && !wf.event) {
     throw new Error('workflow name not specified in generated JSON');
   }
   const pObjs: any[] | undefined = wf?.patterns || obj.patterns;
   if (pObjs === undefined) {
-    throw new Error('No patterns found in generater JSON');
+    throw new Error('No patterns found in generated JSON');
   }
-  const pats = pObjs
-    .map((patObj: any) => {
-      return parsePattern(patObj);
-    })
-    .join(';\n');
+  const pats = pObjs.map((patObj: any) => {
+    return parsePattern(patObj);
+  });
 
   if (wf === undefined) {
-    return `[${pats}]`;
+    return pats;
   } else {
-    return `workflow ${wf.event} {
+    return [
+      `workflow ${wf.event} {
         ${pats}
-     }`;
+     }`,
+    ];
   }
 }
 
@@ -72,7 +72,7 @@ function parseQuery(pObj: any): string {
   const n = pObj.query || pObj.delete;
   const where: any = pObj.where;
   let result = '';
-  if (where) {
+  if (where === undefined) {
     result = `{${n}? {`;
   } else {
     result = `{${n} {
@@ -150,7 +150,7 @@ function maybeAddRelationships(pObj: any, result: string): string {
     const s = parsePattern(spec);
     return `${r} ${s}`;
   });
-  return `${result},\n${rels.join(',\n')}}}`;
+  return `${result}},\n${rels.join(',\n')}}`;
 }
 
 function maybeAddInto(pObj: any, result: string): string {
