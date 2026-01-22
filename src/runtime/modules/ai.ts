@@ -50,6 +50,7 @@ import {
   getAgentResponseSchema,
   getAgentScenarios,
   getAgentScratchNames,
+  LearningAgentInstructions as LearnerAgentInstructions,
   newAgentDirective,
   newAgentGlossaryEntry,
   newAgentScenario,
@@ -77,7 +78,7 @@ entity ${LlmEntityName} {
 entity ${AgentEntityName} {
     name String @id,
     moduleName String @default("${CoreAIModuleName}"),
-    type @enum("chat", "planner", "flow-exec") @default("chat"),
+    type @enum("chat", "planner", "flow-exec", "learner") @default("chat"),
     runWorkflows Boolean @default(true),
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
@@ -274,6 +275,10 @@ export class AgentInstance {
 
   isPlanner(): boolean {
     return this.hasModuleTools || this.type == 'planner';
+  }
+
+  isLearner(): boolean {
+    return this.type === 'learner';
   }
 
   isFlowExecutor(): boolean {
@@ -501,10 +506,11 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const chatId = env.getAgentChatId() || agentName;
     let isplnr = this.isPlanner();
     const isflow = !isplnr && this.isFlowExecutor();
+    const islearner = !isflow && !isplnr && this.isLearner();
     if (isplnr && this.withSession) {
       this.withSession = false;
     }
-    if (isflow) {
+    if (isflow || islearner) {
       this.withSession = false;
     }
     if (this.withSession && env.getFlowContext()) {
@@ -529,8 +535,12 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (msgs) {
       try {
         const sysMsg = msgs[0];
-        if (isplnr || isflow) {
-          const s = isplnr ? PlannerInstructions : FlowExecInstructions;
+        if (isplnr || isflow || islearner) {
+          const s = isplnr
+            ? PlannerInstructions
+            : isflow
+              ? FlowExecInstructions
+              : LearnerAgentInstructions;
           const ts = this.toolsAsString();
           const msg = `${s}\n${ts}\n${cachedMsg || (await this.getFullInstructions(env))}`;
           const newSysMsg = systemMessage(msg);

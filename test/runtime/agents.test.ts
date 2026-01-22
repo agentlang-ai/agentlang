@@ -14,11 +14,15 @@ import {
   FlowGraphNode,
   Instance,
   isInstanceOfType,
+  makeInstance,
   newInstanceAttributes,
 } from '../../src/runtime/module.js';
 import { WorkflowDefinition } from '../../src/language/generated/ast.js';
 import { parseWorkflow } from '../../src/language/parser.js';
 import { addWorkflowFromDef } from '../../src/runtime/loader.js';
+import { enableInternalMonitoring } from '../../src/runtime/state.js';
+import { getMonitorsForEvent, Monitor } from '../../src/runtime/monitor.js';
+import { executeEvent } from '../../src/runtime/exec-graph.js';
 
 describe('Agent API', () => {
   test('test01', async () => {
@@ -648,14 +652,14 @@ if (process.env.AL_TEST === 'true') {
         }
         `
       );
-      const m = fetchModule('CarCompany')
-      const g: FlowGraphNode[] | undefined = await m.getFlow('carOrderRequestManager')?.toGraph()
-      assert(g?.length == 2)
-      assert(g[0]?.label == 'analyseCarOrderRequest')
-      assert(g[0]?.next.length == 1)
-      assert(g[0]?.next[0].label == 'classifyOrder')
-      assert(g[1]?.label == 'classifyOrder')
-      assert(g[1]?.next.length == 4)
+      const m = fetchModule('CarCompany');
+      const g: FlowGraphNode[] | undefined = await m.getFlow('carOrderRequestManager')?.toGraph();
+      assert(g?.length == 2);
+      assert(g[0]?.label == 'analyseCarOrderRequest');
+      assert(g[0]?.next.length == 1);
+      assert(g[0]?.next[0].label == 'classifyOrder');
+      assert(g[1]?.label == 'classifyOrder');
+      assert(g[1]?.next.length == 4);
       const k = async (ins: string) => {
         return await parseAndEvaluateStatement(
           `{CarCompany/carOrderRequestManager {message "${ins}"}}`
@@ -678,7 +682,7 @@ if (process.env.AL_TEST === 'true') {
 
   describe('flow-with-patterns', () => {
     test('Agent flow with patterns', async () => {
-      const moduleName = 'erp.test'
+      const moduleName = 'erp.test';
       await doInternModule(
         moduleName,
         `record UserRequest {
@@ -751,10 +755,10 @@ if (process.env.AL_TEST === 'true') {
         {role "You are a user request manager"}
           `
       );
-       const m = fetchModule(moduleName)
-      const g: FlowGraphNode[] | undefined = await m.getFlow('userRequestManager')?.toGraph()
-      assert(g?.length == 3)
-      assert(g[0]?.next.length == 2)
+      const m = fetchModule(moduleName);
+      const g: FlowGraphNode[] | undefined = await m.getFlow('userRequestManager')?.toGraph();
+      assert(g?.length == 3);
+      assert(g[0]?.next.length == 2);
       const k = async (ins: string) => {
         return await parseAndEvaluateStatement(
           `{${moduleName}/userRequestManager {message "${ins}"}}`
@@ -762,24 +766,26 @@ if (process.env.AL_TEST === 'true') {
       };
       await k(`employee Jose with email jose@acme.com`);
       const r1: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/Employee? {}}`);
-      assert(r1.length === 1)
-      assert(isInstanceOfType(r1[0], `${moduleName}/Employee`))
+      assert(r1.length === 1);
+      assert(isInstanceOfType(r1[0], `${moduleName}/Employee`));
       const r2: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/Manager? {}}`);
-      assert(r2.length === 0)
+      assert(r2.length === 0);
       await k(`manager Kiran with email kiran@acme.com`);
       const r3: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/Manager? {}}`);
-      assert(r3.length === 1)
-      assert(isInstanceOfType(r3[0], `${moduleName}/Manager`))
-      const emails: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/EmailMessage? {}}`)
-      assert(emails.length == 2)
+      assert(r3.length === 1);
+      assert(isInstanceOfType(r3[0], `${moduleName}/Manager`));
+      const emails: Instance[] = await parseAndEvaluateStatement(
+        `{${moduleName}/EmailMessage? {}}`
+      );
+      assert(emails.length == 2);
       emails.forEach((email: Instance) => {
-        if (email.lookup('email') === 'jose@acme.com')
-          assert(email.lookup('message') === 'hello')
-        else
-          assert(email.lookup('message') === 'hi')
-      })
-      const s = fetchModule(moduleName).toString()
-      assert(s === `module erp.test
+        if (email.lookup('email') === 'jose@acme.com') assert(email.lookup('message') === 'hello');
+        else assert(email.lookup('message') === 'hi');
+      });
+      const s = fetchModule(moduleName).toString();
+      assert(
+        s ===
+          `module erp.test
 
 record UserRequest
 {
@@ -854,7 +860,75 @@ ManagerCreated --> SendManagerWelcomeEmail
 agent userRequestManager
 {
     role "You are a user request manager"
-}`)
+}`
+      );
+    });
+  });
+
+  describe('learning-agent', () => {
+    test('Dynamically updated agent-knowledgebase', async () => {
+      const moduleName = 'erp.core2';
+      await doInternModule(
+        moduleName,
+        `entity Customer {
+          email Email @id,
+          name String,
+          lastPurchaseAmount Double @default(0.0)
+        }
+
+        entity Deal {
+           id UUID @id @default(uuid()),
+           customer Email,
+           dealOffer Int
+        }
+
+        agent CustomerManager {
+            instruction "Manage customer related requests.",
+            tools [erp.core2]
+        }
+
+        agent CustomerRulesLearner {
+            instruction "Create summaries of customer-management scenarios",
+            type "learner"
+        }`
+      );
+      const c = `${moduleName}/Customer`;
+      const cm = `${moduleName}/CustomerManager`;
+      const callcm = async (msg: string): Promise<any> => {
+        const event = makeInstance(moduleName, 'CustomerManager', newInstanceAttributes().set('message', msg))
+        const r = await executeEvent(event);
+        return r;
+      };
+      const email1 = 'joe@acme.com'
+      const r1 = await callcm(`Create a new customer name Joe J with email ${email1}`);
+      assert(isInstanceOfType(r1, c));
+      const r2: any[] = await callcm(`Update the last purchase of customer ${email1} to 5600.89`)
+      assert(isInstanceOfType(r2[0], c));
+      const r3: Instance[] = await parseAndEvaluateStatement(`{${c} {email? "${email1}"}}`)
+      assert(r3.length === 1)
+      assert(isInstanceOfType(r3[0], c))
+      const lpa = r3[0].lookup('lastPurchaseAmount')
+      assert(Math.round(Number(lpa)) === 5601)
+      enableInternalMonitoring();
+      const dealIns = `Create a deal for ${email1} following the customer-deal-creation rules.`
+      await callcm(dealIns)
+      const m1 = getMonitorsForEvent(cm)
+      const mdata1: any[] = m1.map((m: Monitor) => {
+        return m.asObject()
+      })
+      const rflow: any[] = mdata1[0].flow[1].flow
+      const s = `Agent ${mdata1[0].agent} was provided the instruction '${mdata1[0].flow[0].input}'.
+      The last-purchase-amount of the customer is ${lpa}. But it returned the wrong result: '${JSON.stringify(rflow[rflow.length - 1].finalResult)}'
+      Provide correct instructions based on the following rules (where lpa means last-purchase-amout):
+      if lpa > 5000 then deal-offer = 1000
+      else if lpa > 1000 then deal-offer = 500
+      else deal-offer = 100
+      Also include in the summary that the result of customer lookup must be destructured.`
+      const crl = `${moduleName}/CustomerRulesLearner`
+      const ins1= await parseAndEvaluateStatement(`{${crl} {message \`${s}\`}}`)
+      const d2 = await callcm(`${dealIns}\n${ins1}`)
+      assert(isInstanceOfType(d2, `${moduleName}/Deal`))
+      assert(d2.lookup('dealOffer') === 1000)
     });
   });
 } else {

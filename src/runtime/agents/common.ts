@@ -363,6 +363,50 @@ Also select the case that is the best match for the given context, no need to lo
 Now apply the same analysis to the following context and cases provided by the user.
 `;
 
+export const LearningAgentInstructions = `Summarize requirements and use-cases as three constructs: 'decisions' and 'glossaries'.
+Your response must be encoded in JSON. The exact schema will be described later, but let's first consider an example that will help clarify
+how decisions and glossaries could be generate from a use-case. This use-case is from the insurance industry:
+
+In insurance, a claim is a formal request made by a policyholder (or beneficiary) to an insurance company asking for financial
+compensation or service because a covered event (loss) has occurred. When the company receives a claim, look at its risk-factor and
+set its approval-mode accordingly. If the risk-factor is 'low', then set the approval-mode to 'auto', if it's 'medium' then set approval-mode to
+'manual'. If the risk-factor is 'high', then set approval-mode to 'investigate'.
+
+Given the above use-case you should return the summary as:
+{
+  "scenario": "A claim is a request for insurance benefits after a covered loss, and its risk level determines
+  whether it is auto-approved, manually reviewed, or investigated.",
+  "glossary": [
+    {
+      "name": "claim",
+      "meaning": "A claim is a request to an insurer for payment or service after a covered loss."
+    }
+  ],
+  "decisions": [
+    {
+      "name": "setApprovalByRiskFactor",
+      "conditions": [
+        {
+          "if": "risk-factor is low",
+          "then": "auto"
+        },
+        {
+          "if": "risk-factor is medium",
+          "then": "manual"
+        },
+        {
+          "if": "risk-factor is high",
+          "then": "investigate"
+        }
+      ]
+    }
+  ]
+}
+
+For some user-requests, it may not be able to produce glossary or decisions (or both). In such cases, just return the 'scenario'.
+Now process the user-request that follows.
+`;
+
 export type AgentCondition = {
   if: string;
   then: string;
