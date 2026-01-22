@@ -8,7 +8,8 @@ import * as langium from 'langium';
 
 export const AgentlangTerminals = {
     ID: /(([_a-zA-Z][\w_]*)(\/([_a-zA-Z][\w_]*))?)/,
-    STRING: /("(((\\([\s\S]))|((?!(((\\|")|\r)|\n))[\s\S]*?))|(\r?\n))*")/,
+    QUOTED_STRING: /("(((\\([\s\S]))|((?!(((\\|")|\r)|\n))[\s\S]*?))|(\r?\n))*")/,
+    TICK_QUOTED_STRING: /(`(((\\([\s\S]))|((?!(((\\|`)|\r)|\n))[\s\S]*?))|(\r?\n))*`)/,
     INT: /-?[0-9]+/,
     WS: /\s+/,
     ML_COMMENT: /\/\*[\s\S]*?\*\//,
@@ -170,10 +171,10 @@ export function isFlowStepSpec(item: unknown): item is FlowStepSpec {
     return reflection.isInstance(item, FlowStepSpec);
 }
 
-export type GenericName = string;
+export type GenericName = STRING | string;
 
 export function isGenericName(item: unknown): item is GenericName {
-    return (typeof item === 'string' && (/(([_a-zA-Z][\w_]*)(\/([_a-zA-Z][\w_]*))?)/.test(item) || /("(((\\([\s\S]))|((?!(((\\|")|\r)|\n))[\s\S]*?))|(\r?\n))*")/.test(item)));
+    return isSTRING(item) || (typeof item === 'string' && (/(([_a-zA-Z][\w_]*)(\/([_a-zA-Z][\w_]*))?)/.test(item)));
 }
 
 export type JoinType = '@full_join' | '@inner_join' | '@join' | '@left_join' | '@right_join';
@@ -226,6 +227,12 @@ export type SqlComparisonOpr = '!=' | '<' | '<=' | '<>' | '=' | '>' | '>=' | 'be
 
 export function isSqlComparisonOpr(item: unknown): item is SqlComparisonOpr {
     return item === '=' || item === '<>' || item === '!=' || item === '<' || item === '<=' || item === '>' || item === '>=' || item === 'in' || item === 'like' || item === 'between';
+}
+
+export type STRING = string;
+
+export function isSTRING(item: unknown): item is STRING {
+    return (typeof item === 'string' && (/("(((\\([\s\S]))|((?!(((\\|")|\r)|\n))[\s\S]*?))|(\r?\n))*")/.test(item) || /(`(((\\([\s\S]))|((?!(((\\|`)|\r)|\n))[\s\S]*?))|(\r?\n))*`)/.test(item)));
 }
 
 export type TaggedId = string;
@@ -288,7 +295,7 @@ export interface AgentXtraAttribute extends langium.AstNode {
     readonly $container: AgentXtraSpec;
     readonly $type: 'AgentXtraAttribute' | 'Ref';
     name: string;
-    value: string;
+    value: STRING;
 }
 
 export const AgentXtraAttribute = 'AgentXtraAttribute';
@@ -456,7 +463,7 @@ export function isCompositeUniqueDefinition(item: unknown): item is CompositeUni
 export interface ConditionalFlowStep extends langium.AstNode {
     readonly $container: FlowEntry;
     readonly $type: 'ConditionalFlowStep';
-    expr: string;
+    expr: STRING;
     next: FlowStepSpec;
 }
 
@@ -594,7 +601,7 @@ export interface EnumSpec extends langium.AstNode {
     readonly $container: AttributeDefinition;
     readonly $type: 'EnumSpec';
     type?: QualifiedName;
-    values: Array<string>;
+    values: Array<STRING>;
 }
 
 export const EnumSpec = 'EnumSpec';
@@ -815,7 +822,7 @@ export interface Import extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'Import';
     name: string;
-    path: string;
+    path: STRING;
 }
 
 export const Import = 'Import';
@@ -876,7 +883,7 @@ export interface Literal extends langium.AstNode {
     map?: MapLiteral;
     num?: Decimal;
     ref?: Ref;
-    str?: string;
+    str?: STRING;
 }
 
 export const Literal = 'Literal';
@@ -903,7 +910,7 @@ export interface MapKey extends langium.AstNode {
     readonly $type: 'MapKey';
     bool?: Boolean;
     num?: Decimal;
-    str?: string;
+    str?: STRING;
 }
 
 export const MapKey = 'MapKey';
@@ -1308,7 +1315,7 @@ export function isResolverDefinition(item: unknown): item is ResolverDefinition 
 export interface ResolverFnName extends langium.AstNode {
     readonly $container: ResolverMethodSpec;
     readonly $type: 'ResolverFnName';
-    name: Ref | string;
+    name: Ref | STRING | string;
 }
 
 export const ResolverFnName = 'ResolverFnName';

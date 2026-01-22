@@ -613,7 +613,7 @@ if (process.env.AL_TEST === 'true') {
         }
         
         agent analyseCarOrderRequest {
-          instruction "Analyse the customer request for ordering a car and return the relevant information you are able to figure out",
+          instruction \`Analyse the customer request for "ordering a car" and return the relevant information you are able to figure out\`,
           responseSchema CarOrderRequest
         }
         

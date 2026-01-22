@@ -11,16 +11,6 @@
     {
       "name": "keyword.control.agentlang",
       "match": "\\b(agent|agentlang/retry|allow|and|attempts|await|backoff|between|case|commitTransaction|contains|create|decision|delete|directive|else|entity|error|event|extends|false|flow|for|glossaryEntry|if|import|in|like|module|not|not_found|onSubscription|or|purge|query|read|record|relationship|resolver|return|roles|rollbackTransaction|scenario|startTransaction|subscribe|throw|true|update|upsert|where|workflow)\\b|\\B(@actions|@after|@as|@asc|@async|@before|@catch|@desc|@distinct|@enum|@expr|@from|@full_join|@groupBy|@inner_join|@into|@join|@left_join|@meta|@oneof|@orderBy|@public|@rbac|@ref|@right_join|@then|@upsert|@where|@with_unique)\\b"
-    },
-    {
-      "name": "string.quoted.double.agentlang",
-      "begin": "\"",
-      "end": "\"",
-      "patterns": [
-        {
-          "include": "#string-character-escape"
-        }
-      ]
     }
   ],
   "repository": {
@@ -52,10 +42,6 @@
           "name": "comment.line.agentlang"
         }
       ]
-    },
-    "string-character-escape": {
-      "name": "constant.character.escape.agentlang",
-      "match": "\\\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|u\\{[0-9A-Fa-f]+\\}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.|$)"
     }
   }
 }
