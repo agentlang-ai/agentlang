@@ -337,13 +337,13 @@ entity Session {
   {Role {name? UpdatePermissionAssignment.roleName}} @as [role]
   {Permission {id? UpdatePermissionAssignment.permissionId}} @as [permission]
   if (role and permission) {
-    {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Permission? permission.__path__, Role role.__path__}}
+    {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Permission permission.__path__, Role role.__path__}}
   }
   else if (role) {
     {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Role role.__path__}}
   }
   else if (permission) {
-    {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Permission? permission.__path__}}
+    {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Permission permission.__path__}}
   }
 }
 
