@@ -362,7 +362,7 @@ if (process.env.AL_TEST === 'true') {
       assert(isInstanceOfType(dirInst, 'agentlang.ai/Directive'));
       const scnInst = await parseAndEvaluateStatement(`{agentlang.ai/Scenario {
         agentFqName "GuidedAgent/ga",
-        user "Bibi is a superstar!",
+        user "Aby is a superstar!",
         ai "GuidedAgent/scenario01"
         }}`);
       assert(isInstanceOfType(scnInst, 'agentlang.ai/Scenario'));
@@ -920,8 +920,9 @@ agent userRequestManager
       else deal-offer = 100
       Also include in the summary that the result of customer lookup must be destructured.`
       const crl = `agentlang.ai/agentCorrection`
-      const ins1= await parseAndEvaluateStatement(`{${crl} {agentName "CustomerManager", agentModuleName "${moduleName}", instruction \`${s}\`}}`)
-      const d2 = await callcm(`${dealIns}\n${ins1}`)
+      const ins1: any= await parseAndEvaluateStatement(`{${crl} {agentName "CustomerManager", agentModuleName "${moduleName}", instruction \`${s}\`}}`)
+      assert(ins1.agentCorrection.result.length > 0)
+      const d2 = await callcm(`${dealIns}`)
       assert(isInstanceOfType(d2, `${moduleName}/Deal`))
       assert(d2.lookup('dealOffer') === 1000)
     });

@@ -374,11 +374,11 @@ set its approval-mode accordingly. If the risk-factor is 'low', then set the app
 
 Given the above use-case you should return the summary as:
 {
-  "scenario": "A claim is a request for insurance benefits after a covered loss, and its risk level determines
+  "summary": "A claim is a request for insurance benefits after a covered loss, and its risk level determines
   whether it is auto-approved, manually reviewed, or investigated.",
   "glossary": [
     {
-      "name": "claim",
+      "word": "claim",
       "meaning": "A claim is a request to an insurer for payment or service after a covered loss."
     }
   ],
@@ -403,7 +403,7 @@ Given the above use-case you should return the summary as:
   ]
 }
 
-For some user-requests, it may not be able to produce glossary or decisions (or both). In such cases, just return the 'scenario'.
+For some user-requests, it may not be able to produce glossary or decisions (or both). In such cases, just return the 'summary'.
 Now process the user-request that follows.
 `;
 
@@ -619,3 +619,8 @@ export function getAgentScratchNames(agentFqName: string): Set<string> | undefin
 export function removeAgentScratchNames(agentFqName: string) {
   AgentScratchNames.delete(agentFqName);
 }
+
+export type AgentSummary = {
+  data: string;
+  summary: string;
+};

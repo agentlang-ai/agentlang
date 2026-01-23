@@ -5,6 +5,7 @@ import {
   makeCoreModuleName,
   makeFqName,
   nameToPath,
+  restoreSpecialChars,
   sleepMilliseconds,
   splitFqName,
 } from '../util.js';
@@ -43,6 +44,7 @@ import {
   AgentCondition,
   AgentGlossaryEntry,
   AgentScenario,
+  AgentSummary as AgentCorrectionResult,
   DecisionAgentInstructions,
   FlowExecInstructions,
   getAgentDirectives,
@@ -141,6 +143,13 @@ entity GlossaryEntry {
    synonyms String @optional
 }
 
+entity AgentCorrectionResult {
+   id UUID @id @default(uuid()),
+   agentFqName String @indexed,
+   data String,
+   summary String
+}
+
 event agentCorrection {
     agentName String,
     agentModuleName String,
@@ -151,6 +160,13 @@ workflow agentCorrection {
     await ai.processAgentCorrection(agentCorrection.agentModuleName, agentCorrection.agentName, agentCorrection.instruction)
 }
 `;
+
+enum AgentCacheType {
+  DIRECTIVE,
+  GLOSSARY,
+  SCENARIO,
+  SUMMARY,
+}
 
 export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
@@ -319,7 +335,10 @@ export class AgentInstance {
     let r: AgentCondition[] = [];
     if (result && result.length > 0) {
       r = result.map((inst: Instance) => {
-        return newAgentDirective(inst.lookup('condition'), inst.lookup('consequent'));
+        return newAgentDirective(
+          restoreSpecialChars(inst.lookup('condition')),
+          restoreSpecialChars(inst.lookup('consequent'))
+        );
       });
     }
     return AgentInstance.DirectivesCache.set(fqName, r);
@@ -359,12 +378,31 @@ export class AgentInstance {
       r = result.map((inst: Instance) => {
         return newAgentGlossaryEntry(
           inst.lookup('name'),
-          inst.lookup('meaning'),
+          restoreSpecialChars(inst.lookup('meaning')),
           inst.lookup('synonyms')
         );
       });
     }
     return AgentInstance.GlossaryCache.set(fqName, r);
+  }
+
+  private static SummariesCache = new TtlCache<AgentCorrectionResult[]>(AgentInstance.CACHE_TTL_MS);
+
+  private async getUserDefinedAgentCorrectionResults(
+    fqName: string
+  ): Promise<AgentCorrectionResult[]> {
+    const cached = AgentInstance.SummariesCache.get(fqName);
+    if (cached !== undefined) return cached;
+    const result: Instance[] = await parseAndEvaluateStatement(
+      `{${CoreAIModuleName}/AgentCorrectionResult {agentFqName? "${fqName}"}}`
+    );
+    let r: AgentCorrectionResult[] = [];
+    if (result && result.length > 0) {
+      r = result.map((inst: Instance) => {
+        return { data: inst.lookup('data'), summary: inst.lookup('summary') };
+      });
+    }
+    return AgentInstance.SummariesCache.set(fqName, r);
   }
 
   private static ScenariosCache = new TtlCache<AgentScenario[]>(AgentInstance.CACHE_TTL_MS);
@@ -382,6 +420,23 @@ export class AgentInstance {
       });
     }
     return AgentInstance.ScenariosCache.set(fqName, r);
+  }
+
+  public static ResetCache(fqName: string, type: AgentCacheType) {
+    switch (type) {
+      case AgentCacheType.DIRECTIVE:
+        AgentInstance.DirectivesCache.delete(fqName);
+        break;
+      case AgentCacheType.GLOSSARY:
+        AgentInstance.GlossaryCache.delete(fqName);
+        break;
+      case AgentCacheType.SCENARIO:
+        AgentInstance.ScenariosCache.delete(fqName);
+        break;
+      case AgentCacheType.SUMMARY:
+        AgentInstance.SummariesCache.delete(fqName);
+        break;
+    }
   }
 
   private async getFullInstructions(env: Environment): Promise<string> {
@@ -415,6 +470,15 @@ export class AgentInstance {
         }
       });
       finalInstruction = `${finalInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
+    }
+    const summaries = await this.getUserDefinedAgentCorrectionResults(fqName);
+    if (summaries.length > 0) {
+      const s = summaries
+        .map((sa: AgentCorrectionResult) => {
+          return restoreSpecialChars(sa.summary);
+        })
+        .join('\n');
+      finalInstruction = `${finalInstruction}\nAlso keep in mind the following points:\n\n${s}\n\n`;
     }
     const responseSchema = getAgentResponseSchema(fqName);
     if (responseSchema) {
@@ -959,6 +1023,71 @@ export function trimGeneratedCode(code: string | undefined): string {
   }
 }
 
+async function parseAndInternAgentCorrection(
+  moduleName: string,
+  agentName: string,
+  correction: string,
+  env: Environment
+) {
+  const obj = JSON.parse(trimGeneratedCode(correction));
+  const fqName = makeFqName(moduleName, agentName);
+  if (obj.decisions) {
+    for (let j = 0; j < obj.decisions.length; ++j) {
+      const conds: any[] = obj.decisions[j].conditions;
+      if (conds && conds.length > 0) {
+        AgentInstance.ResetCache(fqName, AgentCacheType.DIRECTIVE);
+        for (let i = 0; i < conds.length; ++i) {
+          const entry: any = conds[i];
+          const cond: string = entry.if;
+          const conseq: string = entry.then;
+          if (cond && conseq) {
+            await parseAndEvaluateStatement(
+              `{${CoreAIModuleName}/Directive {
+  agentFqName "${fqName}",
+  condition "${escapeSpecialChars(cond)}",
+  consequent "${escapeSpecialChars(conseq)}"}}`,
+              env.getActiveUser(),
+              env
+            );
+          } else {
+            throw new Error(
+              `Invalid directive generated - missing 'if' or 'then' in ${correction}`
+            );
+          }
+        }
+      }
+    }
+  }
+  if (obj.glossary) {
+    AgentInstance.ResetCache(fqName, AgentCacheType.GLOSSARY);
+    for (let i = 0; i < obj.glossary.length; ++i) {
+      const word = obj.glossary[i].word;
+      const meaning = obj.glossary[i].meaning;
+      if (word && meaning) {
+        await parseAndEvaluateStatement(
+          `{${CoreAIModuleName}/GlossaryEntry {
+  agentFqName "${fqName}",
+  name "${word}",
+  meaning "${escapeSpecialChars(meaning)}"}}`,
+          env.getActiveUser(),
+          env
+        );
+      }
+    }
+  }
+  AgentInstance.ResetCache(fqName, AgentCacheType.SUMMARY);
+  const summary = obj.summary;
+  delete obj.summary;
+  await parseAndEvaluateStatement(
+    `{${CoreAIModuleName}/AgentCorrectionResult {
+  agentFqName "${fqName}",
+  data "${escapeSpecialChars(JSON.stringify(obj))}",
+  summary "${escapeSpecialChars(summary) || ''}"}}`,
+    env.getActiveUser(),
+    env
+  );
+}
+
 export async function processAgentCorrection(
   moduleName: string,
   agentName: string,
@@ -970,5 +1099,6 @@ export async function processAgentCorrection(
     env.getActiveUser(),
     env
   );
-  return correction;
+  await parseAndInternAgentCorrection(moduleName, agentName, correction, env);
+  return { agentCorrection: { result: correction } };
 }
