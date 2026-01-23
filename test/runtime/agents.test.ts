@@ -885,11 +885,6 @@ agent userRequestManager
         agent CustomerManager {
             instruction "Manage customer related requests.",
             tools [erp.core2]
-        }
-
-        agent CustomerRulesLearner {
-            instruction "Create summaries of customer-management scenarios",
-            type "learner"
         }`
       );
       const c = `${moduleName}/Customer`;
@@ -924,8 +919,8 @@ agent userRequestManager
       else if lpa > 1000 then deal-offer = 500
       else deal-offer = 100
       Also include in the summary that the result of customer lookup must be destructured.`
-      const crl = `${moduleName}/CustomerRulesLearner`
-      const ins1= await parseAndEvaluateStatement(`{${crl} {message \`${s}\`}}`)
+      const crl = `agentlang.ai/agentCorrection`
+      const ins1= await parseAndEvaluateStatement(`{${crl} {agentName "CustomerManager", agentModuleName "${moduleName}", instruction \`${s}\`}}`)
       const d2 = await callcm(`${dealIns}\n${ins1}`)
       assert(isInstanceOfType(d2, `${moduleName}/Deal`))
       assert(d2.lookup('dealOffer') === 1000)

@@ -66,8 +66,11 @@ import { isMonitoringEnabled, TtlCache } from '../state.js';
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
 export const LlmEntityName = 'LLM';
+export const AgentLearnerType = 'learner';
 
 export default `module ${CoreAIModuleName}
+
+import "./modules/ai.js" @as ai
 
 entity ${LlmEntityName} {
     name String @id,
@@ -78,7 +81,7 @@ entity ${LlmEntityName} {
 entity ${AgentEntityName} {
     name String @id,
     moduleName String @default("${CoreAIModuleName}"),
-    type @enum("chat", "planner", "flow-exec", "learner") @default("chat"),
+    type @enum("chat", "planner", "flow-exec", "${AgentLearnerType}") @default("chat"),
     runWorkflows Boolean @default(true),
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
@@ -136,6 +139,16 @@ entity GlossaryEntry {
    name String,
    meaning String,
    synonyms String @optional
+}
+
+event agentCorrection {
+    agentName String,
+    agentModuleName String,
+    instruction String
+}
+
+workflow agentCorrection {
+    await ai.processAgentCorrection(agentCorrection.agentModuleName, agentCorrection.agentName, agentCorrection.instruction)
 }
 `;
 
@@ -944,4 +957,16 @@ export function trimGeneratedCode(code: string | undefined): string {
   } else {
     return '';
   }
+}
+
+export async function processAgentCorrection(
+  moduleName: string,
+  agentName: string,
+  instruction: string,
+  env: Environment
+): Promise<any> {
+  const correction = await parseAndEvaluateStatement(`{${moduleName}/${agentName}_${AgentLearnerType} {message \`${instruction}\`}}`,
+    env.getActiveUser(), env
+  )
+  return correction
 }
