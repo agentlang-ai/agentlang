@@ -101,7 +101,12 @@ import {
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
-import { AgentEntityName, AgentLearnerType, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
+import {
+  AgentEntityName,
+  AgentLearnerType,
+  CoreAIModuleName,
+  LlmEntityName,
+} from './modules/ai.js';
 import { getDefaultLLMService } from './agents/registry.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
@@ -843,10 +848,10 @@ async function addAgentDefinition(
     wf = `{${CoreAIModuleName}/${LlmEntityName} {name "${llmName}", service "${service}"}, @upsert}; ${wf}`;
   }
   if (attrs.get('type') === 'planner' || attrs.get('tools')) {
-    const llmn = llmName || attrs.get('llm')
+    const llmn = llmName || attrs.get('llm');
     wf = `${wf}; {${CoreAIModuleName}/${AgentEntityName}
         {name "${name}_${AgentLearnerType}", moduleName "${moduleName}", llm "${llmn}",
-         type "${AgentLearnerType}", role "You are an agent that summarizes user-provided scenarios."}, @upsert}`
+         type "${AgentLearnerType}", role "You are an agent that summarizes user-provided scenarios."}, @upsert}`;
   }
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
     addStandaloneStatement(stmt, moduleName, false);

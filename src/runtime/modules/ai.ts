@@ -965,8 +965,10 @@ export async function processAgentCorrection(
   instruction: string,
   env: Environment
 ): Promise<any> {
-  const correction = await parseAndEvaluateStatement(`{${moduleName}/${agentName}_${AgentLearnerType} {message \`${instruction}\`}}`,
-    env.getActiveUser(), env
-  )
-  return correction
+  const correction = await parseAndEvaluateStatement(
+    `{${moduleName}/${agentName}_${AgentLearnerType} {message \`${instruction}\`}}`,
+    env.getActiveUser(),
+    env
+  );
+  return correction;
 }
