@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.3](https://github.com/agentlang-ai/agentlang/compare/0.9.2...0.9.3) (2026-01-23)
+
+### Changes
+
+* chore: release 0.9.2 (#548) ([bb77503](https://github.com/agentlang-ai/agentlang/commit/bb775038ef6005d79ed89cad6aef6b1cf578cdd2)) - @github-actions[bot]
+
+---
 ## [0.9.2](https://github.com/agentlang-ai/agentlang/compare/0.9.1...0.9.2) (2026-01-23)
 
 ### Changes
