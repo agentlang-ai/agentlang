@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.2](https://github.com/agentlang-ai/agentlang/compare/0.9.1...0.9.2) (2026-01-23)
+
+### Changes
+
+* auth: fix UpdatePermissionAssignment workflow (#547) ([4a22dfd](https://github.com/agentlang-ai/agentlang/commit/4a22dfd22480f7a34e4c10e3f197185301377be3)) - @muazzam0x48
+* support tick-quoted strings (#543) ([609dde1](https://github.com/agentlang-ai/agentlang/commit/609dde121ed1b4551e4e9dac3adeadabb99275b0)) - @vijayfractl
+
+---
 ## [0.9.1](https://github.com/agentlang-ai/agentlang/compare/0.9.0...0.9.1) (2026-01-21)
 
 ### Changes
