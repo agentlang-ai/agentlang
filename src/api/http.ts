@@ -1051,7 +1051,10 @@ async function handleFileDownload(
       return;
     }
 
-    const filename = req.params.filename;
+    let filename = req.params.filename;
+    if (Array.isArray(filename)) {
+      filename = filename[0];
+    }
 
     if (!filename) {
       res.status(400).send({ error: 'Filename is required' });
@@ -1154,7 +1157,10 @@ async function handleFileDelete(
       return;
     }
 
-    const filename = req.params.filename;
+    let filename = req.params.filename;
+    if (Array.isArray(filename)) {
+      filename = filename[0];
+    }
 
     if (!filename) {
       res.status(400).send({ error: 'Filename is required' });
