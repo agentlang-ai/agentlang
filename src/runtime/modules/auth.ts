@@ -54,7 +54,7 @@ entity User {
     firstName String,
     lastName String,
     profilePicture String @optional,
-    lastLoginTime DateTime @default(now()),
+    lastLoginTime DateTime @optional,
     status @enum("Active", "Invited", "Inactive") @default("Active"),
     @rbac [(allow: [read, delete, update, create], where: auth.user = this.id)],
     @after {delete AfterDeleteUser}
