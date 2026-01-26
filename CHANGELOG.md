@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.4](https://github.com/agentlang-ai/agentlang/compare/0.9.3...0.9.4) (2026-01-26)
+
+### Changes
+
+* make user lastLoginTime optional (#550) ([763cde4](https://github.com/agentlang-ai/agentlang/commit/763cde44bd82d8d44fedded6908ace8031e49db1)) - @muazzam0x48
+
+---
 ## [0.9.3](https://github.com/agentlang-ai/agentlang/compare/0.9.2...0.9.3) (2026-01-23)
 
 ### Changes
