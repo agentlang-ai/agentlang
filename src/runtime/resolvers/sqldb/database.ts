@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import {
   DataSource,
   EntityManager,
@@ -227,7 +228,7 @@ function makeSqliteDataSource(
   const synchronize = needSync();
   //const runMigrations = isRuntimeMode_migration() || isRuntimeMode_undo_migration() || !synchronize;
   return new DataSource({
-    type: 'sqlite',
+    type: 'better-sqlite3',
     database: config?.dbname || mkDbName(),
     synchronize: synchronize,
     entities: entities,

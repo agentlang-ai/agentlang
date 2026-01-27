@@ -418,7 +418,7 @@ export async function loadAppConfig(configDirOrContent: string): Promise<Config>
   } catch (err: any) {
     if (err instanceof z.ZodError) {
       console.log(chalk.red('Config validation failed:'));
-      err.errors.forEach((error: any, index: number) => {
+      err.issues.forEach((error: any, index: number) => {
         console.log(chalk.red(`  ${index + 1}. ${error.path.join('.')}: ${error.message}`));
       });
     } else {
