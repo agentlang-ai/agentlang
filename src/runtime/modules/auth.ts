@@ -54,7 +54,7 @@ entity User {
     firstName String,
     lastName String,
     profilePicture String @optional,
-    lastLoginTime DateTime @default(now()),
+    lastLoginTime DateTime @optional,
     status @enum("Active", "Invited", "Inactive") @default("Active"),
     @rbac [(allow: [read, delete, update, create], where: auth.user = this.id)],
     @after {delete AfterDeleteUser}
@@ -337,13 +337,13 @@ entity Session {
   {Role {name? UpdatePermissionAssignment.roleName}} @as [role]
   {Permission {id? UpdatePermissionAssignment.permissionId}} @as [permission]
   if (role and permission) {
-    {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Permission? permission.__path__, Role role.__path__}}
+    {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Permission permission.__path__, Role role.__path__}}
   }
   else if (role) {
     {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Role role.__path__}}
   }
   else if (permission) {
-    {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Permission? permission.__path__}}
+    {RolePermission {__path__? UpdatePermissionAssignment.rolePermission, Permission permission.__path__}}
   }
 }
 

@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.9.4](https://github.com/agentlang-ai/agentlang/compare/0.9.3...0.9.4) (2026-01-26)
+
+### Changes
+
+* make user lastLoginTime optional (#550) ([763cde4](https://github.com/agentlang-ai/agentlang/commit/763cde44bd82d8d44fedded6908ace8031e49db1)) - @muazzam0x48
+
+---
+## [0.9.3](https://github.com/agentlang-ai/agentlang/compare/0.9.2...0.9.3) (2026-01-23)
+
+### Changes
+
+* chore: release 0.9.2 (#548) ([bb77503](https://github.com/agentlang-ai/agentlang/commit/bb775038ef6005d79ed89cad6aef6b1cf578cdd2)) - @github-actions[bot]
+
+---
+## [0.9.2](https://github.com/agentlang-ai/agentlang/compare/0.9.1...0.9.2) (2026-01-23)
+
+### Changes
+
+* auth: fix UpdatePermissionAssignment workflow (#547) ([4a22dfd](https://github.com/agentlang-ai/agentlang/commit/4a22dfd22480f7a34e4c10e3f197185301377be3)) - @muazzam0x48
+* support tick-quoted strings (#543) ([609dde1](https://github.com/agentlang-ai/agentlang/commit/609dde121ed1b4551e4e9dac3adeadabb99275b0)) - @vijayfractl
+
+---
 ## [0.9.1](https://github.com/agentlang-ai/agentlang/compare/0.9.0...0.9.1) (2026-01-21)
 
 ### Changes
