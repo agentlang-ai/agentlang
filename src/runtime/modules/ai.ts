@@ -1075,6 +1075,23 @@ async function parseAndInternAgentCorrection(
       }
     }
   }
+  if (obj.scenarios) {
+    AgentInstance.ResetCache(fqName, AgentCacheType.SCENARIO);
+    for (let i = 0; i < obj.scenarios.length; ++i) {
+      const user = obj.scenarios[i].user;
+      const ai = obj.scenarios[i].ai;
+      if (user && ai) {
+        await parseAndEvaluateStatement(
+          `{${CoreAIModuleName}/Scenario {
+  agentFqName "${fqName}",
+  user "${escapeSpecialChars(user)}",
+  ai "${escapeSpecialChars(ai)}"}}`,
+          env.getActiveUser(),
+          env
+        );
+      }
+    }
+  }
   AgentInstance.ResetCache(fqName, AgentCacheType.SUMMARY);
   const summary = obj.summary;
   delete obj.summary;

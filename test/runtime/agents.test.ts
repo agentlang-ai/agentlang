@@ -918,7 +918,7 @@ agent userRequestManager
       if lpa > 5000 then deal-offer = 1000
       else if lpa > 1000 then deal-offer = 500
       else deal-offer = 100
-      Also include in the summary that the result of customer lookup must be destructured.`
+      Also include in the summary that the result of customer lookup must be destructured and an update must query teh customer on the email.`
       const crl = `agentlang.ai/agentCorrection`
       const ins1: any= await parseAndEvaluateStatement(`{${crl} {agentName "CustomerManager", agentModuleName "${moduleName}", instruction \`${s}\`}}`)
       assert(ins1.agentCorrection.result.length > 0)
