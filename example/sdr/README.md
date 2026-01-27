@@ -120,7 +120,7 @@ curl -X POST http://localhost:8080/sdr.core/EmailQualificationAgent \
   -d '{"message": {
     "sender": "sam@abc.com",
     "recipients": "contact@acme.com",
-    "subject": "price query",
+    "subject": "enquiry",
     "body": "I would like to see a product walkthrough.",
     "date": "01-Feb-2026",
     "threadId": "123",
@@ -186,6 +186,22 @@ will now be correctly classified as:
   "reason": "Email requests a product walkthrough, indicating a meeting or demo request",
   ...
 }
+```
+
+Another request that should be classified as `business` but gets erroneously classified as `sales`:
+
+```shell
+curl -X POST http://localhost:8080/sdr.core/EmailQualificationAgent \
+  -H 'Content-Type: application/json' \
+  -d '{"message": {"sender": "sam@abc.com", "recipients": "contact@acme.com", "subject": "salesforce integration", "body": "Can your platform integrate with Salesforce?.\n\nThanks,\n Sam", "date": "01-Feb-2026", "threadId": "123", "gmailOwnerEmail": "admin@acme.com", "hubspotOwnerId": "ee223233"}}'
+```
+
+The agentCorrection request that will fix this error:
+
+```shell
+curl -X POST http://localhost:8080/agentlang.ai/agentCorrection \
+  -H 'Content-Type: application/json' \
+  -d '{"agentName": "EmailQualificationAgent", "agentModuleName": "sdr.core", "instruction": "Set category to \"business\" if the email has keywords like: partnership, collaborate, integration, questions, interested, evaluate \n Examples of emails content:\n  - We are interested in learning more about your product\n  - How does your solution handle data exports?\n  - We are evaluating options for our team\n  - Following up on our conversation about the API"}'
 ```
 
 ---
