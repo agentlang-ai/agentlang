@@ -134,3 +134,130 @@ Otherwise:
   - SET needsProcessing = false
   - SET category = unknown
   - SET reason = Does not match sales processing criteria
+
+
+
+Rules for LeadIntelligenceExtractor
+
+
+CRITICAL UNDERSTANDING:
+The Gmail owner {{EmailQualificationResult.gmailOwnerEmail}} is YOUR sales rep, NOT the lead.
+You must find the EXTERNAL contact (the prospect or customer).
+
+STEP 1: Determine who the primary contact is
+
+If {{EmailQualificationResult.sender}} equals {{EmailQualificationResult.gmailOwnerEmail}}:
+  - This is OUTBOUND your sales rep sent email to prospect
+  - Extract primary contact FROM recipients field
+  - If multiple recipients parse the first external email address
+
+If {{EmailQualificationResult.recipients}} contains {{EmailQualificationResult.gmailOwnerEmail}}:
+  - This is INBOUND prospect sent email to your sales rep
+  - Extract primary contact FROM sender field
+
+If BOTH sender and recipients contain {{EmailQualificationResult.gmailOwnerEmail}} (reply-all scenario):
+  - This is a GROUP CONVERSATION
+  - Primary contact is the sender IF sender is not gmailOwnerEmail
+  - Otherwise extract first external recipient from recipients list
+
+VALIDATION: primaryContactEmail must NEVER equal gmailOwnerEmail
+
+EDGE CASES:
+- Multiple recipients: Parse as comma-separated and extract first non-gmailOwner email
+- Malformed email: john.doe@acmecorp.com without name - use john as firstName, doe as lastName from email
+- No name found anywhere: Use first part of email before @ as firstName, empty lastName
+
+STEP 2: Parse email and name from the primary contact
+
+Common email formats you will encounter:
+  - John Doe with email john@company.com extracts to email john@company.com and name John Doe
+  - John Doe angle bracket john@company.com angle bracket extracts same way
+  - Just john@company.com means check signature for name
+  - Multiple recipients comma separated like john@company.com, jane@company.com means take first one
+
+Extract firstName and lastName:
+  - Full name John Doe extracts to firstName John and lastName Doe
+  - Single name John extracts to firstName John and lastName empty string
+  - Email-only john.doe@company.com can extract firstName john and lastName doe from email prefix
+  - If no name in header look in email signature for Best regards John Doe or Thanks John or similar patterns
+
+STEP 3: Determine primary contact role
+
+Analyze email content and titles to assign role:
+
+buyer - Has decision-making and budget authority
+  Look for: CEO, CTO, CFO, VP, Director, \"I will approve\", budget owner
+
+champion - Internal advocate who promotes your solution
+  Look for: let me introduce you, I love this, enthusiastic tone
+
+influencer - Evaluates and recommends but doesn't decide
+  Look for: Manager, Lead, I will recommend, evaluating options
+
+user - Will use product but doesn't make buying decision
+  Look for: Engineer, Analyst, Developer, technical questions
+
+\"unknown\" - Not enough information to determine role
+
+STEP 4: Extract additional contacts
+
+Look for other external contacts (NOT Gmail owner) in:
+  - CC'd people in recipients
+  - Mentions like \"I have included Jane from our team\"
+
+If additional contacts found:
+  - allContactEmails: jane at company dot com comma bob at company dot com (comma-separated)
+  - allContactNames: Jane Smith comma Bob Johnson (comma-separated, same order)
+
+If ONLY one contact:
+  - allContactEmails: empty string
+  - allContactNames: empty string
+
+================================================================================
+SECTION 3: COMPANY EXTRACTION
+================================================================================
+
+PERSONAL EMAIL DOMAINS - Do NOT use these as companies:
+gmail.com, googlemail.com, outlook.com, outlook.live.com, hotmail.com, live.com, msn.com, yahoo.com, yahoo.co.uk, ymail.com, rocketmail.com, fastmail.com, fastmail.fm, hey.com, protonmail.com, proton.me, pm.me, icloud.com, me.com, mac.com, aol.com, mail.com, email.com, gmx.com, zoho.com
+
+Try these strategies IN ORDER until you find company information:
+
+STRATEGY 1: Email Signature with confidence high
+Look at the bottom of {{EmailQualificationResult.body}} for email signature.
+Patterns to find:
+  - John Doe Senior Engineer Acme Corp
+  - John Doe VP of Sales at Acme Corp
+  - Company name on its own line near title
+
+If found in signature:
+  - companyName: Extract the company name like Acme Corp
+  - companyDomain: Try to extract from signature or use primary contact email domain
+  - companyConfidence: high
+
+STRATEGY 2: Business Email Domain with confidence high
+Extract domain from primaryContactEmail.
+Example: john@acmecorp.com has domain acmecorp.com
+
+Check if domain is NOT in personal email list above.
+If it is a business domain:
+  - companyDomain: Use the extracted domain like acmecorp.com
+  - companyName: Convert domain to name like acmecorp.com becomes Acme Corp
+  - companyConfidence: high
+
+STRATEGY 3: Mentioned in Email Body with confidence medium
+Look for company mentions in {{EmailQualificationResult.body}}:
+  - I work at Acme Corp
+  - We are from Acme Corp
+  - Here at Acme Corp
+  - Acme Corp is interested in
+
+If found:
+  - companyName: Extract the mentioned company name
+  - companyDomain: Try to infer or leave empty if unclear
+  - companyConfidence: medium
+
+STRATEGY 4: No Company Found with confidence none
+If primary contact uses personal email like gmail or outlook AND no company found:
+  - companyName: empty string
+  - companyDomain: empty string
+  - companyConfidence: none

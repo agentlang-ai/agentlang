@@ -33,3 +33,32 @@ record EmailQualificationResult {
     retry classifyRetry,
     responseSchema sdr.core/EmailQualificationResult
 }
+
+record LeadIntelligence {
+    primaryContactEmail String,
+    primaryContactFirstName String,
+    primaryContactLastName String,
+    primaryContactRole String @enum("buyer", "user", "influencer", "champion", "unknown") @default("unknown"),
+    allContactEmails String @optional,
+    allContactNames String @optional,
+    companyName String,
+    companyDomain String,
+    companyConfidence String @enum("high", "medium", "low", "none") @default("none"),
+    emailSubject String,
+    emailBody String,
+    emailDate String,
+    emailThreadId String,
+    emailSender String,
+    emailRecipients String,
+    gmailOwnerEmail String,
+    hubspotOwnerId String
+}
+
+@public agent LeadIntelligenceExtractor {
+    llm "sonnet_llm",
+    role "You are an expert at extracting structured lead intelligence from sales emails including contact details, company information, and relationship context.",
+    tools [sdr.core/EmailQualificationResult],
+    instruction "Extract contact and company information from instances of EmailQualificationResult",
+    retry classifyRetry,
+    responseSchema sdr.core/LeadIntelligence
+}
