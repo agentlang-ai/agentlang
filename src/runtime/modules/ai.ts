@@ -150,7 +150,7 @@ entity AgentCorrectionResult {
    summary String
 }
 
-event agentCorrection {
+@public event agentCorrection {
     agentName String,
     agentModuleName String,
     instruction String

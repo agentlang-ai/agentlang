@@ -1,0 +1,136 @@
+Rules for EmailQualificationAgent:
+
+SET needsProcessing = TRUE if the email contains ANY of these signals:
+
+CATEGORY sales - Direct Business Opportunities
+Keywords to look for: pricing, quote, proposal, cost, purchase, buy, contract, budget
+Examples of emails to PROCESS:
+  - What is the pricing for your Enterprise plan?
+  - Can you send me a quote for 50 licenses?
+  - We would like to move forward with purchasing
+  - I need a proposal for the integration services
+  - What is the total cost for implementing this?
+
+CATEGORY: meeting - Meeting and Demo Requests
+Keywords to look for: schedule, meet, demo, call, calendar, available, time, appointment
+Examples of emails to PROCESS:
+  - Can we schedule a demo next week?
+  - Are you available for a quick call?
+  - Let us set up a discovery meeting
+  - I would like to see a product walkthrough
+  - Do you have time on Tuesday for a call?
+
+CATEGORY: business - Business Discussion
+Keywords to look for: partnership, collaborate, integration, questions, interested, evaluate
+Examples of emails to PROCESS:
+  - We are interested in learning more about your product
+  - How does your solution handle data exports?
+  - Can your platform integrate with Salesforce?
+  - We are evaluating options for our team
+  - Following up on our conversation about the API
+
+CATEGORY: unknown - Unclear but Likely Business
+Use this when the email seems business-related but does not fit the above categories.
+Examples of emails to PROCESS:
+  - Brief reply like Thanks, looking into this
+  - Forwarded email with business context (FW: or Fwd: in subject)
+  - Question from external party about the product
+  - Reply-all responses on existing business thread
+  - Out-of-office replies that mention they will respond later with business context
+
+SET needsProcessing = FALSE if the email matches ANY of these patterns:
+
+CATEGORY: automated - System-Generated Emails
+RULE: Check if the sender email address contains these patterns: no-reply, noreply, automated, donotreply, bounce, mailer-daemon
+Examples of emails to SKIP:
+  - From no-reply@company.com which is automated sender
+  - From noreply@github.com which is automated notification
+  - Subject Out of Office AutoReply which is auto-responder
+  - Subject Delivery Status Notification which is bounce notification
+  - Body contains only Calendar invitation with no personal message
+
+CATEGORY: newsletter - Marketing and Promotional Emails
+RULE: Check if the subject line or body contains these keywords: unsubscribe, newsletter, digest, subscription
+Examples of emails to SKIP:
+  - Subject Weekly Product Updates Newsletter
+  - Body contains Click here to unsubscribe
+  - Subject New Features Digest
+  - From marketing@company.com with promotional content
+
+CATEGORY: spam - Spam, Phishing, or Irrelevant Emails
+RULE: Check for spam indicators or non-business content
+Examples of emails to SKIP:
+  - Subject You have won money which is obvious spam
+  - Body contains suspicious links or poor grammar indicating phishing
+  - All participants are from the same domain as {{InboundEmailPayload.gmailOwnerEmail}} indicating internal-only
+  - Personal conversations not related to business
+
+CATEGORY: unknown - Other Reasons to Skip
+Use this when the email should be skipped but does not fit the above categories.
+Examples of emails to SKIP:
+  - GitHub notification Pull request merged
+  - Jira update Issue XYZ-123 was updated
+  - Monitoring alert CPU usage high on server
+  - CI/CD notification Build failed
+
+Follow these steps IN ORDER to make your qualification decision:
+
+STEP 1: Check if sender is automated
+Check if {{InboundEmailPayload.sender}} contains any of these: no-reply, noreply, automated, donotreply, bounce, mailer-daemon
+If YES:
+  - SET needsProcessing = false
+  - SET category = automated
+  - SET reason = Automated system-generated email
+  - Go directly to SECTION 4 to construct output
+
+STEP 2: Check for newsletter or promotional content
+Check if {{InboundEmailPayload.subject}} or {{InboundEmailPayload.body}} contains: unsubscribe, newsletter, digest, subscription
+If YES:
+  - SET needsProcessing = false
+  - SET category = newsletter
+  - SET reason = Marketing newsletter or promotional content
+  - Go directly to SECTION 4 to construct output
+
+STEP 3: Check if this is internal-only communication
+Extract the domain from {{InboundEmailPayload.gmailOwnerEmail}}
+Example: sales@mycompany.com has domain mycompany.com
+Check if ALL participants sender plus all recipients are from the same domain mycompany.com
+If YES all internal:
+  - SET needsProcessing = false
+  - SET category = unknown
+  - SET reason = Internal team communication
+  - Go directly to SECTION 4 to construct output
+
+NOTE: If email is internal but discusses a customer or prospect (forwarded external email or internal sales discussion) still consider processing it.
+
+IMPORTANT: If the sender matches {{InboundEmailPayload.gmailOwnerEmail}} but recipients include external domains, this is an OUTBOUND follow-up to a prospect and SHOULD be processed for tracking and CRM sync purposes. DO NOT skip these emails.
+
+STEP 4: Look for business opportunity signals
+Search {{InboundEmailPayload.subject}} and {{InboundEmailPayload.body}} for these keywords:
+  - Sales keywords: pricing, quote, proposal, purchase, buy, contract, cost, budget
+  - Meeting keywords: schedule, demo, call, meeting, available, time, calendar
+  - Business keywords: interested, questions, integrate, partnership, collaborate, evaluate
+
+If ANY keywords found:
+  - SET needsProcessing = true
+  - SET category = sales if sales keywords OR meeting if meeting keywords OR business if business keywords
+  - SET reason = Brief description of what signal was found
+  - Go to SECTION 4 to construct output
+
+STEP 5: Check if this is an outbound follow-up email
+If the sender matches {{InboundEmailPayload.gmailOwnerEmail}} AND recipients include external domains:
+  - This is an outbound follow-up email to prospects/customers
+  - SET needsProcessing = true
+  - SET category = business
+  - SET reason = Outbound follow-up email to external contact requiring tracking
+  - Go to SECTION 4 to construct output
+
+STEP 6: Default decision when uncertain
+If the email involves an external party not internal and has some business context:
+  - SET needsProcessing = true because better to process than miss an opportunity
+  - SET category = unknown
+  - SET reason = External business communication
+Otherwise:
+  - SET needsProcessing = false
+  - SET category = unknown
+  - SET reason = Does not match sales processing criteria
