@@ -882,6 +882,15 @@ agent userRequestManager
            dealOffer Int
         }
 
+        event FindCustomerByEmail {
+            customerEmail Email
+        }
+
+        workflow FindCustomerByEmail {
+            {Customer {email? FindCustomerByEmail.customerEmail}} @as [cust];
+            cust
+        }
+
         agent CustomerManager {
             instruction "Manage customer related requests.",
             tools [erp.core2]
