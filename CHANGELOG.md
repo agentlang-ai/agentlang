@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.5](https://github.com/agentlang-ai/agentlang/compare/0.9.4...0.9.5) (2026-01-27)
+
+### Changes
+
+* use other than 0000-... as default tennt/admin IDs (#553) ([fd599e3](https://github.com/agentlang-ai/agentlang/commit/fd599e31060e543b4ce8f617d5fe60d2716cf5b7)) - @muazzam0x48
+* package.json: fix deprecated packages and warnings (#552) ([21357ed](https://github.com/agentlang-ai/agentlang/commit/21357edeab1a125a07f70b7ea3346a6496529bed)) - @muazzam0x48
+
+---
 ## [0.9.4](https://github.com/agentlang-ai/agentlang/compare/0.9.3...0.9.4) (2026-01-26)
 
 ### Changes
