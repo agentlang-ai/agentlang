@@ -411,27 +411,27 @@ function asFnCallPattern(fnCall: FnCall): FunctionCallPattern {
 }
 
 function introspectLiteral(lit: Literal): BasePattern {
-  if (lit.id) {
+  if (lit.id !== undefined) {
     return LiteralPattern.Id(lit.id);
-  } else if (lit.num) {
+  } else if (lit.num !== undefined) {
     return LiteralPattern.Number(lit.num);
-  } else if (lit.ref) {
+  } else if (lit.ref !== undefined) {
     return LiteralPattern.Reference(lit.ref);
   } else if (lit.str !== undefined) {
     return LiteralPattern.String(lit.str);
-  } else if (lit.bool) {
+  } else if (lit.bool !== undefined) {
     return LiteralPattern.Boolean(lit.bool == 'true' ? true : false);
-  } else if (lit.fnCall) {
+  } else if (lit.fnCall !== undefined) {
     return asFnCallPattern(lit.fnCall);
-  } else if (lit.asyncFnCall) {
+  } else if (lit.asyncFnCall !== undefined) {
     return asFnCallPattern(lit.asyncFnCall.fnCall).asAsync();
-  } else if (lit.array) {
+  } else if (lit.array !== undefined) {
     return LiteralPattern.Array(
       lit.array.vals.map((stmt: Statement) => {
         return introspectStatement(stmt);
       })
     );
-  } else if (lit.map) {
+  } else if (lit.map !== undefined) {
     return introspectMapLiteral(lit.map);
   } else {
     throw new Error(`Invalid literal - ${lit}`);
