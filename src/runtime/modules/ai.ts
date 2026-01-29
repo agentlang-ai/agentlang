@@ -168,7 +168,7 @@ enum AgentCacheType {
   SUMMARY,
 }
 
-type AgentFilter = {
+type AgentInstructionActivator = {
   provider: AgentServiceProvider;
   userMessage: string;
   agentInstruction: string;
@@ -180,17 +180,18 @@ const MAX_USER_DEFINED_DIRECTIVES = 20;
 const MAX_USER_DEFINED_SCENARIOS = 5;
 const MAX_USER_DEFINED_SUMMARIES = 5;
 
-async function filterUserDefinedAgentLearnings<T>(
+async function activatedUserDefinedAgentLearnings<T>(
   objLabel: string,
   learningObjects: T[],
-  agentFilter: AgentFilter
+  activator: AgentInstructionActivator,
+  maxResults: number
 ): Promise<T[]> {
   const msg = `Consider the following ${objLabel} (in JSON format):
   ${JSON.stringify(learningObjects)}
 
   Return the indices of the ${objLabel} relevant for the following text:
 
-  ${agentFilter.userMessage}
+  ${activator.userMessage}
 
   Return the relevant indices and a JSON array of integers with the index starting at zero (0). Do not return any additional comments
   or text.
@@ -202,42 +203,50 @@ async function filterUserDefinedAgentLearnings<T>(
     )
   );
   msgs.push(new HumanMessage(msg));
-  const response: AIResponse = await agentFilter.provider.invoke(msgs, undefined);
+  const response: AIResponse = await activator.provider.invoke(msgs, undefined);
   const indices: number[] = JSON.parse(trimGeneratedCode(response.content));
   if (indices.length == 0 || indices.length == learningObjects.length) return learningObjects;
   const result = new Array<T>();
-  indices.forEach((i: number) => {
-    result.push(learningObjects[i]);
-  });
+  for (let i = 0; i < indices.length; ++i) {
+    if (i >= maxResults) break;
+    result.push(learningObjects[indices[i]]);
+  }
   return result;
 }
 
-async function filterUserDefinedAgentGlossary(
+async function activatedUserDefinedAgentGlossary(
   gls: AgentGlossaryEntry[],
-  agentFilter: AgentFilter
+  activator: AgentInstructionActivator
 ): Promise<AgentGlossaryEntry[]> {
-  return await filterUserDefinedAgentLearnings<AgentGlossaryEntry>(
+  return await activatedUserDefinedAgentLearnings<AgentGlossaryEntry>(
     'glossary entries',
     gls,
-    agentFilter
+    activator,
+    MAX_USER_DEFINED_GLOSSARY
   );
 }
 
-async function filterUserDefinedAgentScenarios(
+async function activatedUserDefinedAgentScenarios(
   scns: AgentScenario[],
-  agentFilter: AgentFilter
+  activator: AgentInstructionActivator
 ): Promise<AgentScenario[]> {
-  return await filterUserDefinedAgentLearnings<AgentScenario>('scenarios', scns, agentFilter);
+  return await activatedUserDefinedAgentLearnings<AgentScenario>(
+    'scenarios',
+    scns,
+    activator,
+    MAX_USER_DEFINED_SCENARIOS
+  );
 }
 
-async function filterUserDefinedAgentDirectives(
+async function activatedUserDefinedAgentDirectives(
   dirs: AgentCondition[],
-  agentFilter: AgentFilter
+  activator: AgentInstructionActivator
 ): Promise<AgentCondition[]> {
-  return await filterUserDefinedAgentLearnings<AgentCondition>(
+  return await activatedUserDefinedAgentLearnings<AgentCondition>(
     'directives or conditions',
     dirs,
-    agentFilter
+    activator,
+    MAX_USER_DEFINED_DIRECTIVES
   );
 }
 
@@ -417,10 +426,13 @@ export class AgentInstance {
     return AgentInstance.DirectivesCache.set(fqName, r);
   }
 
-  private async directivesAsString(fqName: string, agentFilter: AgentFilter): Promise<string> {
+  private async directivesAsString(
+    fqName: string,
+    activator: AgentInstructionActivator
+  ): Promise<string> {
     let userDirs = await this.getUserDefinedAgentDirectives(fqName);
     if (userDirs.length > MAX_USER_DEFINED_DIRECTIVES)
-      userDirs = await filterUserDefinedAgentDirectives(userDirs, agentFilter);
+      userDirs = await activatedUserDefinedAgentDirectives(userDirs, activator);
     const dirs = getAgentDirectives(fqName) || [];
     const conds = dirs.concat(userDirs);
     if (conds.length > 0) {
@@ -514,14 +526,17 @@ export class AgentInstance {
     }
   }
 
-  private async getFullInstructions(env: Environment, agentFilter: AgentFilter): Promise<string> {
+  private async getFullInstructions(
+    env: Environment,
+    activator: AgentInstructionActivator
+  ): Promise<string> {
     const fqName = this.getFqName();
     const ins = this.role ? `${this.role}\n${this.instruction || ''}` : this.instruction || '';
-    let finalInstruction = `${ins} ${await this.directivesAsString(fqName, agentFilter)}`;
+    let finalInstruction = `${ins} ${await this.directivesAsString(fqName, activator)}`;
     const staticGls = getAgentGlossary(fqName) || [];
     let userGls = await this.getUserDefinedAgentGlossary(fqName);
     if (userGls.length > MAX_USER_DEFINED_GLOSSARY)
-      userGls = await filterUserDefinedAgentGlossary(userGls, agentFilter);
+      userGls = await activatedUserDefinedAgentGlossary(userGls, activator);
     const gls = staticGls.concat(userGls);
     if (gls.length > 0) {
       const glss = new Array<string>();
@@ -536,7 +551,7 @@ export class AgentInstance {
     const staticScns = getAgentScenarios(fqName) || [];
     let userScns = await this.getUserDefinedAgentScenarios(fqName);
     if (userScns.length > MAX_USER_DEFINED_SCENARIOS)
-      userScns = await filterUserDefinedAgentScenarios(userScns, agentFilter);
+      userScns = await activatedUserDefinedAgentScenarios(userScns, activator);
     const scenarios = staticScns.concat(userScns);
     if (scenarios.length > 0) {
       const scs = new Array<string>();
@@ -556,7 +571,12 @@ export class AgentInstance {
         return restoreSpecialChars(sa.summary);
       });
       if (s.length > MAX_USER_DEFINED_SUMMARIES)
-        s = await filterUserDefinedAgentLearnings<string>('summaries', s, agentFilter);
+        s = await activatedUserDefinedAgentLearnings<string>(
+          'summaries',
+          s,
+          activator,
+          MAX_USER_DEFINED_SUMMARIES
+        );
       finalInstruction = `${finalInstruction}\nAlso keep in mind the following points:\n\n${s.join('\n')}\n\n`;
     }
     const responseSchema = getAgentResponseSchema(fqName);
@@ -682,7 +702,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
     let msgs: BaseMessage[] | undefined;
     let cachedMsg: string | undefined = undefined;
-    const agentFilter: AgentFilter = {
+    const activator: AgentInstructionActivator = {
       provider: p,
       userMessage: message,
       agentInstruction: this.instruction,
@@ -691,7 +711,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      cachedMsg = await this.getFullInstructions(env, agentFilter);
+      cachedMsg = await this.getFullInstructions(env, activator);
       msgs = [systemMessage(cachedMsg || '')];
     }
     if (msgs) {
@@ -704,7 +724,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
               ? FlowExecInstructions
               : LearnerAgentInstructions;
           const ts = this.toolsAsString();
-          const msg = `${s}\n${ts}\n${cachedMsg || (await this.getFullInstructions(env, agentFilter))}`;
+          const msg = `${s}\n${ts}\n${cachedMsg || (await this.getFullInstructions(env, activator))}`;
           const newSysMsg = systemMessage(msg);
           msgs[0] = newSysMsg;
         }
