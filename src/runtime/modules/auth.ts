@@ -959,6 +959,8 @@ export async function userHasPermissions(
     }
     UserRoleCache.set(userId, userRoles);
   }
+  const escalatedRole = env.getEscalatedRole();
+  if (escalatedRole) userRoles.push(escalatedRole);
   if (
     userRoles &&
     userRoles.find((role: string) => {
