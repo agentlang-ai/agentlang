@@ -15,6 +15,7 @@ import {
   parseAndEvaluateStatement,
 } from '../interpreter.js';
 import {
+  AgentEvaluator,
   asJSONSchema,
   Decision,
   fetchModule,
@@ -138,6 +139,14 @@ entity GlossaryEntry {
    name String,
    meaning String,
    synonyms String @optional
+}
+
+entity EvaluationResult {
+  id UUID @id @default(uuid()),
+  agentFqName String @indexed,
+  userRequest String,
+  score Int,
+  summary String
 }
 `;
 
@@ -437,7 +446,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (response) {
       const responseSchema = getAgentResponseSchema(this.getFqName());
       if (responseSchema) {
-        const attrs = JSON.parse(trimGeneratedCode(response));
+        const attrs = JSON.parse(normalizeGeneratedCode(response));
         const parts = nameToPath(responseSchema);
         const moduleName = parts.getModuleName();
         const entryName = parts.getEntryName();
@@ -504,7 +513,11 @@ Only return a pure JSON object with no extra text, annotations etc.`;
 
   private static AgentEvaluators = new Map<string, AgentInstance>();
 
-  public static RegisterEvaluator(agentFqName: string, llm?: string): AgentInstance {
+  public static RegisterEvaluator(e: AgentEvaluator): AgentInstance {
+    const n = e.normalizedName();
+    const agentFqName = isFqName(n) ? n : makeFqName(e.moduleName, n);
+    const instruction = e.instruction;
+    let llm = e.llm;
     const [agentModule, agentName] = splitFqName(agentFqName);
     if (llm === undefined) llm = `${agentName}_llm`;
     const inst = makeInstance(
@@ -514,25 +527,47 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         .set('llm', llm)
         .set('name', agentName)
         .set('moduleName', agentModule)
-        .set('instruction', 'You are an agent that evaluates the performance of another agent.')
+        .set(
+          'instruction',
+          instruction || 'You are an agent that evaluates the performance of another agent.'
+        )
         .set('type', AgentEvalType)
     );
-    const e = AgentInstance.FromInstance(inst).disableSession();
-    this.AgentEvaluators.set(agentFqName, e);
-    return e;
+    const einst = AgentInstance.FromInstance(inst).disableSession();
+    this.AgentEvaluators.set(agentFqName, einst);
+    return einst;
   }
 
   private static async maybeEvaluateResponse(
     agent: AgentInstance,
-    request: string,
+    userRequest: string,
+    fullRequest: string,
     response: string,
     env: Environment
   ): Promise<void> {
-    const e: AgentInstance | undefined = AgentInstance.AgentEvaluators.get(agent.getFqName());
+    const fqn = agent.getFqName();
+    const e: AgentInstance | undefined = AgentInstance.AgentEvaluators.get(fqn);
     if (e !== undefined) {
-      await e.invoke(JSON.stringify({ requestToAgent: request, responseFromAgent: response }), env);
-      const r = env.getLastResult();
-      console.log(r);
+      await e.invoke(
+        JSON.stringify({ requestToAgent: fullRequest, responseFromAgent: response }),
+        env
+      );
+      try {
+        const r = JSON.parse(normalizeGeneratedCode(env.getLastResult()));
+        const score = r.score;
+        if (score === undefined || score === null) {
+          logger.warn(`Evaluation for agent ${fqn} failed to generate a valid score`);
+        } else {
+          await parseAndEvaluateStatement(`{${CoreAIModuleName}/EvaluationResult {
+              agentFqName "${fqn}",
+              userRequest "${escapeSpecialChars(userRequest)}",
+              score ${score},
+              summary "${escapeSpecialChars(r.summary)}"
+          }}`);
+        }
+      } catch (reason: any) {
+        logger.warn(`Failed to save evaluation for agent ${fqn} - ${reason}`);
+      }
     }
   }
 
@@ -613,7 +648,13 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           response = await this.handleValidation(response, v, msgs, p);
         }
         if (!iseval)
-          await AgentInstance.maybeEvaluateResponse(this, msgsContent, response.content, env);
+          await AgentInstance.maybeEvaluateResponse(
+            this,
+            message,
+            msgsContent,
+            response.content,
+            env
+          );
         msgs.push(assistantMessage(response.content));
         if (isplnr) {
           msgs[0] = sysMsg;
@@ -650,7 +691,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     validationEventName: string
   ): Promise<Instance> {
     let isstr = true;
-    const content = trimGeneratedCode(response.content);
+    const content = normalizeGeneratedCode(response.content);
     try {
       const c = JSON.parse(content);
       isstr = isString(c);
@@ -964,7 +1005,7 @@ function processScenarioResponse(resp: string): string {
   return resp;
 }
 
-export function trimGeneratedCode(code: string | undefined): string {
+export function normalizeGeneratedCode(code: string | undefined): string {
   if (code !== undefined) {
     let s = code.trim();
     if (s.startsWith('```')) {

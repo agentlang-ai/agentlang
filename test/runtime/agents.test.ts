@@ -19,7 +19,7 @@ import {
 import { WorkflowDefinition } from '../../src/language/generated/ast.js';
 import { parseWorkflow } from '../../src/language/parser.js';
 import { addWorkflowFromDef } from '../../src/runtime/loader.js';
-import { AgentInstance } from '../../src/runtime/modules/ai.js';
+import { CoreAIModuleName } from '../../src/runtime/modules/ai.js';
 
 describe('Agent API', () => {
   test('test01', async () => {
@@ -136,18 +136,22 @@ if (process.env.AL_TEST === 'true') {
           {instruction "Based on the user request, create appropriate patterns based on the SPA module.",
            tools "SPA",
            runWorkflows false}
+
+          evaluator planner01 {}
+
           workflow chat {{planner01 {message chat.msg}}}
+
           agent planner02
           {instruction "Create new instances of Person",
            tools "SPA/Person"}
-          event planner02 {
+
+           event planner02 {
             id Int,
             name String,
             age Int
            }
           `
       );
-      AgentInstance.RegisterEvaluator('SimplePlannerAgent/planner01')
       const rr: Instance = await parseAndEvaluateStatement(
         `{SimplePlannerAgent/planner02 {id 10001, name "kk", age 20}}`
       );
@@ -206,6 +210,15 @@ if (process.env.AL_TEST === 'true') {
       r = await k('Lookup person by id 104');
       assert(r.length == 1);
       chk(r[0], p);
+      const chkers = async (agent: string, n: number) => {
+      const ers: Instance[] = await parseAndEvaluateStatement(`{${CoreAIModuleName}/EvaluationResult {agentFqName? "SimplePlannerAgent/${agent}"}}`)
+      assert(ers.length >= n)
+      assert(ers.every((inst: Instance) => {
+        return inst.lookup('score') === 5
+      }))
+      }
+      await chkers('planner01', 4)
+      await chkers('planner02', 0)
     });
   });
 
@@ -505,7 +518,7 @@ if (process.env.AL_TEST === 'true') {
           `{NetworkProvisioning/networkProvisioningRequestManager {message "${ins}"}}`
         );
       };
-      await k(`User Jake needs a DNS for 192.3.4.5 for jake.blog.com`);
+      await k(`User Jake needs a DNS for 192.3.4.5 with CNAME jake.blog.com`);
       const r1: Instance[] = await parseAndEvaluateStatement(`{NetworkProvisioning/DNSEntry? {}}`);
       assert(r1.length == 1);
       assert(isInstanceOfType(r1[0], 'NetworkProvisioning/DNSEntry'));

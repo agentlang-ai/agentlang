@@ -6,7 +6,7 @@ Import: 'import' path=STRING '@as' name=ID;
 
 Definition: SchemaDefinition | RelationshipDefinition | WorkflowDefinition | PublicWorkflowDefinition | StandaloneStatement 
 | AgentDefinition | PublicAgentDefinition | ResolverDefinition | FlowDefinition | DecisionDefinition | ScenarioDefinition 
-| DirectiveDefinition | GlossaryEntryDefinition | RetryDefinition;
+| DirectiveDefinition | GlossaryEntryDefinition | RetryDefinition | AgentEvaluatorDefinition;
 
 StandaloneStatement: stmt=Statement;
 
@@ -189,6 +189,8 @@ GlossaryEntryDefinition: 'glossaryEntry' name=Ref (body=MapLiteral? | glos=Agent
 RetryDefinition: 'agentlang/retry' name=ID '{' ('attempts' attempts=Decimal)? (',' backoff=BackoffSpec)? '}';
 
 BackoffSpec: 'backoff' '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ '}';
+
+AgentEvaluatorDefinition: 'evaluator' name=ID '{' '}' | '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ '}';
 
 ResolverDefinition: 'resolver' name=QualifiedName '[' (paths+=ResolverPathEntry (',' paths+=ResolverPathEntry)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';

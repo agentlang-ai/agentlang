@@ -86,7 +86,7 @@ import {
   AgentEntityName,
   AgentFqName,
   findAgentByName,
-  trimGeneratedCode,
+  normalizeGeneratedCode,
 } from './modules/ai.js';
 import { logger } from './logger.js';
 import {
@@ -1959,7 +1959,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       let retries = 0;
       while (true) {
         try {
-          let rs: string = result ? trimGeneratedCode(result) : '';
+          let rs: string = result ? normalizeGeneratedCode(result) : '';
           let isWf = rs.startsWith('workflow');
           if (isWf && !agent.runWorkflows) {
             await parseWorkflow(rs);
@@ -2013,7 +2013,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       let retries = 0;
       while (true) {
         try {
-          result = trimGeneratedCode(result);
+          result = normalizeGeneratedCode(result);
           const obj = agent.maybeValidateJsonResponse(result);
           if (obj !== undefined) {
             env.setLastResult(obj);
@@ -2219,7 +2219,7 @@ async function preprocessStep(
   env: Environment
 ): Promise<PreprocStepResult> {
   let needAgentProcessing = true;
-  spec = trimGeneratedCode(spec);
+  spec = normalizeGeneratedCode(spec);
   if (spec.startsWith('{') || spec.indexOf(' ') > 0) {
     const newEnv = Environment.from(env, env.name + '_flow_eval', false, true).setActiveModuleName(
       activeModuleName

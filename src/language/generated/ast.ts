@@ -89,6 +89,7 @@ export type AgentlangKeywordNames =
     | "else"
     | "entity"
     | "error"
+    | "evaluator"
     | "event"
     | "extends"
     | "false"
@@ -174,6 +175,23 @@ export const AgentDefinition = {
 
 export function isAgentDefinition(item: unknown): item is AgentDefinition {
     return reflection.isInstance(item, AgentDefinition.$type);
+}
+
+export interface AgentEvaluatorDefinition extends langium.AstNode {
+    readonly $container: ModuleDefinition;
+    readonly $type: 'AgentEvaluatorDefinition';
+    attributes: Array<SetAttribute>;
+    name?: string;
+}
+
+export const AgentEvaluatorDefinition = {
+    $type: 'AgentEvaluatorDefinition',
+    attributes: 'attributes',
+    name: 'name'
+} as const;
+
+export function isAgentEvaluatorDefinition(item: unknown): item is AgentEvaluatorDefinition {
+    return reflection.isInstance(item, AgentEvaluatorDefinition.$type);
 }
 
 export interface AgentXtraAttribute extends langium.AstNode {
@@ -520,7 +538,7 @@ export function isDecisionDefinition(item: unknown): item is DecisionDefinition 
     return reflection.isInstance(item, DecisionDefinition.$type);
 }
 
-export type Definition = AgentDefinition | DecisionDefinition | DirectiveDefinition | FlowDefinition | GlossaryEntryDefinition | PublicAgentDefinition | PublicWorkflowDefinition | RelationshipDefinition | ResolverDefinition | RetryDefinition | ScenarioDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
+export type Definition = AgentDefinition | AgentEvaluatorDefinition | DecisionDefinition | DirectiveDefinition | FlowDefinition | GlossaryEntryDefinition | PublicAgentDefinition | PublicWorkflowDefinition | RelationshipDefinition | ResolverDefinition | RetryDefinition | ScenarioDefinition | SchemaDefinition | StandaloneStatement | WorkflowDefinition;
 
 export const Definition = {
     $type: 'Definition'
@@ -1788,7 +1806,7 @@ export function isSelectIntoSpec(item: unknown): item is SelectIntoSpec {
 }
 
 export interface SetAttribute extends langium.AstNode {
-    readonly $container: BackoffSpec | CrudMapBody;
+    readonly $container: AgentEvaluatorDefinition | BackoffSpec | CrudMapBody;
     readonly $type: 'SetAttribute';
     aggregate?: AggregateFunctionSpec;
     name: QueryId;
@@ -2010,6 +2028,7 @@ export type AgentlangAstType = {
     ActionEntry: ActionEntry
     AfterTriggerDefinition: AfterTriggerDefinition
     AgentDefinition: AgentDefinition
+    AgentEvaluatorDefinition: AgentEvaluatorDefinition
     AgentXtraAttribute: AgentXtraAttribute
     AgentXtraSpec: AgentXtraSpec
     AggregateFunctionSpec: AggregateFunctionSpec
@@ -2146,6 +2165,19 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 },
                 name: {
                     name: AgentDefinition.name
+                }
+            },
+            superTypes: [Definition.$type]
+        },
+        AgentEvaluatorDefinition: {
+            name: AgentEvaluatorDefinition.$type,
+            properties: {
+                attributes: {
+                    name: AgentEvaluatorDefinition.attributes,
+                    defaultValue: []
+                },
+                name: {
+                    name: AgentEvaluatorDefinition.name
                 }
             },
             superTypes: [Definition.$type]
