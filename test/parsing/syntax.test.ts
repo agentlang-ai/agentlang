@@ -8,7 +8,9 @@ import {
   ForEachPattern,
   IfPattern,
   isCreatePattern,
+  isCrudPattern,
   isExpressionPattern,
+  isIfPattern,
   isLiteralPattern,
   isQueryPattern,
   isQueryUpdatePattern,
@@ -180,7 +182,7 @@ describe('Pattern introspection', () => {
     assert(cp.relationships && cp.relationships.size == 2, 'Failed to parse relationships');
     assert(
       cp.toString() ==
-        '{User {name CreateUser.name},UserProfile {Profile {email CreateUser.email}},UserPost {Post {title "hello, world"}}}',
+      '{User {name CreateUser.name},UserProfile {Profile {email CreateUser.email}},UserPost {Post {title "hello, world"}}}',
       'Failed to regenerate create pattern with relationships'
     );
 
@@ -205,7 +207,7 @@ describe('Pattern introspection', () => {
     assert(fep.alias == 'result', 'Failed to detect for-each alias');
     assert(
       fep.toString() ==
-        'for user in {Blog/User {email? "joe@acme.com"}}{{Blog/Person {name user.name}}} @as result',
+      'for user in {Blog/User {email? "joe@acme.com"}}{{Blog/Person {name user.name}}} @as result',
       'Failed to regenerate for-each'
     );
 
@@ -305,7 +307,7 @@ describe('Relationship and `into` introspection', () => {
     const s = p.toString();
     assert(
       s ==
-        `{Allocation? {},ResourceAllocation {Resource? {},TeamResource {Team {Id? GetTeamAllocations.TeamId}}},@into { Id Allocation.Id,
+      `{Allocation? {},ResourceAllocation {Resource? {},TeamResource {Team {Id? GetTeamAllocations.TeamId}}},@into { Id Allocation.Id,
 Project Allocation.Project,
 ProjectName Allocation.ProjectName,
 Resource Allocation.Resource,
@@ -366,7 +368,7 @@ describe('Pre/Post workflow syntax', () => {
     const s = mod.toString();
     assert(
       s ==
-        `module WfSyntaxGen
+      `module WfSyntaxGen
 
 entity incident
 {
@@ -397,7 +399,7 @@ workflow onIncident {
     const ss = fetchModule(mname).toString();
     assert(
       ss ==
-        `module WfSyntaxGen
+      `module WfSyntaxGen
 
 entity incident
 {
@@ -501,7 +503,7 @@ in the incident's description."
     const s = mod.toString();
     assert(
       s ==
-        `module FlowSyntax
+      `module FlowSyntax
 
 entity manager
 {
@@ -609,7 +611,7 @@ describe('Extra agent attributes', () => {
     const s = m.toString();
     assert(
       s ==
-        `module XtraAgentAttrs
+      `module XtraAgentAttrs
 
 record emp
 {
@@ -652,7 +654,7 @@ describe('toString with extends', () => {
     const s = m.toString();
     assert(
       s ==
-        `module ExtendsToS
+      `module ExtendsToS
 
 record A
 {
@@ -669,7 +671,7 @@ entity B extends A
     const es = (m.getEntry('B') as Record).toString_(true);
     assert(
       es ==
-        `entity B
+      `entity B
 {
     id Int,
     name String,
@@ -711,7 +713,7 @@ describe('agent-xtras-to-string', () => {
     const s = m.toString();
     assert(
       s ===
-        `module StdAloneAgentXtras
+      `module StdAloneAgentXtras
 
 workflow scenario01 {
     {GA/Employee {name? "Jake"}} @as [employee];
@@ -790,7 +792,7 @@ describe('case-generation', () => {
     const s = d.toString();
     assert(
       s ===
-        `decision acceptOrRejectOffer {
+      `decision acceptOrRejectOffer {
       case ("salary is greater than 1000") {
     Accept
   }
@@ -820,7 +822,7 @@ case (salary < 1000) {
     const mods = fetchModule('caseGen').toString();
     assert(
       mods ===
-        `module caseGen
+      `module caseGen
 
 decision acceptOrRejectOffer {
       case ("salary is greater than 1000") {
@@ -855,7 +857,7 @@ describe('directive-generation', () => {
     const s = d.toString();
     assert(
       s ===
-        `directive A.dir01 {
+      `directive A.dir01 {
         if("salary > 1000") {"accept the offer"}
       }`
     );
@@ -867,7 +869,7 @@ describe('directive-generation', () => {
     const ms = fetchModule('dirGen').toString();
     assert(
       ms ===
-        `module dirGen
+      `module dirGen
 
 agent A
 {
@@ -889,7 +891,7 @@ describe('scenario-generation', () => {
     const s1 = scn01.toString();
     assert(
       s1 ===
-        `scenario A.scn01 {
+      `scenario A.scn01 {
     if("salary > 1000") {acme.core/incrementSalary}
 }
 `
@@ -899,7 +901,7 @@ describe('scenario-generation', () => {
     const s2 = scn02.toString();
     assert(
       s2 ===
-        `scenario A.scn02 {
+      `scenario A.scn02 {
     if("") {}
 }
 `
@@ -913,7 +915,7 @@ describe('scenario-generation', () => {
     const ms = fetchModule('dirGen').toString();
     assert(
       ms ===
-        `module dirGen
+      `module dirGen
 
 agent A
 {
@@ -1112,7 +1114,7 @@ describe('import-syntax', () => {
     const s1 = m.toString();
     assert(
       s1 ===
-        `module ImpSyn
+      `module ImpSyn
 
 import "./modules/core.ts" @as Core
 
@@ -1127,7 +1129,7 @@ entity A
     const s2 = m.toString();
     assert(
       s2 ===
-        `module ImpSyn
+      `module ImpSyn
 
 import "./modules/core.ts" @as Core
 import "./modules/ai.ts" @as AI
@@ -1145,3 +1147,43 @@ entity A
     assert(s1 === s3)
   });
 });
+
+describe("introspect-literal-bug", () => {
+  test("instrospect-literal", async () => {
+    const stmts = [`{hubspot/retrieveCRMData {
+        companyDomain enrichLeadContext.companyDomain,
+        contactEmail enrichLeadContext.contactEmail
+    }} @as crmContext;`,
+      `{ConversationThread {threadId? enrichLeadContext.threadId}} @as threadStates;`,
+      `if (threadStates.length > 0) {
+            threadStates @as [ts];
+    {EnrichedLeadContext {
+            existingCompanyId crmContext.existingCompanyId,
+            existingCompanyName crmContext.existingCompanyName,
+            existingContactId crmContext.existingContactId,
+            hasCompany crmContext.hasCompany,
+            hasContact crmContext.hasContact,
+            threadStateExists threadStates.length > 0,
+            threadStateLeadStage ts.leadStage,
+            threadStateEmailCount ts.emailCount
+        }}
+    } else {
+                {EnrichedLeadContext {
+            existingCompanyId crmContext.existingCompanyId,
+            existingCompanyName crmContext.existingCompanyName,
+            existingContactId crmContext.existingContactId,
+            hasCompany crmContext.hasCompany,
+            hasContact crmContext.hasContact,
+            threadStateExists threadStates.length > 0,
+            threadStateLeadStage "NEW",
+            threadStateEmailCount 0
+        }}
+    }`]
+    let r = await introspect(stmts[0])
+    assert(isCreatePattern(r[0]))
+    r = await introspect(stmts[1])
+    assert(isCrudPattern(r[0]))
+    r = await introspect(stmts[2])
+    assert(isIfPattern(r[0]))
+  })
+})
