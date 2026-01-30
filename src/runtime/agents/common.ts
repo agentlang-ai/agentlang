@@ -2,10 +2,9 @@ import { IfPattern, LiteralPattern } from '../../language/syntax.js';
 import { trimQuotes } from '../util.js';
 
 export const PlannerInstructions = `Agentlang is a very-high-level declarative language that makes it easy to define business applications as 'models'.
-The model of a business application consists of entity definitions and workflows defined in "modules". 
-A module is be encoded in a syntax inspired by JavaScript and JSON. Example of a simple module follows:
+The model of a business application consists of entity definitions and workflows defined in "modules". A module is encoded in a syntax inspired by JavaScript and JSON. Example of a simple module follows:
 
-module Erp
+module erp
 
 entity Employee {
    employeeId UUID @id @default(uuid()),
@@ -15,10 +14,9 @@ entity Employee {
    email Email @indexed
 }
 
-The Empoyee entity is part of the "Erp" module and it has four attributes: 'employeeId', 'firstName', 'lastName', 'salary' and 'email'. 
-The 'employeeId' attribute uniquely identifies an instance of the Employee entity and it's automatically filled-in by the system by calling the "uuid()" function. 
-In the place of the keyword 'entity', the keyword 'record' may also be used. The difference between an entity and a record is that, 
-instances of an entity is persisted to the database, instances of records are not.
+The Employee entity is part of the "erp" module and it has four attributes: 'employeeId', 'firstName', 'lastName', 'salary' and 'email'.
+The 'employeeId' attribute uniquely identifies an instance of the Employee entity and it's automatically filled-in by the system by calling the "uuid()" function.
+Instead of the keyword 'entity', the keyword 'record' may also be used. The difference between an entity and a record is that -- instances of an entity is persisted to the database, instances of records are not.
 
 This is an example of a record:
 
@@ -29,45 +27,141 @@ record EmailMessage {
     body String
 }
 
-Another major construct in Agentlang is the 'workflow'. Workflows contains JSON "patterns" that perform CRUD operations on entities. 
+Another major construct in Agentlang is the 'workflow'. Workflows contain "patterns" expressed in JSON format that encode CRUD operations on entities.
 For example, here's is a workflow that creates a new instance of the Employee entity:
 
-workflow CreateEmployee {
-    {Erp/Employee {firstName CreateEmployee.firstName,
-                   lastName CreateEmployee.lastName,
-                   salary CreateEmployee.salary,
-                   email CreateEmployee.email}}
+{
+  "workflow": {
+    "event": "erp/createEmployee",
+    "patterns": [
+      {
+        "create": "erp/Employee",
+        "with": {
+          "firstName": {
+            "ref": "erp/createEmployee.firstName"
+          },
+          "lastName": {
+            "ref": "erp/createEmployee.lastName"
+          },
+          "salary": {
+            "ref": "erp/createEmployee.salary"
+          },
+          "email": {
+            "ref": "erp/createEmployee.email"
+          }
+        }
+      }
+    ]
+  }
 }
 
-The attribute-values of the new Employee are derived from the "event" that triggers the workflow. In this example the event is called "CreateEmployee".
+The attribute-values of the new Employee are derived from the "event" that triggers the workflow. In this example the event is called "createEmployee".
 An event need not have an explicit schema, because its attributes can always be inferred from the workflow definition. But a model may also contain
 explicit definitions of events, as follows,
 
-event CreateEmployee {
+event createEmployee {
    firstName String,
    lastName String,
    salary Number,
    email Email
 }
 
-A workflow attached to an event is invoked by creating an instance of the event, e.g:
+A workflow attached to an event is invoked by creating an instance of the event, as shown in the following pattern encoded in JSON format:
 
-{Erp/CreateEmployee {firstName "Sam", lastName "K", salary 1400, email "samk@acme.com"}}
+{
+  "create": "erp/createEmployee",
+  "with": {
+    "firstName": {
+      "val": "Sam"
+    },
+    "lastName": {
+      "val": "K"
+    },
+    "salary": {
+      "val": 1400
+    },
+    "email": {
+      "val": "samk@acme.com"
+    }
+  }
+}
 
 This means a workflow can be invoked from another workflow, simply by having the event-creation pattern.
 
-Other than the create-pattern for entities and events, some of the most useful patterns (related to entities) that can appear in a workflow are:
-1. Query - e.g: '{Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"}}'. The attributes by which the query happens must end with a '?' character.
-   To lookup all instances of an entity, use the syntax: '{EntityName?: {}}'.
-2. Update - e.g: '{Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24", firstName "Joe"}}'. This pattern updates the firstName of the employee
-   with the given employeeId.
-3. Upsert - e.g: '{Erp/Employee {employeeId "56392e13-0d9a-42f7-b556-0d7cd9468a24", firstName "Joe"}, @upsert}'. The 'upsert' pattern will create a new
-   instance, if the instance does not already exist.
-4. Delete - e.g: 'delete {Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"}}'
+As you might have noticed, a CRUD JSON pattern can have two types of attribute values - references (denoted by 'ref') and literal values (denoted by 'val').
+References makes sense only within a workflow, where you want to refer to the attributes of the workflow-event or some other instance available within
+the workflow's context. When a standalone pattern needs to be generated, always provide attribute values as literal, i.e a string, number or boolean value
+attached to the 'val' keyword in an object. Another option is the "expr" attribute, where a string that contains an arithmetic or logical expresion is
+specified as the value for the attribute.
 
-The default query operator is equals. So an expression like 'employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"' means,
-'where employeeId equals "56392e13-0d9a-42f7-b556-0d7cd9468a24"'. Other comparison operators has to be specified explicitly, as in
-'{age?< 50}' - which means 'where age less-than 50'. The comparison operators supported by a query pattern are:
+A pattern that can be used to query all instances of an entity is shown below:
+
+{
+  "query": "erp/Employee"
+}
+
+Instances may be queried by conditions applied to attributes, some examples are:
+
+{
+  "query": "erp/Employee",
+  "where": {
+    "email": {
+      "=": {"val": "samk@acme.com"}
+    }
+  }
+}
+
+{
+  "query": "erp/Employee",
+  "where": {
+    "salary": {
+      ">": {"val": 5000}
+    }
+  }
+}
+
+To select an employee with a given email and salary:
+
+{
+  "query": "erp/Employee",
+  "where": {
+      "email": {
+        "=": {"val": "samk@acme.com"}
+      },
+      "salary": {
+        "=": {"val": 7800}
+      }
+  }
+}
+
+The following pattern shows how to update instances based on a condition:
+
+{
+  "update": "erp/Employee",
+  "set": {
+    "salary": {
+      "expr": "salary + salary * 0.5"
+    }
+  },
+  "where": {
+    "email": {
+      "=": {"val": "samk@acme.com"}
+    }
+  }
+}
+
+Deleting an instance:
+
+{
+  "delete": "erp/Employee",
+  "where": {
+    "email": {
+      "=": {"val": "samk@acme.com"}
+    }
+  }
+}
+
+The default query operator is equals ('='). Other comparison operators supported by a query pattern are:
 
 !=        - not-equals
 <         - less-than
@@ -75,113 +169,41 @@ The default query operator is equals. So an expression like 'employeeId? "56392e
 >         - greater-than
 >=        - greater-than or equals
 in        - membership check (argument must be an array)
-like      - string-ends-with?
+like      - search for a specified pattern in a attributes's text data
 between   - between given values (argument must be an array)
 
-Two comparison expressions can be combined together by the logical operators 'or' and 'and'. The comparison and logical expressions produce a boolean
-result, represented by 'true' or 'false'. A boolean value can be inversed by using the 'not' expression, e.g: 'not(some-value)'
+Simple aggregate functions can be specified in queries, some examples are:
 
-In addition to the basic CRUD patterns, you can execute conditional-logic with the help of the 'if' pattern. An example follows,
-
-workflow IncrementSalary {
-    if (IncrementSalary.percentage > 10) {
-        {Erp/Employee {employeeId IncrementSalary.employeeId, salary salary + salary * IncrementSalary.percentage}}
-    } else {
-        {Erp/Employee {employeeId IncrementSalary.employeeId, salary salary + 1500}}
+{
+  "query": "erp/Employee",
+  "where": {
+    "salary": {
+      "<=": {
+        "val": 2000
+      }
+    },
+    "into": {
+      "employeeCount": {
+        "count": {
+          "ref": "erp/Employee.employeeId"
+        }
+      }
     }
+  }
 }
 
-Note the value passed to the 'salary' attribute - it's an arithmetic expression. All normal arithmetic expressions are supported by workflow patterns.
+The supported aggregate functions are: 'count', 'max', 'min', 'sum' and 'avg'.
 
-Another example of the 'if' pattern:
-
-workflow validateLicense {
-    {checkLicenseNumber {number validateLicense.number}} @as response;
-    if (response == "ok") {
-        {license {number? validateLicense.number, status "active"}}
-    } else {
-        {license {number? validateLicense.number, status "canceled"}}
-    }
-}
-
-Also note the use of the '@as' keyword - this binds the result of a pattern to an 'alias'.
-
-A successful query pattern will return an array of instances. The 'for' pattern can be used to iterate over an array. An example follows:
-
-workflow NotifyEmployees {
-    {Erp/Employee {salary?> 1000}} @as employees;
-    for emp in employees {
-        {Erp/SendMail {email emp.email, body "You are selected for an increment!"}}
-    }
-}
-
-Here the result of the query is bound to the alias named 'employees'. Any pattern can have an alias, including 'if' and 'for'. An alias can be used to refer to the attributes of the instance, 
-via the dot(.) notation. Aliases can also be used to destructure a query result - here's an example:
-
-workflow FindFirstTwoEmployees {
-    {Erp/Employee {salary?> 1000}} @as [emp1, emp2];
-    [emp1, emp2]
-}
-
-This alias will bind the first two instances to 'a' and 'b' and the rest of the instances to an array named 'xs':
-
-{SomeEntity {id?> 1}} @as [a, b, _, xs]
-
-Examples of binding aliases to 'if' and 'for':
-
-if (IncrementSalary.percentage > 10) {
-    {Erp/Employee {employeeId IncrementSalary.employeeId, salary salary + salary * IncrementSalary.percentage}}
-} else {
-    {Erp/Employee {employeeId IncrementSalary.employeeId, salary salary + 1500}}
-} @as emp
-
-for emp in employees {
-    {Erp/SendMail {email emp.email, body "You are selected for an increment!"}}
-} @as emails
-
-Make sure all references based on a preceding pattern is based either on an actual alias or the name of the workflow. For example, the following sequence of patterns
-are invalid, because the alias 'employee' is not defined:
-
-{Employee {id? 101}};
-{SendEmail {to employee.email, body "hello"}}
-
-A fix for the reference-error is shown below:
-
-{Employee {id? 101}} @as [employee];
-{SendEmail {to employee.email, body "hello"}}
-
-Note that the alias for the query is '[employee]' so that the resultset is destructured to select exactly one instance of Employee 
-selected into the reference. You must follow this pattern if your goal is to select exactly a single instance.
-
-Keep in mind that the only valid syntax for the 'if' condition is:
-
-if (<expr>) {
-    <patterns>
-} else if (<expr>) {
-    <patterns>
-} else {
-    <patterns>
-}
-
-The following usage is NOT valid:
-
-<pattern> if (<expr>)
-
-A pattern may execute asynchronously and its eventual result can be handled by patterns provided in the '@then' clause. An example is shown below:
-
-{sendChatMessage {to "amy", "text" "hello"}} @as response @then {
-    {saveResponse {from "amy", "text" response}}
-}
-
-If you are instructed that a particular event will be called asynchronously, always provide the patterns that follows in its '@then' clause. You must add the 
-'@then' clause only if an event's documentation or instruction explicitly requires to do so.
+Aggregate usage rule: Use count, sum, avg, min, max only when the user explicitly asks for totals, statistics, or summaries. Do not introduce aggregates implicitly.
+Aggregate query results MUST be bound using 'as' (described later) or 'into'.
 
 Entities in a module can be connected together in relationships. There are two types of relationships - 'contains' and 'between'.
-'Contains' relationship is for hierarchical data, as in a Library entity containing Books. 'Between' relationship is for graph-like data,
-like two Profiles in a social media app is connected as friends. A 'between' relationship can be one of the following three types - 'one_one' (one-to-one),
-'one_many' (one-to-many) and 'many_many' (many-to-many), which is the default.
+'contains' relationship is for hierarchical data, as in a 'Library' entity containing 'Books'. 'between' relationship is for graph-like data,
+like two 'Profiles' in a social media app is connected as friends. A 'between' relationship can be one of the following three types - 'one_one' (one-to-one),
+'one_many' (one-to-many) and 'many_many' (many-to-many). 'many_many' is the default.
 
-The following example shows how additional profile data for an employee could be defined as a new entity and attached to the Employee entity as a between-relationship:
+The following example shows how additional profile data for an employee could be defined as a new entity and attached to the 'Employee' entity as a between-relationship:
+
 
 entity Profile {
     id UUID @id @default(uuid()),
@@ -190,28 +212,122 @@ entity Profile {
     dateOfBirth DateTime @optional
 }
 
-relationship EmployeeProfile between (Erp/Employee, Erp/Profile) @one_one
+relationship EmployeeProfile between (erp/Employee, erp/Profile) @one_one
 
-The '@one_one' annotation means exactly one Employee and Profile can be related to each other via 'EmployeeProfile'.
 
-Here's the 'CreateEmployee' workflow updated to create the Employee with the his/her Profile attached:
+The '@one_one' annotation means exactly one 'Employee' and 'Profile' can be related to each other via 'EmployeeProfile'.
 
-workflow CreateEmployee {
-    {Erp/Employee {firstName CreateEmployee.firstName,
-                   lastName CreateEmployee.lastName,
-                   salary CreateEmployee.salary,
-                   email CreateEmployee.email},
-     Erp/EmployeeProfile {Erp/Profile {address CreateEmployee.address,
-                                       photo CreateEmployee.photo,
-                                       dateOfBirth CreateEmployee.dateOfBirth}}}
+Here's the 'createEmployee' workflow updated to create the 'Employee' with the his/her 'Profile' attached:
+
+{
+  "workflow": {
+    "event": "erp/createEmployee",
+    "patterns": [
+      {
+        "create": "erp/Employee",
+        "with": {
+          "firstName": {
+            "ref": "erp/createEmployee.firstName"
+          },
+          "lastName": {
+            "ref": "erp/createEmployee.lastName"
+          },
+          "salary": {
+            "ref": "erp/createEmployee.salary"
+          },
+          "email": {
+            "ref": "erp/createEmployee.email"
+          }
+        },
+        "links": [
+          {
+            "relationship": "erp/EmployeeProfile",
+            "create": "erp/Profile",
+            "with": {
+              "address": {
+                "ref": "erp/createEmployee.address"
+              },
+              "photo": {
+                "ref": "erp/createEmployee.photo"
+              },
+              "dateOfBirth": {
+                "ref": "erp/createEmployee.dateOfBirth"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
 }
 
-The following pattern can be user to query an Employee along with his Profile:
+Pattern to link a new 'Employee' with an existing 'Profile':
 
-{Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"},
- Erp/EmployeeProfile {Erp/Profile? {}}}
+{
+  "create": "erp/Employee",
+  "with": {
+    "firstName": {
+      "val": "Joe"
+    },
+    "lastName": {
+      "val": "J"
+    },
+    "salary": {
+      "val": 4500
+    },
+    "email": {
+      "val": "jj@acme.com"
+    }
+  },
+  "links": [
+    {
+      "relationship": "erp/EmployeeProfile",
+      "query": "erp/Profile",
+      "where": {
+        "id": {
+          "=": {
+            "val": "0b60310b-750e-4df2-9612-fa9704345eff"
+          }
+        }
+      }
+    }
+  ]
+}
 
-As an example of 'contains' relaionships, consider modelling task-assignments for an Employee as folllows:
+To connect an existing instance of 'Employee' with an existing instance of 'Profile':
+
+{
+  "create": "erp/EmployeeProfile",
+  "with": {
+    "Employee": {
+      "val": "56392e13-0d9a-42f7-b556-0d7cd9468a24"
+    },
+    "Profile": {
+      "val": "0b60310b-750e-4df2-9612-fa9704345eff"
+    }
+  }
+}
+
+The following pattern can be used to query an 'Employee' along with his 'Profile':
+
+{
+  "query": "erp/Employee",
+  "where": {
+    "employeeId": {
+      "=": {
+        "val": "56392e13-0d9a-42f7-b556-0d7cd9468a24"
+      }
+    }
+  },
+  "links": [
+    {
+      "relationship": "erp/EmployeeProfile",
+      "query": "erp/Profile"
+    }
+  ]
+}
+
+As an example of 'contains' relationships, consider modelling task-assignments for an 'Employee' as folllows:
 
 entity TaskAssignment {
     id UUID @id @default(uuid()),
@@ -219,37 +335,410 @@ entity TaskAssignment {
     assignmentDate DateTime @default(now())
 }
 
-relationship EmployeeTaskAssignment contains (Erp/Employee, Erp/TaskAssignment)
+relationship EmployeeTaskAssignment contains (erp/Employee, erp/TaskAssignment)
 
 The following workflow shows how to assign a new task to an Employee:
 
-workflow AssignNewTask {
-    {Erp/Employee {employeeId? AssignNewTask.employeeId},
-     Erp/EmployeeTaskAssignment {Erp/TaskAssignment {description AssignNewTask.description}}}
+{
+  "workflow": {
+    "event": "erp/assignNewTask",
+    "patterns": [
+      {
+        "query": "erp/Employee",
+        "where": {
+          "employeeId": {
+            "=": {
+              "ref": "erp/assignNewTask.employeeId"
+            }
+          }
+        },
+        "links": [
+          {
+            "relationship": "erp/EmployeeTaskAssignment",
+            "create": "erp/TaskAssignment",
+            "with": {
+              "description": {
+                "ref": "erp/assignNewTask.description"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
 }
 
 The following workflow queries an Employee along with all his tasks:
 
-workflow GetEmployeeTaskAssignments {
-    {Erp/Employee {employeeId? GetEmployeeTaskAssignments.employeeId},
-     Erp/EmployeeTaskAssignment {Erp/TaskAssignment? {}}}
+{
+  "workflow": {
+    "event": "erp/getEmployeeTaskAssignments",
+    "patterns": [
+      {
+        "query": "erp/Employee",
+        "where": {
+          "employeeId": {
+            "=": {
+              "ref": "erp/getEmployeeTaskAssignments.employeeId"
+            }
+          }
+        },
+        "links": [
+          {
+            "relationship": "erp/EmployeeTaskAssignment",
+            "query": "erp/TaskAssignment"
+          }
+        ]
+      }
+    ]
+  }
 }
+
+This patterns returns the number of tasks under an 'Employee'. The result of the query will be returned in the temporary column named 'taskCount':
+
+{
+  "query": "erp/TaskAssignment",
+  "into": {
+    "taskCount": {
+      "count": {
+        "ref": "erp/TaskAssignment.id"
+      }
+    }
+  },
+  "links": [
+    {
+      "relationship": "erp/EmployeeTaskAssignment",
+      "query": "erp/Employee",
+      "where": {
+        "employeeId": {
+          "=": {
+            "val": "56392e13-0d9a-42f7-b556-0d7cd9468a24"
+          }
+        }
+      }
+    }
+  ]
+}
+
+In addition to the basic CRUD patterns, you can execute conditional-logic with the help of the 'if' pattern. An example follows,
+
+{
+  "workflow": {
+    "event": "erp/incrementSalary",
+    "patterns": [
+      {
+        "if": {
+          "condition": {
+            ">": [
+              {
+                "ref": "erp/incrementSalary.percentage"
+              },
+              {
+                "val": 10
+              }
+            ]
+          },
+          "then": [
+            {
+              "update": "erp/Employee",
+              "set": {
+                "salary": {
+                  "expr": "salary + salary * erp/incrementSalary.percentage"
+                }
+              },
+              "where": {
+                "employeeId": {
+                  "=": "erp/incrementSalary.employeeId"
+                }
+              }
+            }
+          ],
+          "else": [
+            {
+              "update": "erp/Employee",
+              "set": {
+                "salary": {
+                  "expr": "salary + 1500"
+                }
+              },
+              "where": {
+                "employeeId": {
+                  "=": "erp/incrementSalary.employeeId"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+
+Note the value passed to the 'salary' attribute - it's an arithmetic expression. All normal arithmetic expressions are supported by workflow patterns.
+
+Another example of the 'if' pattern:
+
+{
+  "workflow": {
+    "event": "mvd/validateLicense",
+    "patterns": [
+      {
+        "create": "mvd/checkLicenseNumber",
+        "with": {
+          "number": {
+            "ref": "mvd/validateLicense.number"
+          }
+        },
+        "as": "response"
+      },
+      {
+        "if": {
+          "condition": {
+            "=": [
+              {
+                "ref": "response"
+              },
+              {
+                "val": "ok"
+              }
+            ]
+          },
+          "then": [
+            {
+              "val": "active"
+            }
+          ],
+          "else": [
+            {
+              "val": "canceled"
+            }
+          ],
+          "as": "newStatus"
+        }
+      },
+      {
+        "update": "mvd/license",
+        "set": {
+          "status": {
+            "ref": "newStatus"
+          }
+        },
+        "where": {
+          "number": {
+            "=": {
+              "ref": "mvd/validateLicense.number"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+
+Note the use of the 'as' keyword - this binds the result of a pattern to an 'alias', which is the same as a variable in other programming languages.
+
+One more 'if' condition example that demonstartes the use of the logical 'and' and 'or' operators follows. I captures the logic \`if ((role == "manager" or role == "lead") and salary >= 8000) then return true;
+\`:
+
+{
+  "if": {
+    "condition": {
+      "and": [
+        {
+          "or": [
+            {
+              "=": [
+                { "ref": "role" },
+                { "val": "manager" }
+              ]
+            },
+            {
+              "=": [
+                { "ref": "role" },
+                { "val": "lead" }
+              ]
+            }
+          ]
+        },
+        {
+          ">=": [
+            { "ref": "salary" },
+            { "val": 8000 }
+          ]
+        }
+      ]
+    },
+    "then": [
+      { "val": true }
+    ]
+  }
+}
+
+A successful query pattern will return an array of instances. The 'for' pattern can be used to iterate over an array. An example follows:
+
+{
+  "workflow": {
+    "event": "erp/notifyEmployees",
+    "patterns": [
+      {
+        "query": "erp/Employee",
+        "where": {
+          "salary": {
+            ">": {
+              "val": 1000
+            }
+          }
+        },
+        "as": "employees"
+      },
+      {
+        "for": {
+          "each": {
+            "ref": "employees"
+          },
+          "in": "emp",
+          "do": [
+            {
+              "create": "erp/sendMail",
+              "with": {
+                "email": {
+                  "ref": "emp.email"
+                },
+                "body": {
+                  "val": "You are selected for an increment!"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+
+Here the result of the query is bound to the alias named 'employees'. Any pattern can have an alias, including 'if' and 'for'. An alias can be used to refer to the attributes of the instance,
+via the dot(.) notation. Aliases can also be used to destructure a query result - here's an example:
+
+{
+  "query": "erp/Employee",
+  "where": {
+    "salary": {
+      ">": {
+        "val": 1000
+      }
+    }
+  },
+  "as": [
+    "emp1",
+    "emp2"
+  ]
+}
+
+This alias will bind the first two instances to 'a' and 'b' and the rest of the instances to an array named 'xs':
+
+{
+  "query": "someModule/someEntity",
+  "where": {
+    "someIntAttribute": {
+      ">": {
+        "val": 1
+      }
+    }
+  },
+  "as": [
+    "a",
+    "b",
+    "_",
+    "xs"
+  ]
+}
+
+Make sure all references based on a preceding pattern is based either on an actual alias or the name of the workflow. 
+Apply the following rules while deciding how to specify values in a generated pattern:
+
+Value resolution priority (highest to lowest):
+-----------------------------------------------
+1. Literal values that can be resolved from the contex (val)
+2. Aliases created by earlier patterns (ref)
+3. Workflow event references (ref)
+
+Workflow event references MUST only be used if no higher-priority source exists.
+
+Also keep in mind these alias scope rules:
+
+1. An alias is visible only to patterns that appear after it.
+2. Aliases defined inside if.then, if.else, or for.do are not visible outside those blocks unless explicitly bound using as.
+3. Reusing an alias name overwrites the previous binding.
 
 A general rule regarding generating workflows - as much as possible, do not include references to the workflow event in the patterns. Try to
-fill-in values from the available context. For example, if your instruction is "create a workflow to send an email to employee 101 with this message - 
+fill-in values from the available context. For example, if your instruction is "create a workflow to send an email to employee 101 with this message -
 'please call me as soon as possible'", the best workflow to return is:
 
-workflow sendEmail {
-    {employee {id? 101}} @as emp;
-    {email {to emp.email body "please call me as soon as possible"}}
+{
+  "workflow": {
+    "event": "erp/sendEmail",
+    "patterns": [
+      {
+        "query": "erp/Employee",
+        "where": {
+          "id": {
+            "=": {
+              "val": 101
+            }
+          }
+        },
+        "as": [
+          "emp"
+        ]
+      },
+      {
+        "create": "erp/Email",
+        "with": {
+          "to": {
+            "ref": "emp.email"
+          },
+          "body": {
+            "val": "please call me as soon as possible"
+          }
+        }
+      }
+    ]
+  }
 }
 
-because all the information needed is available in the context. If the instruction is "create a workflow to send an email by employee-id with this message - 
+Because all the information needed is available in the context. If the instruction is "create a workflow to send an email by employee-id with this message -
 'please call me as soon as possible'", then you can return:
 
-workflow sendEmail {
-    {employee {id? sendEmail.employeeId}} @as emp;
-    {email {to emp.email body "please call me as soon as possible"}}
+{
+  "workflow": {
+    "event": "erp/sendEmail",
+    "patterns": [
+      {
+        "query": "erp/Employee",
+        "where": {
+          "id": {
+            "=": {
+              "ref": "erp/sendEmail.employeeId"
+            }
+          }
+        },
+        "as": [
+          "emp"
+        ]
+      },
+      {
+        "create": "erp/Email",
+        "with": {
+          "to": {
+            "ref": "emp.email"
+          },
+          "body": {
+            "val": "please call me as soon as possible"
+          }
+        }
+      }
+    ]
+  }
 }
 
 The point is, use the immediate context to fill-in values in generated patterns, as much as possible.
@@ -257,13 +746,114 @@ The point is, use the immediate context to fill-in values in generated patterns,
 Also generate a workflow only if required explicitly by the user or the contextual information is incomplete. Otherwise, just return an array of patterns.
 As an example, if the user request is "send an email to employee 101 with this message - 'please call me as soon as possible'", you must return:
 
-[{employee {id? 101}} @as emp;
- {email {to emp.email, body "please call me as soon as possible"}}]
+{
+  "patterns": [
+    {
+      "query": "erp/Employee",
+      "where": {
+        "id": {
+          "=": {
+            "val": 101
+          }
+        }
+      },
+      "as": [
+        "emp"
+      ]
+    },
+    {
+      "create": "erp/Email",
+      "with": {
+        "to": {
+          "ref": "emp.email"
+        },
+        "body": {
+          "val": "please call me as soon as possible"
+        }
+      }
+    }
+  ]
+}
 
-You MUST separate each pattern in the array with a semi-colon (;)  and never use a comma (,) for this purpose.
+Agentlang also supports OLAP-style queries.
+Example Agentlang model:
 
-Now consider the following module definition and generate appropriate patterns in response to the user instructions. You must return only valid patterns or workflows,
-no other descriptive text or comments are needed.
+
+module olapDemo;
+
+entity SalesFact {
+  id UUID @id @default(uuid()),
+  sale_id Int @indexed,
+  date_id Int,
+  product_id Int,
+  region_id Int,
+  revenue Decimal,
+  quantity Int
+}
+
+entity DateDim {
+    id UUID @id @default(uuid()),
+    date_id Int,
+    year Int,
+    quarter Int,
+    month Int
+}
+
+entity ProductDim {
+  id UUID @id @default(uuid()),
+  product_id Int,
+  category String,
+  product String
+}
+
+entity RegionDim {
+  id UUID @id @default(uuid()),
+  region_id Int,
+  country String,
+  state String,
+  city String
+}
+
+Total revenue by year:
+
+{
+  "query": "olapDemo/SalesFact",
+  "joins": [
+    {
+      "entity": "olapDemo/DateDim",
+      "on": {
+        "date_id": {
+          "=": {
+            "ref": "SalesFact.date_id"
+          }
+        }
+      }
+    }
+  ],
+  "into": {
+    "year": {
+      "ref": "olapDemo/DateDim.year"
+    },
+    "total_revenue": {
+      "sum": {
+        "ref": "olapDemo/SalesFact.revenue"
+      }
+    }
+  },
+  "groupBy": [
+    "olapDemo/DateDim.year"
+  ],
+  "orderByAsc": [
+    "olapDemo/DateDim.year"
+  ]
+}
+
+For ordering the result in descending order, use the 'orderByDesc' key.
+Now consider the following module definition and generate appropriate JSON response in response to the user instructions, keeping the following
+strict rules:
+
+1. Only return valid JSON response, without \`\`\`json prefix and \`\`\`suffix.
+2. Do not return any other comments or instructions before or after the JSON.
 `;
 
 export const FlowExecInstructions = `The following is the textual representation of a flowchart. 

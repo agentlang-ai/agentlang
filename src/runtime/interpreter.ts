@@ -111,6 +111,7 @@ import { isMonitoringEnabled } from './state.js';
 import { Monitor, MonitorEntry } from './monitor.js';
 import { detailedDiff } from 'deep-object-diff';
 import { callMcpTool, mcpClientNameFromToolEvent } from './mcpclient.js';
+import { parseJsonIR } from './agents/parse-ir.js';
 
 export type Result = any;
 
@@ -1959,7 +1960,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       let retries = 0;
       while (true) {
         try {
-          let rs: string = result ? trimGeneratedCode(result) : '';
+          let rs: string = parseJsonIR(result ? trimGeneratedCode(result) : '')[0];
           let isWf = rs.startsWith('workflow');
           if (isWf && !agent.runWorkflows) {
             await parseWorkflow(rs);

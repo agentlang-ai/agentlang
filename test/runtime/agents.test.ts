@@ -19,6 +19,8 @@ import {
 import { WorkflowDefinition } from '../../src/language/generated/ast.js';
 import { parseWorkflow } from '../../src/language/parser.js';
 import { addWorkflowFromDef } from '../../src/runtime/loader.js';
+import { parseJsonIR } from '../../src/runtime/agents/parse-ir.js';
+import { isFqName, splitFqName } from '../../src/runtime/util.js';
 
 describe('Agent API', () => {
   test('test01', async () => {
@@ -189,16 +191,19 @@ if (process.env.AL_TEST === 'true') {
             '(Only define the workflow, no need to define the event. Do not add additional quotes, etc to the workflow definition).'
           );
       const wfs: string = await k(ins);
-      const wf: WorkflowDefinition = await parseWorkflow(wfs);
+      const wf: WorkflowDefinition = await parseWorkflow(parseJsonIR(wfs)[0]);
+      let n = '';
+      if (wf.name) n = isFqName(wf.name) ? splitFqName(wf.name)[1] : wf.name;
+      wf.name = n;
       addWorkflowFromDef(wf, 'SPA');
       let p = { id: 103, name: 'Chole', age: 11 };
       chk(
-        await parseAndEvaluateStatement(`{SPA/${wf.name} {id 103, name "Chole", age 10, X true}}`),
+        await parseAndEvaluateStatement(`{SPA/${n} {id 103, name "Chole", age 10, X true}}`),
         p
       );
       p = { id: 104, name: 'Dew', age: 10 };
       chk(
-        await parseAndEvaluateStatement(`{SPA/${wf.name} {id 104, name "Dew", age 10, X false}}`),
+        await parseAndEvaluateStatement(`{SPA/${n} {id 104, name "Dew", age 10, X false}}`),
         p
       );
       r = await k('Lookup person by id 104');
@@ -648,14 +653,14 @@ if (process.env.AL_TEST === 'true') {
         }
         `
       );
-      const m = fetchModule('CarCompany')
-      const g: FlowGraphNode[] | undefined = await m.getFlow('carOrderRequestManager')?.toGraph()
-      assert(g?.length == 2)
-      assert(g[0]?.label == 'analyseCarOrderRequest')
-      assert(g[0]?.next.length == 1)
-      assert(g[0]?.next[0].label == 'classifyOrder')
-      assert(g[1]?.label == 'classifyOrder')
-      assert(g[1]?.next.length == 4)
+      const m = fetchModule('CarCompany');
+      const g: FlowGraphNode[] | undefined = await m.getFlow('carOrderRequestManager')?.toGraph();
+      assert(g?.length == 2);
+      assert(g[0]?.label == 'analyseCarOrderRequest');
+      assert(g[0]?.next.length == 1);
+      assert(g[0]?.next[0].label == 'classifyOrder');
+      assert(g[1]?.label == 'classifyOrder');
+      assert(g[1]?.next.length == 4);
       const k = async (ins: string) => {
         return await parseAndEvaluateStatement(
           `{CarCompany/carOrderRequestManager {message "${ins}"}}`
@@ -678,7 +683,7 @@ if (process.env.AL_TEST === 'true') {
 
   describe('flow-with-patterns', () => {
     test('Agent flow with patterns', async () => {
-      const moduleName = 'erp.test'
+      const moduleName = 'erp.test';
       await doInternModule(
         moduleName,
         `record UserRequest {
@@ -751,10 +756,10 @@ if (process.env.AL_TEST === 'true') {
         {role "You are a user request manager"}
           `
       );
-       const m = fetchModule(moduleName)
-      const g: FlowGraphNode[] | undefined = await m.getFlow('userRequestManager')?.toGraph()
-      assert(g?.length == 3)
-      assert(g[0]?.next.length == 2)
+      const m = fetchModule(moduleName);
+      const g: FlowGraphNode[] | undefined = await m.getFlow('userRequestManager')?.toGraph();
+      assert(g?.length == 3);
+      assert(g[0]?.next.length == 2);
       const k = async (ins: string) => {
         return await parseAndEvaluateStatement(
           `{${moduleName}/userRequestManager {message "${ins}"}}`
@@ -762,24 +767,26 @@ if (process.env.AL_TEST === 'true') {
       };
       await k(`employee Jose with email jose@acme.com`);
       const r1: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/Employee? {}}`);
-      assert(r1.length === 1)
-      assert(isInstanceOfType(r1[0], `${moduleName}/Employee`))
+      assert(r1.length === 1);
+      assert(isInstanceOfType(r1[0], `${moduleName}/Employee`));
       const r2: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/Manager? {}}`);
-      assert(r2.length === 0)
+      assert(r2.length === 0);
       await k(`manager Kiran with email kiran@acme.com`);
       const r3: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/Manager? {}}`);
-      assert(r3.length === 1)
-      assert(isInstanceOfType(r3[0], `${moduleName}/Manager`))
-      const emails: Instance[] = await parseAndEvaluateStatement(`{${moduleName}/EmailMessage? {}}`)
-      assert(emails.length == 2)
+      assert(r3.length === 1);
+      assert(isInstanceOfType(r3[0], `${moduleName}/Manager`));
+      const emails: Instance[] = await parseAndEvaluateStatement(
+        `{${moduleName}/EmailMessage? {}}`
+      );
+      assert(emails.length == 2);
       emails.forEach((email: Instance) => {
-        if (email.lookup('email') === 'jose@acme.com')
-          assert(email.lookup('message') === 'hello')
-        else
-          assert(email.lookup('message') === 'hi')
-      })
-      const s = fetchModule(moduleName).toString()
-      assert(s === `module erp.test
+        if (email.lookup('email') === 'jose@acme.com') assert(email.lookup('message') === 'hello');
+        else assert(email.lookup('message') === 'hi');
+      });
+      const s = fetchModule(moduleName).toString();
+      assert(
+        s ===
+          `module erp.test
 
 record UserRequest
 {
@@ -854,7 +861,8 @@ ManagerCreated --> SendManagerWelcomeEmail
 agent userRequestManager
 {
     role "You are a user request manager"
-}`)
+}`
+      );
     });
   });
 } else {
