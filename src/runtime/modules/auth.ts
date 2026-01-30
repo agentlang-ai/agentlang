@@ -959,11 +959,15 @@ export async function userHasPermissions(
     }
     UserRoleCache.set(userId, userRoles);
   }
+  let tempRoles = userRoles;
   const escalatedRole = env.getEscalatedRole();
-  if (escalatedRole) userRoles.push(escalatedRole);
+  if (escalatedRole) {
+    tempRoles = userRoles.slice();
+    tempRoles.push(escalatedRole);
+  }
   if (
-    userRoles &&
-    userRoles.find((role: string) => {
+    tempRoles &&
+    tempRoles.find((role: string) => {
       return role === 'admin';
     })
   ) {
@@ -975,9 +979,9 @@ export async function userHasPermissions(
     perms.has(RbacPermissionFlag.UPDATE),
     perms.has(RbacPermissionFlag.DELETE),
   ];
-  if (userRoles !== null) {
-    for (let i = 0; i < userRoles.length; ++i) {
-      const permInsts: RbacPermission[] | undefined = RolePermissionsCache.get(userRoles[i]);
+  if (tempRoles !== null) {
+    for (let i = 0; i < tempRoles.length; ++i) {
+      const permInsts: RbacPermission[] | undefined = RolePermissionsCache.get(tempRoles[i]);
       if (permInsts) {
         if (
           permInsts.find((p: RbacPermission) => {
