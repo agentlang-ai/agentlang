@@ -44,6 +44,7 @@ import {
   AgentGlossaryEntry,
   AgentScenario,
   DecisionAgentInstructions,
+  EvalInstructions,
   FlowExecInstructions,
   getAgentDirectives,
   getAgentGlossary,
@@ -66,6 +67,8 @@ export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
 export const LlmEntityName = 'LLM';
 
+const AgentEvalType = 'eval';
+
 export default `module ${CoreAIModuleName}
 
 entity ${LlmEntityName} {
@@ -77,7 +80,7 @@ entity ${LlmEntityName} {
 entity ${AgentEntityName} {
     name String @id,
     moduleName String @default("${CoreAIModuleName}"),
-    type @enum("chat", "planner", "flow-exec") @default("chat"),
+    type @enum("chat", "planner", "flow-exec", "${AgentEvalType}") @default("chat"),
     runWorkflows Boolean @default(true),
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
@@ -278,6 +281,10 @@ export class AgentInstance {
 
   isFlowExecutor(): boolean {
     return this.type == 'flow-exec';
+  }
+
+  isEvaluator(): boolean {
+    return this.type == AgentEvalType;
   }
 
   markAsDecisionExecutor(): AgentInstance {
@@ -495,13 +502,48 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     return this;
   }
 
+  private static AgentEvaluators = new Map<string, AgentInstance>();
+
+  public static RegisterEvaluator(agentFqName: string, llm?: string): AgentInstance {
+    const [agentModule, agentName] = splitFqName(agentFqName);
+    if (llm === undefined) llm = `${agentName}_llm`;
+    const inst = makeInstance(
+      CoreAIModuleName,
+      AgentEntityName,
+      newInstanceAttributes()
+        .set('llm', llm)
+        .set('name', agentName)
+        .set('moduleName', agentModule)
+        .set('instruction', 'You are an agent that evaluates the performance of another agent.')
+        .set('type', AgentEvalType)
+    );
+    const e = AgentInstance.FromInstance(inst).disableSession();
+    this.AgentEvaluators.set(agentFqName, e);
+    return e;
+  }
+
+  private static async maybeEvaluateResponse(
+    agent: AgentInstance,
+    request: string,
+    response: string,
+    env: Environment
+  ): Promise<void> {
+    const e: AgentInstance | undefined = AgentInstance.AgentEvaluators.get(agent.getFqName());
+    if (e !== undefined) {
+      await e.invoke(JSON.stringify({ requestToAgent: request, responseFromAgent: response }), env);
+      const r = env.getLastResult();
+      console.log(r);
+    }
+  }
+
   async invoke(message: string, env: Environment) {
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
     const chatId = env.getAgentChatId() || agentName;
     let isplnr = this.isPlanner();
     const isflow = !isplnr && this.isFlowExecutor();
-    if (isplnr && this.withSession) {
+    const iseval = !isplnr && !isflow && this.isEvaluator();
+    if ((isplnr || iseval) && this.withSession) {
       this.withSession = false;
     }
     if (isflow) {
@@ -529,8 +571,8 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (msgs) {
       try {
         const sysMsg = msgs[0];
-        if (isplnr || isflow) {
-          const s = isplnr ? PlannerInstructions : FlowExecInstructions;
+        if (isplnr || isflow || iseval) {
+          const s = isplnr ? PlannerInstructions : isflow ? FlowExecInstructions : EvalInstructions;
           const ts = this.toolsAsString();
           const msg = `${s}\n${ts}\n${cachedMsg || (await this.getFullInstructions(env))}`;
           const newSysMsg = systemMessage(msg);
@@ -570,6 +612,8 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         if (v) {
           response = await this.handleValidation(response, v, msgs, p);
         }
+        if (!iseval)
+          await AgentInstance.maybeEvaluateResponse(this, msgsContent, response.content, env);
         msgs.push(assistantMessage(response.content));
         if (isplnr) {
           msgs[0] = sysMsg;

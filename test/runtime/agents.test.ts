@@ -19,6 +19,7 @@ import {
 import { WorkflowDefinition } from '../../src/language/generated/ast.js';
 import { parseWorkflow } from '../../src/language/parser.js';
 import { addWorkflowFromDef } from '../../src/runtime/loader.js';
+import { AgentInstance } from '../../src/runtime/modules/ai.js';
 
 describe('Agent API', () => {
   test('test01', async () => {
@@ -146,6 +147,7 @@ if (process.env.AL_TEST === 'true') {
            }
           `
       );
+      AgentInstance.RegisterEvaluator('SimplePlannerAgent/planner01')
       const rr: Instance = await parseAndEvaluateStatement(
         `{SimplePlannerAgent/planner02 {id 10001, name "kk", age 20}}`
       );
