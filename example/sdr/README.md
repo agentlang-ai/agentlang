@@ -1,8 +1,8 @@
-# Dynamic Agent Training & Correction in Agentlang
+# Dynamic Agent Training & Learning in Agentlang
 
-Agentlang supports **incremental, production-safe training of agents at runtime**. This allows agents to start with minimal instructions, perform useful work immediately, and **continuually improve through targeted corrections**—without redeploying code or retraining the base LLM.
+Agentlang supports **incremental, production-safe training of agents at runtime**. This allows agents to start with minimal instructions, perform useful work immediately, and **continuually improve through targeted learning**—without redeploying code or retraining the base LLM.
 
-This README explains how **agent correction** works using a real-world example: an email qualification agent.
+This README explains how **agent learning** works using a real-world example: an email qualification agent.
 
 ---
 
@@ -12,7 +12,7 @@ In many real systems, it is not feasible to encode every business rule upfront. 
 
 * Agents can start with **simple, high-level instructions**
 * Misclassifications can be **corrected after deployment**
-* Corrections are **persistent and cumulative**
+* Learnings are **persistent and cumulative**
 * Training happens via **explicit, auditable API calls**
 * No model fine-tuning or code changes are required
 
@@ -137,14 +137,14 @@ This is expected for an agent that started with minimal instructions.
 
 ---
 
-## Dynamic Agent Training (Correction)
+## Dynamic Agent Training (Learning)
 
 Agentlang allows you to **correct the agent after observing errors**, by providing **targeted domain instructions**.
 
 ### Training the Agent
 
 ```bash
-curl -X POST http://localhost:8080/agentlang.ai/agentCorrection \
+curl -X POST http://localhost:8080/agentlang.ai/agentLearning \
   -H 'Content-Type: application/json' \
   -d '{
     "agentName": "EmailQualificationAgent",
@@ -161,17 +161,17 @@ Examples of such emails:
 
 ### What This Does
 
-* Adds **persistent correction rules** to the agent
+* Adds **persistent learnings** to the agent
 * Improves future classifications
 * Does not affect unrelated behavior
 * Does not require restarting the agent or server
 
-The **persistent correction rules** are internally represented as agent-specific *directives*, *scenarios* and *glossary-entries*.
+The **persistent learnings** are internally represented as agent-specific *directives*, *scenarios* and *glossary-entries*.
 ---
 
 ## Improved Behavior
 
-After correction, the same request:
+After learning, the same request:
 
 ```json
 "I would like to see a product walkthrough."
@@ -196,10 +196,10 @@ curl -X POST http://localhost:8080/sdr.core/EmailQualificationAgent \
   -d '{"message": {"sender": "sam@abc.com", "recipients": "contact@acme.com", "subject": "salesforce integration", "body": "Can your platform integrate with Salesforce?.\n\nThanks,\n Sam", "date": "01-Feb-2026", "threadId": "123", "gmailOwnerEmail": "admin@acme.com", "hubspotOwnerId": "ee223233"}}'
 ```
 
-The agentCorrection request that will fix this error:
+The agentLearning request that will fix this error:
 
 ```shell
-curl -X POST http://localhost:8080/agentlang.ai/agentCorrection \
+curl -X POST http://localhost:8080/agentlang.ai/agentLearning \
   -H 'Content-Type: application/json' \
   -d '{"agentName": "EmailQualificationAgent", "agentModuleName": "sdr.core", "instruction": "Set category to \"business\" if the email has keywords like: partnership, collaborate, integration, questions, interested, evaluate \n Examples of emails content:\n  - We are interested in learning more about your product\n  - How does your solution handle data exports?\n  - We are evaluating options for our team\n  - Following up on our conversation about the API"}'
 ```
@@ -222,7 +222,7 @@ Misclassifications are expected and useful—they reveal missing domain knowledg
 
 ### 3. Correct, Don’t Rewrite
 
-Corrections:
+Learnings:
 
 * Are additive
 * Are explicit
@@ -252,7 +252,7 @@ Agentlang enables:
 
 * **Live learning**
 * **Fast iteration**
-* **Production-safe corrections**
+* **Production-safe learnings**
 * **Human-in-the-loop refinement**
 
 This makes Agentlang well-suited for:
@@ -269,7 +269,7 @@ This makes Agentlang well-suited for:
 Agentlang agents:
 
 * Start working immediately
-* Improve through corrections
+* Improve through learning
 * Learn continuously
 * Remain auditable and controllable
 
