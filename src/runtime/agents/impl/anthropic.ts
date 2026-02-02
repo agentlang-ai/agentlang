@@ -181,15 +181,15 @@ export class AnthropicProvider implements AgentServiceProvider {
     if (!config) {
       return {
         ...defaultConfig,
-        apiKey: process.env.ANTHROPIC_API_KEY || getLocalEnv('ANTHROPIC_API_KEY'),
+        apiKey: process.env.AGENTLANG_ANTHROPIC_KEY || getLocalEnv('AGENTLANG_ANTHROPIC_KEY'),
       };
     }
 
     const apiKey =
       config.get('apiKey') ||
       config.get('api_key') ||
-      process.env.ANTHROPIC_API_KEY ||
-      getLocalEnv('ANTHROPIC_API_KEY');
+      process.env.AGENTLANG_ANTHROPIC_KEY ||
+      getLocalEnv('AGENTLANG_ANTHROPIC_KEY');
 
     return {
       model: config.get('model') || defaultConfig.model,
@@ -266,7 +266,7 @@ export class AnthropicProvider implements AgentServiceProvider {
   ): Promise<AIResponse> {
     if (!this.config.apiKey) {
       throw new Error(
-        'Anthropic API key is required. Set ANTHROPIC_API_KEY environment variable or use setLocalEnv("ANTHROPIC_API_KEY", key) or provide apiKey in config.'
+        'Anthropic API key is required. Set AGENTLANG_ANTHROPIC_KEY environment variable or use setLocalEnv("AGENTLANG_ANTHROPIC_KEY", key) or provide apiKey in config.'
       );
     }
 

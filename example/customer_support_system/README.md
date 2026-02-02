@@ -183,7 +183,7 @@ Set the following environment variables:
 
 ```bash copy
 export AL_DB_TYPE=postgres
-export OPENAI_API_KEY=<your-openai-api-key>
+export AGENTLANG_OPENAI_KEY=<your-openai-api-key>
 ```
 
 Start the Agentlang runtime:
