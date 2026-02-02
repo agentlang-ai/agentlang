@@ -1,14 +1,13 @@
-import { describe, test, expect, beforeAll } from 'vitest';
+import { beforeAll, describe, expect, test } from 'vitest';
 import { doInternModule } from '../util.js';
-import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
-import { GlobalEnvironment } from '../../src/runtime/interpreter.js';
+import { GlobalEnvironment, parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import { setLocalEnv } from '../../src/runtime/auth/defs.js';
 
 describe('LLM Service Selection', () => {
   beforeAll(() => {
     // Set both API keys to ensure both providers are available
-    setLocalEnv('OPENAI_API_KEY', 'test-openai-key');
-    setLocalEnv('ANTHROPIC_API_KEY', 'test-anthropic-key');
+    setLocalEnv('AGENTLANG_OPENAI_KEY', 'test-openai-key');
+    setLocalEnv('AGENTLANG_ANTHROPIC_KEY', 'test-anthropic-key');
   });
 
   test('LLM should use specified service, not default to OpenAI', async () => {

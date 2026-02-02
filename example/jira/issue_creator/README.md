@@ -91,7 +91,7 @@ A Jira ticket is then created using this data.
 Set the following before running the project:
 
 ```
-OPENAI_API_KEY
+AGENTLANG_OPENAI_KEY
 
 SLACK_CHANNEL_ID
 SLACK_API_KEY

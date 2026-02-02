@@ -69,15 +69,15 @@ export class OpenAIProvider implements AgentServiceProvider {
     if (!config) {
       return {
         ...defaultConfig,
-        apiKey: process.env.OPENAI_API_KEY || getLocalEnv('OPENAI_API_KEY'),
+        apiKey: process.env.AGENTLANG_OPENAI_KEY || getLocalEnv('AGENTLANG_OPENAI_KEY'),
       };
     }
 
     const apiKey =
       config.get('apiKey') ||
       config.get('api_key') ||
-      process.env.OPENAI_API_KEY ||
-      getLocalEnv('OPENAI_API_KEY');
+      process.env.AGENTLANG_OPENAI_KEY ||
+      getLocalEnv('AGENTLANG_OPENAI_KEY');
 
     return {
       model: config.get('model') || defaultConfig.model,
@@ -105,7 +105,7 @@ export class OpenAIProvider implements AgentServiceProvider {
   async invoke(messages: BaseMessage[], externalToolSpecs: any[] | undefined): Promise<AIResponse> {
     if (!this.config.apiKey) {
       throw new Error(
-        'OpenAI API key is required. Set OPENAI_API_KEY environment variable or use setLocalEnv("OPENAI_API_KEY", key) or provide apiKey in config.'
+        'OpenAI API key is required. Set AGENTLANG_OPENAI_KEY environment variable or use setLocalEnv("AGENTLANG_OPENAI_KEY", key) or provide apiKey in config.'
       );
     }
     if (externalToolSpecs) {

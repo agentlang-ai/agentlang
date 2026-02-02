@@ -1,11 +1,6 @@
 import { assert, describe, test } from 'vitest';
 import { provider } from '../../src/runtime/agents/registry.js';
-import {
-  AgentServiceProvider,
-  AIResponse,
-  humanMessage,
-  systemMessage,
-} from '../../src/runtime/agents/provider.js';
+import { AgentServiceProvider, AIResponse, humanMessage, systemMessage, } from '../../src/runtime/agents/provider.js';
 import { doInternModule } from '../util.js';
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import {
@@ -76,7 +71,7 @@ agent agent02
 if (process.env.AL_TEST === 'true') {
   describe('Basic module operations', () => {
     test('test01 - OpenAI', async () => {
-      if (!process.env.OPENAI_API_KEY) {
+      if (!process.env.AGENTLANG_OPENAI_KEY) {
         console.log('Skipping OpenAI test - no API key');
         return;
       }
@@ -92,7 +87,7 @@ if (process.env.AL_TEST === 'true') {
     });
 
     test('test02 - Anthropic', async () => {
-      if (!process.env.ANTHROPIC_API_KEY) {
+      if (!process.env.AGENTLANG_ANTHROPIC_KEY) {
         console.log('Skipping Anthropic test - no API key');
         return;
       }
@@ -213,7 +208,7 @@ if (process.env.AL_TEST === 'true') {
 
   describe('Custom LLM provider', () => {
     test('test01', async () => {
-      const apiKey = process.env['OPENAI_API_KEY'];
+      const apiKey = process.env['AGENTLANG_OPENAI_KEY'];
       await doInternModule(
         'CustomLLM',
         `{agentlang.ai/LLM {

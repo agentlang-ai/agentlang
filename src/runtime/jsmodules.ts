@@ -196,7 +196,12 @@ export async function importModule(path: string, name: string, moduleFileName?: 
   if (isNodeEnv) {
     moduleExports = await loadModuleInNode(path, name, moduleFileName);
   } else {
-    moduleExports = await loadModuleInBrowser(path, name, moduleFileName);
+    try {
+      moduleExports = await loadModuleInBrowser(path, name, moduleFileName);
+    } catch (reason: any) {
+      logger.error(`Failed to import module ${path} - ${reason}`);
+      return undefined;
+    }
   }
 
   importedModules.set(name, moduleExports);

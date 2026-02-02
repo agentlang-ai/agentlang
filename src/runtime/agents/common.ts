@@ -167,6 +167,8 @@ The following usage is NOT valid:
 
 <pattern> if (<expr>)
 
+Also C-style ternary expressions of the form \`<condition> ? <consequent> : <alernative>\` ARE NOT supported in Agentlang.
+
 A pattern may execute asynchronously and its eventual result can be handled by patterns provided in the '@then' clause. An example is shown below:
 
 {sendChatMessage {to "amy", "text" "hello"}} @as response @then {
