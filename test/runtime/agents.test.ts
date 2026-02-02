@@ -9,11 +9,15 @@ import {
   FlowGraphNode,
   Instance,
   isInstanceOfType,
+  makeInstance,
   newInstanceAttributes,
 } from '../../src/runtime/module.js';
 import { WorkflowDefinition } from '../../src/language/generated/ast.js';
 import { parseWorkflow } from '../../src/language/parser.js';
 import { addWorkflowFromDef } from '../../src/runtime/loader.js';
+import { enableInternalMonitoring } from '../../src/runtime/state.js';
+import { getMonitorsForEvent, Monitor } from '../../src/runtime/monitor.js';
+import { executeEvent } from '../../src/runtime/exec-graph.js';
 
 describe('Agent API', () => {
   test('test01', async () => {
@@ -353,7 +357,7 @@ if (process.env.AL_TEST === 'true') {
       assert(isInstanceOfType(dirInst, 'agentlang.ai/Directive'));
       const scnInst = await parseAndEvaluateStatement(`{agentlang.ai/Scenario {
         agentFqName "GuidedAgent/ga",
-        user "Bibi is a superstar!",
+        user "Aby is a superstar!",
         ai "GuidedAgent/scenario01"
         }}`);
       assert(isInstanceOfType(scnInst, 'agentlang.ai/Scenario'));
@@ -853,6 +857,78 @@ agent userRequestManager
     role "You are a user request manager"
 }`
       );
+    });
+  });
+
+  describe('learning-agent', () => {
+    test('Dynamically updated agent-knowledgebase', async () => {
+      const moduleName = 'erp.core2';
+      await doInternModule(
+        moduleName,
+        `entity Customer {
+          email Email @id,
+          name String,
+          lastPurchaseAmount Double @default(0.0)
+        }
+
+        entity Deal {
+           id UUID @id @default(uuid()),
+           customer Email,
+           dealOffer Int
+        }
+
+        event FindCustomerByEmail {
+            customerEmail Email
+        }
+
+        workflow FindCustomerByEmail {
+            {Customer {email? FindCustomerByEmail.customerEmail}} @as [cust];
+            cust
+        }
+
+        agent CustomerManager {
+            instruction "Manage customer related requests.",
+            tools [erp.core2]
+        }`
+      );
+      const c = `${moduleName}/Customer`;
+      const cm = `${moduleName}/CustomerManager`;
+      const callcm = async (msg: string): Promise<any> => {
+        const event = makeInstance(moduleName, 'CustomerManager', newInstanceAttributes().set('message', msg))
+        const r = await executeEvent(event);
+        return r;
+      };
+      const email1 = 'joe@acme.com'
+      const r1 = await callcm(`Create a new customer name Joe J with email ${email1}`);
+      assert(isInstanceOfType(r1, c));
+      const r2: any[] = await callcm(`Update the last purchase of customer ${email1} to 5600.89`)
+      assert(isInstanceOfType(r2[0], c));
+      const r3: Instance[] = await parseAndEvaluateStatement(`{${c} {email? "${email1}"}}`)
+      assert(r3.length === 1)
+      assert(isInstanceOfType(r3[0], c))
+      const lpa = r3[0].lookup('lastPurchaseAmount')
+      assert(Math.round(Number(lpa)) === 5601)
+      enableInternalMonitoring();
+      const dealIns = `Create a deal for ${email1} following the customer-deal-creation rules.`
+      await callcm(dealIns)
+      const m1 = getMonitorsForEvent(cm)
+      const mdata1: any[] = m1.map((m: Monitor) => {
+        return m.asObject()
+      })
+      const rflow: any[] = mdata1[0].flow[1].flow
+      const s = `Agent ${mdata1[0].agent} was provided the instruction '${mdata1[0].flow[0].input}'.
+      The last-purchase-amount of the customer is ${lpa}. But it returned the wrong result: '${JSON.stringify(rflow[rflow.length - 1].finalResult)}'
+      Provide correct instructions based on the following rules (where lpa means last-purchase-amout):
+      if lpa > 5000 then deal-offer = 1000
+      else if lpa > 1000 then deal-offer = 500
+      else deal-offer = 100
+      Also include in the summary that the result of customer lookup must be destructured and an update must query teh customer on the email.`
+      const crl = `agentlang.ai/agentLearning`
+      const ins1: any= await parseAndEvaluateStatement(`{${crl} {agentName "CustomerManager", agentModuleName "${moduleName}", instruction \`${s}\`}}`)
+      assert(ins1.agentLearning.result.length > 0)
+      const d2 = await callcm(`${dealIns}`)
+      assert(isInstanceOfType(d2, `${moduleName}/Deal`))
+      assert(d2.lookup('dealOffer') === 1000)
     });
   });
 } else {
