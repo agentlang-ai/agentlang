@@ -89,7 +89,7 @@ export type AgentlangKeywordNames =
     | "else"
     | "entity"
     | "error"
-    | "evaluator"
+    | "eval"
     | "event"
     | "extends"
     | "false"

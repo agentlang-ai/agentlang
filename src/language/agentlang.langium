@@ -190,7 +190,7 @@ RetryDefinition: 'agentlang/retry' name=ID '{' ('attempts' attempts=Decimal)? ('
 
 BackoffSpec: 'backoff' '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ '}';
 
-AgentEvaluatorDefinition: 'evaluator' name=ID '{' '}' | '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ '}';
+AgentEvaluatorDefinition: 'eval' name=ID '{' '}' | '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ '}';
 
 ResolverDefinition: 'resolver' name=QualifiedName '[' (paths+=ResolverPathEntry (',' paths+=ResolverPathEntry)*)+ ']'
 '{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';

@@ -137,7 +137,7 @@ if (process.env.AL_TEST === 'true') {
            tools "SPA",
            runWorkflows false}
 
-          evaluator planner01 {}
+          eval planner01 {}
 
           workflow chat {{planner01 {message chat.msg}}}
 
