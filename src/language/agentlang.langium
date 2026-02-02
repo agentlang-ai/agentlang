@@ -94,13 +94,17 @@ Literal: (id=ID | num=Decimal | str=STRING | ref=Ref | bool=Boolean | fnCall=FnC
 
 fragment Body: '{' '}' | '{' (statements+=Statement (';' statements+=Statement)*)+ '}' | '{' statements+=Statement ';'+ '}' | statements+=Statement;
 
-WorkflowDefinition: 'workflow' (name=ID | header=WorkflowHeader) Body;
+WorkflowDefinition: 'workflow' (name=ID | header=WorkflowHeader) (directives=WorkflowDirectives)? Body;
 
 WorkflowHeader: tag=WorkflowHeaderTag prefix=WorkflowHeaderPrefix ':' name=QualifiedName;
 
 WorkflowHeaderTag returns string: '@after' | '@before';
 
 WorkflowHeaderPrefix returns string: 'create' | 'update' | 'delete';
+
+WorkflowDirectives: (entries+=WorkflowDirectiveEntry (',' entries+=WorkflowDirectiveEntry)*)+;
+
+WorkflowDirectiveEntry: tag='@withRole' '(' value=(ID | STRING) ')';
 
 PublicWorkflowDefinition: '@public' def=WorkflowDefinition;
 

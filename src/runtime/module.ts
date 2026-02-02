@@ -22,6 +22,7 @@ import {
   WorkflowHeader,
   FlowDefinition,
   FlowEntry,
+  WorkflowDirectives,
 } from '../language/generated/ast.js';
 import {
   Path,
@@ -1517,11 +1518,19 @@ export class Relationship extends Record {
 export class Workflow extends ModuleEntry {
   statements: Statement[];
   isPrePost: boolean;
+  directives: WorkflowDirectives | undefined;
 
-  constructor(name: string, patterns: Statement[], moduleName: string, isPrePost: boolean = false) {
+  constructor(
+    name: string,
+    patterns: Statement[],
+    moduleName: string,
+    isPrePost: boolean = false,
+    directives?: WorkflowDirectives
+  ) {
     super(name, moduleName);
     this.statements = patterns;
     this.isPrePost = isPrePost;
+    this.directives = directives;
   }
 
   async addStatement(stmtCode: string): Promise<Workflow> {
@@ -1648,10 +1657,29 @@ export class Workflow extends ModuleEntry {
     return this;
   }
 
+  getRoleEscalation(): string | undefined {
+    if (this.directives !== undefined) {
+      for (let i = 0; i < this.directives.entries.length; ++i) {
+        const e = this.directives.entries[i];
+        if (e.tag === '@withRole') {
+          return e.value;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  private directivesToString(): string {
+    if (this.directives !== undefined) {
+      return ` ${this.directives.$cstNode?.text || ''} `;
+    }
+    return ' ';
+  }
+
   override toString() {
     const n = this.isPrePost ? untangleWorkflowName(this.name) : this.name;
     const nn = normalizeWorkflowName(n);
-    let s: string = `workflow ${nn} {\n`;
+    let s: string = `workflow ${nn}${this.directivesToString()}{\n`;
     const ss = this.statementsToStringsHelper(this.statements);
     s = s.concat(joinStatements(ss));
     if (!this.isPrePost) {
@@ -3140,6 +3168,7 @@ export function addWorkflow(
   moduleName = activeModule,
   statements?: Statement[],
   hdr?: WorkflowHeader | ThinWfHeader,
+  directives?: WorkflowDirectives,
   ispub: boolean = false
 ): Workflow {
   if (hdr) {
@@ -3178,7 +3207,7 @@ export function addWorkflow(
     });
   }
   return module.addEntry(
-    new Workflow(asWorkflowName(name), statements, moduleName, hdr ? true : false)
+    new Workflow(asWorkflowName(name), statements, moduleName, hdr ? true : false, directives)
   ) as Workflow;
 }
 

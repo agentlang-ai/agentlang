@@ -593,7 +593,7 @@ export function addWorkflowFromDef(
   moduleName: string,
   ispub: boolean = false
 ): Workflow {
-  return addWorkflow(def.name || '', moduleName, def.statements, def.header, ispub);
+  return addWorkflow(def.name || '', moduleName, def.statements, def.header, def.directives, ispub);
 }
 
 const StandaloneStatements = new Map<string, Statement[]>();

@@ -43,6 +43,10 @@ workflow LookupEmployee {
     {Department {no? LookupEmployee.deptNo},
      DepartmentEmployee {Employee {id? LookupEmployee.id}}}
 }
+
+workflow CreateDepartmentAsAdmin @withRole(admin) {
+    {Acme/Department {no CreateDepartmentAsAdmin.no}}
+}
 `;
 
 describe('Basic RBAC checks', () => {
@@ -68,6 +72,8 @@ describe('Basic RBAC checks', () => {
       let ee = expectError();
       await parseAndEvaluateStatement(`{Acme/Department {no 102}}`, id2).catch(ee.f());
       assert(ee.isFailed, 'Auth check on create-department failed');
+      const deptnew = await parseAndEvaluateStatement(`{Acme/CreateDepartmentAsAdmin {no 234}}`, id2)
+      assert(isInstanceOfType(deptnew, 'Acme/Department'))
       async function createEmployee(
         userId: string,
         deptNo: number,
