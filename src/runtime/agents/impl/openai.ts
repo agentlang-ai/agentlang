@@ -55,7 +55,7 @@ export class OpenAIProvider implements AgentServiceProvider {
 
   private parseConfig(config?: Map<string, any>): OpenAIConfig {
     const defaultConfig: OpenAIConfig = {
-      model: 'gpt-5.2',
+      model: 'gpt-4o',
       temperature: 0.7,
       maxTokens: 4096,
       topP: 1.0,
