@@ -796,8 +796,10 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           const s = isplnr
             ? PlannerInstructions
             : isflow
-              ? FlowExecInstructions :
-              iseval ? EvalInstructions  : LearnerAgentInstructions;
+              ? FlowExecInstructions
+              : iseval
+                ? EvalInstructions
+                : LearnerAgentInstructions;
           const ts = this.toolsAsString();
           const msg = `${s}\n${ts}\n${cachedMsg || (await this.getFullInstructions(env, activator))}`;
           const newSysMsg = systemMessage(msg);

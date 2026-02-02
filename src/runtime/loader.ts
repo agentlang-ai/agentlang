@@ -104,7 +104,13 @@ import {
 import { logger } from './logger.js';
 import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
-import { AgentEntityName, AgentInstance, AgentLearnerType, CoreAIModuleName, LlmEntityName } from './modules/ai.js';
+import {
+  AgentEntityName,
+  AgentInstance,
+  AgentLearnerType,
+  CoreAIModuleName,
+  LlmEntityName,
+} from './modules/ai.js';
 import { getDefaultLLMService } from './agents/registry.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
