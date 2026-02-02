@@ -5,6 +5,7 @@ import {
   makeCoreModuleName,
   makeFqName,
   nameToPath,
+  restoreSpecialChars,
   sleepMilliseconds,
   splitFqName,
 } from '../util.js';
@@ -38,11 +39,12 @@ import {
   humanMessage,
   systemMessage,
 } from '../agents/provider.js';
-import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import {
   AgentCondition,
   AgentGlossaryEntry,
   AgentScenario,
+  AgentSummary as AgentLearningResult,
   DecisionAgentInstructions,
   FlowExecInstructions,
   getAgentDirectives,
@@ -50,6 +52,7 @@ import {
   getAgentResponseSchema,
   getAgentScenarios,
   getAgentScratchNames,
+  LearningAgentInstructions as LearnerAgentInstructions,
   newAgentDirective,
   newAgentGlossaryEntry,
   newAgentScenario,
@@ -65,8 +68,11 @@ import { isMonitoringEnabled, TtlCache } from '../state.js';
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
 export const LlmEntityName = 'LLM';
+export const AgentLearnerType = 'learner';
 
 export default `module ${CoreAIModuleName}
+
+import "./modules/ai.js" @as ai
 
 entity ${LlmEntityName} {
     name String @id,
@@ -77,7 +83,7 @@ entity ${LlmEntityName} {
 entity ${AgentEntityName} {
     name String @id,
     moduleName String @default("${CoreAIModuleName}"),
-    type @enum("chat", "planner", "flow-exec") @default("chat"),
+    type @enum("chat", "planner", "flow-exec", "${AgentLearnerType}") @default("chat"),
     runWorkflows Boolean @default(true),
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
@@ -136,7 +142,113 @@ entity GlossaryEntry {
    meaning String,
    synonyms String @optional
 }
+
+entity AgentLearningResult {
+   id UUID @id @default(uuid()),
+   agentFqName String @indexed,
+   data String,
+   summary String
+}
+
+@public event agentLearning{
+    agentName String,
+    agentModuleName String,
+    instruction String
+}
+
+workflow agentLearning {
+    await ai.processAgentLearning(agentLearning.agentModuleName, agentLearning.agentName, agentLearning.instruction)
+}
 `;
+
+enum AgentCacheType {
+  DIRECTIVE,
+  GLOSSARY,
+  SCENARIO,
+  SUMMARY,
+}
+
+type AgentInstructionActivator = {
+  provider: AgentServiceProvider;
+  userMessage: string;
+  agentInstruction: string;
+  agentRole: string | undefined;
+};
+
+const MAX_USER_DEFINED_GLOSSARY = 20;
+const MAX_USER_DEFINED_DIRECTIVES = 20;
+const MAX_USER_DEFINED_SCENARIOS = 5;
+const MAX_USER_DEFINED_SUMMARIES = 5;
+
+async function activatedUserDefinedAgentLearnings<T>(
+  objLabel: string,
+  learningObjects: T[],
+  activator: AgentInstructionActivator,
+  maxResults: number
+): Promise<T[]> {
+  const msg = `Consider the following ${objLabel} (in JSON format):
+  ${JSON.stringify(learningObjects)}
+
+  Return the indices of the ${objLabel} relevant for the following text:
+
+  ${activator.userMessage}
+
+  Return the relevant indices and a JSON array of integers with the index starting at zero (0). Do not return any additional comments
+  or text.
+  `;
+  const msgs = new Array<BaseMessage>();
+  msgs.push(
+    new SystemMessage(
+      'You are an agent that filters a JSON array and return relevant indices as a JSON array of integers.'
+    )
+  );
+  msgs.push(new HumanMessage(msg));
+  const response: AIResponse = await activator.provider.invoke(msgs, undefined);
+  const indices: number[] = JSON.parse(trimGeneratedCode(response.content));
+  if (indices.length == 0 || indices.length == learningObjects.length) return learningObjects;
+  const result = new Array<T>();
+  for (let i = 0; i < indices.length; ++i) {
+    if (i >= maxResults) break;
+    result.push(learningObjects[indices[i]]);
+  }
+  return result;
+}
+
+async function activatedUserDefinedAgentGlossary(
+  gls: AgentGlossaryEntry[],
+  activator: AgentInstructionActivator
+): Promise<AgentGlossaryEntry[]> {
+  return await activatedUserDefinedAgentLearnings<AgentGlossaryEntry>(
+    'glossary entries',
+    gls,
+    activator,
+    MAX_USER_DEFINED_GLOSSARY
+  );
+}
+
+async function activatedUserDefinedAgentScenarios(
+  scns: AgentScenario[],
+  activator: AgentInstructionActivator
+): Promise<AgentScenario[]> {
+  return await activatedUserDefinedAgentLearnings<AgentScenario>(
+    'scenarios',
+    scns,
+    activator,
+    MAX_USER_DEFINED_SCENARIOS
+  );
+}
+
+async function activatedUserDefinedAgentDirectives(
+  dirs: AgentCondition[],
+  activator: AgentInstructionActivator
+): Promise<AgentCondition[]> {
+  return await activatedUserDefinedAgentLearnings<AgentCondition>(
+    'directives or conditions',
+    dirs,
+    activator,
+    MAX_USER_DEFINED_DIRECTIVES
+  );
+}
 
 export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
@@ -276,6 +388,10 @@ export class AgentInstance {
     return this.hasModuleTools || this.type == 'planner';
   }
 
+  isLearner(): boolean {
+    return this.type === 'learner';
+  }
+
   isFlowExecutor(): boolean {
     return this.type == 'flow-exec';
   }
@@ -301,14 +417,22 @@ export class AgentInstance {
     let r: AgentCondition[] = [];
     if (result && result.length > 0) {
       r = result.map((inst: Instance) => {
-        return newAgentDirective(inst.lookup('condition'), inst.lookup('consequent'));
+        return newAgentDirective(
+          restoreSpecialChars(inst.lookup('condition')),
+          restoreSpecialChars(inst.lookup('consequent'))
+        );
       });
     }
     return AgentInstance.DirectivesCache.set(fqName, r);
   }
 
-  private async directivesAsString(fqName: string): Promise<string> {
-    const userDirs = await this.getUserDefinedAgentDirectives(fqName);
+  private async directivesAsString(
+    fqName: string,
+    activator: AgentInstructionActivator
+  ): Promise<string> {
+    let userDirs = await this.getUserDefinedAgentDirectives(fqName);
+    if (userDirs.length > MAX_USER_DEFINED_DIRECTIVES)
+      userDirs = await activatedUserDefinedAgentDirectives(userDirs, activator);
     const dirs = getAgentDirectives(fqName) || [];
     const conds = dirs.concat(userDirs);
     if (conds.length > 0) {
@@ -341,12 +465,29 @@ export class AgentInstance {
       r = result.map((inst: Instance) => {
         return newAgentGlossaryEntry(
           inst.lookup('name'),
-          inst.lookup('meaning'),
+          restoreSpecialChars(inst.lookup('meaning')),
           inst.lookup('synonyms')
         );
       });
     }
     return AgentInstance.GlossaryCache.set(fqName, r);
+  }
+
+  private static SummariesCache = new TtlCache<AgentLearningResult[]>(AgentInstance.CACHE_TTL_MS);
+
+  private async getUserDefinedAgentLearningResults(fqName: string): Promise<AgentLearningResult[]> {
+    const cached = AgentInstance.SummariesCache.get(fqName);
+    if (cached !== undefined) return cached;
+    const result: Instance[] = await parseAndEvaluateStatement(
+      `{${CoreAIModuleName}/AgentLearningResult {agentFqName? "${fqName}"}}`
+    );
+    let r: AgentLearningResult[] = [];
+    if (result && result.length > 0) {
+      r = result.map((inst: Instance) => {
+        return { data: inst.lookup('data'), summary: inst.lookup('summary') };
+      });
+    }
+    return AgentInstance.SummariesCache.set(fqName, r);
   }
 
   private static ScenariosCache = new TtlCache<AgentScenario[]>(AgentInstance.CACHE_TTL_MS);
@@ -366,12 +507,34 @@ export class AgentInstance {
     return AgentInstance.ScenariosCache.set(fqName, r);
   }
 
-  private async getFullInstructions(env: Environment): Promise<string> {
+  public static ResetCache(fqName: string, type: AgentCacheType) {
+    switch (type) {
+      case AgentCacheType.DIRECTIVE:
+        AgentInstance.DirectivesCache.delete(fqName);
+        break;
+      case AgentCacheType.GLOSSARY:
+        AgentInstance.GlossaryCache.delete(fqName);
+        break;
+      case AgentCacheType.SCENARIO:
+        AgentInstance.ScenariosCache.delete(fqName);
+        break;
+      case AgentCacheType.SUMMARY:
+        AgentInstance.SummariesCache.delete(fqName);
+        break;
+    }
+  }
+
+  private async getFullInstructions(
+    env: Environment,
+    activator: AgentInstructionActivator
+  ): Promise<string> {
     const fqName = this.getFqName();
     const ins = this.role ? `${this.role}\n${this.instruction || ''}` : this.instruction || '';
-    let finalInstruction = `${ins} ${await this.directivesAsString(fqName)}`;
+    let finalInstruction = `${ins} ${await this.directivesAsString(fqName, activator)}`;
     const staticGls = getAgentGlossary(fqName) || [];
-    const userGls = await this.getUserDefinedAgentGlossary(fqName);
+    let userGls = await this.getUserDefinedAgentGlossary(fqName);
+    if (userGls.length > MAX_USER_DEFINED_GLOSSARY)
+      userGls = await activatedUserDefinedAgentGlossary(userGls, activator);
     const gls = staticGls.concat(userGls);
     if (gls.length > 0) {
       const glss = new Array<string>();
@@ -384,7 +547,9 @@ export class AgentInstance {
       ${glss.join('\n')}\n`;
     }
     const staticScns = getAgentScenarios(fqName) || [];
-    const userScns = await this.getUserDefinedAgentScenarios(fqName);
+    let userScns = await this.getUserDefinedAgentScenarios(fqName);
+    if (userScns.length > MAX_USER_DEFINED_SCENARIOS)
+      userScns = await activatedUserDefinedAgentScenarios(userScns, activator);
     const scenarios = staticScns.concat(userScns);
     if (scenarios.length > 0) {
       const scs = new Array<string>();
@@ -397,6 +562,20 @@ export class AgentInstance {
         }
       });
       finalInstruction = `${finalInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
+    }
+    const summaries = await this.getUserDefinedAgentLearningResults(fqName);
+    if (summaries.length > 0) {
+      let s: string[] = summaries.map((sa: AgentLearningResult) => {
+        return restoreSpecialChars(sa.summary);
+      });
+      if (s.length > MAX_USER_DEFINED_SUMMARIES)
+        s = await activatedUserDefinedAgentLearnings<string>(
+          'summaries',
+          s,
+          activator,
+          MAX_USER_DEFINED_SUMMARIES
+        );
+      finalInstruction = `${finalInstruction}\nAlso keep in mind the following points:\n\n${s.join('\n')}\n\n`;
     }
     const responseSchema = getAgentResponseSchema(fqName);
     if (responseSchema) {
@@ -501,10 +680,11 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const chatId = env.getAgentChatId() || agentName;
     let isplnr = this.isPlanner();
     const isflow = !isplnr && this.isFlowExecutor();
+    const islearner = !isflow && !isplnr && this.isLearner();
     if (isplnr && this.withSession) {
       this.withSession = false;
     }
-    if (isflow) {
+    if (isflow || islearner) {
       this.withSession = false;
     }
     if (this.withSession && env.getFlowContext()) {
@@ -520,19 +700,29 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
     let msgs: BaseMessage[] | undefined;
     let cachedMsg: string | undefined = undefined;
+    const activator: AgentInstructionActivator = {
+      provider: p,
+      userMessage: message,
+      agentInstruction: this.instruction,
+      agentRole: this.role,
+    };
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      cachedMsg = await this.getFullInstructions(env);
+      cachedMsg = await this.getFullInstructions(env, activator);
       msgs = [systemMessage(cachedMsg || '')];
     }
     if (msgs) {
       try {
         const sysMsg = msgs[0];
-        if (isplnr || isflow) {
-          const s = isplnr ? PlannerInstructions : FlowExecInstructions;
+        if (isplnr || isflow || islearner) {
+          const s = isplnr
+            ? PlannerInstructions
+            : isflow
+              ? FlowExecInstructions
+              : LearnerAgentInstructions;
           const ts = this.toolsAsString();
-          const msg = `${s}\n${ts}\n${cachedMsg || (await this.getFullInstructions(env))}`;
+          const msg = `${s}\n${ts}\n${cachedMsg || (await this.getFullInstructions(env, activator))}`;
           const newSysMsg = systemMessage(msg);
           msgs[0] = newSysMsg;
         }
@@ -934,4 +1124,99 @@ export function trimGeneratedCode(code: string | undefined): string {
   } else {
     return '';
   }
+}
+
+async function parseAndInternAgentLearning(
+  moduleName: string,
+  agentName: string,
+  learning: string,
+  env: Environment
+) {
+  const obj = JSON.parse(trimGeneratedCode(learning));
+  const fqName = makeFqName(moduleName, agentName);
+  if (obj.decisions) {
+    for (let j = 0; j < obj.decisions.length; ++j) {
+      const conds: any[] = obj.decisions[j].conditions;
+      if (conds && conds.length > 0) {
+        AgentInstance.ResetCache(fqName, AgentCacheType.DIRECTIVE);
+        for (let i = 0; i < conds.length; ++i) {
+          const entry: any = conds[i];
+          const cond: string = entry.if;
+          const conseq: string = entry.then;
+          if (cond && conseq) {
+            await parseAndEvaluateStatement(
+              `{${CoreAIModuleName}/Directive {
+  agentFqName "${fqName}",
+  condition "${escapeSpecialChars(cond)}",
+  consequent "${escapeSpecialChars(conseq)}"}}`,
+              env.getActiveUser(),
+              env
+            );
+          } else {
+            throw new Error(`Invalid directive generated - missing 'if' or 'then' in ${learning}`);
+          }
+        }
+      }
+    }
+  }
+  if (obj.glossary) {
+    AgentInstance.ResetCache(fqName, AgentCacheType.GLOSSARY);
+    for (let i = 0; i < obj.glossary.length; ++i) {
+      const word = obj.glossary[i].word;
+      const meaning = obj.glossary[i].meaning;
+      if (word && meaning) {
+        await parseAndEvaluateStatement(
+          `{${CoreAIModuleName}/GlossaryEntry {
+  agentFqName "${fqName}",
+  name "${word}",
+  meaning "${escapeSpecialChars(meaning)}"}}`,
+          env.getActiveUser(),
+          env
+        );
+      }
+    }
+  }
+  if (obj.scenarios) {
+    AgentInstance.ResetCache(fqName, AgentCacheType.SCENARIO);
+    for (let i = 0; i < obj.scenarios.length; ++i) {
+      const user = obj.scenarios[i].user;
+      const ai = obj.scenarios[i].ai;
+      if (user && ai) {
+        await parseAndEvaluateStatement(
+          `{${CoreAIModuleName}/Scenario {
+  agentFqName "${fqName}",
+  user "${escapeSpecialChars(user)}",
+  ai "${escapeSpecialChars(ai)}"}}`,
+          env.getActiveUser(),
+          env
+        );
+      }
+    }
+  }
+  AgentInstance.ResetCache(fqName, AgentCacheType.SUMMARY);
+  const summary = obj.summary;
+  delete obj.summary;
+  await parseAndEvaluateStatement(
+    `{${CoreAIModuleName}/AgentLearningResult {
+  agentFqName "${fqName}",
+  data "${escapeSpecialChars(JSON.stringify(obj))}",
+  summary "${escapeSpecialChars(summary) || ''}"}}`,
+    env.getActiveUser(),
+    env
+  );
+}
+
+export async function processAgentLearning(
+  moduleName: string,
+  agentName: string,
+  instruction: string,
+  env: Environment
+): Promise<any> {
+  const learning = await parseAndEvaluateStatement(
+    `{${moduleName}/${agentName}_${AgentLearnerType} {message \`${instruction}\`}}`,
+    env.getActiveUser(),
+    env
+  );
+  await parseAndInternAgentLearning(moduleName, agentName, learning, env);
+  return { agentLearning: { result: learning } };
 }
