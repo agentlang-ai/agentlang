@@ -165,6 +165,7 @@ export class Environment extends Instance {
   private agentMode: 'chat' | 'planner' | undefined = undefined;
   private agentChatId: string | undefined = undefined;
   private monitor: Monitor | undefined = undefined;
+  private escalatedRole: string | undefined;
 
   private activeUserData: any = undefined;
 
@@ -191,6 +192,7 @@ export class Environment extends Instance {
       this.eventExecutor = parent.eventExecutor;
       this.agentChatId = parent.agentChatId;
       this.monitor = parent.monitor;
+      this.escalatedRole = parent.escalatedRole;
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
@@ -284,6 +286,20 @@ export class Environment extends Instance {
   bindInstance(inst: Instance): Environment {
     const n: string = inst.name;
     this.attributes.set(n, inst);
+    return this;
+  }
+
+  setEscalatedRole(s: string): Environment {
+    this.escalatedRole = s;
+    return this;
+  }
+
+  getEscalatedRole(): string | undefined {
+    return this.escalatedRole;
+  }
+
+  resetEscalatedRole(): Environment {
+    this.escalatedRole = undefined;
     return this;
   }
 
@@ -900,6 +916,8 @@ export let evaluate = async function (
       if (!isEmptyWorkflow(wf)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
         env.setActiveEvent(eventInstance);
+        const er = wf.getRoleEscalation();
+        if (er) env.setEscalatedRole(er);
         if (kernelCall) {
           env.setInKernelMode(true);
         }
@@ -934,6 +952,7 @@ export let evaluate = async function (
       throw err;
     }
   } finally {
+    env?.resetEscalatedRole();
     if (!txnRolledBack && env !== undefined && activeEnv === undefined) {
       await env.commitAllTransactions();
     }

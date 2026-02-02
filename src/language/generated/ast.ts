@@ -68,6 +68,7 @@ export type AgentlangKeywordNames =
     | "@then"
     | "@upsert"
     | "@where"
+    | "@withRole"
     | "@with_unique"
     | "["
     | "]"
@@ -1959,6 +1960,7 @@ export function isWhereSpecClause(item: unknown): item is WhereSpecClause {
 export interface WorkflowDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition | PublicWorkflowDefinition;
     readonly $type: 'WorkflowDefinition';
+    directives?: WorkflowDirectives;
     header?: WorkflowHeader;
     name?: string;
     statements: Array<Statement>;
@@ -1966,6 +1968,7 @@ export interface WorkflowDefinition extends langium.AstNode {
 
 export const WorkflowDefinition = {
     $type: 'WorkflowDefinition',
+    directives: 'directives',
     header: 'header',
     name: 'name',
     statements: 'statements'
@@ -1973,6 +1976,38 @@ export const WorkflowDefinition = {
 
 export function isWorkflowDefinition(item: unknown): item is WorkflowDefinition {
     return reflection.isInstance(item, WorkflowDefinition.$type);
+}
+
+export interface WorkflowDirectiveEntry extends langium.AstNode {
+    readonly $container: WorkflowDirectives;
+    readonly $type: 'WorkflowDirectiveEntry';
+    tag: '@withRole';
+    value: STRING | string;
+}
+
+export const WorkflowDirectiveEntry = {
+    $type: 'WorkflowDirectiveEntry',
+    tag: 'tag',
+    value: 'value'
+} as const;
+
+export function isWorkflowDirectiveEntry(item: unknown): item is WorkflowDirectiveEntry {
+    return reflection.isInstance(item, WorkflowDirectiveEntry.$type);
+}
+
+export interface WorkflowDirectives extends langium.AstNode {
+    readonly $container: WorkflowDefinition;
+    readonly $type: 'WorkflowDirectives';
+    entries: Array<WorkflowDirectiveEntry>;
+}
+
+export const WorkflowDirectives = {
+    $type: 'WorkflowDirectives',
+    entries: 'entries'
+} as const;
+
+export function isWorkflowDirectives(item: unknown): item is WorkflowDirectives {
+    return reflection.isInstance(item, WorkflowDirectives.$type);
 }
 
 export interface WorkflowHeader extends langium.AstNode {
@@ -2112,6 +2147,8 @@ export type AgentlangAstType = {
     WhereSpec: WhereSpec
     WhereSpecClause: WhereSpecClause
     WorkflowDefinition: WorkflowDefinition
+    WorkflowDirectiveEntry: WorkflowDirectiveEntry
+    WorkflowDirectives: WorkflowDirectives
     WorkflowHeader: WorkflowHeader
 }
 
@@ -3433,6 +3470,9 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
         WorkflowDefinition: {
             name: WorkflowDefinition.$type,
             properties: {
+                directives: {
+                    name: WorkflowDefinition.directives
+                },
                 header: {
                     name: WorkflowDefinition.header
                 },
@@ -3445,6 +3485,28 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 }
             },
             superTypes: [Definition.$type]
+        },
+        WorkflowDirectiveEntry: {
+            name: WorkflowDirectiveEntry.$type,
+            properties: {
+                tag: {
+                    name: WorkflowDirectiveEntry.tag
+                },
+                value: {
+                    name: WorkflowDirectiveEntry.value
+                }
+            },
+            superTypes: []
+        },
+        WorkflowDirectives: {
+            name: WorkflowDirectives.$type,
+            properties: {
+                entries: {
+                    name: WorkflowDirectives.entries,
+                    defaultValue: []
+                }
+            },
+            superTypes: []
         },
         WorkflowHeader: {
             name: WorkflowHeader.$type,

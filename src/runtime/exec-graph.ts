@@ -468,15 +468,18 @@ export async function executeEventHelper(eventInstance: Instance, env?: Environm
     isLocalEnv = true;
   }
   let g: ExecGraph | undefined;
+  let escalatedRole: string | undefined;
   if (!isAgentEventInstance(eventInstance)) {
     g = await generateExecutionGraph(fqn);
     if (!g) {
       throw new Error(`Failed to generate graph for event ${fqn}`);
     }
+    escalatedRole = getWorkflowForEvent(fqn).getRoleEscalation();
   }
   const oldModuleName = env.switchActiveModuleName(eventInstance.moduleName);
   env.bind(eventInstance.name, eventInstance);
   env.bind(eventInstance.getFqName(), eventInstance);
+  if (escalatedRole) env.setEscalatedRole(escalatedRole);
   try {
     if (g) {
       await executeGraph(g, env);
@@ -498,6 +501,7 @@ export async function executeEventHelper(eventInstance: Instance, env?: Environm
     }
     throw err;
   } finally {
+    env.resetEscalatedRole();
     if (!isLocalEnv) env.switchActiveModuleName(oldModuleName);
   }
 }
