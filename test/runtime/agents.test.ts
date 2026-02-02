@@ -877,6 +877,15 @@ agent userRequestManager
            dealOffer Int
         }
 
+        event FindCustomerByEmail {
+            customerEmail Email
+        }
+
+        workflow FindCustomerByEmail {
+            {Customer {email? FindCustomerByEmail.customerEmail}} @as [cust];
+            cust
+        }
+
         agent CustomerManager {
             instruction "Manage customer related requests.",
             tools [erp.core2]
@@ -913,10 +922,10 @@ agent userRequestManager
       if lpa > 5000 then deal-offer = 1000
       else if lpa > 1000 then deal-offer = 500
       else deal-offer = 100
-      Also include in the summary that the result of customer lookup must be destructured.`
-      const crl = `agentlang.ai/agentCorrection`
+      Also include in the summary that the result of customer lookup must be destructured and an update must query teh customer on the email.`
+      const crl = `agentlang.ai/agentLearning`
       const ins1: any= await parseAndEvaluateStatement(`{${crl} {agentName "CustomerManager", agentModuleName "${moduleName}", instruction \`${s}\`}}`)
-      assert(ins1.agentCorrection.result.length > 0)
+      assert(ins1.agentLearning.result.length > 0)
       const d2 = await callcm(`${dealIns}`)
       assert(isInstanceOfType(d2, `${moduleName}/Deal`))
       assert(d2.lookup('dealOffer') === 1000)

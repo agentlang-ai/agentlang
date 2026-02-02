@@ -39,12 +39,12 @@ import {
   humanMessage,
   systemMessage,
 } from '../agents/provider.js';
-import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import {
   AgentCondition,
   AgentGlossaryEntry,
   AgentScenario,
-  AgentSummary as AgentCorrectionResult,
+  AgentSummary as AgentLearningResult,
   DecisionAgentInstructions,
   FlowExecInstructions,
   getAgentDirectives,
@@ -143,21 +143,21 @@ entity GlossaryEntry {
    synonyms String @optional
 }
 
-entity AgentCorrectionResult {
+entity AgentLearningResult {
    id UUID @id @default(uuid()),
    agentFqName String @indexed,
    data String,
    summary String
 }
 
-event agentCorrection {
+@public event agentLearning{
     agentName String,
     agentModuleName String,
     instruction String
 }
 
-workflow agentCorrection {
-    await ai.processAgentCorrection(agentCorrection.agentModuleName, agentCorrection.agentName, agentCorrection.instruction)
+workflow agentLearning {
+    await ai.processAgentLearning(agentLearning.agentModuleName, agentLearning.agentName, agentLearning.instruction)
 }
 `;
 
@@ -166,6 +166,88 @@ enum AgentCacheType {
   GLOSSARY,
   SCENARIO,
   SUMMARY,
+}
+
+type AgentInstructionActivator = {
+  provider: AgentServiceProvider;
+  userMessage: string;
+  agentInstruction: string;
+  agentRole: string | undefined;
+};
+
+const MAX_USER_DEFINED_GLOSSARY = 20;
+const MAX_USER_DEFINED_DIRECTIVES = 20;
+const MAX_USER_DEFINED_SCENARIOS = 5;
+const MAX_USER_DEFINED_SUMMARIES = 5;
+
+async function activatedUserDefinedAgentLearnings<T>(
+  objLabel: string,
+  learningObjects: T[],
+  activator: AgentInstructionActivator,
+  maxResults: number
+): Promise<T[]> {
+  const msg = `Consider the following ${objLabel} (in JSON format):
+  ${JSON.stringify(learningObjects)}
+
+  Return the indices of the ${objLabel} relevant for the following text:
+
+  ${activator.userMessage}
+
+  Return the relevant indices and a JSON array of integers with the index starting at zero (0). Do not return any additional comments
+  or text.
+  `;
+  const msgs = new Array<BaseMessage>();
+  msgs.push(
+    new SystemMessage(
+      'You are an agent that filters a JSON array and return relevant indices as a JSON array of integers.'
+    )
+  );
+  msgs.push(new HumanMessage(msg));
+  const response: AIResponse = await activator.provider.invoke(msgs, undefined);
+  const indices: number[] = JSON.parse(trimGeneratedCode(response.content));
+  if (indices.length == 0 || indices.length == learningObjects.length) return learningObjects;
+  const result = new Array<T>();
+  for (let i = 0; i < indices.length; ++i) {
+    if (i >= maxResults) break;
+    result.push(learningObjects[indices[i]]);
+  }
+  return result;
+}
+
+async function activatedUserDefinedAgentGlossary(
+  gls: AgentGlossaryEntry[],
+  activator: AgentInstructionActivator
+): Promise<AgentGlossaryEntry[]> {
+  return await activatedUserDefinedAgentLearnings<AgentGlossaryEntry>(
+    'glossary entries',
+    gls,
+    activator,
+    MAX_USER_DEFINED_GLOSSARY
+  );
+}
+
+async function activatedUserDefinedAgentScenarios(
+  scns: AgentScenario[],
+  activator: AgentInstructionActivator
+): Promise<AgentScenario[]> {
+  return await activatedUserDefinedAgentLearnings<AgentScenario>(
+    'scenarios',
+    scns,
+    activator,
+    MAX_USER_DEFINED_SCENARIOS
+  );
+}
+
+async function activatedUserDefinedAgentDirectives(
+  dirs: AgentCondition[],
+  activator: AgentInstructionActivator
+): Promise<AgentCondition[]> {
+  return await activatedUserDefinedAgentLearnings<AgentCondition>(
+    'directives or conditions',
+    dirs,
+    activator,
+    MAX_USER_DEFINED_DIRECTIVES
+  );
 }
 
 export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
@@ -344,8 +426,13 @@ export class AgentInstance {
     return AgentInstance.DirectivesCache.set(fqName, r);
   }
 
-  private async directivesAsString(fqName: string): Promise<string> {
-    const userDirs = await this.getUserDefinedAgentDirectives(fqName);
+  private async directivesAsString(
+    fqName: string,
+    activator: AgentInstructionActivator
+  ): Promise<string> {
+    let userDirs = await this.getUserDefinedAgentDirectives(fqName);
+    if (userDirs.length > MAX_USER_DEFINED_DIRECTIVES)
+      userDirs = await activatedUserDefinedAgentDirectives(userDirs, activator);
     const dirs = getAgentDirectives(fqName) || [];
     const conds = dirs.concat(userDirs);
     if (conds.length > 0) {
@@ -386,17 +473,15 @@ export class AgentInstance {
     return AgentInstance.GlossaryCache.set(fqName, r);
   }
 
-  private static SummariesCache = new TtlCache<AgentCorrectionResult[]>(AgentInstance.CACHE_TTL_MS);
+  private static SummariesCache = new TtlCache<AgentLearningResult[]>(AgentInstance.CACHE_TTL_MS);
 
-  private async getUserDefinedAgentCorrectionResults(
-    fqName: string
-  ): Promise<AgentCorrectionResult[]> {
+  private async getUserDefinedAgentLearningResults(fqName: string): Promise<AgentLearningResult[]> {
     const cached = AgentInstance.SummariesCache.get(fqName);
     if (cached !== undefined) return cached;
     const result: Instance[] = await parseAndEvaluateStatement(
-      `{${CoreAIModuleName}/AgentCorrectionResult {agentFqName? "${fqName}"}}`
+      `{${CoreAIModuleName}/AgentLearningResult {agentFqName? "${fqName}"}}`
     );
-    let r: AgentCorrectionResult[] = [];
+    let r: AgentLearningResult[] = [];
     if (result && result.length > 0) {
       r = result.map((inst: Instance) => {
         return { data: inst.lookup('data'), summary: inst.lookup('summary') };
@@ -439,12 +524,17 @@ export class AgentInstance {
     }
   }
 
-  private async getFullInstructions(env: Environment): Promise<string> {
+  private async getFullInstructions(
+    env: Environment,
+    activator: AgentInstructionActivator
+  ): Promise<string> {
     const fqName = this.getFqName();
     const ins = this.role ? `${this.role}\n${this.instruction || ''}` : this.instruction || '';
-    let finalInstruction = `${ins} ${await this.directivesAsString(fqName)}`;
+    let finalInstruction = `${ins} ${await this.directivesAsString(fqName, activator)}`;
     const staticGls = getAgentGlossary(fqName) || [];
-    const userGls = await this.getUserDefinedAgentGlossary(fqName);
+    let userGls = await this.getUserDefinedAgentGlossary(fqName);
+    if (userGls.length > MAX_USER_DEFINED_GLOSSARY)
+      userGls = await activatedUserDefinedAgentGlossary(userGls, activator);
     const gls = staticGls.concat(userGls);
     if (gls.length > 0) {
       const glss = new Array<string>();
@@ -457,7 +547,9 @@ export class AgentInstance {
       ${glss.join('\n')}\n`;
     }
     const staticScns = getAgentScenarios(fqName) || [];
-    const userScns = await this.getUserDefinedAgentScenarios(fqName);
+    let userScns = await this.getUserDefinedAgentScenarios(fqName);
+    if (userScns.length > MAX_USER_DEFINED_SCENARIOS)
+      userScns = await activatedUserDefinedAgentScenarios(userScns, activator);
     const scenarios = staticScns.concat(userScns);
     if (scenarios.length > 0) {
       const scs = new Array<string>();
@@ -471,14 +563,19 @@ export class AgentInstance {
       });
       finalInstruction = `${finalInstruction}\nHere are some example user requests and the corresponding responses you are supposed to produce:\n${scs.join('\n')}`;
     }
-    const summaries = await this.getUserDefinedAgentCorrectionResults(fqName);
+    const summaries = await this.getUserDefinedAgentLearningResults(fqName);
     if (summaries.length > 0) {
-      const s = summaries
-        .map((sa: AgentCorrectionResult) => {
-          return restoreSpecialChars(sa.summary);
-        })
-        .join('\n');
-      finalInstruction = `${finalInstruction}\nAlso keep in mind the following points:\n\n${s}\n\n`;
+      let s: string[] = summaries.map((sa: AgentLearningResult) => {
+        return restoreSpecialChars(sa.summary);
+      });
+      if (s.length > MAX_USER_DEFINED_SUMMARIES)
+        s = await activatedUserDefinedAgentLearnings<string>(
+          'summaries',
+          s,
+          activator,
+          MAX_USER_DEFINED_SUMMARIES
+        );
+      finalInstruction = `${finalInstruction}\nAlso keep in mind the following points:\n\n${s.join('\n')}\n\n`;
     }
     const responseSchema = getAgentResponseSchema(fqName);
     if (responseSchema) {
@@ -603,10 +700,16 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
     let msgs: BaseMessage[] | undefined;
     let cachedMsg: string | undefined = undefined;
+    const activator: AgentInstructionActivator = {
+      provider: p,
+      userMessage: message,
+      agentInstruction: this.instruction,
+      agentRole: this.role,
+    };
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      cachedMsg = await this.getFullInstructions(env);
+      cachedMsg = await this.getFullInstructions(env, activator);
       msgs = [systemMessage(cachedMsg || '')];
     }
     if (msgs) {
@@ -619,7 +722,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
               ? FlowExecInstructions
               : LearnerAgentInstructions;
           const ts = this.toolsAsString();
-          const msg = `${s}\n${ts}\n${cachedMsg || (await this.getFullInstructions(env))}`;
+          const msg = `${s}\n${ts}\n${cachedMsg || (await this.getFullInstructions(env, activator))}`;
           const newSysMsg = systemMessage(msg);
           msgs[0] = newSysMsg;
         }
@@ -1023,13 +1126,13 @@ export function trimGeneratedCode(code: string | undefined): string {
   }
 }
 
-async function parseAndInternAgentCorrection(
+async function parseAndInternAgentLearning(
   moduleName: string,
   agentName: string,
-  correction: string,
+  learning: string,
   env: Environment
 ) {
-  const obj = JSON.parse(trimGeneratedCode(correction));
+  const obj = JSON.parse(trimGeneratedCode(learning));
   const fqName = makeFqName(moduleName, agentName);
   if (obj.decisions) {
     for (let j = 0; j < obj.decisions.length; ++j) {
@@ -1050,9 +1153,7 @@ async function parseAndInternAgentCorrection(
               env
             );
           } else {
-            throw new Error(
-              `Invalid directive generated - missing 'if' or 'then' in ${correction}`
-            );
+            throw new Error(`Invalid directive generated - missing 'if' or 'then' in ${learning}`);
           }
         }
       }
@@ -1075,11 +1176,28 @@ async function parseAndInternAgentCorrection(
       }
     }
   }
+  if (obj.scenarios) {
+    AgentInstance.ResetCache(fqName, AgentCacheType.SCENARIO);
+    for (let i = 0; i < obj.scenarios.length; ++i) {
+      const user = obj.scenarios[i].user;
+      const ai = obj.scenarios[i].ai;
+      if (user && ai) {
+        await parseAndEvaluateStatement(
+          `{${CoreAIModuleName}/Scenario {
+  agentFqName "${fqName}",
+  user "${escapeSpecialChars(user)}",
+  ai "${escapeSpecialChars(ai)}"}}`,
+          env.getActiveUser(),
+          env
+        );
+      }
+    }
+  }
   AgentInstance.ResetCache(fqName, AgentCacheType.SUMMARY);
   const summary = obj.summary;
   delete obj.summary;
   await parseAndEvaluateStatement(
-    `{${CoreAIModuleName}/AgentCorrectionResult {
+    `{${CoreAIModuleName}/AgentLearningResult {
   agentFqName "${fqName}",
   data "${escapeSpecialChars(JSON.stringify(obj))}",
   summary "${escapeSpecialChars(summary) || ''}"}}`,
@@ -1088,17 +1206,17 @@ async function parseAndInternAgentCorrection(
   );
 }
 
-export async function processAgentCorrection(
+export async function processAgentLearning(
   moduleName: string,
   agentName: string,
   instruction: string,
   env: Environment
 ): Promise<any> {
-  const correction = await parseAndEvaluateStatement(
+  const learning = await parseAndEvaluateStatement(
     `{${moduleName}/${agentName}_${AgentLearnerType} {message \`${instruction}\`}}`,
     env.getActiveUser(),
     env
   );
-  await parseAndInternAgentCorrection(moduleName, agentName, correction, env);
-  return { agentCorrection: { result: correction } };
+  await parseAndInternAgentLearning(moduleName, agentName, learning, env);
+  return { agentLearning: { result: learning } };
 }
