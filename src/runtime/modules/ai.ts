@@ -216,7 +216,7 @@ async function activatedUserDefinedAgentLearnings<T>(
   );
   msgs.push(new HumanMessage(msg));
   const response: AIResponse = await activator.provider.invoke(msgs, undefined);
-  const indices: number[] = JSON.parse(trimGeneratedCode(response.content));
+  const indices: number[] = JSON.parse(normalizeGeneratedCode(response.content));
   if (indices.length == 0 || indices.length == learningObjects.length) return learningObjects;
   const result = new Array<T>();
   for (let i = 0; i < indices.length; ++i) {
@@ -1217,7 +1217,7 @@ async function parseAndInternAgentLearning(
   learning: string,
   env: Environment
 ) {
-  const obj = JSON.parse(trimGeneratedCode(learning));
+  const obj = JSON.parse(normalizeGeneratedCode(learning));
   const fqName = makeFqName(moduleName, agentName);
   if (obj.decisions) {
     for (let j = 0; j < obj.decisions.length; ++j) {
