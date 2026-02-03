@@ -47,6 +47,8 @@ import {
   RetryDefinition,
   SetAttribute,
   CrudMap,
+  isAgentEvaluatorDefinition,
+  AgentEvaluatorDefinition,
 } from '../language/generated/ast.js';
 import {
   addEntity,
@@ -69,6 +71,7 @@ import {
   fetchModule,
   Retry,
   addGlobalRetry,
+  AgentEvaluator,
 } from './module.js';
 import {
   asStringLiteralsMap,
@@ -103,6 +106,7 @@ import { Environment, evaluateStatements, GlobalEnvironment } from './interprete
 import { createPermission, createRole } from './modules/auth.js';
 import {
   AgentEntityName,
+  AgentInstance,
   AgentLearnerType,
   CoreAIModuleName,
   LlmEntityName,
@@ -1101,6 +1105,29 @@ function addRetryDefinition(def: RetryDefinition, moduleName: string) {
   fetchModule(moduleName).addRetry(retry);
 }
 
+function addAgentEvaluatorDefinition(def: AgentEvaluatorDefinition, moduleName: string) {
+  if (!def.name) throw new Error('Evaluator definition must have a name');
+  const e = new AgentEvaluator(def.name, moduleName);
+  def.attributes.forEach((sa: SetAttribute) => {
+    const isins = sa.name === 'instruction';
+    if (isins || sa.name === 'llm') {
+      if (isLiteral(sa.value)) {
+        const s = sa.value.id || sa.value.str;
+        if (s) {
+          if (isins) e.setInstruction(s);
+          else e.setLlm(s);
+        } else throw new Error(`Invalid value for evaluator-${sa.name} in ${def.name}`);
+      } else {
+        throw new Error(`evaluator ${sa.name} must be a string in ${def.name}`);
+      }
+    } else {
+      throw new Error(`invalid attribute ${sa.name} in evaluator ${def.name}`);
+    }
+  });
+  fetchModule(moduleName).addAgentEvaluator(e);
+  AgentInstance.RegisterEvaluator(e);
+}
+
 function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
   const resolverName = `${moduleName}/${def.name}`;
   const paths = def.paths;
@@ -1168,6 +1195,7 @@ export async function addFromDef(def: Definition, moduleName: string) {
   else if (isDirectiveDefinition(def)) addDirectiveDefintion(def, moduleName);
   else if (isGlossaryEntryDefinition(def)) addGlossaryEntryDefintion(def, moduleName);
   else if (isRetryDefinition(def)) addRetryDefinition(def, moduleName);
+  else if (isAgentEvaluatorDefinition(def)) addAgentEvaluatorDefinition(def, moduleName);
 }
 
 export async function parseAndIntern(code: string, moduleName?: string) {

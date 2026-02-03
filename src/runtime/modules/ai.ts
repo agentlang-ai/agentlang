@@ -16,6 +16,7 @@ import {
   parseAndEvaluateStatement,
 } from '../interpreter.js';
 import {
+  AgentEvaluator,
   asJSONSchema,
   Decision,
   fetchModule,
@@ -46,6 +47,7 @@ import {
   AgentScenario,
   AgentSummary as AgentLearningResult,
   DecisionAgentInstructions,
+  EvalInstructions,
   FlowExecInstructions,
   getAgentDirectives,
   getAgentGlossary,
@@ -70,6 +72,8 @@ export const AgentEntityName = 'Agent';
 export const LlmEntityName = 'LLM';
 export const AgentLearnerType = 'learner';
 
+const AgentEvalType = 'eval';
+
 export default `module ${CoreAIModuleName}
 
 import "./modules/ai.js" @as ai
@@ -83,7 +87,7 @@ entity ${LlmEntityName} {
 entity ${AgentEntityName} {
     name String @id,
     moduleName String @default("${CoreAIModuleName}"),
-    type @enum("chat", "planner", "flow-exec", "${AgentLearnerType}") @default("chat"),
+    type @enum("chat", "planner", "flow-exec", "${AgentEvalType}", "${AgentLearnerType}") @default("chat"),
     runWorkflows Boolean @default(true),
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
@@ -141,6 +145,14 @@ entity GlossaryEntry {
    name String,
    meaning String,
    synonyms String @optional
+}
+
+entity EvaluationResult {
+  id UUID @id @default(uuid()),
+  agentFqName String @indexed,
+  userRequest String,
+  score Int,
+  summary String
 }
 
 entity AgentLearningResult {
@@ -204,7 +216,7 @@ async function activatedUserDefinedAgentLearnings<T>(
   );
   msgs.push(new HumanMessage(msg));
   const response: AIResponse = await activator.provider.invoke(msgs, undefined);
-  const indices: number[] = JSON.parse(trimGeneratedCode(response.content));
+  const indices: number[] = JSON.parse(normalizeGeneratedCode(response.content));
   if (indices.length == 0 || indices.length == learningObjects.length) return learningObjects;
   const result = new Array<T>();
   for (let i = 0; i < indices.length; ++i) {
@@ -394,6 +406,10 @@ export class AgentInstance {
 
   isFlowExecutor(): boolean {
     return this.type == 'flow-exec';
+  }
+
+  isEvaluator(): boolean {
+    return this.type == AgentEvalType;
   }
 
   markAsDecisionExecutor(): AgentInstance {
@@ -609,7 +625,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (response) {
       const responseSchema = getAgentResponseSchema(this.getFqName());
       if (responseSchema) {
-        const attrs = JSON.parse(trimGeneratedCode(response));
+        const attrs = JSON.parse(normalizeGeneratedCode(response));
         const parts = nameToPath(responseSchema);
         const moduleName = parts.getModuleName();
         const entryName = parts.getEntryName();
@@ -674,14 +690,75 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     return this;
   }
 
+  private static AgentEvaluators = new Map<string, AgentInstance>();
+
+  public static RegisterEvaluator(e: AgentEvaluator): AgentInstance {
+    const n = e.normalizedName();
+    const agentFqName = isFqName(n) ? n : makeFqName(e.moduleName, n);
+    const instruction = e.instruction;
+    let llm = e.llm;
+    const [agentModule, agentName] = splitFqName(agentFqName);
+    if (llm === undefined) llm = `${agentName}_llm`;
+    const inst = makeInstance(
+      CoreAIModuleName,
+      AgentEntityName,
+      newInstanceAttributes()
+        .set('llm', llm)
+        .set('name', agentName)
+        .set('moduleName', agentModule)
+        .set(
+          'instruction',
+          instruction || 'You are an agent that evaluates the performance of another agent.'
+        )
+        .set('type', AgentEvalType)
+    );
+    const einst = AgentInstance.FromInstance(inst).disableSession();
+    this.AgentEvaluators.set(agentFqName, einst);
+    return einst;
+  }
+
+  private static async maybeEvaluateResponse(
+    agent: AgentInstance,
+    userRequest: string,
+    fullRequest: string,
+    response: string,
+    env: Environment
+  ): Promise<void> {
+    const fqn = agent.getFqName();
+    const e: AgentInstance | undefined = AgentInstance.AgentEvaluators.get(fqn);
+    if (e !== undefined) {
+      await e.invoke(
+        JSON.stringify({ requestToAgent: fullRequest, responseFromAgent: response }),
+        env
+      );
+      try {
+        const r = JSON.parse(normalizeGeneratedCode(env.getLastResult()));
+        const score = r.score;
+        if (score === undefined || score === null) {
+          logger.warn(`Evaluation for agent ${fqn} failed to generate a valid score`);
+        } else {
+          await parseAndEvaluateStatement(`{${CoreAIModuleName}/EvaluationResult {
+              agentFqName "${fqn}",
+              userRequest "${escapeSpecialChars(userRequest)}",
+              score ${score},
+              summary "${escapeSpecialChars(r.summary)}"
+          }}`);
+        }
+      } catch (reason: any) {
+        logger.warn(`Failed to save evaluation for agent ${fqn} - ${reason}`);
+      }
+    }
+  }
+
   async invoke(message: string, env: Environment) {
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
     const chatId = env.getAgentChatId() || agentName;
     let isplnr = this.isPlanner();
     const isflow = !isplnr && this.isFlowExecutor();
-    const islearner = !isflow && !isplnr && this.isLearner();
-    if (isplnr && this.withSession) {
+    const iseval = !isplnr && !isflow && this.isEvaluator();
+    const islearner = !isflow && !isplnr && !iseval && this.isLearner();
+    if ((isplnr || islearner || iseval) && this.withSession) {
       this.withSession = false;
     }
     if (isflow || islearner) {
@@ -715,12 +792,14 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (msgs) {
       try {
         const sysMsg = msgs[0];
-        if (isplnr || isflow || islearner) {
+        if (isplnr || isflow || iseval || islearner) {
           const s = isplnr
             ? PlannerInstructions
             : isflow
               ? FlowExecInstructions
-              : LearnerAgentInstructions;
+              : iseval
+                ? EvalInstructions
+                : LearnerAgentInstructions;
           const ts = this.toolsAsString();
           const msg = `${s}\n${ts}\n${cachedMsg || (await this.getFullInstructions(env, activator))}`;
           const newSysMsg = systemMessage(msg);
@@ -760,6 +839,14 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         if (v) {
           response = await this.handleValidation(response, v, msgs, p);
         }
+        if (!iseval)
+          await AgentInstance.maybeEvaluateResponse(
+            this,
+            message,
+            msgsContent,
+            response.content,
+            env
+          );
         msgs.push(assistantMessage(response.content));
         if (isplnr) {
           msgs[0] = sysMsg;
@@ -796,7 +883,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     validationEventName: string
   ): Promise<Instance> {
     let isstr = true;
-    const content = trimGeneratedCode(response.content);
+    const content = normalizeGeneratedCode(response.content);
     try {
       const c = JSON.parse(content);
       isstr = isString(c);
@@ -1110,7 +1197,7 @@ function processScenarioResponse(resp: string): string {
   return resp;
 }
 
-export function trimGeneratedCode(code: string | undefined): string {
+export function normalizeGeneratedCode(code: string | undefined): string {
   if (code !== undefined) {
     let s = code.trim();
     if (s.startsWith('```')) {
@@ -1132,7 +1219,7 @@ async function parseAndInternAgentLearning(
   learning: string,
   env: Environment
 ) {
-  const obj = JSON.parse(trimGeneratedCode(learning));
+  const obj = JSON.parse(normalizeGeneratedCode(learning));
   const fqName = makeFqName(moduleName, agentName);
   if (obj.decisions) {
     for (let j = 0; j < obj.decisions.length; ++j) {

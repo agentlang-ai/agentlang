@@ -365,6 +365,9 @@ case or cases you selected and no additional text or comments. If you decide to 
 Also select the case that is the best match for the given context, no need to look for a perfect match for all values specified in the context.
 Now apply the same analysis to the following context and cases provided by the user.
 `;
+export const EvalInstructions = `Consider the following request passed to an intelligent agent and its response. Rate the response on a scale of
+1-5, where 1 being the lowest score (response unacceptable) and 5 being the highest score (best response). Also describe why you gave a particular score.
+Reply in the JSON format {score: <score-for-the-response, summary: <your-reasons-for-giving-the-score>}`;
 
 export const LearningAgentInstructions = `Summarize requirements and use-cases as three constructs: 'decisions' and 'glossaries'.
 Your response must be encoded in JSON. The exact schema will be described later, but let's first consider an example that will help clarify

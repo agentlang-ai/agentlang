@@ -2119,6 +2119,49 @@ export class Retry extends ModuleEntry {
   }
 }
 
+export class AgentEvaluator extends ModuleEntry {
+  instruction: string | undefined;
+  llm: string | undefined;
+
+  constructor(name: string, moduleName: string) {
+    super(name, moduleName);
+  }
+
+  setInstruction(ins: string): AgentEvaluator {
+    this.instruction = ins;
+    return this;
+  }
+
+  setLlm(llm: string): AgentEvaluator {
+    this.llm = llm;
+    return this;
+  }
+
+  private static suffix = '_eval';
+
+  escapeName(): AgentEvaluator {
+    this.name = `${this.name}${AgentEvaluator.suffix}`;
+    return this;
+  }
+
+  normalizedName(): string {
+    const i = this.name.lastIndexOf(AgentEvaluator.suffix);
+    if (i >= 0) {
+      return this.name.substring(0, i);
+    }
+    return this.name;
+  }
+
+  override toString(): string {
+    let s = '';
+    if (this.instruction) s = `    instruction "${this.instruction}"`;
+    if (this.llm) s = `${s}\n    llm "${this.llm}"`;
+    return `evaluator ${this.normalizedName()} {
+    ${s}
+    }`;
+  }
+}
+
 export class Decision extends ModuleEntry {
   cases: string[];
 
@@ -2420,6 +2463,11 @@ export class Module {
 
   addRetry(retry: Retry): Module {
     this.addEntry(retry);
+    return this;
+  }
+
+  addAgentEvaluator(e: AgentEvaluator): Module {
+    this.addEntry(e.escapeName());
     return this;
   }
 
