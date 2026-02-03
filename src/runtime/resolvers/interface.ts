@@ -174,7 +174,7 @@ export class Resolver {
     entryName: string,
     moduleName: string,
     query: string,
-    options?: Map<string, any>
+    options?: any
   ): Promise<any> {
     return this.notImpl(`fullTextSearch(${entryName}, ${moduleName}, ${query}, ${options})`);
   }
