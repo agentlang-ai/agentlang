@@ -553,13 +553,13 @@ export class SqlDbResolver extends Resolver {
     entryName: string,
     moduleName: string,
     query: string,
-    options?: Map<string, any>
+    options?: any
   ): Promise<any> {
     const queryVec = await this.embeddings.embedQuery(query);
     const ctx = this.getDbContext(makeFqName(moduleName, entryName));
     let limit = 5;
-    if (options && options.has('limit')) {
-      limit = options.get('limit') as number;
+    if (options && options.limit) {
+      limit = options.limit as number;
     }
     return await vectorStoreSearch(asTableReference(moduleName, entryName), queryVec, limit, ctx);
   }

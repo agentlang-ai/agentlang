@@ -45,6 +45,7 @@ import {
 import { saveMigration } from '../../modules/core.js';
 import { getAppSpec } from '../../loader.js';
 import { WhereClause } from '../interface.js';
+import { AppConfig } from '../../state.js';
 
 export let defaultDataSource: DataSource | undefined;
 
@@ -323,9 +324,7 @@ function makeSqljsDataSource(
   });
 }
 
-const DbType = 'sqlite';
-
-function getDbType(config?: DatabaseConfig): string {
+function forceGetDbType(config: DatabaseConfig | undefined): string {
   if (config?.type) return config.type;
   let envType: string | undefined;
   try {
@@ -335,6 +334,13 @@ function getDbType(config?: DatabaseConfig): string {
   } catch {}
   if (envType) return envType;
   if (isBrowser()) return 'sqljs';
+  return 'sqlite';
+}
+
+let DbType: string | undefined;
+
+function getDbType(config: DatabaseConfig | undefined): string {
+  if (DbType === undefined) DbType = forceGetDbType(config);
   return DbType;
 }
 
@@ -358,16 +364,16 @@ function getDsFunction(
 }
 
 export function isUsingSqlite(): boolean {
-  return getDbType() == 'sqlite';
+  return getDbType(AppConfig?.store) == 'sqlite';
 }
 
 export function isUsingSqljs(): boolean {
-  return getDbType() == 'sqljs';
+  return getDbType(AppConfig?.store) == 'sqljs';
 }
 
 export function isVectorStoreSupported(): boolean {
   // Only Postgres supports pgvector
-  return getDbType() === 'postgres';
+  return getDbType(AppConfig?.store) === 'postgres';
 }
 
 export async function initDatabase(config: DatabaseConfig | undefined) {
@@ -403,7 +409,7 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
         await initVectorStore(vectEnts, DbContext.getGlobalContext());
       }
     } else {
-      throw new Error(`Unsupported database type - ${DbType}`);
+      throw new Error(`Unsupported database type - ${getDbType(AppConfig?.store)}`);
     }
   }
 }
@@ -454,7 +460,7 @@ export async function addRowForFullTextSearch(
 
 export async function initVectorStore(tableNames: string[], ctx: DbContext) {
   if (!isVectorStoreSupported()) {
-    logger.info(`Vector store not supported for ${getDbType()}, skipping init...`);
+    logger.info(`Vector store not supported for ${getDbType(AppConfig?.store)}, skipping init...`);
     return;
   }
   let notInited = true;
@@ -475,6 +481,7 @@ export async function initVectorStore(tableNames: string[], ctx: DbContext) {
       `CREATE TABLE IF NOT EXISTS ${vecTableName} (
           id varchar PRIMARY KEY,
           embedding vector(${DefaultVectorDimension}),
+          ${TenantAttributeName} varchar,
           __is_deleted__ boolean default false
         )`
     );
@@ -511,7 +518,8 @@ ${ot}.path = ${vecTableName}.id and ${ot}.user_id = '${ctx.authInfo.userId}' and
 and ${ot}.${TenantAttributeName} = '${tenantId}' and ${vecTableName}.${TenantAttributeName} = '${tenantId}'`;
     }
     const sql = `select ${vecTableName}.id from ${vecTableName} ${ownersJoinCond} order by embedding <-> $1 LIMIT ${limit}`;
-    return await qb.query(sql, [pgvector.toSql(searchVec)]);
+    const args = pgvector.toSql(searchVec);
+    return await qb.query(sql, [args]);
   } catch (err: any) {
     logger.error(`Vector store search failed - ${err}`);
     return [];
@@ -529,7 +537,7 @@ export async function vectorStoreSearchEntryExists(
     const vecTableName = tableName + VectorSuffix;
     const tenantId = await ctx.getTenantId();
     const result: any[] = await qb.query(
-      `select id from ${vecTableName} where id = $1 abd ${TenantAttributeName} = '${tenantId}'`,
+      `select id from ${vecTableName} where id = $1 and ${TenantAttributeName} = '${tenantId}'`,
       [id]
     );
     return result !== null && result.length > 0;
