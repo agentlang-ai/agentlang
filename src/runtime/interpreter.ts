@@ -2069,7 +2069,11 @@ export async function handleAgentInvocation(
   agentEventInst: Instance,
   env: Environment
 ): Promise<void> {
-  const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
+  const agent: AgentInstance = await findAgentByName(
+    agentEventInst.name,
+    agentEventInst.moduleName,
+    env
+  );
   const origMsg: any =
     agentEventInst.lookup('message') || JSON.stringify(agentEventInst.asObject());
   const msg: string = isString(origMsg) ? origMsg : maybeInstanceAsString(origMsg);
@@ -2132,7 +2136,7 @@ export async function restartFlow(
   env: Environment
 ): Promise<void> {
   const [_, agentName, step, ctx, spad] = flowContext;
-  const rootAgent: AgentInstance = await findAgentByName(agentName, env);
+  const rootAgent: AgentInstance = await findAgentByName(agentName, undefined, env);
   const flow = getAgentFlow(agentName, rootAgent.moduleName);
   if (flow) {
     const newCtx = `${ctx}\n${step} --> ${userData}\n`;
