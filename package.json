@@ -76,6 +76,7 @@
 		"pgvector": "^0.2.1",
 		"reflect-metadata": "^0.2.2",
 		"sql.js": "^1.13.0",
+		"sqlite-vec": "^0.1.7-alpha.2",
 		"typeorm": "^0.3.28",
 		"vscode-languageserver": "^9.0.1",
 		"winston": "^3.19.0",

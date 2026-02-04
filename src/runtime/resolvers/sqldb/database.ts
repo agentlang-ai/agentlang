@@ -1,20 +1,7 @@
 import 'reflect-metadata';
-import {
-  DataSource,
-  EntityManager,
-  EntitySchema,
-  QueryRunner,
-  SelectQueryBuilder,
-  TableForeignKey,
-} from 'typeorm';
+import { DataSource, EntityManager, EntitySchema, QueryRunner, SelectQueryBuilder, TableForeignKey, } from 'typeorm';
 import { logger } from '../../logger.js';
-import {
-  asTableReference,
-  DefaultVectorDimension,
-  modulesAsOrmSchema,
-  OwnersSuffix,
-  VectorSuffix,
-} from './dbutil.js';
+import { asTableReference, DefaultVectorDimension, modulesAsOrmSchema, OwnersSuffix, VectorSuffix, } from './dbutil.js';
 import { DefaultAuthInfo, ResolverAuthInfo } from '../authinfo.js';
 import { canUserCreate, canUserDelete, canUserRead, canUserUpdate } from '../../modules/auth.js';
 import { Environment, GlobalEnvironment } from '../../interpreter.js';
@@ -228,9 +215,10 @@ function makeSqliteDataSource(
 ): DataSource {
   const synchronize = needSync();
   //const runMigrations = isRuntimeMode_migration() || isRuntimeMode_undo_migration() || !synchronize;
-  return new DataSource({
+  const dbPath = config?.dbname || mkDbName();
+  const ds = new DataSource({
     type: 'better-sqlite3',
-    database: config?.dbname || mkDbName(),
+    database: dbPath,
     synchronize: synchronize,
     entities: entities,
     migrationsRun: false,
@@ -240,6 +228,25 @@ function makeSqliteDataSource(
       undefined: 'ignore',
     },
   });
+  const originalInit = ds.initialize.bind(ds);
+  ds.initialize = async () => {
+    const res = await originalInit();
+    try {
+      const { load } = await import('sqlite-vec');
+      const driver = ds.driver as any;
+      const db = driver.databaseConnection || driver.nativeDatabase;
+      if (db) {
+        load(db);
+        logger.info('sqlite-vec extension loaded successfully');
+      }
+    } catch (err: any) {
+      logger.warn(
+        `Failed to load sqlite-vec extension: ${err.message}. Vector operations may not be available.`
+      );
+    }
+    return res;
+  };
+  return ds;
 }
 
 async function execMigrationSql(dataSource: DataSource, sql: string[]) {
@@ -371,9 +378,20 @@ export function isUsingSqljs(): boolean {
   return getDbType(AppConfig?.store) == 'sqljs';
 }
 
-export function isVectorStoreSupported(): boolean {
-  // Only Postgres supports pgvector
-  return getDbType(AppConfig?.store) === 'postgres';
+export async function isVectorStoreSupported(): Promise<boolean> {
+  // Postgres (pgvector) and SQLite (sqlite-vec) are supported.
+  const dbType = getDbType(AppConfig?.store);
+  if (dbType === 'postgres') return true;
+  if (dbType === 'sqlite') {
+    try {
+      // Check if sqlite-vec is available
+      const sqliteVecModule = await import('sqlite-vec');
+      return !!sqliteVecModule;
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 export async function initDatabase(config: DatabaseConfig | undefined) {
@@ -442,50 +460,70 @@ export async function addRowForFullTextSearch(
   vect: number[],
   ctx: DbContext
 ) {
-  if (!isVectorStoreSupported()) return;
+  if (!(await isVectorStoreSupported())) return;
   try {
     const vecTableName = tableName + VectorSuffix;
     const qb = getDatasourceForTransaction(ctx.txnId).createQueryBuilder();
     const tenantId = await ctx.getTenantId();
-    const { default: pgvector } = await import('pgvector');
-    await qb
-      .insert()
-      .into(vecTableName)
-      .values([{ id: id, embedding: pgvector.toSql(vect), __tenant__: tenantId }])
-      .execute();
+    const dbType = getDbType(AppConfig?.store);
+    if (dbType === 'postgres') {
+      const { default: pgvector } = await import('pgvector');
+      await qb
+        .insert()
+        .into(vecTableName)
+        .values([{ id: id, embedding: pgvector.toSql(vect), __tenant__: tenantId }])
+        .execute();
+    } else {
+      // better-sqlite3 with sqlite-vec - vec0 only stores id and embedding
+      await qb
+        .insert()
+        .into(vecTableName)
+        .values([{ id: id, embedding: new Float32Array(vect) }])
+        .execute();
+    }
   } catch (err: any) {
     logger.error(`Failed to add row to vector store - ${err}`);
   }
 }
 
 export async function initVectorStore(tableNames: string[], ctx: DbContext) {
-  if (!isVectorStoreSupported()) {
+  if (!(await isVectorStoreSupported())) {
     logger.info(`Vector store not supported for ${getDbType(AppConfig?.store)}, skipping init...`);
     return;
   }
+  const dbType = getDbType(AppConfig?.store);
   let notInited = true;
-  tableNames.forEach(async (vecTableName: string) => {
+  for (const vecTableName of tableNames) {
     const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
-    if (notInited) {
-      let failure = false;
-      try {
-        await vecRepo.query('CREATE EXTENSION IF NOT EXISTS vector');
-      } catch (err: any) {
-        logger.error(`Failed to initialize vector store - ${err}`);
-        failure = true;
+    if (dbType === 'postgres') {
+      if (notInited) {
+        let failure = false;
+        try {
+          await vecRepo.query('CREATE EXTENSION IF NOT EXISTS vector');
+        } catch (err: any) {
+          logger.error(`Failed to initialize vector store - ${err}`);
+          failure = true;
+        }
+        if (failure) continue;
+        notInited = false;
       }
-      if (failure) return;
-      notInited = false;
+      await vecRepo.query(
+        `CREATE TABLE IF NOT EXISTS ${vecTableName} (
+            id varchar PRIMARY KEY,
+            embedding vector(${DefaultVectorDimension}),
+            ${TenantAttributeName} varchar,
+            __is_deleted__ boolean default false
+          )`
+      );
+    } else {
+      // sqlite-vec - vec0 doesn't support type declarations for metadata columns
+      await vecRepo.query(
+        `CREATE VIRTUAL TABLE IF NOT EXISTS ${vecTableName} USING vec0(
+            id TEXT PRIMARY KEY,
+            embedding FLOAT[${DefaultVectorDimension}])`
+      );
     }
-    await vecRepo.query(
-      `CREATE TABLE IF NOT EXISTS ${vecTableName} (
-          id varchar PRIMARY KEY,
-          embedding vector(${DefaultVectorDimension}),
-          ${TenantAttributeName} varchar,
-          __is_deleted__ boolean default false
-        )`
-    );
-  });
+  }
 }
 
 export async function vectorStoreSearch(
@@ -494,7 +532,7 @@ export async function vectorStoreSearch(
   limit: number,
   ctx: DbContext
 ): Promise<any> {
-  if (!isVectorStoreSupported()) {
+  if (!(await isVectorStoreSupported())) {
     // Not supported on sqljs/sqlite
     return [];
   }
@@ -508,18 +546,31 @@ export async function vectorStoreSearch(
     }
     const vecTableName = tableName + VectorSuffix;
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
-    const { default: pgvector } = await import('pgvector');
-    let ownersJoinCond: string = '';
+    const dbType = getDbType(AppConfig?.store);
     const tenantId = await ctx.getTenantId();
+    let ownersJoinCond: string = '';
     if (!hasGlobalPerms) {
       const ot = ownersTable(tableName);
       ownersJoinCond = `inner join ${ot} on
-${ot}.path = ${vecTableName}.id and ${ot}.user_id = '${ctx.authInfo.userId}' and ${ot}.r = true
-and ${ot}.${TenantAttributeName} = '${tenantId}' and ${vecTableName}.${TenantAttributeName} = '${tenantId}'`;
+ ${ot}.path = ${vecTableName}.id and ${ot}.user_id = '${ctx.authInfo.userId}' and ${ot}.r = true
+ and ${ot}.${TenantAttributeName} = '${tenantId}'`;
     }
-    const sql = `select ${vecTableName}.id from ${vecTableName} ${ownersJoinCond} order by embedding <-> $1 LIMIT ${limit}`;
-    const args = pgvector.toSql(searchVec);
-    return await qb.query(sql, [args]);
+    if (dbType === 'postgres') {
+      const { default: pgvector } = await import('pgvector');
+      const sql = `select ${vecTableName}.id from ${vecTableName} ${ownersJoinCond} order by embedding <-> $1 LIMIT ${limit}`;
+      const args = pgvector.toSql(searchVec);
+      return await qb.query(sql, [args]);
+    } else {
+      // sqlite-vec - join with main table to filter by tenant
+      const alias = tableName.toLowerCase();
+      const sql = `SELECT ${vecTableName}.id FROM ${vecTableName}
+        INNER JOIN ${tableName} ${alias} ON ${alias}.${PathAttributeName} = ${vecTableName}.id
+        ${ownersJoinCond}
+        WHERE ${alias}.${TenantAttributeName} = '${tenantId}' AND ${alias}.${DeletedFlagAttributeName} = false AND ${vecTableName}.embedding MATCH $1
+        LIMIT ${limit}`;
+      const args = new Float32Array(searchVec);
+      return await qb.query(sql, [args]);
+    }
   } catch (err: any) {
     logger.error(`Vector store search failed - ${err}`);
     return [];
@@ -531,16 +582,30 @@ export async function vectorStoreSearchEntryExists(
   id: string,
   ctx: DbContext
 ): Promise<boolean> {
-  if (!isVectorStoreSupported()) return false;
+  if (!(await isVectorStoreSupported())) return false;
   try {
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const vecTableName = tableName + VectorSuffix;
+    const dbType = getDbType(AppConfig?.store);
     const tenantId = await ctx.getTenantId();
-    const result: any[] = await qb.query(
-      `select id from ${vecTableName} where id = $1 and ${TenantAttributeName} = '${tenantId}'`,
-      [id]
-    );
-    return result !== null && result.length > 0;
+
+    if (dbType === 'postgres') {
+      const result: any[] = await qb.query(
+        `select id from ${vecTableName} where id = $1 and ${TenantAttributeName} = '${tenantId}'`,
+        [id]
+      );
+      return result !== null && result.length > 0;
+    } else {
+      // sqlite-vec - join with main table to verify tenant
+      const alias = tableName.toLowerCase();
+      const result: any[] = await qb.query(
+        `SELECT ${vecTableName}.id FROM ${vecTableName}
+         INNER JOIN ${tableName} ${alias} ON ${alias}.${PathAttributeName} = ${vecTableName}.id
+         WHERE ${vecTableName}.id = $1 AND ${alias}.${TenantAttributeName} = '${tenantId}'`,
+        [id]
+      );
+      return result !== null && result.length > 0;
+    }
   } catch (err: any) {
     logger.error(`Vector store search failed - ${err}`);
   }
@@ -548,15 +613,22 @@ export async function vectorStoreSearchEntryExists(
 }
 
 export async function deleteFullTextSearchEntry(tableName: string, id: string, ctx: DbContext) {
-  if (!isVectorStoreSupported()) return;
+  if (!(await isVectorStoreSupported())) return;
   try {
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const vecTableName = tableName + VectorSuffix;
+    const dbType = getDbType(AppConfig?.store);
     const tenantId = await ctx.getTenantId();
-    await qb.query(
-      `delete from ${vecTableName} where id = $1 and ${TenantAttributeName} = '${tenantId}'`,
-      [id]
-    );
+
+    if (dbType === 'postgres') {
+      await qb.query(
+        `delete from ${vecTableName} where id = $1 and ${TenantAttributeName} = '${tenantId}'`,
+        [id]
+      );
+    } else {
+      // sqlite-vec - delete just by id (ownership verified by caller)
+      await qb.query(`delete from ${vecTableName} where id = $1`, [id]);
+    }
   } catch (err: any) {
     logger.error(`Vector store delete failed - ${err}`);
   }
