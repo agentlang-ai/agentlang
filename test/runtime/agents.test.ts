@@ -1,6 +1,11 @@
 import { assert, describe, test } from 'vitest';
 import { provider } from '../../src/runtime/agents/registry.js';
-import { AgentServiceProvider, AIResponse, humanMessage, systemMessage, } from '../../src/runtime/agents/provider.js';
+import {
+  AgentServiceProvider,
+  AIResponse,
+  humanMessage,
+  systemMessage,
+} from '../../src/runtime/agents/provider.js';
 import { doInternModule } from '../util.js';
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import {
@@ -980,7 +985,12 @@ agent userRequestManager
       try {
         await doInternModule(
           'SupportDocs',
-          `
+          `{agentlang.ai/LLM {
+              name "test-llm",
+              service "openai",
+              config {"model": "gpt-4o"}
+            }
+          }
           {agentlang.ai/doc {
               title "camera manual",
               url "${doc1Path}"}}
@@ -990,6 +1000,7 @@ agent userRequestManager
               url "${doc2Path}"}}
 
           agent supportAgent {
+              llm "test-llm",
               instruction "Answer questions about cameras and their features.",
               documents ["camera manual", "pricing"]
           }
@@ -1012,7 +1023,6 @@ agent userRequestManager
           '{agentlang.ai/Document {title? "camera manual"}}'
         );
 
-        console.log(titleQuery);
         assert(titleQuery.length === 1);
         assert(titleQuery[0].lookup('title') === 'camera manual');
 
@@ -1020,9 +1030,11 @@ agent userRequestManager
           '{SupportDocs/supportAgent {message "What is the price of the Sony A7III camera?"}}'
         );
 
-        console.log(request);
-        assert(request.length === 1);
-        assert(request[0].lookup('response').includes('$2000'));
+        assert(request !== undefined && request !== null, 'Agent should return a response');
+        assert(typeof request === 'string', 'Agent response should be a string');
+
+        // The agent should have retrieved the documents and found the price
+        assert(request.includes('$2000'), 'Response should mention $2000 for Sony A7III');
       } finally {
         unlinkSync(doc1Path);
         unlinkSync(doc2Path);

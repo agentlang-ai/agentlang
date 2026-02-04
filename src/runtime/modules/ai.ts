@@ -60,7 +60,7 @@ import {
   newAgentScenario,
   PlannerInstructions,
 } from '../agents/common.js';
-import { PathAttributeNameQuery } from '../defs.js';
+// import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
 import Handlebars from 'handlebars';
@@ -980,29 +980,45 @@ Only return a pure JSON object with no extra text, annotations etc.`;
 
   private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
     if (this.documents && this.documents.length > 0) {
-      const s = `${message}. Relevant documents are: ${this.documents}`;
-      const result: any[] = await parseHelper(`{${CoreAIModuleName}/Document? "${s}"}`, env);
-      if (result && result.length > 0) {
-        const docs: Instance[] = [];
-        for (let i = 0; i < result.length; ++i) {
-          const v: any = result[i];
-          const r: Instance[] = await parseHelper(
-            `{${CoreAIModuleName}/Document {${PathAttributeNameQuery} "${v.id}"}}`,
-            env
-          );
-          if (r && r.length > 0) {
-            docs.push(r[0]);
+      try {
+        const result: any[] = await parseHelper(`{${CoreAIModuleName}/Document? {}}`, env);
+        if (result && result.length > 0) {
+          const docs: Instance[] = [];
+          const docNames = this.documents.split(',').map(d => d.trim());
+
+          for (let i = 0; i < result.length; ++i) {
+            const v: any = result[i];
+            // Try to get the title - v might be an Instance or a plain object
+            let docTitle: string | undefined;
+            if (typeof v.lookup === 'function') {
+              docTitle = v.lookup('title') as string | undefined;
+            } else if (v.attributes) {
+              docTitle = v.attributes.get('title') as string | undefined;
+            } else if (v.title) {
+              docTitle = v.title;
+            }
+
+            if (docTitle && docNames.includes(docTitle)) {
+              // Use the document directly from the result instead of re-querying
+              if (v instanceof Instance) {
+                docs.push(v);
+              }
+            }
+          }
+
+          if (docs.length > 0) {
+            message = message.concat('\nUse the additional information given below:\n').concat(
+              docs
+                .map((v: Instance) => {
+                  return v.lookup('content') as string;
+                })
+                .join('\n')
+            );
           }
         }
-        if (docs.length > 0) {
-          message = message.concat('\nUse the additional information given below:\n').concat(
-            docs
-              .map((v: Instance) => {
-                return v.lookup('content');
-              })
-              .join('\n')
-          );
-        }
+      } catch (err) {
+        // Silently ignore document retrieval errors - agent can still function without documents
+        logger.debug(`Error retrieving documents: ${err}`);
       }
     }
     return message;
