@@ -1040,6 +1040,102 @@ agent userRequestManager
         unlinkSync(doc2Path);
       }
     });
+
+    test('test02 - Semantic document search with embeddings', async () => {
+      if (!process.env.AGENTLANG_OPENAI_KEY) {
+        console.log('Skipping semantic embedding test - no API key');
+        return;
+      }
+      const { writeFileSync, unlinkSync } = await import('fs');
+      const { join } = await import('path');
+      const { tmpdir } = await import('os');
+
+      const doc1Path = join(tmpdir(), 'nikon_specs.txt');
+      const doc2Path = join(tmpdir(), 'camera_prices.txt');
+      const doc3Path = join(tmpdir(), 'troubleshooting.txt');
+
+      writeFileSync(
+        doc1Path,
+        'The Nikon Z50 is a compact mirrorless camera featuring a 20.9MP DX-format sensor, 4K UHD video, and hybrid autofocus system.',
+        'utf-8'
+      );
+      writeFileSync(
+        doc2Path,
+        'Camera prices: Sony A7 III - $2000, Nikon Z50 - $1000, Canon EOS R6 - $2500, Fujifilm X-T4 - $1700.',
+        'utf-8'
+      );
+      writeFileSync(
+        doc3Path,
+        'Common camera troubleshooting: blurry photos are often caused by shake or wrong focus mode. Battery drain can be fixed by turning off Wi-Fi. Memory card errors may require reformatting.',
+        'utf-8'
+      );
+
+      try {
+        await doInternModule(
+          'SemanticDocTest',
+          `{agentlang.ai/LLM {
+              name "gpt4o",
+              service "openai",
+              config {"model": "gpt-4o"}
+            }
+          }
+          {agentlang.ai/doc {
+              title "nikon specs",
+              url "${doc1Path}"}}
+
+          {agentlang.ai/doc {
+              title "camera prices",
+              url "${doc2Path}"}}
+
+          {agentlang.ai/doc {
+              title "troubleshooting",
+              url "${doc3Path}"}}
+
+          agent docAgent {
+              llm "gpt4o",
+              instruction "Answer questions about cameras by using the provided documents. Be concise and specific.",
+              documents ["nikon specs", "camera prices", "troubleshooting"]
+          }
+
+          event docAgent {
+            message String
+          }
+          `
+        );
+
+        // Verify all documents are loaded
+        const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
+        assert(docs.length === 3);
+
+        // Test 1: Ask about Nikon specs (should find "nikon specs" document)
+        const q1 = await parseAndEvaluateStatement(
+          '{SemanticDocTest/docAgent {message "Tell me about the Nikon Z50 sensor"}}'
+        );
+        assert(q1 && typeof q1 === 'string');
+        assert(q1.toLowerCase().includes('20.9'), 'Should mention 20.9MP sensor');
+
+        // Test 2: Ask about prices (should find "camera prices" document)
+        const q2 = await parseAndEvaluateStatement(
+          '{SemanticDocTest/docAgent {message "How much does the Fujifilm X-T4 cost?"}}'
+        );
+        assert(q2 && typeof q2 === 'string');
+        assert(q2.includes('$1700'), 'Should mention $1700 price');
+
+        // Test 3: Ask about troubleshooting (should find "troubleshooting" document)
+        const q3 = await parseAndEvaluateStatement(
+          '{SemanticDocTest/docAgent {message "My camera battery drains quickly, what should I do?"}}'
+        );
+        assert(q3 && typeof q3 === 'string');
+        assert(
+          q3.toLowerCase().includes('wi-fi') || q3.toLowerCase().includes('wifi'),
+          'Should suggest turning off Wi-Fi'
+        );
+      } finally {
+        unlinkSync(doc1Path);
+        unlinkSync(doc2Path);
+        unlinkSync(doc3Path);
+      }
+    });
   });
 } else {
   describe('Skipping agent tests', () => {

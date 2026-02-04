@@ -60,7 +60,6 @@ import {
   newAgentScenario,
   PlannerInstructions,
 } from '../agents/common.js';
-// import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
 import Handlebars from 'handlebars';
@@ -981,25 +980,59 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
     if (this.documents && this.documents.length > 0) {
       try {
+        // Try semantic search using full-text search with embeddings first
+        const docNames = this.documents.split(',').map(d => d.trim());
+
+        // First try semantic search across all documents
+        const searchQuery = message;
+
+        // Attempt to use full-text search with embeddings if supported
+        try {
+          // This query uses the '?' operator which triggers vector search if embeddings are configured
+          const semanticResult: any[] = await parseHelper(
+            `{${CoreAIModuleName}/Document? {content? "${searchQuery.replace(/"/g, '\\"')}"}}`,
+            env
+          );
+
+          if (semanticResult && semanticResult.length > 0) {
+            // Filter by document names
+            const docs: Instance[] = [];
+            for (const doc of semanticResult) {
+              const docTitle = doc.lookup ? doc.lookup('title') : doc.title;
+              if (AgentInstance.docTitlesMatch(docTitle, docNames)) {
+                docs.push(
+                  doc instanceof Instance
+                    ? doc
+                    : Instance.newWithAttributes(doc, new Map(Object.entries(doc)))
+                );
+              }
+            }
+
+            if (docs.length > 0) {
+              return message.concat('\n\nRelevant context from documents:\n').concat(
+                docs
+                  .map((v: Instance) => {
+                    return `Document: ${v.lookup('title')}\n${v.lookup('content') as string}`;
+                  })
+                  .join('\n\n---\n\n')
+              );
+            }
+          }
+        } catch (semanticErr) {
+          logger.debug(
+            `Semantic search is not available, falling back to title-based filtering: ${semanticErr}`
+          );
+        }
+
+        // Fallback: Get all documents and filter by exact title match
         const result: any[] = await parseHelper(`{${CoreAIModuleName}/Document? {}}`, env);
         if (result && result.length > 0) {
           const docs: Instance[] = [];
-          const docNames = this.documents.split(',').map(d => d.trim());
-
           for (let i = 0; i < result.length; ++i) {
             const v: any = result[i];
-            // Try to get the title - v might be an Instance or a plain object
-            let docTitle: string | undefined;
-            if (typeof v.lookup === 'function') {
-              docTitle = v.lookup('title') as string | undefined;
-            } else if (v.attributes) {
-              docTitle = v.attributes.get('title') as string | undefined;
-            } else if (v.title) {
-              docTitle = v.title;
-            }
+            const docTitle: string | undefined = AgentInstance.getDocumentTitle(v);
 
             if (docTitle && docNames.includes(docTitle)) {
-              // Use the document directly from the result instead of re-querying
               if (v instanceof Instance) {
                 docs.push(v);
               }
@@ -1007,12 +1040,12 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           }
 
           if (docs.length > 0) {
-            message = message.concat('\nUse the additional information given below:\n').concat(
+            return message.concat('\n\nRelevant context from documents:\n').concat(
               docs
                 .map((v: Instance) => {
                   return v.lookup('content') as string;
                 })
-                .join('\n')
+                .join('\n\n')
             );
           }
         }
@@ -1022,6 +1055,21 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       }
     }
     return message;
+  }
+
+  private static docTitlesMatch(title: string | undefined, docNames: string[]): boolean {
+    return title !== undefined && docNames.includes(title);
+  }
+
+  private static getDocumentTitle(doc: any): string | undefined {
+    if (typeof doc.lookup === 'function') {
+      return doc.lookup('title') as string | undefined;
+    } else if (doc.attributes) {
+      return doc.attributes.get('title') as string | undefined;
+    } else if (doc.title) {
+      return doc.title;
+    }
+    return undefined;
   }
 
   private static ToolsCache = new Map<string, string>();
