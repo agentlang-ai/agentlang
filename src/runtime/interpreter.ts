@@ -32,8 +32,8 @@ import {
   WhereSpec,
 } from '../language/generated/ast.js';
 import {
-  maybeInstanceAsString,
   defineAgentEvent,
+  Event,
   getOneOfRef,
   getRelationship,
   getWorkflow,
@@ -46,15 +46,15 @@ import {
   isEntityInstance,
   isEventInstance,
   isInstanceOfType,
+  isOneToOneBetweenRelationship,
   isTimer,
   makeInstance,
+  maybeInstanceAsString,
   newInstanceAttributes,
   PlaceholderRecordEntry,
   Relationship,
-  Workflow,
   setMetaAttributes,
-  Event,
-  isOneToOneBetweenRelationship,
+  Workflow,
 } from './module.js';
 import { JoinInfo, Resolver, WhereClause } from './resolvers/interface.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
@@ -65,26 +65,26 @@ import {
   escapeFqName,
   escapeQueryName,
   fqNameFromPath,
+  isCoreModule,
   isFqName,
   isPath,
   isString,
   makeCoreModuleName,
   makeFqName,
+  nameToPath,
   Path,
+  preprocessRawConfig,
   QuerySuffix,
   restoreSpecialChars,
-  nameToPath,
   splitRefs,
-  isCoreModule,
-  preprocessRawConfig,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
 import { parseStatement, parseWorkflow } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 import {
-  AgentInstance,
   AgentEntityName,
   AgentFqName,
+  AgentInstance,
   findAgentByName,
   normalizeGeneratedCode,
 } from './modules/ai.js';
@@ -1755,11 +1755,15 @@ async function handleDocEvent(inst: Instance, env: Environment): Promise<void> {
   const s = await fetchDoc(inst.lookup('url'));
   if (s) {
     const title = inst.lookup('title');
-    await parseAndEvaluateStatement(
-      `{${CoreAIModuleName}/Document {title "${title}", content "${s}"}}`,
-      undefined,
-      env
+    const doc = makeInstance(
+      CoreAIModuleName,
+      'Document',
+      newInstanceAttributes().set('title', title).set('content', s)
     );
+    await computeExprAttributes(doc, undefined, undefined, env);
+    await setMetaAttributes(doc.attributes, env);
+    const res: Resolver = await getResolverForPath('Document', CoreAIModuleName, env);
+    await res.createInstance(doc);
   }
 }
 
