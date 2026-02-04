@@ -1,7 +1,20 @@
 import 'reflect-metadata';
-import { DataSource, EntityManager, EntitySchema, QueryRunner, SelectQueryBuilder, TableForeignKey, } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  EntitySchema,
+  QueryRunner,
+  SelectQueryBuilder,
+  TableForeignKey,
+} from 'typeorm';
 import { logger } from '../../logger.js';
-import { asTableReference, DefaultVectorDimension, modulesAsOrmSchema, OwnersSuffix, VectorSuffix, } from './dbutil.js';
+import {
+  asTableReference,
+  DefaultVectorDimension,
+  modulesAsOrmSchema,
+  OwnersSuffix,
+  VectorSuffix,
+} from './dbutil.js';
 import { DefaultAuthInfo, ResolverAuthInfo } from '../authinfo.js';
 import { canUserCreate, canUserDelete, canUserRead, canUserUpdate } from '../../modules/auth.js';
 import { Environment, GlobalEnvironment } from '../../interpreter.js';
