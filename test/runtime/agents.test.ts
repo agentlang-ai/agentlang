@@ -210,14 +210,18 @@ if (process.env.AL_TEST === 'true') {
       assert(r.length == 1);
       chk(r[0], p);
       const chkers = async (agent: string, n: number) => {
-      const ers: Instance[] = await parseAndEvaluateStatement(`{${CoreAIModuleName}/EvaluationResult {agentFqName? "SimplePlannerAgent/${agent}"}}`)
-      assert(ers.length >= n)
-      assert(ers.every((inst: Instance) => {
-        return inst.lookup('score') === 5
-      }))
-      }
-      await chkers('planner01', 4)
-      await chkers('planner02', 0)
+        const ers: Instance[] = await parseAndEvaluateStatement(
+          `{${CoreAIModuleName}/EvaluationResult {agentFqName? "SimplePlannerAgent/${agent}"}}`
+        );
+        assert(ers.length >= n);
+        assert(
+          ers.every((inst: Instance) => {
+            return inst.lookup('score') === 5;
+          })
+        );
+      };
+      await chkers('planner01', 4);
+      await chkers('planner02', 0);
     });
   });
 
@@ -909,41 +913,120 @@ agent userRequestManager
       const c = `${moduleName}/Customer`;
       const cm = `${moduleName}/CustomerManager`;
       const callcm = async (msg: string): Promise<any> => {
-        const event = makeInstance(moduleName, 'CustomerManager', newInstanceAttributes().set('message', msg))
+        const event = makeInstance(
+          moduleName,
+          'CustomerManager',
+          newInstanceAttributes().set('message', msg)
+        );
         const r = await executeEvent(event);
         return r;
       };
-      const email1 = 'joe@acme.com'
+      const email1 = 'joe@acme.com';
       const r1 = await callcm(`Create a new customer name Joe J with email ${email1}`);
       assert(isInstanceOfType(r1, c));
-      const r2: any[] = await callcm(`Update the last purchase of customer ${email1} to 5600.89`)
+      const r2: any[] = await callcm(`Update the last purchase of customer ${email1} to 5600.89`);
       assert(isInstanceOfType(r2[0], c));
-      const r3: Instance[] = await parseAndEvaluateStatement(`{${c} {email? "${email1}"}}`)
-      assert(r3.length === 1)
-      assert(isInstanceOfType(r3[0], c))
-      const lpa = r3[0].lookup('lastPurchaseAmount')
-      assert(Math.round(Number(lpa)) === 5601)
+      const r3: Instance[] = await parseAndEvaluateStatement(`{${c} {email? "${email1}"}}`);
+      assert(r3.length === 1);
+      assert(isInstanceOfType(r3[0], c));
+      const lpa = r3[0].lookup('lastPurchaseAmount');
+      assert(Math.round(Number(lpa)) === 5601);
       enableInternalMonitoring();
-      const dealIns = `Create a deal for ${email1} following the customer-deal-creation rules.`
-      await callcm(dealIns)
-      const m1 = getMonitorsForEvent(cm)
+      const dealIns = `Create a deal for ${email1} following the customer-deal-creation rules.`;
+      await callcm(dealIns);
+      const m1 = getMonitorsForEvent(cm);
       const mdata1: any[] = m1.map((m: Monitor) => {
-        return m.asObject()
-      })
-      const rflow: any[] = mdata1[0].flow[1].flow
+        return m.asObject();
+      });
+      const rflow: any[] = mdata1[0].flow[1].flow;
       const s = `Agent ${mdata1[0].agent} was provided the instruction '${mdata1[0].flow[0].input}'.
       The last-purchase-amount of the customer is ${lpa}. But it returned the wrong result: '${JSON.stringify(rflow[rflow.length - 1].finalResult)}'
       Provide correct instructions based on the following rules (where lpa means last-purchase-amout):
       if lpa > 5000 then deal-offer = 1000
       else if lpa > 1000 then deal-offer = 500
       else deal-offer = 100
-      Also include in the summary that the result of customer lookup must be destructured and an update must query teh customer on the email.`
-      const crl = `agentlang.ai/agentLearning`
-      const ins1: any= await parseAndEvaluateStatement(`{${crl} {agentName "CustomerManager", agentModuleName "${moduleName}", instruction \`${s}\`}}`)
-      assert(ins1.agentLearning.result.length > 0)
-      const d2 = await callcm(`${dealIns}`)
-      assert(isInstanceOfType(d2, `${moduleName}/Deal`))
-      assert(d2.lookup('dealOffer') === 1000)
+      Also include in the summary that the result of customer lookup must be destructured and an update must query teh customer on the email.`;
+      const crl = `agentlang.ai/agentLearning`;
+      const ins1: any = await parseAndEvaluateStatement(
+        `{${crl} {agentName "CustomerManager", agentModuleName "${moduleName}", instruction \`${s}\`}}`
+      );
+      assert(ins1.agentLearning.result.length > 0);
+      const d2 = await callcm(`${dealIns}`);
+      assert(isInstanceOfType(d2, `${moduleName}/Deal`));
+      assert(d2.lookup('dealOffer') === 1000);
+    });
+  });
+
+  describe('Embedding Tests', () => {
+    test('test01 - Document fetch and embed with {agentlang.ai/doc}', async () => {
+      if (!process.env.AGENTLANG_OPENAI_KEY) {
+        console.log('Skipping Document fetch test - no API key');
+        return;
+      }
+      const { writeFileSync, unlinkSync } = await import('fs');
+      const { join } = await import('path');
+      const { tmpdir } = await import('os');
+
+      const doc1Path = join(tmpdir(), 'camera_manual.txt');
+      const doc2Path = join(tmpdir(), 'pricing.txt');
+
+      writeFileSync(
+        doc1Path,
+        'The Canon G7X has a white balance feature with Auto, Daylight, and Cloudy presets.',
+        'utf-8'
+      );
+      writeFileSync(doc2Path, 'Sony A7III price: $2000. Canon R5 price: $3500.', 'utf-8');
+
+      try {
+        await doInternModule(
+          'SupportDocs',
+          `
+          {agentlang.ai/doc {
+              title "camera manual",
+              url "${doc1Path}"}}
+
+          {agentlang.ai/doc {
+              title "pricing",
+              url "${doc2Path}"}}
+
+          agent supportAgent {
+              instruction "Answer questions about cameras and their features.",
+              documents ["camera manual", "pricing"]
+          }
+          `
+        );
+
+        const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
+        assert(docs.length === 2);
+
+        const manual = docs.find((d: Instance) => d.lookup('title') === 'camera manual');
+        assert(manual !== undefined);
+        assert(manual.lookup('content').includes('white balance'));
+
+        const pricing = docs.find((d: Instance) => d.lookup('title') === 'pricing');
+        assert(pricing !== undefined);
+        assert(pricing.lookup('content').includes('$2000'));
+
+        // Query by title to verify documents are stored and queryable
+        const titleQuery = await parseAndEvaluateStatement(
+          '{agentlang.ai/Document {title? "camera manual"}}'
+        );
+
+        console.log(titleQuery);
+        assert(titleQuery.length === 1);
+        assert(titleQuery[0].lookup('title') === 'camera manual');
+
+        const request = await parseAndEvaluateStatement(
+          '{SupportDocs/supportAgent {message "What is the price of the Sony A7III camera?"}}'
+        );
+
+        console.log(request);
+        assert(request.length === 1);
+        assert(request[0].lookup('response').includes('$2000'));
+      } finally {
+        unlinkSync(doc1Path);
+        unlinkSync(doc2Path);
+      }
     });
   });
 } else {
