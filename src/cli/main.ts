@@ -38,6 +38,7 @@ import {
   setRuntimeMode_init_schema,
   setRuntimeMode_migration,
   setRuntimeMode_prod,
+  setRuntimeMode_test,
   setRuntimeMode_undo_migration,
   updateEndpoints,
 } from '../runtime/defs.js';
@@ -216,8 +217,12 @@ async function internDynamicModule(name: string, definition: string): Promise<st
 setInternDynamicModuleFn(internDynamicModule);
 
 export const runModule = async (fileName: string, releaseDb: boolean = false): Promise<void> => {
-  if (isRuntimeMode_dev() && process.env.NODE_ENV === 'production') {
-    setRuntimeMode_prod();
+  if (isRuntimeMode_dev()) {
+    if (process.env.NODE_ENV === 'production') {
+      setRuntimeMode_prod();
+    } else if (process.env.NODE_ENV === 'test') {
+      setRuntimeMode_test();
+    }
   }
   const r: boolean = await runPreInitTasks();
   if (!r) {
