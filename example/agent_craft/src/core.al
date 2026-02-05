@@ -306,7 +306,7 @@ flow builderAgentResolver {
   agentDistillerResolver --> agentCreatorResolver
 }
 
-agent builderAgentResolver {
+@public agent builderAgentResolver {
   llm "haiku_llm",
   role "You are a language builder which generates Agentlang based code with resolver awareness."
 }
