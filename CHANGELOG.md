@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.7](https://github.com/agentlang-ai/agentlang/compare/0.9.6...0.9.7) (2026-02-05)
+
+### Changes
+
+* Update package lock and pnpm lock ([9eaf647](https://github.com/agentlang-ai/agentlang/commit/9eaf647fb57972d770802c89a9d94c6e01fa07d7)) - @pratik
+* Update tests ([66822de](https://github.com/agentlang-ai/agentlang/commit/66822de09324cffce4ce95f545e6946b80c2e659)) - @pratik
+* Add new test ([1b55e83](https://github.com/agentlang-ai/agentlang/commit/1b55e83734bdf82acc098e3a912e5975d09253c8)) - @pratik
+* Add support for pdf and markdown documents ([1f257ce](https://github.com/agentlang-ai/agentlang/commit/1f257ce3227c1d9335b7e090d58d04960d573263)) - @pratik
+* Fix tests ([e797de4](https://github.com/agentlang-ai/agentlang/commit/e797de4f7a24e55b7cee96bd3719199d1f91047c)) - @pratik
+* Fix tests ([6f4161a](https://github.com/agentlang-ai/agentlang/commit/6f4161ad4bd5132c85eca0530a8e11b46aaaf24a)) - @pratik
+* Add pnpm lock file and fix lint ([222fc29](https://github.com/agentlang-ai/agentlang/commit/222fc29ef29ca49ac9ba4650060dd7821f990241)) - @pratik
+* Add test ([6ed9359](https://github.com/agentlang-ai/agentlang/commit/6ed93590f9097ec4a9a152b240f32c22acf40663)) - @pratik
+* Add Embedding Provider and support extension and chunking ([2fd7103](https://github.com/agentlang-ai/agentlang/commit/2fd71032c9b9375c6eecb903427d932f2a782f8f)) - @pratik
+* Add sqlite-vec support and load extension ([ed76524](https://github.com/agentlang-ai/agentlang/commit/ed765243e691c177f76bcee6b92a973f5489addc)) - @pratik
+* fix bogus agentlant-module update issue (#561) ([e60e284](https://github.com/agentlang-ai/agentlang/commit/e60e2842979476e6feee51486bb349f2804b6193)) - @vijayfractl
+* publish.yml: fix better-sqlite3 bindings error (#564) ([358a1ff](https://github.com/agentlang-ai/agentlang/commit/358a1ff353c92ce88b001f4dcfd2963e6a96ccc5)) - @muazzam0x48
+
+---
 ## [0.9.6](https://github.com/agentlang-ai/agentlang/compare/0.9.5...0.9.6) (2026-02-05)
 
 ### Changes
