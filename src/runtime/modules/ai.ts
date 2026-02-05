@@ -265,6 +265,7 @@ async function activatedUserDefinedAgentDirectives(
 export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
 const ProviderDb = new Map<string, AgentServiceProvider>();
+const ProviderStatelessness = new Map<string, boolean>();
 
 export class AgentInstance {
   llm: string = '';
@@ -752,6 +753,10 @@ Only return a pure JSON object with no extra text, annotations etc.`;
 
   async invoke(message: string, env: Environment) {
     const p = await findProviderForLLM(this.llm, env);
+    const statelessLLM = isLLMStateless(this.llm);
+    if (statelessLLM) {
+      this.disableSession();
+    }
     const agentName = this.name;
     const chatId = env.getAgentChatId() || agentName;
     let isplnr = this.isPlanner();
@@ -767,7 +772,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (this.withSession && env.getFlowContext()) {
       this.withSession = false;
     }
-    if (!this.withSession && env.isAgentModeSet()) {
+    if (!statelessLLM && !this.withSession && env.isAgentModeSet()) {
       this.withSession = true;
       if (env.isInAgentChatMode()) {
         isplnr = false;
@@ -1107,15 +1112,25 @@ export async function findProviderForLLM(
           ? configValue
           : new Map(Object.entries(configValue))
         : new Map().set('service', service);
+      const statelessConfig = providerConfig.get('stateless');
+      const stateless = statelessConfig === true;
+      ProviderStatelessness.set(llmName, stateless);
       p = new pclass(providerConfig);
       if (p) ProviderDb.set(llmName, p);
     }
+  }
+  if (!ProviderStatelessness.has(llmName)) {
+    ProviderStatelessness.set(llmName, false);
   }
   if (p) {
     return p;
   } else {
     throw new Error(`Failed to load provider for ${llmName}`);
   }
+}
+
+export function isLLMStateless(llmName: string): boolean {
+  return ProviderStatelessness.get(llmName) === true;
 }
 
 const evalEvent = makeEventEvaluator(CoreAIModuleName);
