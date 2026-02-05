@@ -63,6 +63,10 @@ jobs:
       - name: Build package
         run: pnpm run build
 
+      # Step 6.5: Rebuild better-sqlite3 for correct native bindings
+      - name: Rebuild better-sqlite3 for correct native bindings
+        run: npm rebuild better-sqlite3
+
       # Step 7: Run tests
       - name: Run tests
         run: NODE_ENV=test pnpm test
