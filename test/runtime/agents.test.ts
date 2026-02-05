@@ -1323,7 +1323,7 @@ Remember: Practice makes perfect!
           `{agentlang.ai/LLM {
               name "md-llm",
               service "openai",
-              config {"model": "gpt-4o", "apiKey": "${process.env['AGENTLANG_OPENAI_KEY']}"}
+              config {"model": "gpt-4o"}
             }
           }
           {agentlang.ai/doc {
@@ -1334,10 +1334,6 @@ Remember: Practice makes perfect!
               llm "md-llm",
               instruction "Answer questions about cameras using the markdown guide.",
               documents ["camera guide"]
-          }
-
-          event markdownAgent {
-            message String
           }
           `
         );
