@@ -229,7 +229,7 @@ flow builderAgent {
   agentDistiller --> agentCreator
 }
 
-agent builderAgent {
+@public agent builderAgent {
   llm "haiku_llm",
   role "You are a language builder which generates Agentlang based code."
 }
