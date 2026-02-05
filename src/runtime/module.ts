@@ -2496,7 +2496,7 @@ export class Module {
 
   private getEntryIndex(entryName: string): number {
     return this.entries.findIndex((v: ModuleEntry) => {
-      return v.name == entryName;
+      return v.name === entryName;
     });
   }
 
@@ -2782,8 +2782,6 @@ export function removeModule(name: string): boolean {
   return false;
 }
 
-addModule(DefaultModuleName);
-addRecord('env', DefaultModuleName);
 addModule(ScratchModuleName);
 
 export function getModuleNames(): string[] {
