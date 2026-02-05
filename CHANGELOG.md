@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.6](https://github.com/agentlang-ai/agentlang/compare/0.9.5...0.9.6) (2026-02-05)
+
+### Changes
+
+* cache dbtype. (#559) ([9f04119](https://github.com/agentlang-ai/agentlang/commit/9f04119a36654b9fe57b56c3cd57d8a697959bc7)) - @vijayfractl
+* agent evaluator support (#557) ([32ffb00](https://github.com/agentlang-ai/agentlang/commit/32ffb009bd9a3b49119c338fef2f9712064a3949)) - @vijayfractl
+* support role escalation (#555) ([2650fe4](https://github.com/agentlang-ai/agentlang/commit/2650fe4fe7029d75379d0bf2217187d1af6fa88d)) - @vijayfractl
+* learner agents (#545) ([f2055a3](https://github.com/agentlang-ai/agentlang/commit/f2055a3b8811bc9e6abe6a768bb3f0687c242c05)) - @vijayfractl
+* Tests failed on gpt-5.2 so, reverting to gpt-4o ([da3412f](https://github.com/agentlang-ai/agentlang/commit/da3412f350597376c84a171f04ec5b245a4019e0)) - @pratik
+* Update default OpenAI model to gpt-5.2 ([c41d97b](https://github.com/agentlang-ai/agentlang/commit/c41d97b4c7577460674fc01ef258609b92be68c5)) - @pratik
+* Update tests ([4dca2c0](https://github.com/agentlang-ai/agentlang/commit/4dca2c04511962a8141f93ee805022b3d08e6712)) - @pratik
+* Rename OPENAI_API_KEY to AGENTLANG_OPENAI_KEY ([046e9f3](https://github.com/agentlang-ai/agentlang/commit/046e9f317db6fcd1cb55d616dcd53180f1f2dd76)) - @pratik
+* Fix gitignore ([50c30d6](https://github.com/agentlang-ai/agentlang/commit/50c30d6182f284b784f40e5f43ad9e81a8d9bf60)) - @pratik
+* Rename ANTHROPIC_API_KEY to AGENTLANG_ANTHROPIC_KEY ([58b18cd](https://github.com/agentlang-ai/agentlang/commit/58b18cda96066fde85b1e4f9f4616f13ff5b2c6a)) - @pratik
+* Update gitignore ([5a8b6b0](https://github.com/agentlang-ai/agentlang/commit/5a8b6b0986b7aab49605cdc47206b7634fc624f7)) - @pratik
+* check for undefined explicitly (#556) ([9cecb92](https://github.com/agentlang-ai/agentlang/commit/9cecb92e7944f53f41d2c981f2a930a659135ac3)) - @vijayfractl
+
+---
 ## [0.9.5](https://github.com/agentlang-ai/agentlang/compare/0.9.4...0.9.5) (2026-01-27)
 
 ### Changes

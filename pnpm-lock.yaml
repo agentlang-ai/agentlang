@@ -197,6 +197,8 @@ importers:
 
   example/pets: {}
 
+  example/sdr: {}
+
   example/suspension: {}
 
   example/timer: {}
