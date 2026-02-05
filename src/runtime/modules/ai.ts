@@ -980,22 +980,17 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
     if (this.documents && this.documents.length > 0) {
       try {
-        // Try semantic search using full-text search with embeddings first
         const docNames = this.documents.split(',').map(d => d.trim());
 
-        // First try semantic search across all documents
         const searchQuery = message;
 
-        // Attempt to use full-text search with embeddings if supported
         try {
-          // This query uses the '?' operator which triggers vector search if embeddings are configured
           const semanticResult: any[] = await parseHelper(
-            `{${CoreAIModuleName}/Document? {content? "${searchQuery.replace(/"/g, '\\"')}"}}`,
+            `{${CoreAIModuleName}/Document {content? "${searchQuery.replace(/"/g, '\\"')}"}}`,
             env
           );
 
           if (semanticResult && semanticResult.length > 0) {
-            // Filter by document names
             const docs: Instance[] = [];
             for (const doc of semanticResult) {
               const docTitle = doc.lookup ? doc.lookup('title') : doc.title;
@@ -1024,7 +1019,6 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           );
         }
 
-        // Fallback: Get all documents and filter by exact title match
         const result: any[] = await parseHelper(`{${CoreAIModuleName}/Document? {}}`, env);
         if (result && result.length > 0) {
           const docs: Instance[] = [];
@@ -1050,7 +1044,6 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           }
         }
       } catch (err) {
-        // Silently ignore document retrieval errors - agent can still function without documents
         logger.debug(`Error retrieving documents: ${err}`);
       }
     }

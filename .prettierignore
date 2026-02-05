@@ -9,5 +9,8 @@ node_modules/
 # Ignore generated files
 src/language/generated/
 
+# Ignore public folder (contains pdf.worker.mjs and other static assets)
+public/
+
 # Ignore specific files
 src/syntaxes/agentlang.monarch.ts

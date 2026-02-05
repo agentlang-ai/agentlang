@@ -392,12 +392,10 @@ export function isUsingSqljs(): boolean {
 }
 
 export async function isVectorStoreSupported(): Promise<boolean> {
-  // Postgres (pgvector) and SQLite (sqlite-vec) are supported.
   const dbType = getDbType(AppConfig?.store);
   if (dbType === 'postgres') return true;
   if (dbType === 'sqlite') {
     try {
-      // Check if sqlite-vec is available
       const sqliteVecModule = await import('sqlite-vec');
       return !!sqliteVecModule;
     } catch {
@@ -487,7 +485,6 @@ export async function addRowForFullTextSearch(
         .values([{ id: id, embedding: pgvector.toSql(vect), __tenant__: tenantId }])
         .execute();
     } else {
-      // better-sqlite3 with sqlite-vec - vec0 only stores id and embedding
       await qb
         .insert()
         .into(vecTableName)
