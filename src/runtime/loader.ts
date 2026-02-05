@@ -819,7 +819,8 @@ async function addAgentDefinition(
       }
       const ov = v;
       if (apdef.value.id || apdef.value.ref || apdef.value.array) {
-        v = `"${v}"`;
+        if (!(apdef.name === 'instruction' || apdef.name === 'role' || apdef.name === 'llm'))
+          v = `"${v}"`;
       } else if (apdef.value.str) {
         v = `"${escapeSpecialChars(v)}"`;
       }
@@ -837,7 +838,7 @@ async function addAgentDefinition(
   // Create a copy of attrsStrs for the database operation
   const dbAttrsStrs = [...attrsStrs];
   // Only add llm to database attributes if we have one
-  if (llmName) {
+  if (llmName && createDefaultLLM) {
     dbAttrsStrs.push(`llm "${llmName}"`);
   }
 

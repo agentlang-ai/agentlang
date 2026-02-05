@@ -303,12 +303,14 @@ export async function invokeModuleFn(
   }
 }
 
-export function getModuleFn(fqFnName: string): Function | undefined {
+export function getModuleDef(fqFnName: string): any {
   const refs: string[] = splitRefs(fqFnName);
   const m = importedModules.get(refs[0]);
   if (m !== undefined) {
     return m[refs[1]];
   } else return undefined;
 }
+
+export const getModuleFn = getModuleDef;
 
 setModuleFnFetcher(getModuleFn);

@@ -103,7 +103,7 @@ import {
   flushMonitoringData,
   triggerTimer,
 } from './modules/core.js';
-import { invokeModuleFn } from './jsmodules.js';
+import { getModuleDef, invokeModuleFn } from './jsmodules.js';
 import { invokeOpenApiEvent, isOpenApiEventInstance } from './openapi.js';
 import { fetchDoc } from './docs.js';
 import { FlowSpec, FlowStep, getAgentFlow } from './agents/flows.js';
@@ -2458,9 +2458,18 @@ async function followReference(env: Environment, s: string): Promise<Result> {
   for (let i = 0; i < refs.length; ++i) {
     const r: string = refs[i];
     const v: Result | undefined = await getRef(r, src, env);
-    if (v === undefined) return EmptyResult;
+    if (v === undefined || v === null) {
+      result = EmptyResult;
+      break;
+    }
     result = v;
     src = result;
+  }
+  if (result === EmptyResult) {
+    result = getModuleDef(s);
+    if (result === undefined) {
+      result = EmptyResult;
+    }
   }
   return result;
 }
