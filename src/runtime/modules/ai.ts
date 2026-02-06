@@ -74,24 +74,20 @@ export const AgentLearnerType = 'learner';
 
 const AgentEvalType = 'eval';
 
-// Build embedding configuration from environment variables
 function buildEmbeddingConfig(): object {
   const config: any = {
     provider: process.env.AGENTLANG_EMBEDDING_PROVIDER || 'openai',
+    model: process.env.AGENTLANG_EMBEDDING_MODEL || 'text-embedding-3-small',
     chunkSize: 1000,
     chunkOverlap: 200,
   };
 
-  if (process.env.AGENTLANG_EMBEDDING_MODEL) {
-    config.model = process.env.AGENTLANG_EMBEDDING_MODEL;
-  }
-
   if (process.env.AGENTLANG_EMBEDDING_CHUNKSIZE) {
-    config.chunkSize = parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKSIZE, 10);
+    config.chunkSize = parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKSIZE, 1000);
   }
 
   if (process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP) {
-    config.chunkOverlap = parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP, 10);
+    config.chunkOverlap = parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP, 200);
   }
 
   return config;
