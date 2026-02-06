@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.9](https://github.com/agentlang-ai/agentlang/compare/0.9.8...0.9.9) (2026-02-06)
+
+### Changes
+
+* stateless mode in agents (#566) ([573a3ee](https://github.com/agentlang-ai/agentlang/commit/573a3ee5c28ea3672883e5740a149031b86f5e7f)) - @muazzam0x48
+
+---
 ## [0.9.8](https://github.com/agentlang-ai/agentlang/compare/0.9.7...0.9.8) (2026-02-06)
 
 ### Changes
