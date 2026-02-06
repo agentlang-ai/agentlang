@@ -1,4 +1,4 @@
-import { default as ai } from './ai.js';
+import { default as ai, normalizeGeneratedCode } from './ai.js';
 import { default as auth } from './auth.js';
 import { default as files } from './files.js';
 import { default as mcp } from './mcp.js';
@@ -527,6 +527,12 @@ export function eventMonitorsData(
 export async function validateModule(moduleDef: any): Promise<Instance> {
   try {
     if (isString(moduleDef)) {
+      moduleDef = normalizeGeneratedCode(moduleDef);
+      if (!moduleDef.startsWith('module')) {
+        moduleDef = `module Temp
+        ${moduleDef}
+        `;
+      }
       await parseModule(moduleDef);
       return makeInstance(
         'agentlang',

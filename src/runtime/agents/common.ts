@@ -1,7 +1,7 @@
 import { IfPattern, LiteralPattern } from '../../language/syntax.js';
 import { trimQuotes } from '../util.js';
 
-export const PlannerInstructions = `Agentlang is a very-high-level declarative language that makes it easy to define business applications as 'models'.
+export const PlannerDataModelInstructions = `Agentlang is a very-high-level declarative language that makes it easy to define business applications as 'models'.
 The model of a business application consists of entity definitions and workflows defined in "modules". 
 A module is be encoded in a syntax inspired by JavaScript and JSON. Example of a simple module follows:
 
@@ -29,6 +29,36 @@ record EmailMessage {
     body String
 }
 
+Entities in a module can be connected together in relationships. There are two types of relationships - 'contains' and 'between'.
+'Contains' relationship is for hierarchical data, as in a Library entity containing Books. 'Between' relationship is for graph-like data,
+like two Profiles in a social media app is connected as friends. A 'between' relationship can be one of the following three types - 'one_one' (one-to-one),
+'one_many' (one-to-many) and 'many_many' (many-to-many), which is the default.
+
+The following example shows how additional profile data for an employee could be defined as a new entity and attached to the Employee entity as a between-relationship:
+
+entity Profile {
+    id UUID @id @default(uuid()),
+    address String @optional,
+    photo URL @optional,
+    dateOfBirth DateTime @optional
+}
+
+relationship EmployeeProfile between (Erp/Employee, Erp/Profile) @one_one
+
+The '@one_one' annotation means exactly one Employee and Profile can be related to each other via 'EmployeeProfile'.
+
+As an example of 'contains' relaionships, consider modelling task-assignments for an Employee as folllows:
+
+entity TaskAssignment {
+    id UUID @id @default(uuid()),
+    description String,
+    assignmentDate DateTime @default(now())
+}
+
+relationship EmployeeTaskAssignment contains (Erp/Employee, Erp/TaskAssignment)
+`;
+
+export const PlannerWorkflowInstructions = `
 Another major construct in Agentlang is the 'workflow'. Workflows contains JSON "patterns" that perform CRUD operations on entities. 
 For example, here's is a workflow that creates a new instance of the Employee entity:
 
@@ -179,25 +209,7 @@ A pattern may execute asynchronously and its eventual result can be handled by p
 If you are instructed that a particular event will be called asynchronously, always provide the patterns that follows in its '@then' clause. You must add the 
 '@then' clause only if an event's documentation or instruction explicitly requires to do so.
 
-Entities in a module can be connected together in relationships. There are two types of relationships - 'contains' and 'between'.
-'Contains' relationship is for hierarchical data, as in a Library entity containing Books. 'Between' relationship is for graph-like data,
-like two Profiles in a social media app is connected as friends. A 'between' relationship can be one of the following three types - 'one_one' (one-to-one),
-'one_many' (one-to-many) and 'many_many' (many-to-many), which is the default.
-
-The following example shows how additional profile data for an employee could be defined as a new entity and attached to the Employee entity as a between-relationship:
-
-entity Profile {
-    id UUID @id @default(uuid()),
-    address String @optional,
-    photo URL @optional,
-    dateOfBirth DateTime @optional
-}
-
-relationship EmployeeProfile between (Erp/Employee, Erp/Profile) @one_one
-
-The '@one_one' annotation means exactly one Employee and Profile can be related to each other via 'EmployeeProfile'.
-
-Here's the 'CreateEmployee' workflow updated to create the Employee with the his/her Profile attached:
+Earlier we discussed teh concept of 'between' relationship. Here's the 'CreateEmployee' workflow updated to create the Employee with the his/her Profile attached:
 
 workflow CreateEmployee {
     {Erp/Employee {firstName CreateEmployee.firstName,
@@ -214,17 +226,7 @@ The following pattern can be user to query an Employee along with his Profile:
 {Erp/Employee {employeeId? "56392e13-0d9a-42f7-b556-0d7cd9468a24"},
  Erp/EmployeeProfile {Erp/Profile? {}}}
 
-As an example of 'contains' relaionships, consider modelling task-assignments for an Employee as folllows:
-
-entity TaskAssignment {
-    id UUID @id @default(uuid()),
-    description String,
-    assignmentDate DateTime @default(now())
-}
-
-relationship EmployeeTaskAssignment contains (Erp/Employee, Erp/TaskAssignment)
-
-The following workflow shows how to assign a new task to an Employee:
+We also discussed the concept of 'contains' relationship and showed an example of modelling employee-task-assignment using it. The following workflow shows how to assign a new task to an Employee:
 
 workflow AssignNewTask {
     {Erp/Employee {employeeId? AssignNewTask.employeeId},
@@ -264,6 +266,10 @@ As an example, if the user request is "send an email to employee 101 with this m
  {email {to emp.email, body "please call me as soon as possible"}}]
 
 You MUST separate each pattern in the array with a semi-colon (;)  and never use a comma (,) for this purpose.
+`;
+
+export const PlannerInstructions = `${PlannerDataModelInstructions}
+${PlannerWorkflowInstructions}
 
 Now consider the following module definition and generate appropriate patterns in response to the user instructions. You must return only valid patterns or workflows,
 no other descriptive text or comments are needed.
