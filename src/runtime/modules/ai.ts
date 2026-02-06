@@ -31,6 +31,7 @@ import {
   newInstanceAttributes,
   Record,
   Retry,
+  resolveDocumentAliases,
 } from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
@@ -72,6 +73,31 @@ export const LlmEntityName = 'LLM';
 export const AgentLearnerType = 'learner';
 
 const AgentEvalType = 'eval';
+
+// Build embedding configuration from environment variables
+function buildEmbeddingConfig(): object {
+  const config: any = {
+    provider: process.env.AGENTLANG_EMBEDDING_PROVIDER || 'openai',
+    chunkSize: 1000,
+    chunkOverlap: 200,
+  };
+
+  if (process.env.AGENTLANG_EMBEDDING_MODEL) {
+    config.model = process.env.AGENTLANG_EMBEDDING_MODEL;
+  }
+
+  if (process.env.AGENTLANG_EMBEDDING_CHUNKSIZE) {
+    config.chunkSize = parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKSIZE, 10);
+  }
+
+  if (process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP) {
+    config.chunkOverlap = parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP, 10);
+  }
+
+  return config;
+}
+
+const embeddingConfig = JSON.stringify(buildEmbeddingConfig());
 
 export default `module ${CoreAIModuleName}
 
@@ -116,7 +142,7 @@ workflow saveAgentChatSession {
 entity Document {
   title String @id,
   content String,
-  @meta {"fullTextSearch": "*"}
+  @meta {"fullTextSearch": "*", "embeddingConfig": ${embeddingConfig}}
 }
 
 event doc {
@@ -981,6 +1007,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (this.documents && this.documents.length > 0) {
       try {
         const docNames = this.documents.split(',').map(d => d.trim());
+        const docTitles = resolveDocumentAliases(docNames);
 
         const searchQuery = message;
 
@@ -994,7 +1021,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
             const docs: Instance[] = [];
             for (const doc of semanticResult) {
               const docTitle = doc.lookup ? doc.lookup('title') : doc.title;
-              if (AgentInstance.docTitlesMatch(docTitle, docNames)) {
+              if (AgentInstance.docTitlesMatch(docTitle, docTitles)) {
                 docs.push(
                   doc instanceof Instance
                     ? doc
@@ -1026,7 +1053,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
             const v: any = result[i];
             const docTitle: string | undefined = AgentInstance.getDocumentTitle(v);
 
-            if (docTitle && docNames.includes(docTitle)) {
+            if (docTitle && docTitles.includes(docTitle)) {
               if (v instanceof Instance) {
                 docs.push(v);
               }

@@ -1161,7 +1161,16 @@ export class Agent extends Record {
       if (!skip && value !== null && value !== undefined) {
         let v = value;
         const isf = key == 'flows';
-        if (isf || key == 'tools') {
+        const isDocs = key == 'documents';
+        if (isDocs) {
+          const raw = isString(v) ? v : `${v}`;
+          const items = raw
+            .split(',')
+            .map((entry: string) => entry.trim())
+            .filter((entry: string) => entry.length > 0)
+            .map((entry: string) => entry.replace(/\\/g, '\\\\').replace(/"/g, '\\"'));
+          v = `[${items.map((entry: string) => `"${entry}"`).join(', ')}]`;
+        } else if (isf || key == 'tools') {
           if (isf || v.indexOf(',') > 0 || v.indexOf('/') > 0) v = `[${v}]`;
           else v = `"${v}"`;
         } else if (isString(v)) {
@@ -2733,6 +2742,17 @@ export class Module {
 }
 
 let GlobalRetries: Array<Retry> | undefined = undefined;
+
+const DocumentAliasMap: Map<string, string> = new Map();
+
+export function registerDocumentAlias(name: string, title: string): void {
+  if (!name || !title) return;
+  DocumentAliasMap.set(name, title);
+}
+
+export function resolveDocumentAliases(names: string[]): string[] {
+  return names.map((name: string) => DocumentAliasMap.get(name) ?? name);
+}
 
 export function addGlobalRetry(r: Retry): Retry {
   if (GlobalRetries === undefined) {
