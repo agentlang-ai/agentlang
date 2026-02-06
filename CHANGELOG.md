@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.8](https://github.com/agentlang-ai/agentlang/compare/0.9.7...0.9.8) (2026-02-06)
+
+### Changes
+
+* Add sqlite vec cdn, default embedding config and APIs for adding, removing documents (#569) ([e248864](https://github.com/agentlang-ai/agentlang/commit/e248864d0e64bb8b2fc909b7681677f93c5e5acf)) - @pratik
+
+---
 ## [0.9.7](https://github.com/agentlang-ai/agentlang/compare/0.9.6...0.9.7) (2026-02-05)
 
 ### Changes
