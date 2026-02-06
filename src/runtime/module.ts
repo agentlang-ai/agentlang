@@ -31,6 +31,7 @@ import {
   DefaultModules,
   encryptPassword,
   escapeFqName,
+  escapeSpecialChars,
   findAllPrePostTriggerSchema,
   findMetaSchema,
   findUqCompositeAttributes,
@@ -1894,6 +1895,42 @@ export class GlossaryEntry extends ModuleEntry {
   }
 }
 
+export type ModuleDocument = {
+  title: string;
+  url: string;
+};
+
+export class DocumentEntry extends ModuleEntry {
+  private doc: ModuleDocument;
+
+  constructor(title: string, moduleName: string, url: string) {
+    super(title, moduleName);
+    this.doc = { title, url };
+  }
+
+  getUrl(): string {
+    return this.doc.url;
+  }
+
+  getTitle(): string {
+    return this.doc.title;
+  }
+
+  override toString(): string {
+    const escapedTitle = escapeSpecialChars(this.doc.title);
+    const escapedUrl = escapeSpecialChars(this.doc.url);
+    return `{${DefaultModuleName}.ai/doc {\n    title "${escapedTitle}",\n    url "${escapedUrl}"\n}}`;
+  }
+
+  get url(): string {
+    return this.doc.url;
+  }
+
+  set url(value: string) {
+    this.doc.url = value;
+  }
+}
+
 function statementLabel(stmt: Statement | undefined): string {
   if (stmt === undefined) return '';
   let lbl: string | undefined = undefined;
@@ -2474,6 +2511,48 @@ export class Module {
     for (let i = 0; i < this.entries.length; ++i) {
       const entry = this.entries[i];
       if (entry.name === name && entry instanceof GlossaryEntry) {
+        this.entries.splice(i, 1);
+        break;
+      }
+    }
+    return this;
+  }
+
+  addDocument(title: string, url: string): Module {
+    if (this.hasEntry(title)) {
+      const existing = this.getEntry(title);
+      if (existing instanceof DocumentEntry) {
+        const doc = existing as DocumentEntry;
+        doc.url = url;
+        return this;
+      }
+    }
+
+    const docEntry = new DocumentEntry(title, this.name, url);
+    this.addEntry(docEntry);
+    return this;
+  }
+
+  getDocument(title: string): string | undefined {
+    if (this.hasEntry(title)) {
+      const entry = this.getEntry(title);
+      if (entry instanceof DocumentEntry) {
+        return (entry as DocumentEntry).url;
+      }
+    }
+    return undefined;
+  }
+
+  getAllDocuments(): DocumentEntry[] {
+    return this.entries.filter((e: ModuleEntry) => {
+      return e instanceof DocumentEntry;
+    }) as DocumentEntry[];
+  }
+
+  removeDocument(title: string): Module {
+    for (let i = 0; i < this.entries.length; ++i) {
+      const entry = this.entries[i];
+      if (entry.name === title && entry instanceof DocumentEntry) {
         this.entries.splice(i, 1);
         break;
       }
