@@ -60,7 +60,6 @@ import {
   newAgentScenario,
   PlannerInstructions,
 } from '../agents/common.js';
-import { PathAttributeNameQuery } from '../defs.js';
 import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
 import Handlebars from 'handlebars';
@@ -980,32 +979,90 @@ Only return a pure JSON object with no extra text, annotations etc.`;
 
   private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
     if (this.documents && this.documents.length > 0) {
-      const s = `${message}. Relevant documents are: ${this.documents}`;
-      const result: any[] = await parseHelper(`{${CoreAIModuleName}/Document? "${s}"}`, env);
-      if (result && result.length > 0) {
-        const docs: Instance[] = [];
-        for (let i = 0; i < result.length; ++i) {
-          const v: any = result[i];
-          const r: Instance[] = await parseHelper(
-            `{${CoreAIModuleName}/Document {${PathAttributeNameQuery} "${v.id}"}}`,
+      try {
+        const docNames = this.documents.split(',').map(d => d.trim());
+
+        const searchQuery = message;
+
+        try {
+          const semanticResult: any[] = await parseHelper(
+            `{${CoreAIModuleName}/Document {content? "${searchQuery.replace(/"/g, '\\"')}"}}`,
             env
           );
-          if (r && r.length > 0) {
-            docs.push(r[0]);
+
+          if (semanticResult && semanticResult.length > 0) {
+            const docs: Instance[] = [];
+            for (const doc of semanticResult) {
+              const docTitle = doc.lookup ? doc.lookup('title') : doc.title;
+              if (AgentInstance.docTitlesMatch(docTitle, docNames)) {
+                docs.push(
+                  doc instanceof Instance
+                    ? doc
+                    : Instance.newWithAttributes(doc, new Map(Object.entries(doc)))
+                );
+              }
+            }
+
+            if (docs.length > 0) {
+              return message.concat('\n\nRelevant context from documents:\n').concat(
+                docs
+                  .map((v: Instance) => {
+                    return `Document: ${v.lookup('title')}\n${v.lookup('content') as string}`;
+                  })
+                  .join('\n\n---\n\n')
+              );
+            }
           }
-        }
-        if (docs.length > 0) {
-          message = message.concat('\nUse the additional information given below:\n').concat(
-            docs
-              .map((v: Instance) => {
-                return v.lookup('content');
-              })
-              .join('\n')
+        } catch (semanticErr) {
+          logger.debug(
+            `Semantic search is not available, falling back to title-based filtering: ${semanticErr}`
           );
         }
+
+        const result: any[] = await parseHelper(`{${CoreAIModuleName}/Document? {}}`, env);
+        if (result && result.length > 0) {
+          const docs: Instance[] = [];
+          for (let i = 0; i < result.length; ++i) {
+            const v: any = result[i];
+            const docTitle: string | undefined = AgentInstance.getDocumentTitle(v);
+
+            if (docTitle && docNames.includes(docTitle)) {
+              if (v instanceof Instance) {
+                docs.push(v);
+              }
+            }
+          }
+
+          if (docs.length > 0) {
+            return message.concat('\n\nRelevant context from documents:\n').concat(
+              docs
+                .map((v: Instance) => {
+                  return v.lookup('content') as string;
+                })
+                .join('\n\n')
+            );
+          }
+        }
+      } catch (err) {
+        logger.debug(`Error retrieving documents: ${err}`);
       }
     }
     return message;
+  }
+
+  private static docTitlesMatch(title: string | undefined, docNames: string[]): boolean {
+    return title !== undefined && docNames.includes(title);
+  }
+
+  private static getDocumentTitle(doc: any): string | undefined {
+    if (typeof doc.lookup === 'function') {
+      return doc.lookup('title') as string | undefined;
+    } else if (doc.attributes) {
+      return doc.attributes.get('title') as string | undefined;
+    } else if (doc.title) {
+      return doc.title;
+    }
+    return undefined;
   }
 
   private static ToolsCache = new Map<string, string>();

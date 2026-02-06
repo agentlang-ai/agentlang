@@ -1,57 +1,57 @@
 import chalk from 'chalk';
 import {
-  Statement,
-  KvPair,
-  Literal,
-  FnCall,
-  RelNodes,
-  isRelNodes,
   AttributeDefinition,
-  PropertyDefinition,
-  NodeDefinition,
-  RecordSchemaDefinition,
-  MapEntry,
-  isLiteral,
-  MetaDefinition,
-  PrePostTriggerDefinition,
-  TriggerEntry,
   Expr,
-  RbacSpecEntry,
-  RbacSpecEntries,
-  RbacOpr,
-  WorkflowHeader,
   FlowDefinition,
   FlowEntry,
+  FnCall,
+  isLiteral,
+  isRelNodes,
+  KvPair,
+  Literal,
+  MapEntry,
+  MetaDefinition,
+  NodeDefinition,
+  PrePostTriggerDefinition,
+  PropertyDefinition,
+  RbacOpr,
+  RbacSpecEntries,
+  RbacSpecEntry,
+  RecordSchemaDefinition,
+  RelNodes,
+  Statement,
+  TriggerEntry,
   WorkflowDirectives,
+  WorkflowHeader,
 } from '../language/generated/ast.js';
 import {
-  Path,
-  nameToPath,
-  isString,
-  isNumber,
-  isBoolean,
-  isFqName,
-  makeFqName,
+  asCrudType,
+  CrudType,
   DefaultModuleName,
   DefaultModules,
-  joinStatements,
-  isMinusZero,
-  now,
-  findMetaSchema,
-  findAllPrePostTriggerSchema,
-  CrudType,
-  asCrudType,
-  isPath,
-  findUqCompositeAttributes,
-  escapeFqName,
   encryptPassword,
-  splitFqName,
-  splitRefs,
+  escapeFqName,
+  findAllPrePostTriggerSchema,
+  findMetaSchema,
+  findUqCompositeAttributes,
   forceAsFqName,
-  validateIdFormat,
+  isBoolean,
+  isFqName,
+  isMinusZero,
+  isNumber,
+  isPath,
+  isString,
+  joinStatements,
+  makeFqName,
   nameContainsSepEscape,
+  nameToPath,
+  now,
+  Path,
   registerInitFunction,
   ScratchModuleName,
+  splitFqName,
+  splitRefs,
+  validateIdFormat,
 } from './util.js';
 import { parseStatement } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession } from './auth/defs.js';
@@ -513,7 +513,10 @@ export class Record extends ModuleEntry {
   }
 
   getFullTextSearchAttributes(): string[] | undefined {
-    const fts: string[] | string | undefined = this.getMeta('fullTextSearch');
+    let fts: string[] | string | undefined = this.getMeta('fullTextSearchAttributes');
+    if (!fts) {
+      fts = this.getMeta('fullTextSearch');
+    }
     if (fts) {
       if (fts instanceof Array) {
         return fts as string[];
@@ -525,6 +528,14 @@ export class Record extends ModuleEntry {
     } else {
       return undefined;
     }
+  }
+
+  getEmbeddingConfig(): { [key: string]: any } | undefined {
+    const config = this.getMeta('embeddingConfig');
+    if (config && typeof config === 'object') {
+      return config as { [key: string]: any };
+    }
+    return undefined;
   }
 
   private resetUserAttrs() {

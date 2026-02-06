@@ -10,6 +10,8 @@ export default [
       '**/dist/**',
       // Ignore out folder
       'out/**',
+      // Ignore public folder (contains pdf.worker.mjs and other static assets)
+      'public/**',
       // Config files not included in tsconfig
       'vite.config.ts',
       'vitest.config.ts',
@@ -43,7 +45,7 @@ export default [
       '@typescript-eslint/no-unused-expressions': 'off',
       'prefer-spread': 'warn',
       'no-useless-escape': 'warn',
-      "no-var": "off",
+      'no-var': 'off',
     },
   },
 ];

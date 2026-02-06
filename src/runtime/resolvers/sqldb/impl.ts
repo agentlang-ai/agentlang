@@ -25,32 +25,96 @@ import {
 import { JoinInfo, Resolver, WhereClause } from '../interface.js';
 import { asColumnReference, asTableReference } from './dbutil.js';
 import {
-  getMany,
-  insertRow,
-  updateRow,
-  getAllConnected,
-  startDbTransaction,
-  commitDbTransaction,
-  rollbackDbTransaction,
-  hardDeleteRow,
-  DbContext,
-  insertBetweenRow,
   addRowForFullTextSearch,
-  vectorStoreSearch,
-  vectorStoreSearchEntryExists,
+  commitDbTransaction,
+  DbContext,
   deleteFullTextSearchEntry,
+  getAllConnected,
+  getMany,
+  getManyByJoin,
+  hardDeleteRow,
+  insertBetweenRow,
+  insertRow,
+  isVectorStoreSupported,
   JoinClause,
   JoinOn,
   makeJoinOn,
-  getManyByJoin,
   QuerySpec,
+  rollbackDbTransaction,
+  startDbTransaction,
+  updateRow,
+  vectorStoreSearch,
+  vectorStoreSearchEntryExists,
 } from './database.js';
 import { AggregateFunctionCall, Environment } from '../../interpreter.js';
-import { OpenAIEmbeddings } from '@langchain/openai';
-import { Embeddings } from '@langchain/core/embeddings';
-import { DeletedFlagAttributeName, ParentAttributeName, PathAttributeName } from '../../defs.js';
+import {
+  DeletedFlagAttributeName,
+  ParentAttributeName,
+  PathAttributeName,
+  TenantAttributeName,
+} from '../../defs.js';
 import { logger } from '../../logger.js';
 import { JoinSpec } from '../../../language/generated/ast.js';
+import { EmbeddingProvider, EmbeddingProviderConfig } from '../../embeddings/provider.js';
+import { embeddingProvider } from '../../embeddings/registry.js';
+import { TextChunker } from '../../embeddings/chunker.js';
+
+interface EmbeddingServiceConfig extends EmbeddingProviderConfig {
+  provider?: string;
+}
+
+export class EmbeddingService {
+  private provider: EmbeddingProvider;
+  private config: EmbeddingServiceConfig;
+  private chunker: TextChunker;
+
+  constructor(config?: EmbeddingServiceConfig) {
+    this.config = config || {};
+    const providerClass = embeddingProvider(this.config.provider || 'openai');
+    this.provider = new providerClass(this.config);
+    this.chunker = new TextChunker(this.getChunkSize(), this.getChunkOverlap());
+  }
+
+  private getChunkSize(): number {
+    return this.config.chunkSize || 1000;
+  }
+
+  private getChunkOverlap(): number {
+    return this.config.chunkOverlap || 200;
+  }
+
+  async embedText(text: string): Promise<number[]> {
+    const chunks = this.chunker.splitText(text);
+
+    if (chunks.length === 1) {
+      return await this.provider.embedText(chunks[0]);
+    }
+
+    const chunkEmbeddings = await Promise.all(
+      chunks.map((chunk: string) => this.provider.embedText(chunk))
+    );
+
+    return this.averageEmbeddings(chunkEmbeddings);
+  }
+
+  async embedQuery(query: string): Promise<number[]> {
+    return await this.provider.embedText(query);
+  }
+
+  private averageEmbeddings(embeddings: number[][]): number[] {
+    if (embeddings.length === 0) return [];
+    const dimension = embeddings[0].length;
+    const averaged = new Array(dimension).fill(0);
+
+    for (const embedding of embeddings) {
+      for (let i = 0; i < dimension; i++) {
+        averaged[i] += embedding[i];
+      }
+    }
+
+    return averaged.map((v: number) => v / embeddings.length);
+  }
+}
 
 function maybeFindIdAttributeName(inst: Instance): string | undefined {
   const attrEntry: AttributeEntry | undefined = findIdAttribute(inst);
@@ -62,12 +126,18 @@ function maybeFindIdAttributeName(inst: Instance): string | undefined {
 
 export class SqlDbResolver extends Resolver {
   private txnId: string | undefined;
-  private embeddings: Embeddings;
+  private _embeddingService: EmbeddingService | undefined;
 
   constructor(name: string) {
     super();
     this.name = name;
-    this.embeddings = new OpenAIEmbeddings();
+  }
+
+  private get embeddingService(): EmbeddingService {
+    if (!this._embeddingService) {
+      this._embeddingService = new EmbeddingService();
+    }
+    return this._embeddingService;
   }
 
   public override getName(): string {
@@ -93,6 +163,45 @@ export class SqlDbResolver extends Resolver {
     return entryName;
   }
 
+  private extractTextForEmbedding(rowObj: object, searchAttributes: string[] | undefined): string {
+    const obj = rowObj as Record<string, any>;
+    const ftsAttrs =
+      !searchAttributes || searchAttributes.length === 0 || searchAttributes[0] === '*'
+        ? Object.keys(obj).filter(k => this.shouldIncludeAttribute(k))
+        : searchAttributes;
+
+    const parts: string[] = [];
+    for (const attr of ftsAttrs) {
+      const value = obj[attr];
+      if (value !== undefined && value !== null) {
+        parts.push(this.valueToString(value));
+      }
+    }
+
+    return parts.join(' ');
+  }
+
+  private shouldIncludeAttribute(key: string): boolean {
+    const excludedAttrs = [
+      PathAttributeName,
+      DeletedFlagAttributeName,
+      TenantAttributeName,
+      '__tenant__',
+      '__is_deleted__',
+    ];
+    return !excludedAttrs.includes(key);
+  }
+
+  private valueToString(value: any): string {
+    if (Array.isArray(value)) {
+      return value.join(' ');
+    }
+    if (typeof value === 'object' && value !== null) {
+      return JSON.stringify(value);
+    }
+    return String(value);
+  }
+
   private async insertInstance(inst: Instance, orUpdate = false): Promise<Instance> {
     const ctx = this.getDbContext(inst.getFqName());
     if (isBetweenRelationship(inst.name, inst.moduleName)) {
@@ -107,35 +216,43 @@ export class SqlDbResolver extends Resolver {
         ctx.activeEnv.isInDeleteMode()
       );
       return inst;
-    } else {
-      const idAttrName: string | undefined = maybeFindIdAttributeName(inst);
-      ensureOneToOneAttributes(inst);
-      const attrs: InstanceAttributes = inst.attributes;
-      const idAttrVal: any = idAttrName ? attrs.get(idAttrName) : crypto.randomUUID();
-      if (idAttrVal !== undefined) {
-        const pp: string | undefined = attrs.get(PathAttributeName);
-        const n: string = `${inst.moduleName}/${inst.name}`;
-        let p: string = '';
-        if (pp !== undefined) p = `${pp}/${escapeFqName(n)}/${idAttrVal}`;
-        else p = `${n.replace('/', '$')}/${idAttrVal}`;
-        attrs.set(PathAttributeName, p);
-      }
-      const n: string = asTableReference(inst.moduleName, inst.name);
-      const rowObj: object = inst.attributesWithStringifiedObjects();
-      await insertRow(n, rowObj, ctx, orUpdate);
-      if (inst.record.getFullTextSearchAttributes()) {
-        const path = attrs.get(PathAttributeName);
-        try {
-          if (!(await vectorStoreSearchEntryExists(n, path, ctx))) {
-            const res = await this.embeddings.embedQuery(JSON.stringify(rowObj));
-            await addRowForFullTextSearch(n, path, res, ctx);
-          }
-        } catch (reason: any) {
-          logger.warn(`Full text indexing failed for ${path} - ${reason}`);
-        }
-      }
-      return inst;
     }
+    const idAttrName: string | undefined = maybeFindIdAttributeName(inst);
+    ensureOneToOneAttributes(inst);
+    const attrs: InstanceAttributes = inst.attributes;
+    const idAttrVal: any = idAttrName ? attrs.get(idAttrName) : crypto.randomUUID();
+    if (idAttrVal !== undefined) {
+      const pp: string | undefined = attrs.get(PathAttributeName);
+      const n: string = `${inst.moduleName}/${inst.name}`;
+      let p: string = '';
+      if (pp !== undefined) p = `${pp}/${escapeFqName(n)}/${idAttrVal}`;
+      else p = `${n.replace('/', '$')}/${idAttrVal}`;
+      attrs.set(PathAttributeName, p);
+    }
+    const n: string = asTableReference(inst.moduleName, inst.name);
+    const rowObj: object = inst.attributesWithStringifiedObjects();
+    await insertRow(n, rowObj, ctx, orUpdate);
+    if (inst.record.getEmbeddingConfig() || inst.record.getFullTextSearchAttributes()) {
+      const path = attrs.get(PathAttributeName);
+      try {
+        if (
+          (await isVectorStoreSupported()) &&
+          !(await vectorStoreSearchEntryExists(n, path, ctx))
+        ) {
+          const ftsAttrs = inst.record.getFullTextSearchAttributes() || ['*'];
+          const textToEmbed = this.extractTextForEmbedding(rowObj, ftsAttrs);
+          const embeddingConfig = inst.record.getEmbeddingConfig();
+          const embeddingService = embeddingConfig
+            ? new EmbeddingService(embeddingConfig)
+            : this.embeddingService;
+          const res = await embeddingService.embedText(textToEmbed);
+          await addRowForFullTextSearch(n, path, res, ctx);
+        }
+      } catch (reason: any) {
+        logger.warn(`Full text indexing failed for ${path} - ${reason}`);
+      }
+    }
+    return inst;
   }
 
   public override async createInstance(inst: Instance): Promise<Instance> {
@@ -211,9 +328,42 @@ export class SqlDbResolver extends Resolver {
       : undefined;
     const orderByDesc = inst.orderByDesc ? 'DESC' : 'ASC';
     const aggregates = SqlDbResolver.normalizedAggregates(inst, tableName);
+
+    let vectorResult: Instance[] | undefined;
+    const embeddingConfig = inst.record.getEmbeddingConfig();
+    const ftsAttrs = inst.record.getFullTextSearchAttributes();
+    if (
+      (await isVectorStoreSupported()) &&
+      embeddingConfig &&
+      qattrs &&
+      (ftsAttrs || Object.keys(qattrs).some(k => k.endsWith('?')))
+    ) {
+      const vectorSearchAttr = Object.keys(qattrs).find(k => k.endsWith('?'));
+      if (vectorSearchAttr) {
+        const queryVal = qvals[vectorSearchAttr];
+        const searchString = this.valueToString(queryVal);
+        const embeddingService = new EmbeddingService(embeddingConfig);
+        const queryVec = await embeddingService.embedQuery(searchString);
+        const rslt: any = await vectorStoreSearch(tableName, queryVec, 10, ctx);
+        if (rslt instanceof Array) {
+          vectorResult = new Array<Instance>();
+          rslt.forEach((r: any) => {
+            const attrs: InstanceAttributes = maybeNormalizeAttributeNames(
+              tableName,
+              new Map(Object.entries(r))
+            );
+            attrs.delete(DeletedFlagAttributeName);
+            vectorResult!.push(Instance.newWithAttributes(inst, attrs));
+          });
+        }
+        delete qattrs[vectorSearchAttr];
+        delete qvals[vectorSearchAttr];
+      }
+    }
+
     const qspec: QuerySpec = {
-      queryObj: qattrs,
-      queryVals: qvals,
+      queryObj: Object.keys(qattrs || {}).length > 0 ? qattrs : undefined,
+      queryVals: Object.keys(qvals || {}).length > 0 ? qvals : undefined,
       distinct,
       groupBy,
       orderBy,
@@ -224,20 +374,47 @@ export class SqlDbResolver extends Resolver {
       whereClauses: undefined,
     };
     const readOnlyAttrs = inst.record.getWriteOnlyAttributes();
-    const rslt: any = await getMany(tableName, qspec, ctx);
+    const rslt: any =
+      vectorResult !== undefined && qspec.queryObj === undefined
+        ? vectorResult
+        : await getMany(tableName, qspec, ctx);
     if (rslt instanceof Array) {
-      result = new Array<Instance>();
-      rslt.forEach((r: object) => {
-        const attrs: InstanceAttributes = maybeNormalizeAttributeNames(
-          tableName,
-          new Map(Object.entries(r))
-        );
-        attrs.delete(DeletedFlagAttributeName);
-        readOnlyAttrs?.forEach((n: string) => {
-          attrs.delete(n);
+      if (vectorResult !== undefined && qspec.queryObj !== undefined) {
+        // Merge results if both vector and standard queries were performed
+        const vectorPaths = new Set(vectorResult.map(i => i.lookup(PathAttributeName)));
+        result = new Array<Instance>();
+        rslt.forEach((r: any) => {
+          const attrs: InstanceAttributes = maybeNormalizeAttributeNames(
+            tableName,
+            new Map(Object.entries(r))
+          );
+          if (vectorPaths.has(attrs.get(PathAttributeName))) {
+            attrs.delete(DeletedFlagAttributeName);
+            readOnlyAttrs?.forEach((n: string) => {
+              attrs.delete(n);
+            });
+            result.push(Instance.newWithAttributes(inst, attrs));
+          }
         });
-        result.push(Instance.newWithAttributes(inst, attrs));
-      });
+      } else {
+        result =
+          vectorResult !== undefined && qspec.queryObj === undefined
+            ? vectorResult
+            : new Array<Instance>();
+        if (vectorResult === undefined || qspec.queryObj !== undefined) {
+          rslt.forEach((r: any) => {
+            const attrs: InstanceAttributes = maybeNormalizeAttributeNames(
+              tableName,
+              new Map(Object.entries(r))
+            );
+            attrs.delete(DeletedFlagAttributeName);
+            readOnlyAttrs?.forEach((n: string) => {
+              attrs.delete(n);
+            });
+            result.push(Instance.newWithAttributes(inst, attrs));
+          });
+        }
+      }
     }
     return result;
   }
@@ -555,7 +732,7 @@ export class SqlDbResolver extends Resolver {
     query: string,
     options?: any
   ): Promise<any> {
-    const queryVec = await this.embeddings.embedQuery(query);
+    const queryVec = await this.embeddingService.embedQuery(query);
     const ctx = this.getDbContext(makeFqName(moduleName, entryName));
     let limit = 5;
     if (options && options.limit) {
