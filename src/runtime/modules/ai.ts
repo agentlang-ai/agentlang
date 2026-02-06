@@ -110,6 +110,7 @@ entity ${AgentEntityName} {
     moduleName String @default("${CoreAIModuleName}"),
     type @enum("chat", "planner", "flow-exec", "${AgentEvalType}", "${AgentLearnerType}") @default("chat"),
     runWorkflows Boolean @default(true),
+    stateless Boolean @default(false),
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
     documents String @optional, // comma-separated list of document names
@@ -301,6 +302,7 @@ export class AgentInstance {
   flows: string | undefined;
   validate: string | undefined;
   retry: string | undefined;
+  stateless: boolean = false;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;
@@ -793,6 +795,9 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       if (env.isInAgentChatMode()) {
         isplnr = false;
       }
+    }
+    if (this.stateless) {
+      this.withSession = false;
     }
     const monitoringEnabled = isMonitoringEnabled();
     const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
