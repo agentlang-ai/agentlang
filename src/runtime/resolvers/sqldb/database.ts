@@ -49,6 +49,67 @@ import { AppConfig } from '../../state.js';
 
 export let defaultDataSource: DataSource | undefined;
 
+// Detect browser environment
+function isBrowser(): boolean {
+  // window for DOM pages, self+importScripts for web workers
+  return (
+    (typeof window !== 'undefined' && typeof (window as any).document !== 'undefined') ||
+    (typeof self !== 'undefined' && typeof (self as any).importScripts === 'function')
+  );
+}
+
+// SQLite WASM with built-in sqlite-vec for browsers
+// Loaded from CDN - this has sqlite-vec statically compiled in
+let sqliteVecWasmModule: any = null;
+
+async function loadSqliteVecWasm(): Promise<any> {
+  if (sqliteVecWasmModule) {
+    return sqliteVecWasmModule;
+  }
+
+  try {
+    // Use dynamic import with string to prevent bundlers from analyzing
+    const cdnUrl = 'https://cdn.jsdelivr.net/npm/sqlite-vec-wasm-demo@latest/sqlite3.mjs';
+    const module = await import(/* @vite-ignore */ cdnUrl);
+    sqliteVecWasmModule = await module.default();
+    return sqliteVecWasmModule;
+  } catch (err) {
+    logger.warn('Failed to load sqlite-vec WASM:', err);
+    return null;
+  }
+}
+
+// Helper to load sqlite-vec based on environment
+async function loadSqliteVec(): Promise<any> {
+  // In browser, use WASM version with built-in sqlite-vec
+  // In Node.js, use the npm package
+  if (isBrowser()) {
+    const wasmModule = await loadSqliteVecWasm();
+    if (wasmModule) {
+      // WASM version has sqlite-vec built-in, no need to call load()
+      // Return a compatible interface
+      return {
+        load: () => {
+          // No-op: sqlite-vec is already loaded in WASM version
+          logger.info('sqlite-vec WASM loaded (built-in)');
+        },
+        // Expose the WASM module for direct use if needed
+        _wasmModule: wasmModule,
+      };
+    }
+    return null;
+  }
+
+  // Node.js: use npm package
+  try {
+    // Use variable to prevent bundlers from statically analyzing this import
+    const moduleName = 'sqlite-vec';
+    return await import(/* @vite-ignore */ moduleName);
+  } catch {
+    return null;
+  }
+}
+
 export class DbContext {
   txnId: string | undefined;
   authInfo: ResolverAuthInfo;
@@ -245,11 +306,11 @@ function makeSqliteDataSource(
   ds.initialize = async () => {
     const res = await originalInit();
     try {
-      const { load } = await import('sqlite-vec');
+      const sqliteVec = await loadSqliteVec();
       const driver = ds.driver as any;
       const db = driver.databaseConnection || driver.nativeDatabase;
-      if (db) {
-        load(db);
+      if (db && sqliteVec?.load) {
+        sqliteVec.load(db);
         logger.info('sqlite-vec extension loaded successfully');
       }
     } catch (err: any) {
@@ -301,14 +362,6 @@ async function maybeHandleMigrations(dataSource: DataSource) {
       await saveMigration(getAppSpec().version, ups, downs);
     }
   }
-}
-
-function isBrowser(): boolean {
-  // window for DOM pages, self+importScripts for web workers
-  return (
-    (typeof window !== 'undefined' && typeof (window as any).document !== 'undefined') ||
-    (typeof self !== 'undefined' && typeof (self as any).importScripts === 'function')
-  );
 }
 
 function defaultLocateFile(file: string): string {
@@ -395,12 +448,8 @@ export async function isVectorStoreSupported(): Promise<boolean> {
   const dbType = getDbType(AppConfig?.store);
   if (dbType === 'postgres') return true;
   if (dbType === 'sqlite') {
-    try {
-      const sqliteVecModule = await import('sqlite-vec');
-      return !!sqliteVecModule;
-    } catch {
-      return false;
-    }
+    const sqliteVecModule = await loadSqliteVec();
+    return !!sqliteVecModule;
   }
   return false;
 }
