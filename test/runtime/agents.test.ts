@@ -1,4 +1,4 @@
-import { assert, describe, test } from 'vitest';
+import { assert, beforeEach, describe, test } from 'vitest';
 import { provider } from '../../src/runtime/agents/registry.js';
 import {
   AgentServiceProvider,
@@ -892,7 +892,7 @@ agent userRequestManager
         `entity Customer {
           email Email @id,
           name String,
-          lastPurchaseAmount Double @default(0.0)
+          lastPurchaseAmount Float @default(0.0)
         }
 
         entity Deal {
@@ -1366,5 +1366,153 @@ Remember: Practice makes perfect!
 } else {
   describe('Skipping agent tests', () => {
     test('test01', async () => {});
+  });
+}
+
+if (process.env.AL_TEST === 'true') {
+  describe('Document retrievalConfig Tests', () => {
+    // Clear documents between tests to ensure isolation
+    beforeEach(async () => {
+      try {
+        await parseAndEvaluateStatement('{agentlang.ai/Document! {}}');
+      } catch {
+        // Ignore errors if no documents exist
+      }
+    });
+
+    test('test01 - Fetch document from HTTPS URL (GitHub README)', async () => {
+      // Test fetching a document from an HTTPS URL using retrievalConfig
+      // This tests that documents can be fetched from remote URLs
+      await doInternModule(
+        'HttpsDocTest',
+        `{agentlang.ai/LLM {
+            name "https-test-llm",
+            service "openai",
+            config {"model": "gpt-4o"}
+          }
+        }
+        {agentlang.ai/doc {
+            title "agentlang readme",
+            url "https://raw.githubusercontent.com/agentlang-ai/agentlang/main/README.md"}}
+
+        agent httpsDocAgent {
+            llm "https-test-llm",
+            instruction "Answer questions about AgentLang based on the README.",
+            documents ["agentlang readme"]
+        }
+        `
+      );
+
+      // Verify the document was fetched and stored
+      const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
+      assert(docs.length === 1, 'Should have one document');
+
+      const readmeDoc = docs.find((d: Instance) => d.lookup('title') === 'agentlang readme');
+      assert(readmeDoc !== undefined, 'Should find the README document');
+
+      // Verify content was fetched
+      const content = readmeDoc.lookup('content');
+      assert(content && typeof content === 'string', 'Content should be a string');
+      assert(content.length > 0, 'Content should not be empty');
+      assert(
+        content.toLowerCase().includes('agent') || content.toLowerCase().includes('language'),
+        'Content should contain agent or language'
+      );
+
+      const q1 = await parseAndEvaluateStatement(
+        '{HttpsDocTest/httpsDocAgent {message "What is the title of the document?"}}'
+      );
+      assert(q1 && typeof q1 === 'string');
+      assert(q1.includes('Agentlang - Reliable Enterprise AI Agents'));
+
+      console.log('✅ HTTPS URL document fetch test passed');
+    });
+
+    test('test02 - Fetch document from S3 using retrievalConfig', async () => {
+      // Skip if no S3 test path is configured
+      const s3TestPath = process.env.AGENTLANG_TEST_S3_PATH;
+      if (!s3TestPath) {
+        console.log('Skipping S3 test - no AGENTLANG_TEST_S3_PATH configured');
+        return;
+      }
+
+      // Validate S3 path format
+      assert(s3TestPath.startsWith('s3://'), 'S3 path should start with s3://');
+
+      let moduleError: Error | null = null;
+      try {
+        await doInternModule(
+          'S3DocTest',
+          `{agentlang.ai/LLM {
+              name "s3-test-llm",
+              service "openai",
+              config {"model": "gpt-4o"}
+            }
+          }
+          {agentlang.ai/doc {
+              title "s3 document",
+              url "${s3TestPath}",
+              retrievalConfig {
+                "provider": "s3",
+                "config": {
+                  "region": "#js process.env.AWS_REGION",
+                  "accessKeyId": "#js process.env.AWS_ACCESS_KEY_ID",
+                  "secretAccessKey": "#js process.env.AWS_SECRET_ACCESS_KEY"}}
+            }
+          }
+
+          agent s3DocAgent {
+              llm "s3-test-llm",
+              instruction "Answer questions based on the document.",
+              documents ["s3 document"]
+          }
+          `
+        );
+      } catch (error) {
+        moduleError = error as Error;
+        console.error('❌ Error during S3 document module creation:', error);
+        if (error instanceof Error) {
+          console.error('Error message:', error.message);
+          console.error('Error stack:', error.stack);
+        }
+        // Continue to check if document was created despite error
+      }
+
+      // If module creation failed, we should still check for partial success
+      if (moduleError) {
+        console.log('Module creation had errors, checking if document was partially created...');
+      }
+
+      // Verify the document was fetched and stored
+      const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
+      if (docs.length === 0) {
+        const errorDetails = moduleError
+          ? `Module error: ${moduleError.message}`
+          : 'No module error was thrown';
+        console.error(`❌ No documents found! ${errorDetails}`);
+        console.error('S3 fetch failed. Check AWS credentials and S3 path accessibility.');
+      }
+      assert(
+        docs.length === 1,
+        `Should have one document, but found ${docs.length}. ${moduleError ? 'Module error: ' + moduleError.message : ''}`
+      );
+
+      const s3Doc = docs.find((d: Instance) => d.lookup('title') === 's3 document');
+      assert(s3Doc !== undefined, 'Should find the S3 document');
+
+      // Verify content was fetched from S3
+      const content = s3Doc.lookup('content');
+      assert(content && typeof content === 'string', 'Content should be a string');
+      assert(content.length > 0, 'Content should not be empty');
+
+      const q1 = await parseAndEvaluateStatement(
+        '{S3DocTest/s3DocAgent {message "What is the version of DaVinci Resolver mentioned in the doc?"}}'
+      );
+
+      assert(q1 && typeof q1 === 'string');
+      assert(q1.toLowerCase().includes('19.1'));
+
+      console.log('✅ S3 document fetch with retrievalConfig test passed');
+    });
   });
 }

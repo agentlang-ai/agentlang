@@ -30,8 +30,8 @@ import {
   makeInstance,
   newInstanceAttributes,
   Record,
-  Retry,
   resolveDocumentAliases,
+  Retry,
 } from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
@@ -66,6 +66,7 @@ import { FlowStep } from '../agents/flows.js';
 import Handlebars from 'handlebars';
 import { Statement } from '../../language/generated/ast.js';
 import { isMonitoringEnabled, TtlCache } from '../state.js';
+import { isNodeEnv } from '../../utils/runtime.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -73,27 +74,6 @@ export const LlmEntityName = 'LLM';
 export const AgentLearnerType = 'learner';
 
 const AgentEvalType = 'eval';
-
-function buildEmbeddingConfig(): object {
-  const config: any = {
-    provider: process.env.AGENTLANG_EMBEDDING_PROVIDER || 'openai',
-    model: process.env.AGENTLANG_EMBEDDING_MODEL || 'text-embedding-3-small',
-    chunkSize: 1000,
-    chunkOverlap: 200,
-  };
-
-  if (process.env.AGENTLANG_EMBEDDING_CHUNKSIZE) {
-    config.chunkSize = parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKSIZE, 1000);
-  }
-
-  if (process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP) {
-    config.chunkOverlap = parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP, 200);
-  }
-
-  return config;
-}
-
-const embeddingConfig = JSON.stringify(buildEmbeddingConfig());
 
 export default `module ${CoreAIModuleName}
 
@@ -139,12 +119,24 @@ workflow saveAgentChatSession {
 entity Document {
   title String @id,
   content String,
-  @meta {"fullTextSearch": "*", "embeddingConfig": ${embeddingConfig}}
+  embeddingConfig Map @optional,
+  @meta {"fullTextSearch": "*"}
 }
 
 event doc {
   title String,
-  url String
+  url String,
+  config Map @optional,
+  retrievalConfig Map @optional,
+  embeddingConfig Map @optional
+}
+
+workflow processDoc {
+  // Fetch document from URL and create Document entity
+  // Supports: local paths, http/https URLs, s3:// URLs
+  // S3 config can be provided via retrievalConfig or env vars
+  // Embedding config can customize chunking behavior
+  await ai.fetchAndCreateDocument(doc.title, doc.url, doc.retrievalConfig, doc.embeddingConfig)
 }
 
 entity Directive {
@@ -1391,4 +1383,64 @@ export async function processAgentLearning(
   );
   await parseAndInternAgentLearning(moduleName, agentName, learning, env);
   return { agentLearning: { result: learning } };
+}
+
+export async function fetchAndCreateDocument(
+  title: string,
+  url: string,
+  retrievalConfig: Map<string, any> | undefined,
+  embeddingConfig: Map<string, any> | undefined,
+  _env: Environment
+): Promise<any> {
+  if (!isNodeEnv) {
+    throw new Error('Document fetching is only available in Node.js environment');
+  }
+
+  const { documentFetcher } = await import('../services/documentFetcher.js');
+
+  const config: any = {
+    title,
+    url,
+  };
+
+  if (retrievalConfig) {
+    const provider = retrievalConfig.get('provider');
+    const providerConfig = retrievalConfig.get('config');
+
+    config.retrievalConfig = {
+      provider: provider || 's3',
+      config: providerConfig
+        ? {
+            region: providerConfig.get('region'),
+            endpoint: providerConfig.get('endpoint'),
+            accessKeyId: providerConfig.get('accessKeyId'),
+            secretAccessKey: providerConfig.get('secretAccessKey'),
+            forcePathStyle: providerConfig.get('forcePathStyle'),
+          }
+        : {},
+    };
+  }
+
+  if (embeddingConfig) {
+    config.embeddingConfig = {
+      provider: embeddingConfig.get('provider'),
+      model: embeddingConfig.get('model'),
+      chunkSize: embeddingConfig.get('chunkSize'),
+      chunkOverlap: embeddingConfig.get('chunkOverlap'),
+    };
+  }
+
+  const document = await documentFetcher.fetchDocument(config);
+
+  if (document) {
+    return {
+      document: {
+        title: document.title,
+        url: document.url,
+        format: document.format,
+      },
+    };
+  } else {
+    throw new Error(`Failed to fetch document: ${title} from ${url}`);
+  }
 }

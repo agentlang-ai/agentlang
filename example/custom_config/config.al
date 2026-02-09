@@ -40,6 +40,38 @@
           "model": "gpt-4.0"
         }
       }
+    },
+    {
+      "agentlang.ai/doc": {
+        "title": "price list",
+        "url": "./example/camera_info/docs/prices.txt"
+      }
+    },
+    {
+      "agentlang.ai/doc": {
+        "title": "company handbook",
+        "url": "s3://my-bucket/docs/handbook.pdf",
+        "retrievalConfig": {
+          "provider": "s3",
+          "config": {
+            "region": "#js process.env.AWS_REGION",
+            "accessKeyId": "#js process.env.AWS_ACCESS_KEY_ID",
+            "secretAccessKey": "#js process.env.AWS_SECRET_ACCESS_KEY"
+          }
+        },
+        "embeddingConfig": {
+          "provider": "openai",
+          "model": "text-embedding-3-small",
+          "chunkSize": 1000,
+          "chunkOverlap": 200
+        }
+      }
+    },
+    {
+      "agentlang.ai/doc": {
+        "title": "api documentation",
+        "url": "https://docs.example.com/api.md"
+      }
     }
   ],
   "custom_config": {
