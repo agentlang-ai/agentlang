@@ -892,7 +892,7 @@ agent userRequestManager
         `entity Customer {
           email Email @id,
           name String,
-          lastPurchaseAmount Double @default(0.0)
+          lastPurchaseAmount Float @default(0.0)
         }
 
         entity Deal {
