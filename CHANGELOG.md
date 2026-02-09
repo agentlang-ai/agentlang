@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.10](https://github.com/agentlang-ai/agentlang/compare/0.9.9...0.9.10) (2026-02-09)
+
+### Changes
+
+* Support for retrieving documents (#572) ([07112f2](https://github.com/agentlang-ai/agentlang/commit/07112f25b980c862cd0556a63c137845233fa5a7)) - @pratik
+
+---
 ## [0.9.9](https://github.com/agentlang-ai/agentlang/compare/0.9.8...0.9.9) (2026-02-06)
 
 ### Changes
