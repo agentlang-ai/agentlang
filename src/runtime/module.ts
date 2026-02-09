@@ -31,6 +31,7 @@ import {
   DefaultModules,
   encryptPassword,
   escapeFqName,
+  escapeSpecialChars,
   findAllPrePostTriggerSchema,
   findMetaSchema,
   findUqCompositeAttributes,
@@ -1161,7 +1162,16 @@ export class Agent extends Record {
       if (!skip && value !== null && value !== undefined) {
         let v = value;
         const isf = key == 'flows';
-        if (isf || key == 'tools') {
+        const isDocs = key == 'documents';
+        if (isDocs) {
+          const raw = isString(v) ? v : `${v}`;
+          const items = raw
+            .split(',')
+            .map((entry: string) => entry.trim())
+            .filter((entry: string) => entry.length > 0)
+            .map((entry: string) => entry.replace(/\\/g, '\\\\').replace(/"/g, '\\"'));
+          v = `[${items.map((entry: string) => `"${entry}"`).join(', ')}]`;
+        } else if (isf || key == 'tools') {
           if (isf || v.indexOf(',') > 0 || v.indexOf('/') > 0) v = `[${v}]`;
           else v = `"${v}"`;
         } else if (isString(v)) {
@@ -1885,6 +1895,42 @@ export class GlossaryEntry extends ModuleEntry {
   }
 }
 
+export type ModuleDocument = {
+  title: string;
+  url: string;
+};
+
+export class DocumentEntry extends ModuleEntry {
+  private doc: ModuleDocument;
+
+  constructor(title: string, moduleName: string, url: string) {
+    super(title, moduleName);
+    this.doc = { title, url };
+  }
+
+  getUrl(): string {
+    return this.doc.url;
+  }
+
+  getTitle(): string {
+    return this.doc.title;
+  }
+
+  override toString(): string {
+    const escapedTitle = escapeSpecialChars(this.doc.title);
+    const escapedUrl = escapeSpecialChars(this.doc.url);
+    return `{${DefaultModuleName}.ai/doc {\n    title "${escapedTitle}",\n    url "${escapedUrl}"\n}}`;
+  }
+
+  get url(): string {
+    return this.doc.url;
+  }
+
+  set url(value: string) {
+    this.doc.url = value;
+  }
+}
+
 function statementLabel(stmt: Statement | undefined): string {
   if (stmt === undefined) return '';
   let lbl: string | undefined = undefined;
@@ -2472,6 +2518,48 @@ export class Module {
     return this;
   }
 
+  addDocument(title: string, url: string): Module {
+    if (this.hasEntry(title)) {
+      const existing = this.getEntry(title);
+      if (existing instanceof DocumentEntry) {
+        const doc = existing as DocumentEntry;
+        doc.url = url;
+        return this;
+      }
+    }
+
+    const docEntry = new DocumentEntry(title, this.name, url);
+    this.addEntry(docEntry);
+    return this;
+  }
+
+  getDocument(title: string): string | undefined {
+    if (this.hasEntry(title)) {
+      const entry = this.getEntry(title);
+      if (entry instanceof DocumentEntry) {
+        return (entry as DocumentEntry).url;
+      }
+    }
+    return undefined;
+  }
+
+  getAllDocuments(): DocumentEntry[] {
+    return this.entries.filter((e: ModuleEntry) => {
+      return e instanceof DocumentEntry;
+    }) as DocumentEntry[];
+  }
+
+  removeDocument(title: string): Module {
+    for (let i = 0; i < this.entries.length; ++i) {
+      const entry = this.entries[i];
+      if (entry.name === title && entry instanceof DocumentEntry) {
+        this.entries.splice(i, 1);
+        break;
+      }
+    }
+    return this;
+  }
+
   addRetry(retry: Retry): Module {
     this.addEntry(retry);
     return this;
@@ -2733,6 +2821,17 @@ export class Module {
 }
 
 let GlobalRetries: Array<Retry> | undefined = undefined;
+
+const DocumentAliasMap: Map<string, string> = new Map();
+
+export function registerDocumentAlias(name: string, title: string): void {
+  if (!name || !title) return;
+  DocumentAliasMap.set(name, title);
+}
+
+export function resolveDocumentAliases(names: string[]): string[] {
+  return names.map((name: string) => DocumentAliasMap.get(name) ?? name);
+}
 
 export function addGlobalRetry(r: Retry): Retry {
   if (GlobalRetries === undefined) {

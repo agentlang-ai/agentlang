@@ -31,6 +31,7 @@ import {
   newInstanceAttributes,
   Record,
   Retry,
+  resolveDocumentAliases,
 } from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
@@ -73,6 +74,27 @@ export const AgentLearnerType = 'learner';
 
 const AgentEvalType = 'eval';
 
+function buildEmbeddingConfig(): object {
+  const config: any = {
+    provider: process.env.AGENTLANG_EMBEDDING_PROVIDER || 'openai',
+    model: process.env.AGENTLANG_EMBEDDING_MODEL || 'text-embedding-3-small',
+    chunkSize: 1000,
+    chunkOverlap: 200,
+  };
+
+  if (process.env.AGENTLANG_EMBEDDING_CHUNKSIZE) {
+    config.chunkSize = parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKSIZE, 1000);
+  }
+
+  if (process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP) {
+    config.chunkOverlap = parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP, 200);
+  }
+
+  return config;
+}
+
+const embeddingConfig = JSON.stringify(buildEmbeddingConfig());
+
 export default `module ${CoreAIModuleName}
 
 import "./modules/ai.js" @as ai
@@ -88,6 +110,7 @@ entity ${AgentEntityName} {
     moduleName String @default("${CoreAIModuleName}"),
     type @enum("chat", "planner", "flow-exec", "${AgentEvalType}", "${AgentLearnerType}") @default("chat"),
     runWorkflows Boolean @default(true),
+    stateless Boolean @default(false),
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
     documents String @optional, // comma-separated list of document names
@@ -116,7 +139,7 @@ workflow saveAgentChatSession {
 entity Document {
   title String @id,
   content String,
-  @meta {"fullTextSearch": "*"}
+  @meta {"fullTextSearch": "*", "embeddingConfig": ${embeddingConfig}}
 }
 
 event doc {
@@ -279,6 +302,7 @@ export class AgentInstance {
   flows: string | undefined;
   validate: string | undefined;
   retry: string | undefined;
+  stateless: boolean = false;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;
@@ -772,6 +796,9 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         isplnr = false;
       }
     }
+    if (this.stateless) {
+      this.withSession = false;
+    }
     const monitoringEnabled = isMonitoringEnabled();
     const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
     let msgs: BaseMessage[] | undefined;
@@ -981,6 +1008,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (this.documents && this.documents.length > 0) {
       try {
         const docNames = this.documents.split(',').map(d => d.trim());
+        const docTitles = resolveDocumentAliases(docNames);
 
         const searchQuery = message;
 
@@ -994,7 +1022,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
             const docs: Instance[] = [];
             for (const doc of semanticResult) {
               const docTitle = doc.lookup ? doc.lookup('title') : doc.title;
-              if (AgentInstance.docTitlesMatch(docTitle, docNames)) {
+              if (AgentInstance.docTitlesMatch(docTitle, docTitles)) {
                 docs.push(
                   doc instanceof Instance
                     ? doc
@@ -1026,7 +1054,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
             const v: any = result[i];
             const docTitle: string | undefined = AgentInstance.getDocumentTitle(v);
 
-            if (docTitle && docNames.includes(docTitle)) {
+            if (docTitle && docTitles.includes(docTitle)) {
               if (v instanceof Instance) {
                 docs.push(v);
               }
