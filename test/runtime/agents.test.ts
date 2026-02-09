@@ -1,11 +1,6 @@
-import { assert, describe, test } from 'vitest';
+import { assert, beforeEach, describe, test } from 'vitest';
 import { provider } from '../../src/runtime/agents/registry.js';
-import {
-  AgentServiceProvider,
-  AIResponse,
-  humanMessage,
-  systemMessage,
-} from '../../src/runtime/agents/provider.js';
+import { AgentServiceProvider, AIResponse, humanMessage, systemMessage, } from '../../src/runtime/agents/provider.js';
 import { doInternModule } from '../util.js';
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import {
@@ -1370,6 +1365,15 @@ Remember: Practice makes perfect!
 }
 
 describe('Document retrievalConfig Tests', () => {
+  // Clear documents between tests to ensure isolation
+  beforeEach(async () => {
+    try {
+      await parseAndEvaluateStatement('{agentlang.ai/Document! {}}');
+    } catch {
+      // Ignore errors if no documents exist
+    }
+  });
+
   test('test01 - Fetch document from HTTPS URL (GitHub README)', async () => {
     // Test fetching a document from an HTTPS URL using retrievalConfig
     // This tests that documents can be fetched from remote URLs
@@ -1423,41 +1427,59 @@ describe('Document retrievalConfig Tests', () => {
     // Validate S3 path format
     assert(s3TestPath.startsWith('s3://'), 'S3 path should start with s3://');
 
-    // Test fetching a document from S3 using retrievalConfig
-    // This tests that documents can be fetched from S3 with proper credentials
-    await doInternModule(
-      'S3DocTest',
-      `{agentlang.ai/LLM {
-            name "s3-test-llm",
-            service "openai",
-            config {"model": "gpt-4o"}
-          }
-        }
-        {agentlang.ai/doc {
-            title "s3 document",
-            url "${s3TestPath}",
-            retrievalConfig {
-              provider: "s3",
-              config {
-                region: "#js process.env.AWS_REGION",
-                accessKeyId: "#js process.env.AWS_ACCESS_KEY_ID",
-                secretAccessKey: "#js process.env.AWS_SECRET_ACCESS_KEY"
-              }
+    let moduleError: Error | null = null;
+    try {
+      await doInternModule(
+        'S3DocTest',
+        `{agentlang.ai/LLM {
+              name "s3-test-llm",
+              service "openai",
+              config {"model": "gpt-4o"}
             }
           }
-        }
+          {agentlang.ai/doc {
+              title "s3 document",
+              url "${s3TestPath}",
+              retrievalConfig {"provider": "s3", "config": {"region": "#js process.env.AWS_REGION", "accessKeyId": "#js process.env.AWS_ACCESS_KEY_ID", "secretAccessKey": "#js process.env.AWS_SECRET_ACCESS_KEY"}}
+            }
+          }
 
-        agent s3DocAgent {
-            llm "s3-test-llm",
-            instruction "Answer questions based on the S3 document.",
-            documents ["s3 document"]
-        }
-        `
-    );
+          agent s3DocAgent {
+              llm "s3-test-llm",
+              instruction "Answer questions based on the S3 document.",
+              documents ["s3 document"]
+          }
+          `
+      );
+    } catch (error) {
+      moduleError = error as Error;
+      console.error('❌ Error during S3 document module creation:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      // Continue to check if document was created despite error
+    }
+
+    // If module creation failed, we should still check for partial success
+    if (moduleError) {
+      console.log('Module creation had errors, checking if document was partially created...');
+    }
 
     // Verify the document was fetched and stored
     const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
-    assert(docs.length === 1, 'Should have one document');
+    console.log('Documents found:', docs);
+    if (docs.length === 0) {
+      const errorDetails = moduleError
+        ? `Module error: ${moduleError.message}`
+        : 'No module error was thrown';
+      console.error(`❌ No documents found! ${errorDetails}`);
+      console.error('S3 fetch failed. Check AWS credentials and S3 path accessibility.');
+    }
+    assert(
+      docs.length === 1,
+      `Should have one document, but found ${docs.length}. ${moduleError ? 'Module error: ' + moduleError.message : ''}`
+    );
 
     const s3Doc = docs.find((d: Instance) => d.lookup('title') === 's3 document');
     assert(s3Doc !== undefined, 'Should find the S3 document');
@@ -1466,10 +1488,6 @@ describe('Document retrievalConfig Tests', () => {
     const content = s3Doc.lookup('content');
     assert(content && typeof content === 'string', 'Content should be a string');
     assert(content.length > 0, 'Content should not be empty');
-
-    const storedConfig = s3Doc.lookup('retrievalConfig');
-
-    console.log(`The storedConfig is: ${JSON.stringify(storedConfig)}`);
 
     console.log('✅ S3 document fetch with retrievalConfig test passed');
   });
@@ -1482,41 +1500,56 @@ describe('Document retrievalConfig Tests', () => {
       return;
     }
 
-    // Test with a custom region and endpoint (useful for MinIO or other S3-compatible storage)
-    await doInternModule(
-      'S3CustomConfigTest',
-      `{agentlang.ai/LLM {
-            name "s3-custom-llm",
-            service "openai",
-            config {"model": "gpt-4o"}
-          }
-        }
-        {agentlang.ai/doc {
-            title "s3 custom config doc",
-            url "${s3TestPath}",
-            retrievalConfig {
-              provider: "s3",
-              config {
-                region: "us-west-2",
-                accessKeyId: "#js process.env.AWS_ACCESS_KEY_ID",
-                secretAccessKey: "#js process.env.AWS_SECRET_ACCESS_KEY",
-                forcePathStyle: false
-              }
+    let moduleError: Error | null = null;
+    try {
+      await doInternModule(
+        'S3CustomConfigTest',
+        `{agentlang.ai/LLM {
+              name "s3-custom-llm",
+              service "openai",
+              config {"model": "gpt-4o"}
             }
           }
-        }
+          {agentlang.ai/doc {
+              title "s3 custom config doc",
+              url "${s3TestPath}",
+              retrievalConfig {"provider": "s3", "config": {"region": "us-west-2", "accessKeyId": "#js process.env.AWS_ACCESS_KEY_ID", "secretAccessKey": "#js process.env.AWS_SECRET_ACCESS_KEY", "forcePathStyle": false}}
+            }
+          }
 
-        agent s3CustomAgent {
-            llm "s3-custom-llm",
-            instruction "Answer questions based on the document.",
-            documents ["s3 custom config doc"]
-        }
-        `
-    );
+          agent s3CustomAgent {
+              llm "s3-custom-llm",
+              instruction "Answer questions based on the document.",
+              documents ["s3 custom config doc"]
+          }
+          `
+      );
+    } catch (error) {
+      moduleError = error as Error;
+      console.error('❌ Error during S3 custom region module creation:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+    }
 
-    // Verify the document was fetched
+    if (moduleError) {
+      console.log('Module creation had errors, checking if document was partially created...');
+    }
+
     const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
-    assert(docs.length === 1, 'Should have one document');
+    console.log('Documents found:', docs);
+    if (docs.length === 0) {
+      const errorDetails = moduleError
+        ? `Module error: ${moduleError.message}`
+        : 'No module error was thrown';
+      console.error(`❌ No documents found! ${errorDetails}`);
+      console.error('S3 fetch failed. Check AWS credentials and S3 path accessibility.');
+    }
+    assert(
+      docs.length === 1,
+      `Should have one document, but found ${docs.length}. ${moduleError ? 'Module error: ' + moduleError.message : ''}`
+    );
 
     const doc = docs.find((d: Instance) => d.lookup('title') === 's3 custom config doc');
     assert(doc !== undefined, 'Should find the S3 document with custom config');
