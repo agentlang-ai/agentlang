@@ -30,8 +30,8 @@ import {
   makeInstance,
   newInstanceAttributes,
   Record,
-  Retry,
   resolveDocumentAliases,
+  Retry,
 } from '../module.js';
 import { provider } from '../agents/registry.js';
 import {
@@ -119,7 +119,7 @@ workflow saveAgentChatSession {
 entity Document {
   title String @id,
   content String,
-  embeddingConfig Map @optional,  // Per-document embedding configuration
+  embeddingConfig Map @optional,
   @meta {"fullTextSearch": "*"}
 }
 
