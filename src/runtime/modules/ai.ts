@@ -1,4 +1,5 @@
 import {
+  DefaultModuleName,
   escapeSpecialChars,
   isFqName,
   isString,
@@ -192,6 +193,25 @@ entity AgentLearningResult {
 
 workflow agentLearning {
     await ai.processAgentLearning(agentLearning.agentModuleName, agentLearning.agentName, agentLearning.instruction)
+}
+
+entity AgentFlowStep {
+    id UUID @id @default(uuid()),
+    chatId String @indexed,
+    step String @indexed,
+    result String,
+    suspensionId String
+}
+
+@public event restartFlow {
+  chatId String,
+  step String,
+  userInput String
+}
+
+workflow restartFlow {
+  {AgentFlowStep {chatId? restartFlow.chatId, step? restartFlow.step}} @as [fs];
+  {${DefaultModuleName}/restartSuspension {id fs.suspensionId, data restartFlow.userInput}}
 }
 `;
 
@@ -622,7 +642,7 @@ export class AgentInstance {
 Only return a pure JSON object with no extra text, annotations etc.`;
     }
     const spad = env.getScratchPad();
-    if (spad !== undefined) {
+    if (spad !== undefined && Object.keys(spad).length > 0) {
       if (finalInstruction.indexOf('{{') > 0) {
         return AgentInstance.maybeRewriteTemplatePatterns(spad, finalInstruction, env);
       } else {
@@ -1282,17 +1302,38 @@ function processScenarioResponse(resp: string): string {
   return resp;
 }
 
+type ExtractedCode = {
+  language: string | null;
+  code: string;
+};
+
+export function extractFencedCodeBlocks(markdown: string): ExtractedCode[] {
+  const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+  const blocks: ExtractedCode[] = [];
+  let match;
+
+  while ((match = codeBlockRegex.exec(markdown)) !== null) {
+    blocks.push({
+      language: match[1] || null,
+      code: match[2],
+    });
+  }
+
+  return blocks;
+}
+
 export function normalizeGeneratedCode(code: string | undefined): string {
   if (code !== undefined) {
-    let s = code.trim();
-    if (s.startsWith('```')) {
-      const idx = s.indexOf('\n');
-      s = s.substring(idx).trimStart();
+    const blocks = extractFencedCodeBlocks(code);
+    if (blocks.length > 0) {
+      return blocks
+        .map((v: ExtractedCode) => {
+          return v.code;
+        })
+        .join('\n\n');
+    } else {
+      return code;
     }
-    if (s.endsWith('```')) {
-      s = s.substring(0, s.length - 3);
-    }
-    return s;
   } else {
     return '';
   }
@@ -1391,4 +1432,41 @@ export async function processAgentLearning(
   );
   await parseAndInternAgentLearning(moduleName, agentName, learning, env);
   return { agentLearning: { result: learning } };
+}
+
+export async function saveFlowStepResult(
+  chatId: string,
+  step: string,
+  result: string,
+  suspensionId: string,
+  env: Environment
+): Promise<Instance | undefined> {
+  const t = `${CoreAIModuleName}/AgentFlowStep`;
+  try {
+    await parseAndEvaluateStatement(
+      `purge {${t} {chatId? "${chatId}", step? "${step}"}}`,
+      undefined,
+      env
+    );
+    const inst: Instance = await parseAndEvaluateStatement(
+      `{${t} {chatId "${chatId}", step "${step}", result "${escapeSpecialChars(result)}", suspensionId "${suspensionId}"}}`,
+      undefined,
+      env
+    );
+    if (isInstanceOfType(inst, t)) return inst;
+    else return undefined;
+  } catch (reason: any) {
+    logger.error(`failed to save flow result for step ${step} - ${reason}`);
+    return undefined;
+  }
+}
+
+export async function loadFlowStepResults(chatId: string): Promise<Instance[]> {
+  try {
+    return await parseAndEvaluateStatement(`{${CoreAIModuleName}/AgentFlowStep {
+        chatId? "${chatId}"}}`);
+  } catch (reason: any) {
+    logger.error(`failed to query flow-steps for ${chatId} - ${reason}`);
+    return [];
+  }
 }
