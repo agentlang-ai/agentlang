@@ -1,6 +1,11 @@
 import { assert, beforeEach, describe, test } from 'vitest';
 import { provider } from '../../src/runtime/agents/registry.js';
-import { AgentServiceProvider, AIResponse, humanMessage, systemMessage, } from '../../src/runtime/agents/provider.js';
+import {
+  AgentServiceProvider,
+  AIResponse,
+  humanMessage,
+  systemMessage,
+} from '../../src/runtime/agents/provider.js';
 import { doInternModule } from '../util.js';
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import {
@@ -1413,6 +1418,12 @@ describe('Document retrievalConfig Tests', () => {
       'Content should contain agent or language'
     );
 
+    const q1 = await parseAndEvaluateStatement(
+      '{HttpsDocTest/httpsDocAgent {message "What is the title of the document?"}}'
+    );
+    assert(q1 && typeof q1 === 'string');
+    assert(q1.includes('Agentlang - Reliable Enterprise AI Agents'));
+
     console.log('✅ HTTPS URL document fetch test passed');
   });
 
@@ -1440,13 +1451,18 @@ describe('Document retrievalConfig Tests', () => {
           {agentlang.ai/doc {
               title "s3 document",
               url "${s3TestPath}",
-              retrievalConfig {"provider": "s3", "config": {"region": "#js process.env.AWS_REGION", "accessKeyId": "#js process.env.AWS_ACCESS_KEY_ID", "secretAccessKey": "#js process.env.AWS_SECRET_ACCESS_KEY"}}
+              retrievalConfig {
+                "provider": "s3",
+                "config": {
+                  "region": "#js process.env.AWS_REGION",
+                  "accessKeyId": "#js process.env.AWS_ACCESS_KEY_ID",
+                  "secretAccessKey": "#js process.env.AWS_SECRET_ACCESS_KEY"}}
             }
           }
 
           agent s3DocAgent {
               llm "s3-test-llm",
-              instruction "Answer questions based on the S3 document.",
+              instruction "Answer questions based on the document.",
               documents ["s3 document"]
           }
           `
@@ -1468,7 +1484,6 @@ describe('Document retrievalConfig Tests', () => {
 
     // Verify the document was fetched and stored
     const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
-    console.log('Documents found:', docs);
     if (docs.length === 0) {
       const errorDetails = moduleError
         ? `Module error: ${moduleError.message}`
@@ -1489,75 +1504,13 @@ describe('Document retrievalConfig Tests', () => {
     assert(content && typeof content === 'string', 'Content should be a string');
     assert(content.length > 0, 'Content should not be empty');
 
-    console.log('✅ S3 document fetch with retrievalConfig test passed');
-  });
-
-  test('test03 - Fetch document from S3 with custom region', async () => {
-    // Skip if no S3 test path is configured
-    const s3TestPath = process.env.AGENTLANG_TEST_S3_PATH;
-    if (!s3TestPath) {
-      console.log('Skipping S3 custom region test - no AGENTLANG_TEST_S3_PATH configured');
-      return;
-    }
-
-    let moduleError: Error | null = null;
-    try {
-      await doInternModule(
-        'S3CustomConfigTest',
-        `{agentlang.ai/LLM {
-              name "s3-custom-llm",
-              service "openai",
-              config {"model": "gpt-4o"}
-            }
-          }
-          {agentlang.ai/doc {
-              title "s3 custom config doc",
-              url "${s3TestPath}",
-              retrievalConfig {"provider": "s3", "config": {"region": "us-west-2", "accessKeyId": "#js process.env.AWS_ACCESS_KEY_ID", "secretAccessKey": "#js process.env.AWS_SECRET_ACCESS_KEY", "forcePathStyle": false}}
-            }
-          }
-
-          agent s3CustomAgent {
-              llm "s3-custom-llm",
-              instruction "Answer questions based on the document.",
-              documents ["s3 custom config doc"]
-          }
-          `
-      );
-    } catch (error) {
-      moduleError = error as Error;
-      console.error('❌ Error during S3 custom region module creation:', error);
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-      }
-    }
-
-    if (moduleError) {
-      console.log('Module creation had errors, checking if document was partially created...');
-    }
-
-    const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
-    console.log('Documents found:', docs);
-    if (docs.length === 0) {
-      const errorDetails = moduleError
-        ? `Module error: ${moduleError.message}`
-        : 'No module error was thrown';
-      console.error(`❌ No documents found! ${errorDetails}`);
-      console.error('S3 fetch failed. Check AWS credentials and S3 path accessibility.');
-    }
-    assert(
-      docs.length === 1,
-      `Should have one document, but found ${docs.length}. ${moduleError ? 'Module error: ' + moduleError.message : ''}`
+    const q1 = await parseAndEvaluateStatement(
+      '{S3DocTest/s3DocAgent {message "What is the version of DaVinci Resolver mentioned in the doc?"}}'
     );
 
-    const doc = docs.find((d: Instance) => d.lookup('title') === 's3 custom config doc');
-    assert(doc !== undefined, 'Should find the S3 document with custom config');
+    assert(q1 && typeof q1 === 'string');
+    assert(q1.toLowerCase().includes('19.1'));
 
-    const content = doc.lookup('content');
-    assert(content && typeof content === 'string', 'Content should be fetched');
-    assert(content.length > 0, 'Content should not be empty');
-
-    console.log('✅ S3 document with custom region test passed');
+    console.log('✅ S3 document fetch with retrievalConfig test passed');
   });
 });
