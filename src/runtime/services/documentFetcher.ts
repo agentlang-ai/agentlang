@@ -5,6 +5,8 @@ import { logger } from '../logger.js';
 import { parseAndEvaluateStatement } from '../interpreter.js';
 import { CoreAIModuleName } from '../modules/ai.js';
 import { TtlCache } from '../state.js';
+import { preprocessRawConfig } from '../util.js';
+import { isNodeEnv } from '../../utils/runtime.js';
 
 // Provider-specific configurations
 export interface S3Config {
@@ -50,6 +52,7 @@ class DocumentFetcherService {
   private s3Clients = new Map<string, any>();
 
   async fetchDocument(config: DocumentConfig): Promise<FetchedDocument | null> {
+    this.ensureNodeEnv();
     const cacheKey = `${config.title}:${config.url}`;
     const cached = this.documentCache.get(cacheKey);
 
@@ -89,13 +92,16 @@ class DocumentFetcherService {
       logger.error('Failed to fetch document', {
         title: config.title,
         url: config.url,
-        error,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
       });
-      return null;
+      // Re-throw the error so the caller knows what happened
+      throw error;
     }
   }
 
   async fetchDocumentByTitle(title: string): Promise<FetchedDocument | null> {
+    this.ensureNodeEnv();
     // First check if we have it in cache
     // Note: TtlCache doesn't have a way to search by prefix, so we'll fetch directly
 
@@ -155,8 +161,20 @@ class DocumentFetcherService {
       }
       return Buffer.concat(chunks).toString('utf-8');
     } catch (error) {
-      logger.error('S3 fetch failed', { url: config.url, error });
-      throw new Error(`Failed to fetch from S3: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      logger.error('S3 fetch failed', {
+        url: config.url,
+        bucket: s3Config.bucket,
+        key: s3Config.key,
+        region: s3Config.region,
+        hasAccessKey: !!s3Config.accessKeyId,
+        error: errorMessage,
+        stack: errorStack,
+      });
+      throw new Error(
+        `Failed to fetch from S3 (bucket: ${s3Config.bucket}, key: ${s3Config.key}, region: ${s3Config.region}): ${errorMessage}`
+      );
     }
   }
 
@@ -221,10 +239,12 @@ class DocumentFetcherService {
     const bucket = withoutProtocol.slice(0, firstSlash);
     const key = withoutProtocol.slice(firstSlash + 1);
 
+    const normalizedRetrievalConfig = this.normalizeRetrievalConfig(retrievalConfig);
+
     // Get S3-specific config from retrievalConfig if provider is s3
     let s3SpecificConfig: S3Config = {};
-    if (retrievalConfig?.provider === 's3' && retrievalConfig.config) {
-      s3SpecificConfig = retrievalConfig.config as S3Config;
+    if (normalizedRetrievalConfig?.provider === 's3' && normalizedRetrievalConfig.config) {
+      s3SpecificConfig = normalizedRetrievalConfig.config as S3Config;
     }
 
     return {
@@ -319,6 +339,42 @@ class DocumentFetcherService {
       this.documentCache.clear();
     } else {
       this.documentCache.clear();
+    }
+  }
+
+  private normalizeConfigValue(value: any): any {
+    if (value instanceof Map) {
+      const obj: Record<string, any> = {};
+      value.forEach((v, k) => {
+        obj[k] = this.normalizeConfigValue(v);
+      });
+      return obj;
+    }
+    if (Array.isArray(value)) {
+      return value.map(v => this.normalizeConfigValue(v));
+    }
+    if (value && typeof value === 'object') {
+      const obj: Record<string, any> = {};
+      Object.entries(value).forEach(([k, v]) => {
+        obj[k] = this.normalizeConfigValue(v);
+      });
+      return obj;
+    }
+    return value;
+  }
+
+  private normalizeRetrievalConfig(retrievalConfig?: RetrievalConfig): RetrievalConfig | undefined {
+    if (!retrievalConfig) return undefined;
+    const normalized = this.normalizeConfigValue(retrievalConfig);
+    if (normalized && typeof normalized === 'object') {
+      preprocessRawConfig(normalized);
+    }
+    return normalized as RetrievalConfig;
+  }
+
+  private ensureNodeEnv(): void {
+    if (!isNodeEnv) {
+      throw new Error('Document fetching is only available in Node.js environment');
     }
   }
 }
