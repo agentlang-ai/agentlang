@@ -6,6 +6,7 @@ import { parseAndEvaluateStatement } from '../interpreter.js';
 import { CoreAIModuleName } from '../modules/ai.js';
 import { TtlCache } from '../state.js';
 import { preprocessRawConfig } from '../util.js';
+import { marked } from 'marked';
 import { isNodeEnv } from '../../utils/runtime.js';
 
 // Provider-specific configurations
@@ -50,6 +51,7 @@ class DocumentFetcherService {
   private static readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
   private documentCache = new TtlCache<FetchedDocument>(DocumentFetcherService.CACHE_TTL_MS);
   private s3Clients = new Map<string, any>();
+  private pdfParser: any = null;
 
   async fetchDocument(config: DocumentConfig): Promise<FetchedDocument | null> {
     this.ensureNodeEnv();
@@ -142,24 +144,22 @@ class DocumentFetcherService {
       if (!response.Body) {
         throw new Error('S3 object has no body');
       }
-
-      const body = response.Body as any;
-
-      if (body.transformToString) {
-        return await body.transformToString('utf-8');
+      const bodyBuffer = await this.readS3BodyToBuffer(response.Body as any);
+      const contentType = (response.ContentType || '').toLowerCase();
+      const lowerKey = s3Config.key.toLowerCase();
+      const isPdf = contentType.includes('application/pdf') || lowerKey.endsWith('.pdf');
+      const isMarkdown =
+        contentType.includes('text/markdown') ||
+        lowerKey.endsWith('.md') ||
+        lowerKey.endsWith('.markdown') ||
+        lowerKey.endsWith('.mdown');
+      if (isPdf) {
+        return await this.parsePdfBuffer(bodyBuffer);
       }
-
-      if (body.transformToByteArray) {
-        const bytes = await body.transformToByteArray();
-        return Buffer.from(bytes).toString('utf-8');
+      if (isMarkdown) {
+        return this.parseMarkdownText(bodyBuffer.toString('utf-8'));
       }
-
-      // Fallback for streams
-      const chunks: Buffer[] = [];
-      for await (const chunk of body) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-      }
-      return Buffer.concat(chunks).toString('utf-8');
+      return bodyBuffer.toString('utf-8');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
@@ -194,7 +194,15 @@ class DocumentFetcherService {
         throw new Error(`Response too large: ${body.byteLength} bytes`);
       }
 
-      return Buffer.from(body).toString('utf-8');
+      const contentType = (response.headers.get('content-type') || '').toLowerCase();
+      const lowerUrl = url.toLowerCase();
+      const isMarkdown =
+        contentType.includes('text/markdown') ||
+        lowerUrl.endsWith('.md') ||
+        lowerUrl.endsWith('.markdown') ||
+        lowerUrl.endsWith('.mdown');
+      const text = Buffer.from(body).toString('utf-8');
+      return isMarkdown ? this.parseMarkdownText(text) : text;
     } catch (error) {
       logger.error('URL fetch failed', { url, error });
       throw new Error(`Failed to fetch from URL: ${error}`);
@@ -205,7 +213,12 @@ class DocumentFetcherService {
     try {
       const resolvedPath = path.resolve(filePath);
       const content = await readFile(resolvedPath, 'utf-8');
-      return content;
+      const lowerPath = resolvedPath.toLowerCase();
+      const isMarkdown =
+        lowerPath.endsWith('.md') ||
+        lowerPath.endsWith('.markdown') ||
+        lowerPath.endsWith('.mdown');
+      return isMarkdown ? this.parseMarkdownText(content) : content;
     } catch (error) {
       logger.error('Local file read failed', { path: filePath, error });
       throw new Error(`Failed to read local file: ${error}`);
@@ -376,6 +389,58 @@ class DocumentFetcherService {
     if (!isNodeEnv) {
       throw new Error('Document fetching is only available in Node.js environment');
     }
+  }
+
+  private async readS3BodyToBuffer(body: any): Promise<Buffer> {
+    if (body.transformToByteArray) {
+      const bytes = await body.transformToByteArray();
+      return Buffer.from(bytes);
+    }
+    if (body.transformToString) {
+      const text = await body.transformToString('utf-8');
+      return Buffer.from(text, 'utf-8');
+    }
+    const chunks: Buffer[] = [];
+    for await (const chunk of body) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
+  }
+
+  private async getPdfParser(): Promise<any> {
+    if (!this.pdfParser) {
+      const pdfModule: any = await import('pdf-parse');
+      this.pdfParser = pdfModule.PDFParse || pdfModule.default;
+    }
+    return this.pdfParser;
+  }
+
+  private async parsePdfBuffer(buffer: Buffer): Promise<string> {
+    try {
+      const PDFParseClass = await this.getPdfParser();
+      const parser = new PDFParseClass({
+        data: buffer,
+        verbosity: 0,
+      });
+      const data = await parser.getText();
+      return data.text;
+    } catch (error: any) {
+      logger.error(`Failed to parse PDF: ${error.message}`);
+      throw new Error(`PDF parsing failed: ${error.message}`);
+    }
+  }
+
+  private parseMarkdownText(markdown: string): string {
+    const html = marked.parse(markdown);
+    if (typeof html !== 'string') {
+      return markdown;
+    }
+    return html
+      .replace(/<\s*br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|li|h[1-6]|blockquote|pre|tr|table)>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 }
 
