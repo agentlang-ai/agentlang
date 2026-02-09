@@ -1368,3 +1368,163 @@ Remember: Practice makes perfect!
     test('test01', async () => {});
   });
 }
+
+describe('Document retrievalConfig Tests', () => {
+  test('test01 - Fetch document from HTTPS URL (GitHub README)', async () => {
+    // Test fetching a document from an HTTPS URL using retrievalConfig
+    // This tests that documents can be fetched from remote URLs
+    await doInternModule(
+      'HttpsDocTest',
+      `{agentlang.ai/LLM {
+            name "https-test-llm",
+            service "openai",
+            config {"model": "gpt-4o"}
+          }
+        }
+        {agentlang.ai/doc {
+            title "agentlang readme",
+            url "https://raw.githubusercontent.com/agentlang-ai/agentlang/main/README.md"}}
+
+        agent httpsDocAgent {
+            llm "https-test-llm",
+            instruction "Answer questions about AgentLang based on the README.",
+            documents ["agentlang readme"]
+        }
+        `
+    );
+
+    // Verify the document was fetched and stored
+    const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
+    assert(docs.length === 1, 'Should have one document');
+
+    const readmeDoc = docs.find((d: Instance) => d.lookup('title') === 'agentlang readme');
+    assert(readmeDoc !== undefined, 'Should find the README document');
+
+    // Verify content was fetched
+    const content = readmeDoc.lookup('content');
+    assert(content && typeof content === 'string', 'Content should be a string');
+    assert(content.length > 0, 'Content should not be empty');
+    assert(
+      content.toLowerCase().includes('agent') || content.toLowerCase().includes('language'),
+      'Content should contain agent or language'
+    );
+
+    console.log('✅ HTTPS URL document fetch test passed');
+  });
+
+  test('test02 - Fetch document from S3 using retrievalConfig', async () => {
+    // Skip if no S3 test path is configured
+    const s3TestPath = process.env.AGENTLANG_TEST_S3_PATH;
+    if (!s3TestPath) {
+      console.log('Skipping S3 test - no AGENTLANG_TEST_S3_PATH configured');
+      return;
+    }
+
+    // Validate S3 path format
+    assert(s3TestPath.startsWith('s3://'), 'S3 path should start with s3://');
+
+    // Test fetching a document from S3 using retrievalConfig
+    // This tests that documents can be fetched from S3 with proper credentials
+    await doInternModule(
+      'S3DocTest',
+      `{agentlang.ai/LLM {
+            name "s3-test-llm",
+            service "openai",
+            config {"model": "gpt-4o"}
+          }
+        }
+        {agentlang.ai/doc {
+            title "s3 document",
+            url "${s3TestPath}",
+            retrievalConfig {
+              provider: "s3",
+              config {
+                region: "#js process.env.AWS_REGION",
+                accessKeyId: "#js process.env.AWS_ACCESS_KEY_ID",
+                secretAccessKey: "#js process.env.AWS_SECRET_ACCESS_KEY"
+              }
+            }
+          }
+        }
+
+        agent s3DocAgent {
+            llm "s3-test-llm",
+            instruction "Answer questions based on the S3 document.",
+            documents ["s3 document"]
+        }
+        `
+    );
+
+    // Verify the document was fetched and stored
+    const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
+    assert(docs.length === 1, 'Should have one document');
+
+    const s3Doc = docs.find((d: Instance) => d.lookup('title') === 's3 document');
+    assert(s3Doc !== undefined, 'Should find the S3 document');
+
+    // Verify content was fetched from S3
+    const content = s3Doc.lookup('content');
+    assert(content && typeof content === 'string', 'Content should be a string');
+    assert(content.length > 0, 'Content should not be empty');
+
+    const storedConfig = s3Doc.lookup('retrievalConfig');
+
+    console.log(`The storedConfig is: ${JSON.stringify(storedConfig)}`);
+
+    console.log('✅ S3 document fetch with retrievalConfig test passed');
+  });
+
+  test('test03 - Fetch document from S3 with custom region', async () => {
+    // Skip if no S3 test path is configured
+    const s3TestPath = process.env.AGENTLANG_TEST_S3_PATH;
+    if (!s3TestPath) {
+      console.log('Skipping S3 custom region test - no AGENTLANG_TEST_S3_PATH configured');
+      return;
+    }
+
+    // Test with a custom region and endpoint (useful for MinIO or other S3-compatible storage)
+    await doInternModule(
+      'S3CustomConfigTest',
+      `{agentlang.ai/LLM {
+            name "s3-custom-llm",
+            service "openai",
+            config {"model": "gpt-4o"}
+          }
+        }
+        {agentlang.ai/doc {
+            title "s3 custom config doc",
+            url "${s3TestPath}",
+            retrievalConfig {
+              provider: "s3",
+              config {
+                region: "us-west-2",
+                accessKeyId: "#js process.env.AWS_ACCESS_KEY_ID",
+                secretAccessKey: "#js process.env.AWS_SECRET_ACCESS_KEY",
+                forcePathStyle: false
+              }
+            }
+          }
+        }
+
+        agent s3CustomAgent {
+            llm "s3-custom-llm",
+            instruction "Answer questions based on the document.",
+            documents ["s3 custom config doc"]
+        }
+        `
+    );
+
+    // Verify the document was fetched
+    const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
+    assert(docs.length === 1, 'Should have one document');
+
+    const doc = docs.find((d: Instance) => d.lookup('title') === 's3 custom config doc');
+    assert(doc !== undefined, 'Should find the S3 document with custom config');
+
+    const content = doc.lookup('content');
+    assert(content && typeof content === 'string', 'Content should be fetched');
+    assert(content.length > 0, 'Content should not be empty');
+
+    console.log('✅ S3 document with custom region test passed');
+  });
+});

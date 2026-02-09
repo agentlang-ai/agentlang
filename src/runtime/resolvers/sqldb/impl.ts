@@ -241,10 +241,31 @@ export class SqlDbResolver extends Resolver {
         ) {
           const ftsAttrs = inst.record.getFullTextSearchAttributes() || ['*'];
           const textToEmbed = this.extractTextForEmbedding(rowObj, ftsAttrs);
-          const embeddingConfig = inst.record.getEmbeddingConfig();
-          const embeddingService = embeddingConfig
-            ? new EmbeddingService(embeddingConfig)
-            : this.embeddingService;
+          let embeddingConfig: any = undefined;
+          const instanceEmbeddingConfig = inst.get('embeddingConfig');
+          if (instanceEmbeddingConfig) {
+            try {
+              embeddingConfig =
+                typeof instanceEmbeddingConfig === 'string'
+                  ? JSON.parse(instanceEmbeddingConfig)
+                  : instanceEmbeddingConfig;
+            } catch {
+              // If parsing fails, will fall back to env vars
+            }
+          }
+          if (!embeddingConfig) {
+            embeddingConfig = {
+              provider: process.env.AGENTLANG_EMBEDDING_PROVIDER || 'openai',
+              model: process.env.AGENTLANG_EMBEDDING_MODEL || 'text-embedding-3-small',
+              chunkSize: process.env.AGENTLANG_EMBEDDING_CHUNKSIZE
+                ? parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKSIZE, 10)
+                : 1000,
+              chunkOverlap: process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP
+                ? parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP, 10)
+                : 200,
+            };
+          }
+          const embeddingService = new EmbeddingService(embeddingConfig);
           const res = await embeddingService.embedText(textToEmbed);
           await addRowForFullTextSearch(n, path, res, ctx);
         }
@@ -330,11 +351,20 @@ export class SqlDbResolver extends Resolver {
     const aggregates = SqlDbResolver.normalizedAggregates(inst, tableName);
 
     let vectorResult: Instance[] | undefined;
-    const embeddingConfig = inst.record.getEmbeddingConfig();
+    // Use environment variable based embedding config for queries
+    const embeddingConfig = {
+      provider: process.env.AGENTLANG_EMBEDDING_PROVIDER || 'openai',
+      model: process.env.AGENTLANG_EMBEDDING_MODEL || 'text-embedding-3-small',
+      chunkSize: process.env.AGENTLANG_EMBEDDING_CHUNKSIZE
+        ? parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKSIZE, 10)
+        : 1000,
+      chunkOverlap: process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP
+        ? parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP, 10)
+        : 200,
+    };
     const ftsAttrs = inst.record.getFullTextSearchAttributes();
     if (
       (await isVectorStoreSupported()) &&
-      embeddingConfig &&
       qattrs &&
       (ftsAttrs || Object.keys(qattrs).some(k => k.endsWith('?')))
     ) {
