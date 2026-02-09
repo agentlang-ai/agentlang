@@ -52,9 +52,12 @@
         "title": "company handbook",
         "url": "s3://my-bucket/docs/handbook.pdf",
         "retrievalConfig": {
-          "region": "us-west-2",
-          "accessKeyId": "#js process.env.AWS_ACCESS_KEY_ID",
-          "secretAccessKey": "#js process.env.AWS_SECRET_ACCESS_KEY"
+          "provider": "s3",
+          "config": {
+            "region": "#js process.env.AWS_REGION",
+            "accessKeyId": "#js process.env.AWS_ACCESS_KEY_ID",
+            "secretAccessKey": "#js process.env.AWS_SECRET_ACCESS_KEY"
+          }
         },
         "embeddingConfig": {
           "provider": "openai",
