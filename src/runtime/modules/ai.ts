@@ -30,6 +30,7 @@ import {
   isModule,
   makeInstance,
   newInstanceAttributes,
+  objectToInstanceAttributes,
   Record,
   resolveDocumentAliases,
   Retry,
@@ -68,6 +69,7 @@ import Handlebars from 'handlebars';
 import { Statement } from '../../language/generated/ast.js';
 import { isMonitoringEnabled, TtlCache } from '../state.js';
 import { isNodeEnv } from '../../utils/runtime.js';
+import { getFileSystem } from '../../utils/fs-utils.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -202,8 +204,10 @@ entity AgentFlowStep {
 }
 
 workflow restartFlow {
-  {AgentFlowStep {chatId? restartFlow.chatId, step? restartFlow.step}} @as [fs];
-  {${DefaultModuleName}/restartSuspension {id fs.suspensionId, data restartFlow.userInput}}
+  await ai.loadFlowStep(restartFlow.chatId, restartFlow.step) @as fs;
+  if (fs) {
+    {${DefaultModuleName}/restartSuspension {id fs.suspensionId, data restartFlow.userInput}}
+  }
 }
 `;
 
@@ -1427,6 +1431,8 @@ export async function processAgentLearning(
 }
 
 const LocalAgentgFlow = true;
+const LocalFlowStepsRootDirName = 'flows';
+const AgentFlowStep = 'AgentFlowStep';
 
 export async function saveFlowStepResultLocally(
   chatId: string,
@@ -1434,12 +1440,27 @@ export async function saveFlowStepResultLocally(
   result: string,
   suspensionId: string
 ): Promise<Instance | undefined> {
+  const fs = await getFileSystem();
   const attrs = newInstanceAttributes()
     .set('chatId', chatId)
     .set('step', step)
     .set('result', result)
     .set('suspensionId', suspensionId);
-  return makeInstance(CoreAIModuleName, 'AgentFlowStep', attrs);
+  const inst = makeInstance(CoreAIModuleName, AgentFlowStep, attrs);
+  const rootDirName = LocalFlowStepsRootDirName;
+  if (!(await fs.exists(rootDirName))) {
+    await fs.mkdir(rootDirName);
+  }
+  const dirName = `${rootDirName}/${chatId}`;
+  if (!(await fs.exists(dirName))) {
+    await fs.mkdir(dirName);
+  }
+  const fileName = `${dirName}/${step}`;
+  if (await fs.exists(fileName)) {
+    await fs.unlink(fileName);
+  }
+  await fs.writeFile(fileName, JSON.stringify(inst.attributesAsObject(true)));
+  return inst;
 }
 
 export async function saveFlowStepResult(
@@ -1452,7 +1473,7 @@ export async function saveFlowStepResult(
   if (LocalAgentgFlow) {
     return await saveFlowStepResultLocally(chatId, step, result, suspensionId);
   } else {
-    const t = `${CoreAIModuleName}/AgentFlowStep`;
+    const t = `${CoreAIModuleName}/${AgentFlowStep}`;
     try {
       await parseAndEvaluateStatement(
         `purge {${t} {chatId? "${chatId}", step? "${step}"}}`,
@@ -1473,13 +1494,79 @@ export async function saveFlowStepResult(
   }
 }
 
-export async function loadFlowStepResults(chatId: string): Promise<Instance[]> {
-  try {
-    return await parseAndEvaluateStatement(`{${CoreAIModuleName}/AgentFlowStep {
-        chatId? "${chatId}"}}`);
-  } catch (reason: any) {
-    logger.error(`failed to query flow-steps for ${chatId} - ${reason}`);
+export async function loadLocalFlowStepResults(chatId: string): Promise<Instance[]> {
+  const fs = await getFileSystem();
+  const dirName = `${LocalFlowStepsRootDirName}/${chatId}`;
+  if (await fs.exists(dirName)) {
+    const fileNames = await fs.readdir(dirName);
+    const result: Instance[] = new Array<Instance>();
+    for (let i = 0; i < fileNames.length; ++i) {
+      const fileName = fileNames[i];
+      const attrs = objectToInstanceAttributes(
+        JSON.parse(await fs.readFile(`${dirName}/${fileName}`))
+      );
+      result.push(makeInstance(CoreAIModuleName, AgentFlowStep, attrs));
+    }
+    return result;
+  } else {
     return [];
+  }
+}
+
+export async function loadFlowStepResults(chatId: string): Promise<Instance[]> {
+  if (LocalAgentgFlow) {
+    return await loadLocalFlowStepResults(chatId);
+  } else {
+    try {
+      return await parseAndEvaluateStatement(`{${CoreAIModuleName}/${AgentFlowStep} {
+        chatId? "${chatId}"}}`);
+    } catch (reason: any) {
+      logger.error(`failed to query flow-steps for ${chatId} - ${reason}`);
+      return [];
+    }
+  }
+}
+
+export async function loadLocalFlowStep(
+  chatId: string,
+  step: string
+): Promise<Instance | undefined> {
+  const fs = await getFileSystem();
+  const dirName = `${LocalFlowStepsRootDirName}/${chatId}`;
+  if (await fs.exists(dirName)) {
+    const fileNames = await fs.readdir(dirName);
+    for (let i = 0; i < fileNames.length; ++i) {
+      const fileName = fileNames[i];
+      if (fileName === step) {
+        const attrs = objectToInstanceAttributes(
+          JSON.parse(await fs.readFile(`${dirName}/${fileName}`))
+        );
+        return makeInstance(CoreAIModuleName, AgentFlowStep, attrs);
+      }
+    }
+    return undefined;
+  } else {
+    return undefined;
+  }
+}
+
+export async function loadFlowStep(chatId: string, step: string): Promise<Instance | undefined> {
+  if (LocalAgentgFlow) {
+    return await loadLocalFlowStep(chatId, step);
+  } else {
+    try {
+      const insts: Instance[] =
+        await parseAndEvaluateStatement(`{${CoreAIModuleName}/${AgentFlowStep} {
+        chatId? "${chatId}", step? "${step}"}}`);
+      if (insts.length > 0) {
+        return insts[0];
+      } else {
+        return undefined;
+      }
+    } catch (reason: any) {
+      logger.error(`failed to lookup step ${step} for flow ${chatId} - ${reason}`);
+      return undefined;
+    }
   }
 }
 
