@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.11](https://github.com/agentlang-ai/agentlang/compare/0.9.10...0.9.11) (2026-02-10)
+
+### Changes
+
+* Document service support for fetching documents securely (#574) ([6fe7c6f](https://github.com/agentlang-ai/agentlang/commit/6fe7c6f419966470c4b096eff1a75d43bde4d82f)) - @pratik
+* Builder fixes (#567) ([02e9b33](https://github.com/agentlang-ai/agentlang/commit/02e9b33a4bbffdbfe4b6aee15915bb5118d49d81)) - @vijayfractl
+
+---
 ## [0.9.10](https://github.com/agentlang-ai/agentlang/compare/0.9.9...0.9.10) (2026-02-09)
 
 ### Changes
