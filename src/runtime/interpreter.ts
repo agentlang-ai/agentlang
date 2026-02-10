@@ -112,6 +112,7 @@ import { isMonitoringEnabled } from './state.js';
 import { Monitor, MonitorEntry } from './monitor.js';
 import { detailedDiff } from 'deep-object-diff';
 import { callMcpTool, mcpClientNameFromToolEvent } from './mcpclient.js';
+import { isNodeEnv } from '../utils/runtime.js';
 
 export type Result = any;
 
@@ -1758,7 +1759,25 @@ export function isMcpEventInstance(inst: Instance): boolean {
 }
 
 async function handleDocEvent(inst: Instance, env: Environment): Promise<void> {
-  const s = await fetchDoc(inst.lookup('url'));
+  const url = inst.lookup('url');
+  if (typeof url === 'string' && url.startsWith('s3://')) {
+    if (!isNodeEnv) {
+      throw new Error('Document fetching is only available in Node.js environment');
+    }
+    const title = inst.lookup('title');
+    const retrievalConfig = inst.lookup('retrievalConfig');
+    const embeddingConfig = inst.lookup('embeddingConfig');
+    const { documentFetcher } = await import('./services/documentFetcher.js');
+    await documentFetcher.fetchDocument({
+      title,
+      url,
+      retrievalConfig,
+      embeddingConfig,
+    });
+    return;
+  }
+
+  const s = await fetchDoc(url);
   if (s) {
     const title = inst.lookup('title');
     const doc = makeInstance(
