@@ -265,16 +265,36 @@ class DocumentFetcherService {
       const data = await response.json();
 
       if (data.isBase64) {
-        // For binary files (PDFs), we need to handle them specially
-        // For now, return an error message indicating PDF support needs implementation
-        if (data.mimeType?.includes('pdf')) {
-          throw new Error(
-            'PDF documents from document service require content extraction. ' +
-              'Please use the direct S3 URL with retrievalConfig for PDFs, ' +
-              'or implement PDF text extraction in document service.'
-          );
+        if (data.mimeType?.includes('pdf') || data.format?.toLowerCase() === 'pdf') {
+          try {
+            const { parsePdfBuffer } = await import('../docs.js');
+            const buffer = Buffer.from(data.content, 'base64');
+            const text = await parsePdfBuffer(new Uint8Array(buffer));
+            logger.debug('Extracted text from PDF', { documentId, textLength: text.length });
+            return text;
+          } catch (pdfError: any) {
+            logger.error('Failed to parse PDF from document service', {
+              documentId,
+              error: pdfError.message,
+            });
+            throw new Error(`Failed to extract text from PDF: ${pdfError.message}`);
+          }
         }
         return Buffer.from(data.content, 'base64').toString('utf-8');
+      }
+
+      if (data.format?.toLowerCase() === 'md' || data.format?.toLowerCase() === 'markdown') {
+        try {
+          const parsedText = this.parseMarkdownText(data.content);
+          logger.debug('Parsed markdown content', { documentId, textLength: parsedText.length });
+          return parsedText;
+        } catch (mdError: any) {
+          logger.warn('Markdown parsing failed, returning raw content', {
+            documentId,
+            error: mdError.message,
+          });
+          return data.content;
+        }
       }
 
       return data.content;
@@ -287,14 +307,12 @@ class DocumentFetcherService {
     }
   }
 
-  // Lookup document ID by title in document service
   private async lookupDocumentByTitle(title: string): Promise<string | null> {
     if (!this.documentServiceConfig) {
       return null;
     }
 
     try {
-      // Get token - either static from config or dynamic from function
       let token: string;
       if (this.documentServiceConfig.authToken) {
         token = this.documentServiceConfig.authToken;

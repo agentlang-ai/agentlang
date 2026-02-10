@@ -44,7 +44,7 @@ async function getPDFParse() {
   return PDFParse;
 }
 
-async function parsePdfBuffer(buffer: Uint8Array): Promise<string> {
+export async function parsePdfBuffer(buffer: Uint8Array): Promise<string> {
   try {
     const PDFParseClass = await getPDFParse();
     const parser = new PDFParseClass({
