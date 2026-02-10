@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { readFile } from 'node:fs/promises';
 import { logger } from '../logger.js';
 import { parseAndEvaluateStatement } from '../interpreter.js';
@@ -47,12 +47,11 @@ export interface FetchedDocument {
   embeddingConfig?: EmbeddingConfig;
 }
 
-// Document service configuration
 interface DocumentServiceConfig {
   baseUrl: string;
   appName: string;
-  authToken?: string; // Static token from env
-  getAuthToken?: () => Promise<string>; // Dynamic token function
+  authToken?: string;
+  getAuthToken?: () => Promise<string>;
 }
 
 class DocumentFetcherService {
@@ -62,7 +61,6 @@ class DocumentFetcherService {
   private pdfParser: any = null;
   private documentServiceConfig?: DocumentServiceConfig;
 
-  // Configure document service for secure API access
   configureDocumentService(config: DocumentServiceConfig): void {
     this.documentServiceConfig = config;
     logger.info('Document service configured', { baseUrl: config.baseUrl });
@@ -82,7 +80,6 @@ class DocumentFetcherService {
       let content: string;
       let sourceUrl: string;
 
-      // Check if URL is document-service format: document-service://<app-uuid>/<doc-uuid>.ext
       if (config.url?.startsWith('document-service://')) {
         if (!config.retrievalConfig || config.retrievalConfig.provider !== 'document-service') {
           throw new Error(
@@ -90,45 +87,39 @@ class DocumentFetcherService {
           );
         }
 
-        // Parse document-service config from retrievalConfig
         const dsConfig = config.retrievalConfig.config as DocumentServiceConfig;
         if (!dsConfig?.baseUrl) {
           throw new Error('Document service config requires baseUrl');
         }
 
-        // Parse URL to extract app UUID and document ID
-        // Format: document-service://<app-uuid>/<doc-uuid>.ext
         const urlPath = config.url.replace('document-service://', '');
         const parts = urlPath.split('/');
-        if (parts.length !== 2) {
+
+        if (parts.length !== 3) {
           throw new Error(
-            `Invalid document service URL format: ${config.url}. Expected: document-service://<app-uuid>/<doc-uuid>.ext`
+            `Invalid document service URL format: ${config.url}. Expected: document-service://<user-uuid>/<app-uuid>/<doc-uuid>.ext`
           );
         }
 
-        const appUuid = parts[0];
-        const docIdWithExt = parts[1];
+        const appUuid = parts[1];
+        const docIdWithExt = parts[2];
         const docId = docIdWithExt.split('.')[0]; // Remove extension
 
-        // Use config from retrievalConfig
         this.documentServiceConfig = {
           baseUrl: dsConfig.baseUrl,
-          appName: appUuid, // Use app UUID as app name for API calls
+          appName: appUuid,
           authToken: dsConfig.authToken,
           getAuthToken: dsConfig.getAuthToken,
         };
 
-        // Fetch directly by ID
         content = await this.fetchFromDocumentService(docId);
         sourceUrl = config.url;
       } else if (config.retrievalConfig?.provider === 'document-service') {
-        // Parse document-service config from retrievalConfig (lookup by title)
         const dsConfig = config.retrievalConfig.config as DocumentServiceConfig;
         if (!dsConfig?.baseUrl || !dsConfig?.appName) {
           throw new Error('Document service config requires baseUrl and appName');
         }
 
-        // Use config from retrievalConfig
         this.documentServiceConfig = {
           baseUrl: dsConfig.baseUrl,
           appName: dsConfig.appName,
@@ -136,7 +127,6 @@ class DocumentFetcherService {
           getAuthToken: dsConfig.getAuthToken,
         };
 
-        // Lookup by title
         const docId = await this.lookupDocumentByTitle(config.title);
         if (docId) {
           content = await this.fetchFromDocumentService(docId);
@@ -145,23 +135,18 @@ class DocumentFetcherService {
           throw new Error(`Document not found by title in document service: ${config.title}`);
         }
       } else if (config.documentServiceId && this.documentServiceConfig) {
-        // Secure document-service API path (programmatic config)
         content = await this.fetchFromDocumentService(config.documentServiceId);
         sourceUrl = `document-service://${config.documentServiceId}`;
       } else if (config.url?.startsWith('s3://')) {
-        // Direct S3 access (legacy, less secure)
         content = await this.fetchFromS3(config);
         sourceUrl = config.url;
       } else if (config.url?.startsWith('http://') || config.url?.startsWith('https://')) {
-        // HTTP/HTTPS URL
         content = await this.fetchFromUrl(config.url);
         sourceUrl = config.url;
       } else if (config.url) {
-        // Local file path
         content = await this.fetchFromLocal(config.url);
         sourceUrl = config.url;
       } else {
-        // Try to lookup by title in document service
         if (this.documentServiceConfig) {
           const docId = await this.lookupDocumentByTitle(config.title);
           if (docId) {
@@ -186,7 +171,6 @@ class DocumentFetcherService {
 
       this.documentCache.set(cacheKey, document);
 
-      // Auto-create Document entity from fetched content
       await this.createDocumentEntity(document);
 
       return document;

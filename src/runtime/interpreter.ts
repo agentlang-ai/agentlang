@@ -1771,6 +1771,20 @@ async function handleDocEvent(inst: Instance, env: Environment): Promise<void> {
     return;
   }
 
+  if (typeof url === 'string' && url.startsWith('document-service://')) {
+    const title = inst.lookup('title');
+    const retrievalConfig = inst.lookup('retrievalConfig');
+    const embeddingConfig = inst.lookup('embeddingConfig');
+    const { documentFetcher } = await import('./services/documentFetcher.js');
+    await documentFetcher.fetchDocument({
+      title,
+      url,
+      retrievalConfig,
+      embeddingConfig,
+    });
+    return;
+  }
+
   const s = await fetchDoc(url);
   if (s) {
     const title = inst.lookup('title');

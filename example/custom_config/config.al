@@ -76,7 +76,7 @@
     {
       "agentlang.ai/doc": {
         "title": "product manual",
-        "url": "document-service://a1b2c3d4-e5f6-7890-abcd-ef1234567890/550e8400-e29b-41d4-a716-446655440000.pdf",
+        "url": "document-service://f47ac10b-58cc-4372-a567-0e02b2c3d479/a1b2c3d4-e5f6-7890-abcd-ef1234567890/550e8400-e29b-41d4-a716-446655440000.pdf",
         "retrievalConfig": {
           "provider": "document-service",
           "config": {

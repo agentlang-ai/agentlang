@@ -1,11 +1,6 @@
 import { assert, beforeEach, describe, test } from 'vitest';
 import { provider } from '../../src/runtime/agents/registry.js';
-import {
-  AgentServiceProvider,
-  AIResponse,
-  humanMessage,
-  systemMessage,
-} from '../../src/runtime/agents/provider.js';
+import { AgentServiceProvider, AIResponse, humanMessage, systemMessage, } from '../../src/runtime/agents/provider.js';
 import { doInternModule } from '../util.js';
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import {
@@ -1516,13 +1511,14 @@ if (process.env.AL_TEST === 'true') {
     });
 
     test('test03 - Fetch document from Document Service using retrievalConfig', async () => {
-      // Skip if no Document Service URL is configured
       const docServiceUrl = process.env.AGENTLANG_TEST_DOCUMENT_SERVICE_URL;
       const docServiceToken = process.env.AGENTLANG_TEST_DOCUMENT_SERVICE_TOKEN;
       const docServiceApp = process.env.AGENTLANG_TEST_DOCUMENT_SERVICE_APP || 'test-app';
-      
+
       if (!docServiceUrl) {
-        console.log('Skipping Document Service test - no AGENTLANG_TEST_DOCUMENT_SERVICE_URL configured');
+        console.log(
+          'Skipping Document Service test - no AGENTLANG_TEST_DOCUMENT_SERVICE_URL configured'
+        );
         return;
       }
 
@@ -1539,7 +1535,7 @@ if (process.env.AL_TEST === 'true') {
             }
           }
           {agentlang.ai/doc {
-              title "company policies",
+              title "prices",
               retrievalConfig {
                 "provider": "document-service",
                 "config": {
@@ -1551,8 +1547,8 @@ if (process.env.AL_TEST === 'true') {
 
           agent docServiceAgent {
               llm "doc-service-test-llm",
-              instruction "Answer questions based on the company policies document.",
-              documents ["company policies"]
+              instruction "Answer questions based on the document.",
+              documents ["prices"]
           }
           `
         );
@@ -1583,12 +1579,15 @@ if (process.env.AL_TEST === 'true') {
         `Should have at least one document, but found ${docs.length}. ${moduleError ? 'Module error: ' + moduleError.message : ''}`
       );
 
-      const dsDoc = docs.find((d: Instance) => d.lookup('title') === 'company policies');
-      
+      const dsDoc = docs.find((d: Instance) => d.lookup('title') === 'pricing');
+
       if (!dsDoc) {
-        console.log('Available documents:', docs.map((d: Instance) => d.lookup('title')));
+        console.log(
+          'Available documents:',
+          docs.map((d: Instance) => d.lookup('title'))
+        );
       }
-      
+
       assert(dsDoc !== undefined, 'Should find the Document Service document');
 
       // Verify content was fetched
@@ -1596,7 +1595,19 @@ if (process.env.AL_TEST === 'true') {
       assert(content && typeof content === 'string', 'Content should be a string');
       assert(content.length > 0, 'Content should not be empty');
 
-      console.log('Document content retrieved successfully (first 100 chars):', content.substring(0, 100));
+      console.log(
+        'Document content retrieved successfully (first 100 chars):',
+        content.substring(0, 100)
+      );
+
+      const request = await parseAndEvaluateStatement(
+        '{DocServiceTest/docServiceAgent {message "What is the price of the G9?"}}'
+      );
+
+      assert(request !== undefined && request !== null, 'Agent should return a response');
+      assert(typeof request === 'string', 'Agent response should be a string');
+
+      assert(request.includes('$1250'), 'Response should mention $1250 for G9');
 
       console.log('✅ Document Service fetch with retrievalConfig test passed');
     });
@@ -1606,9 +1617,11 @@ if (process.env.AL_TEST === 'true') {
       const docServiceUrl = process.env.AGENTLANG_TEST_DOCUMENT_SERVICE_URL;
       const documentUrl = process.env.AGENTLANG_TEST_DOCUMENT_SERVICE_DOC_URL;
       const docServiceToken = process.env.AGENTLANG_TEST_DOCUMENT_SERVICE_TOKEN;
-      
+
       if (!docServiceUrl || !documentUrl) {
-        console.log('Skipping Document Service URL test - missing AGENTLANG_TEST_DOCUMENT_SERVICE_URL or AGENTLANG_TEST_DOCUMENT_SERVICE_DOC_URL');
+        console.log(
+          'Skipping Document Service URL test - missing AGENTLANG_TEST_DOCUMENT_SERVICE_URL or AGENTLANG_TEST_DOCUMENT_SERVICE_DOC_URL'
+        );
         return;
       }
 
@@ -1625,7 +1638,7 @@ if (process.env.AL_TEST === 'true') {
             }
           }
           {agentlang.ai/doc {
-              title "product manual",
+              title "price",
               url "${documentUrl}",
               retrievalConfig {
                 "provider": "document-service",
@@ -1637,8 +1650,8 @@ if (process.env.AL_TEST === 'true') {
 
           agent docServiceUrlAgent {
               llm "doc-service-url-test-llm",
-              instruction "Answer questions based on the product manual.",
-              documents ["product manual"]
+              instruction "Answer questions based on the price.",
+              documents ["price"]
           }
           `
         );
@@ -1657,12 +1670,21 @@ if (process.env.AL_TEST === 'true') {
         `Should have at least one document. ${moduleError ? 'Error: ' + moduleError.message : ''}`
       );
 
-      const dsDoc = docs.find((d: Instance) => d.lookup('title') === 'product manual');
-      assert(dsDoc !== undefined, 'Should find the product manual document');
+      const dsDoc = docs.find((d: Instance) => d.lookup('title') === 'price');
+      assert(dsDoc !== undefined, 'Should find the price document');
 
       const content = dsDoc.lookup('content');
       assert(content && typeof content === 'string', 'Content should be a string');
       assert(content.length > 0, 'Content should not be empty');
+
+      const request = await parseAndEvaluateStatement(
+        '{DocServiceUrlTest/docServiceUrlAgent {message "What is the price of the G9?"}}'
+      );
+
+      assert(request !== undefined && request !== null, 'Agent should return a response');
+      assert(typeof request === 'string', 'Agent response should be a string');
+
+      assert(request.includes('$1250'), 'Response should mention $1250 for G9');
 
       console.log('✅ Document Service URL fetch test passed');
     });
