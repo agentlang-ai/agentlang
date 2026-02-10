@@ -87,6 +87,7 @@ import {
   AgentInstance,
   findAgentByName,
   normalizeGeneratedCode,
+  saveFlowStepResult,
 } from './modules/ai.js';
 import { logger } from './logger.js';
 import {
@@ -103,7 +104,7 @@ import {
   flushMonitoringData,
   triggerTimer,
 } from './modules/core.js';
-import { invokeModuleFn } from './jsmodules.js';
+import { getModuleDef, invokeModuleFn } from './jsmodules.js';
 import { invokeOpenApiEvent, isOpenApiEventInstance } from './openapi.js';
 import { fetchDoc } from './docs.js';
 import { FlowSpec, FlowStep, getAgentFlow } from './agents/flows.js';
@@ -440,6 +441,11 @@ export class Environment extends Instance {
     } else {
       return this.suspensionId;
     }
+  }
+
+  softSuspend(): string {
+    this.suspensionId = this.preGeneratedSuspensionId;
+    return this.suspensionId;
   }
 
   releaseSuspension(): Environment {
@@ -2017,7 +2023,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
             isWf = true;
           }
           if (isWf) {
-            const wf = await parseWorkflow(rs);
+            const wf = await parseWorkflow(normalizeGeneratedCode(rs));
             if (stmtsExec) {
               await stmtsExec(wf.statements, env);
             } else {
@@ -2029,7 +2035,9 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
               const r = await stmtsExec([stmt], env);
               env.setLastResult(r);
             } else {
-              env.setLastResult(await parseAndEvaluateStatement(rs, undefined, env));
+              env.setLastResult(
+                await parseAndEvaluateStatement(normalizeGeneratedCode(rs), undefined, env)
+              );
             }
           }
           agent.maybeAddScratchData(env);
@@ -2158,7 +2166,7 @@ export async function restartFlow(
   const rootAgent: AgentInstance = await findAgentByName(agentName, env);
   const flow = getAgentFlow(agentName, rootAgent.moduleName);
   if (flow) {
-    const newCtx = `${ctx}\n${step} --> ${userData}\n`;
+    const newCtx = `${ctx}\nRestart the flow at ${step} using the following user-input as additional guidance:\n${userData}\n`;
     env.setScratchPad(JSON.parse(spad));
     await iterateOnFlow(flow, rootAgent, newCtx, env);
   }
@@ -2186,7 +2194,8 @@ async function iterateOnFlow(
   let needAgentProcessing = preprocResult.needAgentProcessing;
   let context = initContext;
   let stepc = 0;
-  const iterId = crypto.randomUUID();
+  const chatId = env.getActiveEventInstance()?.lookup('chatId');
+  const iterId = chatId || crypto.randomUUID();
   console.debug(`Starting iteration ${iterId} on flow: ${flow}`);
   const executedSteps = new Set<string>();
   const monitoringEnabled = isMonitoringEnabled();
@@ -2234,6 +2243,12 @@ async function iterateOnFlow(
         `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
       );
       context = `${context}\n${step} --> ${rs}\n`;
+      if (chatId) {
+        const suspEnv = new Environment(env.name, env);
+        suspEnv.softSuspend();
+        await saveFlowSuspension(rootAgent, context, step, suspEnv);
+        await saveFlowStepResult(chatId, step, rs, suspEnv.getSuspensionId(), env);
+      }
       if (isfxc) {
         preprocResult = await preprocessStep(rs, rootModuleName, env);
       } else {
@@ -2481,9 +2496,18 @@ async function followReference(env: Environment, s: string): Promise<Result> {
   for (let i = 0; i < refs.length; ++i) {
     const r: string = refs[i];
     const v: Result | undefined = await getRef(r, src, env);
-    if (v === undefined) return EmptyResult;
+    if (v === undefined || v === null) {
+      result = EmptyResult;
+      break;
+    }
     result = v;
     src = result;
+  }
+  if (result === EmptyResult) {
+    result = getModuleDef(s);
+    if (result === undefined) {
+      result = EmptyResult;
+    }
   }
   return result;
 }

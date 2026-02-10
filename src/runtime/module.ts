@@ -3731,6 +3731,10 @@ export function newInstanceAttributes(): InstanceAttributes {
   return new Map<string, any>();
 }
 
+export function objectToInstanceAttributes(obj: any): InstanceAttributes {
+  return new Map(Object.entries(obj));
+}
+
 const EmptyInstanceAttributes: InstanceAttributes = newInstanceAttributes();
 
 export class Instance {
