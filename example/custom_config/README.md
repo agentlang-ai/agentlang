@@ -187,7 +187,7 @@ The secure way to access documents uploaded via Studio:
 2. Copy the `document-service://` URL from the upload response
 3. Set environment variables:
    ```bash
-   export DOCUMENT_SERVICE_URL=https://retrieval-service.fractl.io
+   export DOCUMENT_SERVICE_URL=https://docstore.fractl.io
    export DOCUMENT_SERVICE_AUTH_TOKEN=<your-cognito-id-token>
    ```
 
