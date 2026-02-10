@@ -32,6 +32,7 @@ import {
   WhereSpec,
 } from '../language/generated/ast.js';
 import {
+  Agent,
   defineAgentEvent,
   Event,
   getOneOfRef,
@@ -2067,7 +2068,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           const obj = agent.maybeValidateJsonResponse(result);
           if (obj !== undefined) {
             env.setLastResult(obj);
-            env.addToScratchPad(agent.getFqName(), obj);
+            env.addToScratchPad(Agent.NormalizeName(agent.getFqName()), obj);
           }
           break;
         } catch (err: any) {

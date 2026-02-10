@@ -17,6 +17,7 @@ import {
   parseAndEvaluateStatement,
 } from '../interpreter.js';
 import {
+  Agent,
   AgentEvaluator,
   asJSONSchema,
   Decision,
@@ -709,7 +710,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     ) {
       r = obj;
     } else {
-      env.addToScratchPad(this.name, obj);
+      env.addToScratchPad(Agent.NormalizeName(this.name), obj);
       return this;
     }
     const scratchNames = this.getScratchNames();
