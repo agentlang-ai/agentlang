@@ -44,7 +44,7 @@ async function getPDFParse() {
   return PDFParse;
 }
 
-async function parsePdfBuffer(buffer: Uint8Array): Promise<string> {
+export async function parsePdfBuffer(buffer: Uint8Array): Promise<string> {
   try {
     const PDFParseClass = await getPDFParse();
     const parser = new PDFParseClass({
@@ -166,3 +166,19 @@ async function fetchTextFile(path: string): Promise<string> {
 registerDocFetcher('http', httpFetcher);
 registerDocFetcher('https', httpFetcher);
 registerDocFetcher('file', fetchFile);
+
+async function documentServiceFetcher(url: string): Promise<string | undefined> {
+  try {
+    const { documentFetcher } = await import('./services/documentFetcher.js');
+    const result = await documentFetcher.fetchDocument({
+      title: 'temp', // Title will be updated by handleDocEvent
+      url: url,
+    });
+    return result?.content;
+  } catch (error: any) {
+    logger.error(`Failed to fetch from document service ${url}: ${error.message}`);
+    return undefined;
+  }
+}
+
+registerDocFetcher('document-service', documentServiceFetcher);

@@ -1,6 +1,5 @@
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import { logger } from '../logger.js';
 import { parseAndEvaluateStatement } from '../interpreter.js';
 import { CoreAIModuleName } from '../modules/ai.js';
@@ -20,7 +19,7 @@ export interface S3Config {
 
 // Generic retrieval configuration for any storage provider
 export interface RetrievalConfig {
-  provider: 's3' | 'box' | 'gdrive' | 'azure' | 'onedrive' | string;
+  provider: 's3' | 'box' | 'gdrive' | 'azure' | 'onedrive' | 'document-service' | string;
   config: S3Config | Record<string, any>;
 }
 
@@ -33,7 +32,8 @@ export interface EmbeddingConfig {
 
 export interface DocumentConfig {
   title: string;
-  url: string;
+  url?: string;
+  documentServiceId?: string;
   retrievalConfig?: RetrievalConfig;
   embeddingConfig?: EmbeddingConfig;
 }
@@ -47,15 +47,28 @@ export interface FetchedDocument {
   embeddingConfig?: EmbeddingConfig;
 }
 
+interface DocumentServiceConfig {
+  baseUrl: string;
+  appName: string;
+  authToken?: string;
+  getAuthToken?: () => Promise<string>;
+}
+
 class DocumentFetcherService {
   private static readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
   private documentCache = new TtlCache<FetchedDocument>(DocumentFetcherService.CACHE_TTL_MS);
   private s3Clients = new Map<string, any>();
   private pdfParser: any = null;
+  private documentServiceConfig?: DocumentServiceConfig;
+
+  configureDocumentService(config: DocumentServiceConfig): void {
+    this.documentServiceConfig = config;
+    logger.info('Document service configured', { baseUrl: config.baseUrl });
+  }
 
   async fetchDocument(config: DocumentConfig): Promise<FetchedDocument | null> {
     this.ensureNodeEnv();
-    const cacheKey = `${config.title}:${config.url}`;
+    const cacheKey = `${config.title}:${config.url || config.documentServiceId}`;
     const cached = this.documentCache.get(cacheKey);
 
     if (cached) {
@@ -65,28 +78,99 @@ class DocumentFetcherService {
 
     try {
       let content: string;
+      let sourceUrl: string;
 
-      if (config.url.startsWith('s3://')) {
+      if (config.url?.startsWith('document-service://')) {
+        if (!config.retrievalConfig || config.retrievalConfig.provider !== 'document-service') {
+          throw new Error(
+            'Document service URL requires retrievalConfig with provider: "document-service"'
+          );
+        }
+
+        const dsConfig = config.retrievalConfig.config as DocumentServiceConfig;
+        if (!dsConfig?.baseUrl) {
+          throw new Error('Document service config requires baseUrl');
+        }
+
+        const urlPath = config.url.replace('document-service://', '');
+        const parts = urlPath.split('/');
+
+        if (parts.length !== 3) {
+          throw new Error(
+            `Invalid document service URL format: ${config.url}. Expected: document-service://<user-uuid>/<app-uuid>/<doc-uuid>.ext`
+          );
+        }
+
+        const appUuid = parts[1];
+        const docIdWithExt = parts[2];
+        const docId = docIdWithExt.split('.')[0]; // Remove extension
+
+        this.documentServiceConfig = {
+          baseUrl: dsConfig.baseUrl,
+          appName: appUuid,
+          authToken: dsConfig.authToken,
+          getAuthToken: dsConfig.getAuthToken,
+        };
+
+        content = await this.fetchFromDocumentService(docId);
+        sourceUrl = config.url;
+      } else if (config.retrievalConfig?.provider === 'document-service') {
+        const dsConfig = config.retrievalConfig.config as DocumentServiceConfig;
+        if (!dsConfig?.baseUrl || !dsConfig?.appName) {
+          throw new Error('Document service config requires baseUrl and appName');
+        }
+
+        this.documentServiceConfig = {
+          baseUrl: dsConfig.baseUrl,
+          appName: dsConfig.appName,
+          authToken: dsConfig.authToken,
+          getAuthToken: dsConfig.getAuthToken,
+        };
+
+        const docId = await this.lookupDocumentByTitle(config.title);
+        if (docId) {
+          content = await this.fetchFromDocumentService(docId);
+          sourceUrl = `document-service://${docId}`;
+        } else {
+          throw new Error(`Document not found by title in document service: ${config.title}`);
+        }
+      } else if (config.documentServiceId && this.documentServiceConfig) {
+        content = await this.fetchFromDocumentService(config.documentServiceId);
+        sourceUrl = `document-service://${config.documentServiceId}`;
+      } else if (config.url?.startsWith('s3://')) {
         content = await this.fetchFromS3(config);
-      } else if (config.url.startsWith('http://') || config.url.startsWith('https://')) {
+        sourceUrl = config.url;
+      } else if (config.url?.startsWith('http://') || config.url?.startsWith('https://')) {
         content = await this.fetchFromUrl(config.url);
-      } else {
-        // Local file path
+        sourceUrl = config.url;
+      } else if (config.url) {
         content = await this.fetchFromLocal(config.url);
+        sourceUrl = config.url;
+      } else {
+        if (this.documentServiceConfig) {
+          const docId = await this.lookupDocumentByTitle(config.title);
+          if (docId) {
+            content = await this.fetchFromDocumentService(docId);
+            sourceUrl = `document-service://${docId}`;
+          } else {
+            throw new Error(`Document not found by title: ${config.title}`);
+          }
+        } else {
+          throw new Error(`No URL or document service ID provided for: ${config.title}`);
+        }
       }
 
       const document: FetchedDocument = {
         title: config.title,
         content,
-        url: config.url,
-        format: this.inferFormat(config.url),
+        url: sourceUrl,
+        format: this.inferFormat(sourceUrl),
         fetchedAt: new Date(),
         embeddingConfig: config.embeddingConfig,
       };
 
       this.documentCache.set(cacheKey, document);
 
-      // Auto-create Document entity from fetched content
       await this.createDocumentEntity(document);
 
       return document;
@@ -94,27 +178,44 @@ class DocumentFetcherService {
       logger.error('Failed to fetch document', {
         title: config.title,
         url: config.url,
+        documentServiceId: config.documentServiceId,
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       });
-      // Re-throw the error so the caller knows what happened
       throw error;
     }
   }
 
   async fetchDocumentByTitle(title: string): Promise<FetchedDocument | null> {
     this.ensureNodeEnv();
-    // First check if we have it in cache
-    // Note: TtlCache doesn't have a way to search by prefix, so we'll fetch directly
 
     try {
-      // Try to find in loaded config
+      // First check if we have it in cache
+      const cacheKey = `${title}:lookup`;
+      const cached = this.documentCache.get(cacheKey);
+      if (cached) {
+        logger.debug('Returning cached document by title', { title });
+        return cached;
+      }
+
+      // Try document service lookup first (if configured)
+      if (this.documentServiceConfig) {
+        const docId = await this.lookupDocumentByTitle(title);
+        if (docId) {
+          return this.fetchDocument({
+            title,
+            documentServiceId: docId,
+          });
+        }
+      }
+
+      // Fall back to config-based lookup
       const doc = this.findDocumentInConfig(title);
       if (doc) {
         return this.fetchDocument(doc);
       }
 
-      logger.warn('Document not found in config', { title });
+      logger.warn('Document not found', { title });
       return null;
     } catch (error) {
       logger.error('Failed to fetch document by title', { title, error });
@@ -122,15 +223,140 @@ class DocumentFetcherService {
     }
   }
 
-  private findDocumentInConfig(title: string): DocumentConfig | null {
-    // This method should be called during config loading
-    // The documents are stored when the config is parsed
-    const docs = getConfiguredDocuments();
-    return docs.find(d => d.title === title) || null;
+  // Fetch from secure document-service API
+  private async fetchFromDocumentService(documentId: string): Promise<string> {
+    if (!this.documentServiceConfig) {
+      throw new Error('Document service not configured');
+    }
+
+    try {
+      // Get token - either static from config or dynamic from function
+      let token: string;
+      if (this.documentServiceConfig.authToken) {
+        token = this.documentServiceConfig.authToken;
+      } else if (this.documentServiceConfig.getAuthToken) {
+        token = await this.documentServiceConfig.getAuthToken();
+      } else {
+        throw new Error('Document service requires authToken or getAuthToken');
+      }
+
+      const url = `${this.documentServiceConfig.baseUrl}/api/documents/${documentId}/content`;
+
+      logger.debug('Fetching from document service', { documentId, url });
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-app-name': this.documentServiceConfig.appName,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(`Document not found: ${documentId}`);
+        } else if (response.status === 403) {
+          throw new Error(`Access denied to document: ${documentId}`);
+        } else {
+          throw new Error(`Document service error: ${response.status} ${response.statusText}`);
+        }
+      }
+
+      const data = await response.json();
+
+      if (data.isBase64) {
+        if (data.mimeType?.includes('pdf') || data.format?.toLowerCase() === 'pdf') {
+          try {
+            const { parsePdfBuffer } = await import('../docs.js');
+            const buffer = Buffer.from(data.content, 'base64');
+            const text = await parsePdfBuffer(new Uint8Array(buffer));
+            logger.debug('Extracted text from PDF', { documentId, textLength: text.length });
+            return text;
+          } catch (pdfError: any) {
+            logger.error('Failed to parse PDF from document service', {
+              documentId,
+              error: pdfError.message,
+            });
+            throw new Error(`Failed to extract text from PDF: ${pdfError.message}`);
+          }
+        }
+        return Buffer.from(data.content, 'base64').toString('utf-8');
+      }
+
+      if (data.format?.toLowerCase() === 'md' || data.format?.toLowerCase() === 'markdown') {
+        try {
+          const parsedText = this.parseMarkdownText(data.content);
+          logger.debug('Parsed markdown content', { documentId, textLength: parsedText.length });
+          return parsedText;
+        } catch (mdError: any) {
+          logger.warn('Markdown parsing failed, returning raw content', {
+            documentId,
+            error: mdError.message,
+          });
+          return data.content;
+        }
+      }
+
+      return data.content;
+    } catch (error) {
+      logger.error('Document service fetch failed', {
+        documentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  private async lookupDocumentByTitle(title: string): Promise<string | null> {
+    if (!this.documentServiceConfig) {
+      return null;
+    }
+
+    try {
+      let token: string;
+      if (this.documentServiceConfig.authToken) {
+        token = this.documentServiceConfig.authToken;
+      } else if (this.documentServiceConfig.getAuthToken) {
+        token = await this.documentServiceConfig.getAuthToken();
+      } else {
+        throw new Error('Document service requires authToken or getAuthToken');
+      }
+
+      const url = `${this.documentServiceConfig.baseUrl}/api/documents/lookup/by-title?title=${encodeURIComponent(title)}`;
+
+      logger.debug('Looking up document by title', { title, url });
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-app-name': this.documentServiceConfig.appName,
+          Accept: 'application/json',
+        },
+      });
+
+      if (response.status === 404) {
+        logger.debug('Document not found by title', { title });
+        return null;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Document service lookup error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      logger.debug('Found document by title', { title, documentId: data.documentId });
+      return data.documentId;
+    } catch (error) {
+      logger.error('Document lookup failed', {
+        title,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
   }
 
   private async fetchFromS3(config: DocumentConfig): Promise<string> {
-    const s3Config = this.parseS3Url(config.url, config.retrievalConfig);
+    const s3Config = this.parseS3Url(config.url!, config.retrievalConfig);
     const client = await this.getOrCreateS3Client(s3Config);
 
     try {
@@ -199,29 +425,39 @@ class DocumentFetcherService {
       const isMarkdown =
         contentType.includes('text/markdown') ||
         lowerUrl.endsWith('.md') ||
-        lowerUrl.endsWith('.markdown') ||
-        lowerUrl.endsWith('.mdown');
-      const text = Buffer.from(body).toString('utf-8');
-      return isMarkdown ? this.parseMarkdownText(text) : text;
+        lowerUrl.endsWith('.markdown');
+
+      if (isMarkdown) {
+        return this.parseMarkdownText(Buffer.from(body).toString('utf-8'));
+      }
+
+      return Buffer.from(body).toString('utf-8');
     } catch (error) {
-      logger.error('URL fetch failed', { url, error });
-      throw new Error(`Failed to fetch from URL: ${error}`);
+      logger.error('URL fetch failed', {
+        url,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     }
   }
 
   private async fetchFromLocal(filePath: string): Promise<string> {
     try {
-      const resolvedPath = path.resolve(filePath);
-      const content = await readFile(resolvedPath, 'utf-8');
-      const lowerPath = resolvedPath.toLowerCase();
-      const isMarkdown =
-        lowerPath.endsWith('.md') ||
-        lowerPath.endsWith('.markdown') ||
-        lowerPath.endsWith('.mdown');
-      return isMarkdown ? this.parseMarkdownText(content) : content;
+      const content = await readFile(filePath, 'utf-8');
+      const lowerPath = filePath.toLowerCase();
+      const isMarkdown = lowerPath.endsWith('.md') || lowerPath.endsWith('.markdown');
+
+      if (isMarkdown) {
+        return this.parseMarkdownText(content);
+      }
+
+      return content;
     } catch (error) {
-      logger.error('Local file read failed', { path: filePath, error });
-      throw new Error(`Failed to read local file: ${error}`);
+      logger.error('Local file read failed', {
+        path: filePath,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     }
   }
 
@@ -238,15 +474,11 @@ class DocumentFetcherService {
     forcePathStyle?: boolean;
   } {
     // Parse s3://bucket/key format
-    if (!url.startsWith('s3://')) {
-      throw new Error('Invalid S3 URL format. Expected: s3://bucket/key');
-    }
-
-    const withoutProtocol = url.slice(5);
+    const withoutProtocol = url.replace('s3://', '');
     const firstSlash = withoutProtocol.indexOf('/');
 
     if (firstSlash === -1) {
-      throw new Error('Invalid S3 URL format. Expected: s3://bucket/key');
+      throw new Error(`Invalid S3 URL format: ${url}`);
     }
 
     const bucket = withoutProtocol.slice(0, firstSlash);
@@ -269,6 +501,17 @@ class DocumentFetcherService {
       secretAccessKey: s3SpecificConfig.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY,
       forcePathStyle: s3SpecificConfig.forcePathStyle,
     };
+  }
+
+  private normalizeRetrievalConfig(config?: RetrievalConfig): RetrievalConfig | undefined {
+    if (!config) {
+      return undefined;
+    }
+
+    // Handle nested config structure from Agentlang
+    const normalizedConfig = preprocessRawConfig(config) as RetrievalConfig;
+
+    return normalizedConfig;
   }
 
   private async getOrCreateS3Client(config: {
@@ -298,6 +541,65 @@ class DocumentFetcherService {
     }
 
     return this.s3Clients.get(clientKey)!;
+  }
+
+  private async parsePdfBuffer(buffer: Buffer): Promise<string> {
+    // Lazy load PDF parser
+    if (!this.pdfParser) {
+      try {
+        const pdfParse = await import('pdf-parse');
+        // Handle both ESM and CSM module formats
+        const parser = (pdfParse as any).default || pdfParse;
+        this.pdfParser = parser;
+      } catch (error) {
+        logger.error('Failed to load PDF parser', { error });
+        throw new Error(
+          'PDF parsing not available. Please install pdf-parse: npm install pdf-parse'
+        );
+      }
+    }
+
+    try {
+      const result = await this.pdfParser(buffer);
+      return result.text || '';
+    } catch (error) {
+      logger.error('PDF parsing failed', { error });
+      throw new Error(`Failed to parse PDF: ${error}`);
+    }
+  }
+
+  private parseMarkdownText(text: string): string {
+    // Convert markdown to plain text for embedding
+    // This removes formatting but preserves content structure
+    try {
+      const html = marked.parse(text) as string;
+      // Simple HTML to text conversion
+      return html
+        .replace(/<[^>]+>/g, ' ') // Remove HTML tags
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .trim();
+    } catch (error) {
+      logger.warn('Markdown parsing failed, returning raw text', { error });
+      return text;
+    }
+  }
+
+  private async readS3BodyToBuffer(body: any): Promise<Buffer> {
+    if (body.transformToByteArray) {
+      const data = await body.transformToByteArray();
+      return Buffer.from(data);
+    }
+
+    // Fallback for Readable streams
+    const chunks: Buffer[] = [];
+    for await (const chunk of body) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 
   private async createDocumentEntity(document: FetchedDocument): Promise<void> {
@@ -339,6 +641,10 @@ class DocumentFetcherService {
   }
 
   private inferFormat(url: string): string {
+    // Handle document-service URLs
+    if (url.startsWith('document-service://')) {
+      return 'txt';
+    }
     const parts = url.split('.');
     if (parts.length > 1) {
       return parts[parts.length - 1].toLowerCase();
@@ -346,43 +652,11 @@ class DocumentFetcherService {
     return 'txt';
   }
 
-  clearCache(title?: string): void {
-    if (title) {
-      // Note: TtlCache doesn't expose keys, clear all for now
-      this.documentCache.clear();
-    } else {
-      this.documentCache.clear();
-    }
-  }
-
-  private normalizeConfigValue(value: any): any {
-    if (value instanceof Map) {
-      const obj: Record<string, any> = {};
-      value.forEach((v, k) => {
-        obj[k] = this.normalizeConfigValue(v);
-      });
-      return obj;
-    }
-    if (Array.isArray(value)) {
-      return value.map(v => this.normalizeConfigValue(v));
-    }
-    if (value && typeof value === 'object') {
-      const obj: Record<string, any> = {};
-      Object.entries(value).forEach(([k, v]) => {
-        obj[k] = this.normalizeConfigValue(v);
-      });
-      return obj;
-    }
-    return value;
-  }
-
-  private normalizeRetrievalConfig(retrievalConfig?: RetrievalConfig): RetrievalConfig | undefined {
-    if (!retrievalConfig) return undefined;
-    const normalized = this.normalizeConfigValue(retrievalConfig);
-    if (normalized && typeof normalized === 'object') {
-      preprocessRawConfig(normalized);
-    }
-    return normalized as RetrievalConfig;
+  private findDocumentInConfig(title: string): DocumentConfig | null {
+    // This method should be called during config loading
+    // The documents are stored when the config is parsed
+    const docs = getConfiguredDocuments();
+    return docs.find(d => d.title === title) || null;
   }
 
   private ensureNodeEnv(): void {
@@ -391,78 +665,27 @@ class DocumentFetcherService {
     }
   }
 
-  private async readS3BodyToBuffer(body: any): Promise<Buffer> {
-    if (body.transformToByteArray) {
-      const bytes = await body.transformToByteArray();
-      return Buffer.from(bytes);
-    }
-    if (body.transformToString) {
-      const text = await body.transformToString('utf-8');
-      return Buffer.from(text, 'utf-8');
-    }
-    const chunks: Buffer[] = [];
-    for await (const chunk of body) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    return Buffer.concat(chunks);
-  }
-
-  private async getPdfParser(): Promise<any> {
-    if (!this.pdfParser) {
-      const pdfModule: any = await import('pdf-parse');
-      this.pdfParser = pdfModule.PDFParse || pdfModule.default;
-    }
-    return this.pdfParser;
-  }
-
-  private async parsePdfBuffer(buffer: Buffer): Promise<string> {
-    try {
-      const PDFParseClass = await this.getPdfParser();
-      const parser = new PDFParseClass({
-        data: buffer,
-        verbosity: 0,
-      });
-      const data = await parser.getText();
-      return data.text;
-    } catch (error: any) {
-      logger.error(`Failed to parse PDF: ${error.message}`);
-      throw new Error(`PDF parsing failed: ${error.message}`);
-    }
-  }
-
-  private parseMarkdownText(markdown: string): string {
-    const html = marked.parse(markdown);
-    if (typeof html !== 'string') {
-      return markdown;
-    }
-    return html
-      .replace(/<\s*br\s*\/?>/gi, '\n')
-      .replace(/<\/(p|li|h[1-6]|blockquote|pre|tr|table)>/gi, '\n')
-      .replace(/<[^>]+>/g, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
+  clearCache(): void {
+    // Clear all cache
+    this.documentCache.clear();
   }
 }
 
-// Store configured documents from config.al
-let configuredDocuments: DocumentConfig[] = [];
+// Singleton instance
+const documentFetcher = new DocumentFetcherService();
 
-export function registerConfiguredDocument(doc: DocumentConfig): void {
-  // Check if already registered
-  const existing = configuredDocuments.find(d => d.title === doc.title);
-  if (!existing) {
-    configuredDocuments.push(doc);
-    logger.debug('Registered configured document', { title: doc.title, url: doc.url });
-  }
+// Helper function to get configured documents from module config
+function getConfiguredDocuments(): DocumentConfig[] {
+  // This should be populated during config parsing
+  // For now, return empty array - actual implementation depends on how
+  // the config system stores document definitions
+  return (global as any).__configuredDocuments || [];
 }
 
-export function getConfiguredDocuments(): DocumentConfig[] {
-  return [...configuredDocuments];
+// Export for use in config loading
+export function setConfiguredDocuments(docs: DocumentConfig[]): void {
+  (global as any).__configuredDocuments = docs;
 }
 
-export function clearConfiguredDocuments(): void {
-  configuredDocuments = [];
-}
-
-export const documentFetcher = new DocumentFetcherService();
+export { documentFetcher };
 export default documentFetcher;

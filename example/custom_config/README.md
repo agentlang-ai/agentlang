@@ -1,6 +1,9 @@
 # Resolver Configuration Example — Using Entities as Config Providers
 
-This example demonstrates how an Agentlang application can expose configuration values to JavaScript resolvers using **entities** and **`fetchConfig`**.
+This example demonstrates:
+1. How an Agentlang application can expose configuration values to JavaScript resolvers using **entities** and **`fetchConfig`**.
+2. How to configure documents from various sources: local files, S3, HTTPS, and the secure **Document Service**.
+
 A resolver may require external configuration—such as API keys, endpoints, or credentials—and Agentlang provides a clean, typed, declarative way to supply this information.
 
 ---
@@ -92,7 +95,103 @@ This tells Agentlang that the configuration must be provided in **config.al**.
 
 ---
 
-## 5. Initializing Configuration (`config.al`)
+## 5. Document Configuration Examples
+
+This example also demonstrates various ways to configure documents for agents:
+
+### 5.1 Local File
+```json
+{
+  "agentlang.ai/doc": {
+    "title": "price list",
+    "url": "./example/camera_info/docs/prices.txt"
+  }
+}
+```
+
+### 5.2 S3 Storage
+```json
+{
+  "agentlang.ai/doc": {
+    "title": "company handbook",
+    "url": "s3://my-bucket/docs/handbook.pdf",
+    "retrievalConfig": {
+      "provider": "s3",
+      "config": {
+        "region": "#js process.env.AWS_REGION",
+        "accessKeyId": "#js process.env.AWS_ACCESS_KEY_ID",
+        "secretAccessKey": "#js process.env.AWS_SECRET_ACCESS_KEY"
+      }
+    }
+  }
+}
+```
+
+### 5.3 HTTPS URL
+```json
+{
+  "agentlang.ai/doc": {
+    "title": "api documentation",
+    "url": "https://docs.example.com/api.md"
+  }
+}
+```
+
+### 5.4 Document Service (Recommended)
+
+The secure way to access documents uploaded via Studio:
+
+**Option A: Direct URL (with document-service:// protocol)**
+```json
+{
+  "agentlang.ai/doc": {
+    "title": "product manual",
+    "url": "document-service://<app-uuid>/<document-uuid>.pdf",
+    "retrievalConfig": {
+      "provider": "document-service",
+      "config": {
+        "baseUrl": "#js process.env.DOCUMENT_SERVICE_URL",
+        "authToken": "#js process.env.DOCUMENT_SERVICE_AUTH_TOKEN"
+      }
+    },
+    "embeddingConfig": {
+      "provider": "openai",
+      "model": "text-embedding-3-small",
+      "chunkSize": 1000,
+      "chunkOverlap": 200
+    }
+  }
+}
+```
+
+**Option B: Lookup by Title**
+```json
+{
+  "agentlang.ai/doc": {
+    "title": "company policies",
+    "retrievalConfig": {
+      "provider": "document-service",
+      "config": {
+        "baseUrl": "#js process.env.DOCUMENT_SERVICE_URL",
+        "appName": "my-app",
+        "authToken": "#js process.env.DOCUMENT_SERVICE_AUTH_TOKEN"
+      }
+    }
+  }
+}
+```
+
+### Document Service Setup
+
+1. Upload documents via Studio (normal mode)
+2. Copy the `document-service://` URL from the upload response
+3. Set environment variables:
+   ```bash
+   export DOCUMENT_SERVICE_URL=https://docstore.fractl.io
+   export DOCUMENT_SERVICE_AUTH_TOKEN=<your-cognito-id-token>
+   ```
+
+## 6. Initializing Configuration (`config.al`)
 
 ```agentlang
 {
@@ -121,7 +220,7 @@ This tells Agentlang that the configuration must be provided in **config.al**.
 
 ---
 
-## 6. Running the Example
+## 7. Running the Example
 
 1. Start the Agentlang service:
 
@@ -146,7 +245,7 @@ This tells Agentlang that the configuration must be provided in **config.al**.
 
 ---
 
-## 7. Summary
+## 8. Summary
 
 This example shows:
 
