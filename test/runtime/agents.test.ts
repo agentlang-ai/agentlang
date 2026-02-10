@@ -1514,5 +1514,157 @@ if (process.env.AL_TEST === 'true') {
 
       console.log('✅ S3 document fetch with retrievalConfig test passed');
     });
+
+    test('test03 - Fetch document from Document Service using retrievalConfig', async () => {
+      // Skip if no Document Service URL is configured
+      const docServiceUrl = process.env.AGENTLANG_TEST_DOCUMENT_SERVICE_URL;
+      const docServiceToken = process.env.AGENTLANG_TEST_DOCUMENT_SERVICE_TOKEN;
+      const docServiceApp = process.env.AGENTLANG_TEST_DOCUMENT_SERVICE_APP || 'test-app';
+      
+      if (!docServiceUrl) {
+        console.log('Skipping Document Service test - no AGENTLANG_TEST_DOCUMENT_SERVICE_URL configured');
+        return;
+      }
+
+      console.log(`Testing Document Service fetch from: ${docServiceUrl}`);
+
+      let moduleError: Error | null = null;
+      try {
+        await doInternModule(
+          'DocServiceTest',
+          `{agentlang.ai/LLM {
+              name "doc-service-test-llm",
+              service "openai",
+              config {"model": "gpt-4o"}
+            }
+          }
+          {agentlang.ai/doc {
+              title "company policies",
+              retrievalConfig {
+                "provider": "document-service",
+                "config": {
+                  "baseUrl": "${docServiceUrl}",
+                  "appName": "${docServiceApp}",
+                  "authToken": "${docServiceToken || '#js process.env.DOCUMENT_SERVICE_TOKEN'}"}}
+            }
+          }
+
+          agent docServiceAgent {
+              llm "doc-service-test-llm",
+              instruction "Answer questions based on the company policies document.",
+              documents ["company policies"]
+          }
+          `
+        );
+      } catch (error) {
+        moduleError = error as Error;
+        console.error('❌ Error during Document Service module creation:', error);
+        if (error instanceof Error) {
+          console.error('Error message:', error.message);
+          console.error('Error stack:', error.stack);
+        }
+      }
+
+      if (moduleError) {
+        console.log('Module creation had errors, checking if document was partially created...');
+      }
+
+      // Verify the document was fetched and stored
+      const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
+      if (docs.length === 0) {
+        const errorDetails = moduleError
+          ? `Module error: ${moduleError.message}`
+          : 'No module error was thrown';
+        console.error(`❌ No documents found! ${errorDetails}`);
+        console.error('Document Service fetch failed. Check token, URL, and app name.');
+      }
+      assert(
+        docs.length >= 1,
+        `Should have at least one document, but found ${docs.length}. ${moduleError ? 'Module error: ' + moduleError.message : ''}`
+      );
+
+      const dsDoc = docs.find((d: Instance) => d.lookup('title') === 'company policies');
+      
+      if (!dsDoc) {
+        console.log('Available documents:', docs.map((d: Instance) => d.lookup('title')));
+      }
+      
+      assert(dsDoc !== undefined, 'Should find the Document Service document');
+
+      // Verify content was fetched
+      const content = dsDoc.lookup('content');
+      assert(content && typeof content === 'string', 'Content should be a string');
+      assert(content.length > 0, 'Content should not be empty');
+
+      console.log('Document content retrieved successfully (first 100 chars):', content.substring(0, 100));
+
+      console.log('✅ Document Service fetch with retrievalConfig test passed');
+    });
+
+    test('test04 - Fetch document from Document Service using direct URL', async () => {
+      // Skip if no Document Service URL or document URL is configured
+      const docServiceUrl = process.env.AGENTLANG_TEST_DOCUMENT_SERVICE_URL;
+      const documentUrl = process.env.AGENTLANG_TEST_DOCUMENT_SERVICE_DOC_URL;
+      const docServiceToken = process.env.AGENTLANG_TEST_DOCUMENT_SERVICE_TOKEN;
+      
+      if (!docServiceUrl || !documentUrl) {
+        console.log('Skipping Document Service URL test - missing AGENTLANG_TEST_DOCUMENT_SERVICE_URL or AGENTLANG_TEST_DOCUMENT_SERVICE_DOC_URL');
+        return;
+      }
+
+      console.log(`Testing Document Service with direct URL: ${documentUrl}`);
+
+      let moduleError: Error | null = null;
+      try {
+        await doInternModule(
+          'DocServiceUrlTest',
+          `{agentlang.ai/LLM {
+              name "doc-service-url-test-llm",
+              service "openai",
+              config {"model": "gpt-4o"}
+            }
+          }
+          {agentlang.ai/doc {
+              title "product manual",
+              url "${documentUrl}",
+              retrievalConfig {
+                "provider": "document-service",
+                "config": {
+                  "baseUrl": "${docServiceUrl}",
+                  "authToken": "${docServiceToken || '#js process.env.DOCUMENT_SERVICE_TOKEN'}"}}
+            }
+          }
+
+          agent docServiceUrlAgent {
+              llm "doc-service-url-test-llm",
+              instruction "Answer questions based on the product manual.",
+              documents ["product manual"]
+          }
+          `
+        );
+      } catch (error) {
+        moduleError = error as Error;
+        console.error('❌ Error during Document Service URL module creation:', error);
+        if (error instanceof Error) {
+          console.error('Error message:', error.message);
+        }
+      }
+
+      // Verify the document was fetched
+      const docs = await parseAndEvaluateStatement('{agentlang.ai/Document? {}}');
+      assert(
+        docs.length >= 1,
+        `Should have at least one document. ${moduleError ? 'Error: ' + moduleError.message : ''}`
+      );
+
+      const dsDoc = docs.find((d: Instance) => d.lookup('title') === 'product manual');
+      assert(dsDoc !== undefined, 'Should find the product manual document');
+
+      const content = dsDoc.lookup('content');
+      assert(content && typeof content === 'string', 'Content should be a string');
+      assert(content.length > 0, 'Content should not be empty');
+
+      console.log('✅ Document Service URL fetch test passed');
+    });
   });
 }

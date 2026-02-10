@@ -72,6 +72,44 @@
         "title": "api documentation",
         "url": "https://docs.example.com/api.md"
       }
+    },
+    {
+      "agentlang.ai/doc": {
+        "title": "product manual",
+        "url": "document-service://a1b2c3d4-e5f6-7890-abcd-ef1234567890/550e8400-e29b-41d4-a716-446655440000.pdf",
+        "retrievalConfig": {
+          "provider": "document-service",
+          "config": {
+            "baseUrl": "#js process.env.DOCUMENT_SERVICE_URL",
+            "authToken": "#js process.env.DOCUMENT_SERVICE_AUTH_TOKEN"
+          }
+        },
+        "embeddingConfig": {
+          "provider": "openai",
+          "model": "text-embedding-3-small",
+          "chunkSize": 1000,
+          "chunkOverlap": 200
+        }
+      }
+    },
+    {
+      "agentlang.ai/doc": {
+        "title": "company policies",
+        "retrievalConfig": {
+          "provider": "document-service",
+          "config": {
+            "baseUrl": "#js process.env.DOCUMENT_SERVICE_URL",
+            "appName": "my-app",
+            "authToken": "#js process.env.DOCUMENT_SERVICE_AUTH_TOKEN"
+          }
+        },
+        "embeddingConfig": {
+          "provider": "openai",
+          "model": "text-embedding-3-small",
+          "chunkSize": 1000,
+          "chunkOverlap": 200
+        }
+      }
     }
   ],
   "custom_config": {
