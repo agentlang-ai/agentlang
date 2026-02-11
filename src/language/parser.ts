@@ -17,6 +17,7 @@ import {
   isNotExpr,
   isPrimExpr,
   isWorkflowDefinition,
+  JoinSpec,
   Literal,
   MapEntry,
   MapLiteral,
@@ -44,6 +45,7 @@ import {
   FunctionCallPattern,
   GroupExpressionPattern,
   IfPattern,
+  JoinPattern,
   LiteralPattern,
   NegExpressionPattern,
   NotExpressionPattern,
@@ -360,6 +362,16 @@ function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
     });
     crudMap.relationships.forEach((rp: RelationshipPattern) => {
       cp.addRelationship(rp.name, introspectPattern(rp.pattern) as CrudPattern | CrudPattern[]);
+    });
+    crudMap.joins.forEach((js: JoinSpec) => {
+      const jp: JoinPattern = {
+        type: js.type,
+        targetEntity: js.name,
+        conditionLhs: js.lhs,
+        conditionOperator: js.op ? js.op : '=',
+        conditionRhs: js.rhs,
+      };
+      cp.joins.push(jp);
     });
     cp.isCreate = false;
     cp.isQueryUpdate = false;
