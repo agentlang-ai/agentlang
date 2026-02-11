@@ -373,10 +373,24 @@ export type AttributePattern = {
   value: BasePattern;
 };
 
+export type JoinPattern = {
+  type: '@join' | '@inner_join' | '@left_join' | '@right_join' | '@full_join';
+  targetEntity: string;
+  conditionLhs: string;
+  conditionOperator: string;
+  conditionRhs: string;
+};
+
+function joinPatternToString(jp: JoinPattern): string {
+  const opr = jp.conditionOperator === '=' ? '' : jp.conditionOperator;
+  return `${jp.type} ${jp.targetEntity} {${jp.conditionLhs}${opr} ${jp.conditionRhs}}`;
+}
+
 export class CrudPattern extends BasePattern {
   recordName: string;
   attributes: Array<AttributePattern>;
   relationships: Map<string, CrudPattern[] | CrudPattern> | undefined;
+  joins: JoinPattern[];
   into: Map<string, string> | undefined;
   isQuery: boolean = false;
   isQueryUpdate: boolean = false;
@@ -391,6 +405,7 @@ export class CrudPattern extends BasePattern {
     } else {
       this.isCreate = true;
     }
+    this.joins = new Array<JoinPattern>();
   }
 
   addAttribute(n: string, p: BasePattern, op?: string): CrudPattern {
@@ -521,11 +536,15 @@ export class CrudPattern extends BasePattern {
     let s = `{${this.recordName} ${this.attributesAsString()}`;
     const rs = this.relationshipsAsString();
     if (rs) {
-      s = s.concat(`,${rs}`);
+      s = s.concat(`,\n${rs}`);
+    }
+    if (this.joins.length > 0) {
+      const js = this.joins.map(joinPatternToString);
+      s = s.concat(`,\n${js.join(',\n')}`);
     }
     const ins = this.intoAsString();
     if (ins) {
-      s = s.concat(`,${ins}`);
+      s = s.concat(`,\n${ins}`);
     }
     return s.concat('}', this.hintsAsString());
   }

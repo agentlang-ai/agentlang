@@ -90,7 +90,8 @@ describe('Pattern generation using the syntax API', () => {
       'Failed to generate query-update'
     );
     const stmt3 =
-      '{Blog/User {name CreateUser.name},UserProfile {Profile {email CreateUser.email}}}';
+      `{Blog/User {name CreateUser.name},
+UserProfile {Profile {email CreateUser.email}}}`;
     assert(crud3.toString() == stmt3, 'Failed to generate relationship pattern');
     const fe: ForEachPattern = new ForEachPattern('emp', crud2.unsetAlias());
     fe.addPattern(
@@ -180,10 +181,11 @@ describe('Pattern introspection', () => {
     cp = pats[0] as CrudPattern;
     assert(cp.isCreate, 'Failed to detect create pattern with relationships');
     assert(cp.relationships && cp.relationships.size == 2, 'Failed to parse relationships');
+    const s = cp.toString()
+    s
     assert(
-      cp.toString() ==
-      '{User {name CreateUser.name},UserProfile {Profile {email CreateUser.email}},UserPost {Post {title "hello, world"}}}',
-      'Failed to regenerate create pattern with relationships'
+      cp.toString() == `{User {name CreateUser.name},
+UserProfile {Profile {email CreateUser.email}},UserPost {Post {title "hello, world"}}}`
     );
 
     pats = await introspect('delete {Blog/User {email? "joe@acme.com"}} @as users');
@@ -307,7 +309,10 @@ describe('Relationship and `into` introspection', () => {
     const s = p.toString();
     assert(
       s ==
-      `{Allocation? {},ResourceAllocation {Resource? {},TeamResource {Team {Id? GetTeamAllocations.TeamId}}},@into { Id Allocation.Id,
+      `{Allocation? {},
+ResourceAllocation {Resource? {},
+TeamResource {Team {Id? GetTeamAllocations.TeamId}}},
+@into { Id Allocation.Id,
 Project Allocation.Project,
 ProjectName Allocation.ProjectName,
 Resource Allocation.Resource,
@@ -1185,5 +1190,25 @@ describe("introspect-literal-bug", () => {
     assert(isCrudPattern(r[0]))
     r = await introspect(stmts[2])
     assert(isIfPattern(r[0]))
+  })
+})
+
+describe('introspect-joins', () => {
+  test('instrospect should capture join types', async () => {
+    const stmt1 = `{januarythree.core/States? {}, 
+    @left_join januarythree.core/Countries {id? States.country_id}, 
+    @into {state_name States.name, country_name Countries.name, currency_name Countries.currency_name}}`
+    const r1 = await introspect(stmt1)
+    const cr1 = r1[0] as CrudPattern
+    cr1.joins[0].type = '@inner_join'
+    const s1 = cr1.toString()
+    assert(s1 === `{januarythree.core/States? {},
+@inner_join januarythree.core/Countries {id? States.country_id},
+@into { state_name States.name,
+country_name Countries.name,
+currency_name Countries.currency_name }}`)
+    const r2 = await introspect(s1)
+    const cr2 = r2[0] as CrudPattern
+    assert(cr2.joins[0].type === '@inner_join')
   })
 })
