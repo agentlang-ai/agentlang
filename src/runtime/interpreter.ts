@@ -32,6 +32,7 @@ import {
   WhereSpec,
 } from '../language/generated/ast.js';
 import {
+  Agent,
   defineAgentEvent,
   Event,
   getOneOfRef,
@@ -2081,7 +2082,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
           const obj = agent.maybeValidateJsonResponse(result);
           if (obj !== undefined) {
             env.setLastResult(obj);
-            env.addToScratchPad(agent.getFqName(), obj);
+            env.addToScratchPad(Agent.NormalizeName(agent.getFqName()), obj);
           }
           break;
         } catch (err: any) {
@@ -2187,6 +2188,7 @@ export async function restartFlow(
 }
 
 const MaxFlowSteps = 25;
+const MaxFlowRetries = 10;
 
 async function iterateOnFlow(
   flow: FlowSpec,
@@ -2195,88 +2197,101 @@ async function iterateOnFlow(
   env: Environment
 ): Promise<void> {
   rootAgent.disableSession();
-  const initContext = msg;
-  const s = `Now consider the following flowchart and return the next step:\n${flow}\n
+  const chatId = env.getActiveEventInstance()?.lookup('chatId');
+  const iterId = chatId || crypto.randomUUID();
+  let step = '';
+  let fullFlowRetries = 0;
+  while (true) {
+    try {
+      const initContext = msg;
+      const s = `Now consider the following flowchart and return the next step:\n${flow}\n
   If you understand from the context that a step with no further possible steps has been evaluated,
   terminate the flowchart by returning DONE. Never return to the top or root step of the flowchart, instead return DONE.
   Important: Return only the next flow-step or DONE. Do not return any additional description, like your thinking process.\n`;
-  env.setFlowContext(initContext);
-  await agentInvoke(rootAgent, s, env);
-  const rootModuleName = rootAgent.moduleName;
-  let preprocResult = await preprocessStep(env.getLastResult(), rootModuleName, env);
-  let step = preprocResult.step;
-  let needAgentProcessing = preprocResult.needAgentProcessing;
-  let context = initContext;
-  let stepc = 0;
-  const chatId = env.getActiveEventInstance()?.lookup('chatId');
-  const iterId = chatId || crypto.randomUUID();
-  console.debug(`Starting iteration ${iterId} on flow: ${flow}`);
-  const executedSteps = new Set<string>();
-  const monitoringEnabled = isMonitoringEnabled();
-  if (monitoringEnabled) {
-    env.flagMonitorEntryAsFlow().incrementMonitor();
-  }
-  let isfxc = false;
-  try {
-    while (step != 'DONE' && !executedSteps.has(step)) {
-      if (stepc > MaxFlowSteps) {
-        throw new Error(`Flow execution exceeded maximum steps limit`);
-      }
-      executedSteps.add(step);
-      ++stepc;
-      const agent = needAgentProcessing
-        ? AgentInstance.FromFlowStep(step, rootAgent, context)
-        : undefined;
-      if (agent) {
-        console.debug(`\n---------------------------------------------------\n`);
-        console.debug(
-          `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
-        );
-        isfxc = agent.isFlowExecutor();
-        const isdec = agent.isDecisionExecutor();
-        if (isfxc || isdec) env.setFlowContext(context);
-        else env.setFlowContext(initContext);
-        if (monitoringEnabled) {
-          env.appendEntryToMonitor(step);
-        }
-        const inst = agent.swapInstruction('');
-        await agentInvoke(agent, inst, env);
-      } else {
-        rootAgent.maybeAddScratchData(env);
-      }
-      if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());
-      if (env.isSuspended()) {
-        console.debug(`${iterId} suspending iteration on step ${step}`);
-        await saveFlowSuspension(rootAgent, context, step, env);
-        env.releaseSuspension();
-        return;
-      }
-      const r = env.getLastResult();
-      const rs = maybeInstanceAsString(r);
-      console.debug(
-        `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
-      );
-      context = `${context}\n${step} --> ${rs}\n`;
-      if (chatId) {
-        const suspEnv = new Environment(env.name, env);
-        suspEnv.softSuspend();
-        await saveFlowSuspension(rootAgent, context, step, suspEnv);
-        await saveFlowStepResult(chatId, step, rs, suspEnv.getSuspensionId(), env);
-      }
-      if (isfxc) {
-        preprocResult = await preprocessStep(rs, rootModuleName, env);
-      } else {
-        env.setFlowContext(context);
-        await agentInvoke(rootAgent, `${s}\n${context}`, env);
-        preprocResult = await preprocessStep(env.getLastResult(), rootModuleName, env);
-      }
+      env.setFlowContext(initContext);
+      await agentInvoke(rootAgent, s, env);
+      const rootModuleName = rootAgent.moduleName;
+      let preprocResult = await preprocessStep(env.getLastResult(), rootModuleName, env);
       step = preprocResult.step;
-      needAgentProcessing = preprocResult.needAgentProcessing;
+      let needAgentProcessing = preprocResult.needAgentProcessing;
+      let context = initContext;
+      let stepc = 0;
+      console.debug(`Starting iteration ${iterId} on flow: ${flow}`);
+      const executedSteps = new Set<string>();
+      const monitoringEnabled = isMonitoringEnabled();
+      let isfxc = false;
+      if (monitoringEnabled) {
+        env.flagMonitorEntryAsFlow().incrementMonitor();
+      }
+      while (step != 'DONE' && !executedSteps.has(step)) {
+        if (stepc > MaxFlowSteps) {
+          throw new Error(`Flow execution exceeded maximum steps limit`);
+        }
+        executedSteps.add(step);
+        ++stepc;
+        const agent = needAgentProcessing
+          ? AgentInstance.FromFlowStep(step, rootAgent, context)
+          : undefined;
+        if (agent) {
+          console.debug(
+            `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
+          );
+          isfxc = agent.isFlowExecutor();
+          const isdec = agent.isDecisionExecutor();
+          if (isfxc || isdec) env.setFlowContext(context);
+          else env.setFlowContext(initContext);
+          if (monitoringEnabled) {
+            env.appendEntryToMonitor(step);
+          }
+          const inst = agent.swapInstruction('');
+          await agentInvoke(agent, inst, env);
+        } else {
+          rootAgent.maybeAddScratchData(env);
+        }
+        if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());
+        if (env.isSuspended()) {
+          console.debug(`${iterId} suspending iteration on step ${step}`);
+          await saveFlowSuspension(rootAgent, context, step, env);
+          env.releaseSuspension();
+          return;
+        }
+        const r = env.getLastResult();
+        const rs = maybeInstanceAsString(r);
+        console.debug(
+          `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
+        );
+        context = `${context}\n${step} --> ${rs}\n`;
+        if (chatId) {
+          const suspEnv = new Environment(env.name, env);
+          suspEnv.softSuspend();
+          await saveFlowSuspension(rootAgent, context, step, suspEnv);
+          await saveFlowStepResult(chatId, step, rs, suspEnv.getSuspensionId(), env);
+        }
+        if (isfxc) {
+          preprocResult = await preprocessStep(rs, rootModuleName, env);
+        } else {
+          env.setFlowContext(context);
+          await agentInvoke(rootAgent, `${s}\n${context}`, env);
+          preprocResult = await preprocessStep(env.getLastResult(), rootModuleName, env);
+        }
+        step = preprocResult.step;
+        needAgentProcessing = preprocResult.needAgentProcessing;
+      }
+    } catch (reason: any) {
+      if (fullFlowRetries < MaxFlowRetries) {
+        msg = `The previous attempt failed at step ${step} with the error ${reason}. Restart the flow the appropriate step
+(maybe even from the first step) and try to fix the issue.`;
+        ++fullFlowRetries;
+        continue;
+      } else {
+        throw new Error(reason);
+      }
+    } finally {
+      env.decrementMonitor().revokeLastResult().setMonitorFlowResult();
     }
-  } finally {
-    env.decrementMonitor().revokeLastResult().setMonitorFlowResult();
+    console.debug(`No more flow steps, completed iteration ${iterId} on flow:\n${flow}`);
+    break;
   }
-  console.debug(`No more flow steps, completed iteration ${iterId} on flow:\n${flow}`);
 }
 
 type PreprocStepResult = {
