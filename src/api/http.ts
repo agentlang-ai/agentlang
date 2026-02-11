@@ -197,6 +197,10 @@ export async function startServer(
     handleMetaGet(req, res);
   });
 
+  app.post('/eval', (req: Request, res: Response) => {
+    handleEvalPost(req, res);
+  });
+
   if (isNodeEnv && upload && uploadDir) {
     app.post('/uploadFile', upload.single('file'), (req: Request, res: Response) => {
       handleFileUpload(req, res, config);
@@ -727,6 +731,33 @@ function normalizedResult(r: Result): Result {
       return Object.fromEntries(r.entries());
     }
     return r;
+  }
+}
+
+async function handleEvalPost(req: Request, res: Response): Promise<void> {
+  try {
+    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const pattern = req.body?.pattern;
+    if (pattern === undefined || typeof pattern !== 'string') {
+      res.status(400).send('Missing or invalid pattern');
+      return;
+    }
+    parseAndEvaluateStatement(pattern, sessionInfo.userId)
+      .then(result => {
+        if (Array.isArray(result)) {
+          ok(res)(result[0]);
+        } else {
+          ok(res)(result);
+        }
+      })
+      .catch(internalError(res));
+  } catch (err: any) {
+    logger.error(err);
+    res.status(500).send(err.toString());
   }
 }
 
