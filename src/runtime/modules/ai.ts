@@ -75,6 +75,12 @@ import { Statement } from '../../language/generated/ast.js';
 import { isMonitoringEnabled, TtlCache } from '../state.js';
 import { isNodeEnv } from '../../utils/runtime.js';
 import { getFileSystem } from '../../utils/fs-utils.js';
+import {
+  buildMemoryContextString,
+  getOrCreateSession,
+  retrieveMemoryContext,
+  storeEpisode,
+} from '../memory/index.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -881,8 +887,30 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           this.maybeAddFlowContext(tmpMsg, env),
           env
         );
-        if (hmsg.length > 0) {
-          msgs.push(humanMessage(hmsg));
+
+        let memoryContextStr = '';
+        let memorySession: {
+          sessionId: string;
+          userId: string;
+          agentId: string;
+          containerTag: string;
+        } | null = null;
+        if (this.withSession) {
+          try {
+            const userId = env.getActiveUser() || 'anonymous';
+            const agentFqName = this.getFqName();
+            memorySession = await getOrCreateSession(this.name, userId, agentFqName);
+            const memoryContext = await retrieveMemoryContext(memorySession, hmsg);
+            memoryContextStr = buildMemoryContextString(memoryContext);
+          } catch (err) {
+            logger.warn(`Failed to retrieve memory context: ${err}`);
+          }
+        }
+
+        const finalMsg = memoryContextStr ? `${hmsg}\n${memoryContextStr}` : hmsg;
+
+        if (finalMsg.length > 0) {
+          msgs.push(humanMessage(finalMsg));
         }
         const externalToolSpecs = this.getExternalToolSpecs();
         const msgsContent = msgs
@@ -925,6 +953,18 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         }
         if (this.withSession) {
           await saveAgentChatSession(chatId, msgs, env);
+          if (memorySession) {
+            try {
+              await storeEpisode(
+                memorySession.sessionId,
+                message,
+                response.content,
+                memorySession.containerTag
+              );
+            } catch (err) {
+              logger.warn(`Failed to store a memory episode: ${err}`);
+            }
+          }
         }
         if (monitoringEnabled) env.setMonitorEntryLlmResponse(response.content);
         env.setLastResult(response.content);
