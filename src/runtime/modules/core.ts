@@ -2,6 +2,7 @@ import { default as ai, normalizeGeneratedCode } from './ai.js';
 import { default as auth } from './auth.js';
 import { default as files } from './files.js';
 import { default as mcp } from './mcp.js';
+import { default as memory } from './memory.js';
 import {
   DefaultModuleName,
   DefaultModules,
@@ -188,6 +189,7 @@ export function registerCoreModules() {
     { def: ai, name: makeCoreModuleName('ai') },
     { def: files, name: makeCoreModuleName('files') },
     { def: mcp, name: mcpn },
+    { def: memory, name: makeCoreModuleName('memory') },
   ];
 
   coreModuleInfo.forEach(({ def, name }) => {
