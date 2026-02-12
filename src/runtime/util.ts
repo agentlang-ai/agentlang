@@ -665,3 +665,47 @@ export function objectAsString(obj: any, keyAsString: boolean = false) {
   });
   return `{${entries.join(', ')}}`;
 }
+
+export type ExtractedText = {
+  extracted: string[] | undefined;
+  updatedText: string;
+};
+
+// extract all data between a given xml tag from within an arbitray text.
+export function extractAndRemoveAllXmlTaggedText(text: string, tagName: string): ExtractedText {
+  const pattern = `<${tagName}\\b[^>]*>([\\s\\S]*?)</${tagName}>`;
+  const regex = new RegExp(pattern, 'gi');
+
+  const extracted = [];
+  let updatedText = text;
+
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    extracted.push(match[1]);
+  }
+
+  updatedText = text.replace(regex, '');
+
+  return { extracted, updatedText };
+}
+
+export type ExtractedCode = {
+  language: string | null;
+  code: string;
+};
+
+// extract tick-quoted code from markdown-formatted text.
+export function extractFencedCodeBlocks(markdown: string): ExtractedCode[] {
+  const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+  const blocks: ExtractedCode[] = [];
+  let match;
+
+  while ((match = codeBlockRegex.exec(markdown)) !== null) {
+    blocks.push({
+      language: match[1] || null,
+      code: match[2],
+    });
+  }
+
+  return blocks;
+}

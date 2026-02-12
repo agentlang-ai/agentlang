@@ -1,6 +1,10 @@
 import {
   DefaultModuleName,
   escapeSpecialChars,
+  extractAndRemoveAllXmlTaggedText,
+  ExtractedCode,
+  ExtractedText,
+  extractFencedCodeBlocks,
   isFqName,
   isString,
   makeCoreModuleName,
@@ -580,7 +584,7 @@ export class AgentInstance {
     }
   }
 
-  private async getFullInstructions(
+  private async getFullInstructionsHelper(
     env: Environment,
     activator: AgentInstructionActivator
   ): Promise<string> {
@@ -649,6 +653,20 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     } else {
       this.addContext = true;
       return finalInstruction;
+    }
+  }
+
+  private static UserTag = 'user';
+
+  private async getFullInstructions(
+    env: Environment,
+    activator: AgentInstructionActivator
+  ): Promise<ExtractedText> {
+    const finalInstruction = await this.getFullInstructionsHelper(env, activator);
+    if (finalInstruction.indexOf(`<${AgentInstance.UserTag}>`) > 0) {
+      return extractAndRemoveAllXmlTaggedText(finalInstruction, AgentInstance.UserTag);
+    } else {
+      return { extracted: undefined, updatedText: finalInstruction };
     }
   }
 
@@ -820,6 +838,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const sess: Instance | null = this.withSession ? await findAgentChatSession(chatId, env) : null;
     let msgs: BaseMessage[] | undefined;
     let cachedMsg: string | undefined = undefined;
+    let extractedText: ExtractedText | undefined;
     const activator: AgentInstructionActivator = {
       provider: p,
       userMessage: message,
@@ -829,7 +848,8 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     if (sess) {
       msgs = sess.lookup('messages');
     } else {
-      cachedMsg = await this.getFullInstructions(env, activator);
+      extractedText = await this.getFullInstructions(env, activator);
+      cachedMsg = extractedText.updatedText;
       msgs = [systemMessage(cachedMsg || '')];
     }
     if (msgs) {
@@ -844,12 +864,21 @@ Only return a pure JSON object with no extra text, annotations etc.`;
                 ? EvalInstructions
                 : LearnerAgentInstructions;
           const ts = this.toolsAsString();
-          const msg = `${s}\n${ts}\n${cachedMsg || (await this.getFullInstructions(env, activator))}`;
+          let tmpMsg = cachedMsg;
+          if (!tmpMsg) {
+            extractedText = await this.getFullInstructions(env, activator);
+            tmpMsg = extractedText.updatedText;
+          }
+          const msg = `${s}\n${ts}\n${tmpMsg}`;
           const newSysMsg = systemMessage(msg);
           msgs[0] = newSysMsg;
         }
+        let tmpMsg = message;
+        if (extractedText?.extracted) {
+          tmpMsg = `${tmpMsg}\n${extractedText.extracted.join('\n')}`;
+        }
         const hmsg = await this.maybeAddRelevantDocuments(
-          this.maybeAddFlowContext(message, env),
+          this.maybeAddFlowContext(tmpMsg, env),
           env
         );
         if (hmsg.length > 0) {
@@ -1297,26 +1326,6 @@ function processScenarioResponse(resp: string): string {
     }
   }
   return resp;
-}
-
-type ExtractedCode = {
-  language: string | null;
-  code: string;
-};
-
-export function extractFencedCodeBlocks(markdown: string): ExtractedCode[] {
-  const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-  const blocks: ExtractedCode[] = [];
-  let match;
-
-  while ((match = codeBlockRegex.exec(markdown)) !== null) {
-    blocks.push({
-      language: match[1] || null,
-      code: match[2],
-    });
-  }
-
-  return blocks;
 }
 
 export function normalizeGeneratedCode(code: string | undefined): string {

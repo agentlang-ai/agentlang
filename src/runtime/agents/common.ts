@@ -209,7 +209,7 @@ A pattern may execute asynchronously and its eventual result can be handled by p
 If you are instructed that a particular event will be called asynchronously, always provide the patterns that follows in its '@then' clause. You must add the 
 '@then' clause only if an event's documentation or instruction explicitly requires to do so.
 
-Earlier we discussed teh concept of 'between' relationship. Here's the 'CreateEmployee' workflow updated to create the Employee with the his/her Profile attached:
+Earlier we discussed the concept of 'between' relationship. Here's the 'CreateEmployee' workflow updated to create the Employee with the his/her Profile attached:
 
 workflow CreateEmployee {
     {Erp/Employee {firstName CreateEmployee.firstName,
