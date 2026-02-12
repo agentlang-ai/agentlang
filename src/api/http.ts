@@ -58,7 +58,6 @@ import {
   createFileRecord,
   deleteFileRecord,
 } from '../runtime/modules/files.js';
-import { introspect } from '../language/parser.js';
 
 export async function startServer(
   appSpec: ApplicationSpec,
@@ -290,10 +289,7 @@ export async function startServer(
     });
   });
 
-  const cb = async () => {
-    const a = await introspect(
-      '{januarythree.core/States? {}, @left_join januarythree.core/Countries {id? States.country_id}, @into {state_name States.name, country_name Countries.name, currency_name Countries.currency_name}}'
-    );
+  const cb = () => {
     console.log(
       chalk.green(
         `Application ${chalk.bold(appName + ' version ' + appVersion)} started on port ${chalk.bold(port)}`
