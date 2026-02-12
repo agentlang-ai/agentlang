@@ -56,6 +56,9 @@ export class MemoryGraph {
     }
     this.containerIndex.get(node.containerTag)!.add(node.id);
 
+    // Log memory addition
+    this.logNodeAddition(node);
+
     // Create edges based on relationships
     if (node.updatesId) {
       this.addEdge({
@@ -88,6 +91,35 @@ export class MemoryGraph {
   }
 
   /**
+   * Log node addition with visual formatting
+   */
+  private logNodeAddition(node: MemoryNode): void {
+    const shortId = node.id.substring(0, 8);
+    const contentPreview =
+      node.content.length > 60 ? node.content.substring(0, 60) + '...' : node.content;
+
+    logger.info(`[MEMORY GRAPH] + Node Added`);
+    logger.info(`  ID: ${shortId}... | Type: ${node.type} | Category: ${node.category || 'N/A'}`);
+    logger.info(`  Content: "${contentPreview}"`);
+    logger.info(`  Container: ${node.containerTag} | Confidence: ${node.confidence}`);
+
+    // Also log to console for immediate visibility
+    console.log('\n┌─────────────────────────────────────────────────────────────┐');
+    console.log('│ MEMORY ADDED                                                │');
+    console.log('├─────────────────────────────────────────────────────────────┤');
+    console.log(`│ ID:        ${shortId}...`);
+    console.log(`│ Type:      ${node.type}`);
+    console.log(`│ Category:  ${node.category || 'N/A'}`);
+    console.log(`│ Content:   ${contentPreview}`);
+    console.log(`│ Container: ${node.containerTag}`);
+    console.log(`│ Confidence: ${node.confidence}`);
+    if (node.instanceId) {
+      console.log(`│ Instance:  ${node.instanceType}/${node.instanceId}`);
+    }
+    console.log('└─────────────────────────────────────────────────────────────┘\n');
+  }
+
+  /**
    * Add an edge to the graph
    */
   addEdge(edge: MemoryEdge): void {
@@ -102,6 +134,19 @@ export class MemoryGraph {
       this.reverseEdges.set(edge.targetId, []);
     }
     this.reverseEdges.get(edge.targetId)!.push(edge);
+
+    // Log edge creation
+    this.logEdgeAddition(edge);
+  }
+
+  /**
+   * Log edge addition
+   */
+  private logEdgeAddition(edge: MemoryEdge): void {
+    const sourceShort = edge.sourceId.substring(0, 8);
+    const targetShort = edge.targetId.substring(0, 8);
+    logger.info(`[MEMORY GRAPH] + Edge: ${sourceShort}... --[${edge.type}]--> ${targetShort}...`);
+    console.log(`  └── Edge: ${sourceShort}... ──[${edge.type}]──> ${targetShort}...`);
   }
 
   /**
@@ -263,6 +308,71 @@ export class MemoryGraph {
       edgeCount,
       containerCount: this.containerIndex.size,
     };
+  }
+
+  /**
+   * Print graph visualization to console
+   */
+  printGraph(containerTag?: string): void {
+    const stats = this.getStats();
+
+    console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+    console.log('║                    MEMORY GRAPH STATUS                        ║');
+    console.log('╠═══════════════════════════════════════════════════════════════╣');
+    console.log(
+      `║ Total Nodes: ${stats.nodeCount.toString().padEnd(10)} Total Edges: ${stats.edgeCount.toString().padEnd(10)} ║`
+    );
+    console.log(`║ Containers:  ${stats.containerCount.toString().padEnd(48)} ║`);
+    console.log('╠═══════════════════════════════════════════════════════════════╣');
+
+    // Get nodes to display
+    const nodesToDisplay = containerTag
+      ? this.getNodesByContainer(containerTag)
+      : Array.from(this.nodes.values());
+
+    if (nodesToDisplay.length === 0) {
+      console.log('║ No memories stored yet.                                       ║');
+    } else {
+      // Group by type
+      const byType = new Map<string, MemoryNode[]>();
+      for (const node of nodesToDisplay) {
+        const type = node.type;
+        if (!byType.has(type)) {
+          byType.set(type, []);
+        }
+        byType.get(type)!.push(node);
+      }
+
+      for (const [type, nodes] of byType) {
+        console.log(`║ ── ${type} (${nodes.length}) ─────────────────────────────────────────────`);
+        for (const node of nodes.slice(0, 5)) {
+          // Show max 5 per type
+          const shortId = node.id.substring(0, 8);
+          const content =
+            node.content.length > 40
+              ? node.content.substring(0, 40) + '...'
+              : node.content.padEnd(43);
+          console.log(`║   [${shortId}] ${content} ║`);
+
+          // Show edges for this node
+          const outEdges = this.getOutgoingEdges(node.id);
+          for (const edge of outEdges) {
+            const targetShort = edge.targetId.substring(0, 8);
+            console.log(`║      └──[${edge.type}]──> ${targetShort}...`);
+          }
+        }
+        if (nodes.length > 5) {
+          console.log(`║   ... and ${nodes.length - 5} more ${type} memories`);
+        }
+      }
+    }
+
+    console.log('╚═══════════════════════════════════════════════════════════════╝\n');
+
+    // Also log to file
+    logger.info(
+      `[MEMORY GRAPH STATUS] Nodes: ${stats.nodeCount}, Edges: ${stats.edgeCount}, Containers: ${stats.containerCount}`
+    );
   }
 
   /**

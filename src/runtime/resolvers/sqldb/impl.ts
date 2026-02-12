@@ -363,12 +363,10 @@ export class SqlDbResolver extends Resolver {
         : 200,
     };
     const ftsAttrs = inst.record.getFullTextSearchAttributes();
-    if (
-      (await isVectorStoreSupported()) &&
-      qattrs &&
-      (ftsAttrs || Object.keys(qattrs).some(k => k.endsWith('?')))
-    ) {
-      const vectorSearchAttr = Object.keys(qattrs).find(k => k.endsWith('?'));
+    if ((await isVectorStoreSupported()) && qattrs && ftsAttrs) {
+      // Find a query attribute that matches one of the fullTextSearch attributes
+      // Note: query attribute names already have '?' stripped by the interpreter
+      const vectorSearchAttr = Object.keys(qattrs).find(k => ftsAttrs.includes(k));
       if (vectorSearchAttr) {
         const queryVal = qvals[vectorSearchAttr];
         const searchString = this.valueToString(queryVal);

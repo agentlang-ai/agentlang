@@ -5,57 +5,85 @@ module PersonalAssistant
 // facts are extracted, and context is retrieved for future queries.
 
 @public agent assistant {
-    instruction `You are a helpful personal assistant for employees at ACME Corporation.
+    instruction `You are a friendly and helpful personal assistant with a great memory.
+    Additionally, refer to the documents provided to answer user's query if it matches things there.
 
-Your capabilities:
-1. Answer questions about company policies using the handbook and project guidelines
-2. Remember user preferences and past interactions
-3. Provide personalized assistance based on conversation history
+Your key traits:
+1. REMEMBER everything the user tells you - their name, preferences, interests, and past conversations
+2. Be warm, conversational, and personable
+3. Reference past conversations naturally ("As you mentioned before..." or "I remember you said...")
+4. Ask follow-up questions to learn more about the user
+5. Be helpful with any task - from simple questions to complex planning
 
-When interacting with users:
-- Be concise but helpful
-- Remember their name, role, and preferences
-- Track their tasks and remind them of upcoming items
-- Reference relevant company policies when appropriate
+When chatting:
+- Greet users warmly, especially if you remember their name
+- Make connections between current and past conversations
+- Show genuine interest in what the user shares
+- Be concise but engaging
+- If you don't know something, say so honestly
 
-You have access to company documents and can create/query tasks, notes, and reminders.`,
+Examples of good responses:
+- "Hi Sarah! Great to hear from you again. How did that project deadline go?"
+- "I remember you mentioned you love hiking. Have you been on any trails lately?"
+- "Based on our conversation yesterday about your Python learning, here are some resources..."
+
+Your memory is automatic - every conversation is stored and relevant context is retrieved.`,
     documents ["company handbook", "project guidelines"]
 }
-
-// ---- Public Workflow ----
-// This exposes the assistant via HTTP. Each user gets their own memory space
-// automatically isolated by the containerTag (agent:userId).
 
 @public workflow chat {
     {assistant {message chat.message}}
 }
 
 // =============================================================================
-// Usage Examples
+// Personal Assistant with Memory - Usage Guide
 // =============================================================================
 //
 // Start the app:
 //   node ./bin/cli.js run example/personal_assistant
 //
-// First conversation - introduce yourself:
-//   curl -X POST http://localhost:8080/PersonalAssistant/chat \
-//     -H 'Content-Type: application/json' \
-//     -d '{"message": "Hi! My name is Sarah and I work as a software engineer."}'
+// Then watch the console output for memory visualization!
 //
-// The assistant will remember this. Ask a follow-up:
-//   curl -X POST http://localhost:8080/PersonalAssistant/chat \
-//     -H 'Content-Type: application/json' \
-//     -d '{"message": "What was my name again?"}'
+// Example conversation flow:
 //
-// Ask about company policy:
-//   curl -X POST http://localhost:8080/PersonalAssistant/chat \
-//     -H 'Content-Type: application/json' \
-//     -d '{"message": "How many vacation days do I get per year?"}'
+// 1. Introduce yourself:
+//    curl -X POST http://localhost:8080/PersonalAssistant/chat \
+//      -H 'Content-Type: application/json' \
+//      -d '{"message": "Hi! My name is Alex and I love programming in Python."}'
 //
-// Later, ask about your tasks:
-//   curl -X POST http://localhost:8080/PersonalAssistant/chat \
-//     -H 'Content-Type: application/json' \
-//     -d '{"message": "What tasks do I have?"}'
+//    Console will show:
+//    ┌─────────────────────────────────────────────────────────────┐
+//    │ MEMORY ADDED                                                │
+//    │ Type: EPISODE                                               │
+//    │ Content: User: Hi! My name is Alex...                       │
+//    └─────────────────────────────────────────────────────────────┘
 //
-// The assistant remembers context across all these conversations automatically!
+// 2. Test memory recall:
+//    curl -X POST http://localhost:8080/PersonalAssistant/chat \
+//      -H 'Content-Type: application/json' \
+//      -d '{"message": "What do you remember about me?"}'
+//
+//    Console will show memory retrieval:
+//    ┌─────────────────────────────────────────────────────────────┐
+//    │ MEMORY RETRIEVAL                                            │
+//    │ Vector search found: 2 memories                             │
+//    │ Retrieved memories:                                         │
+//    │   [EPISODE] User: Hi! My name is Alex...                    │
+//    └─────────────────────────────────────────────────────────────┘
+//
+// 3. Add more context:
+//    curl -X POST http://localhost:8080/PersonalAssistant/chat \
+//      -H 'Content-Type: application/json' \
+//      -d '{"message": "I work at a startup and our tech stack is Python and React."}'
+//
+// 4. Ask about your interests later:
+//    curl -X POST http://localhost:8080/PersonalAssistant/chat \
+//      -H 'Content-Type: application/json' \
+//      -d '{"message": "What programming languages have I mentioned?"}'
+//
+// The graph visualization shows:
+// - Node additions when memories are stored
+// - Edge connections between related memories
+// - Memory retrieval during context building
+//
 // =============================================================================

@@ -961,7 +961,8 @@ Only return a pure JSON object with no extra text, annotations etc.`;
                 memorySession.sessionId,
                 message,
                 response.content,
-                memorySession.containerTag
+                memorySession.containerTag,
+                memorySession.userId
               );
               // Extract and store facts from the conversation
               const facts = await extractFactsFromConversation(

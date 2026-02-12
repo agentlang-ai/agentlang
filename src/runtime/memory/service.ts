@@ -101,6 +101,13 @@ export async function retrieveMemoryContext(
 ): Promise<MemoryContext> {
   const startTime = Date.now();
 
+  console.log('\n┌─────────────────────────────────────────────────────────────┐');
+  console.log('│ MEMORY RETRIEVAL                                            │');
+  console.log('├─────────────────────────────────────────────────────────────┤');
+  console.log(`│ Container: ${session.containerTag}`);
+  console.log(`│ Query: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`);
+  logger.info(`[MEMORY] Retrieving context for: "${message.substring(0, 50)}..."`);
+
   try {
     // Step 0: Ensure memories for this container are loaded into the graph
     // This handles cold-start: on first access, we load all memories for the container
@@ -110,7 +117,12 @@ export async function retrieveMemoryContext(
     // This uses pgvector (Postgres) or sqlitevec (SQLite) for similarity search
     const vectorResults = await searchMemoriesByVector(session.containerTag, message);
 
+    console.log(`│ Vector search found: ${vectorResults.length} memories`);
+    logger.info(`[MEMORY] Vector search returned ${vectorResults.length} results`);
+
     if (vectorResults.length === 0) {
+      console.log('│ No relevant memories found.');
+      console.log('└─────────────────────────────────────────────────────────────┘\n');
       return {
         memories: [],
         instances: [],
@@ -173,14 +185,36 @@ export async function retrieveMemoryContext(
     // Step 8: Build user profile from PREFERENCE memories
     const userProfile = await buildUserProfile(session.containerTag);
 
+    // Log retrieval results
+    const timing = Date.now() - startTime;
+    console.log(`│ Graph expanded to: ${expandedMemories.size} total memories`);
+    console.log(`│ Final context: ${memories.length} memories, ${instances.length} instances`);
+    console.log(`│ User profile: ${userProfile ? 'Found' : 'Not found'}`);
+    console.log(`│ Timing: ${timing}ms`);
+    console.log('├─────────────────────────────────────────────────────────────┤');
+    console.log('│ Retrieved memories:');
+    for (const mem of memories.slice(0, 5)) {
+      const type = mem.lookup('type');
+      const content = (mem.lookup('content') as string).substring(0, 45);
+      console.log(`│   [${type}] ${content}...`);
+    }
+    if (memories.length > 5) {
+      console.log(`│   ... and ${memories.length - 5} more`);
+    }
+    console.log('└─────────────────────────────────────────────────────────────┘\n');
+
+    logger.info(`[MEMORY] Retrieved ${memories.length} memories in ${timing}ms`);
+
     return {
       memories,
       instances,
       userProfile,
-      timing: Date.now() - startTime,
+      timing,
     };
   } catch (err) {
     logger.error(`Failed to retrieve memory context: ${err}`);
+    console.log('│ ERROR: Failed to retrieve memory context');
+    console.log('└─────────────────────────────────────────────────────────────┘\n');
     return {
       memories: [],
       instances: [],
@@ -424,8 +458,20 @@ export async function storeEpisode(
   sessionId: string,
   userMessage: string,
   assistantResponse: string,
-  containerTag: string
+  containerTag: string,
+  userId?: string
 ): Promise<void> {
+  // Extract userId from containerTag if not provided (format: "agent:userId")
+  const effectiveUserId = userId || containerTag.split(':')[1] || 'unknown';
+
+  console.log('\n┌─────────────────────────────────────────────────────────────┐');
+  console.log('│ STORING EPISODE                                             │');
+  console.log('├─────────────────────────────────────────────────────────────┤');
+  console.log(`│ Session: ${sessionId.substring(0, 8)}...`);
+  console.log(`│ Container: ${containerTag}`);
+  console.log(`│ User: ${effectiveUserId.substring(0, 20)}...`);
+  logger.info(`[MEMORY] Storing episode for session ${sessionId.substring(0, 8)}...`);
+
   try {
     // Create episode memory
     const result = await parseAndEvaluateStatement(
@@ -435,15 +481,24 @@ export async function storeEpisode(
         sourceType "CONVERSATION", 
         sourceId "${sessionId}", 
         containerTag "${containerTag}", 
+        userId "${effectiveUserId}",
         sessionId "${sessionId}", 
         isLatest true}}`,
       undefined
     );
 
     // Add to in-memory graph for fast retrieval
-    if (result && result.length > 0) {
-      const memory = result[0];
+    // Note: parseAndEvaluateStatement returns a single Instance for creates, not an array
+    const memory = Array.isArray(result) ? result[0] : result;
+    if (memory && typeof memory.lookup === 'function') {
+      const memId = memory.lookup('id');
+      const memContent = memory.lookup('content');
+      console.log(`│ Memory ID: ${memId?.substring(0, 8)}...`);
+      console.log(`│ Content preview: ${(memContent as string)?.substring(0, 40)}...`);
       addMemoryToGraph(memory);
+      console.log('│ Episode added to graph');
+    } else {
+      console.log('│ WARNING: No memory returned from DB insert');
     }
 
     // Store individual messages as SessionMessage entities
@@ -458,8 +513,19 @@ export async function storeEpisode(
         }, @upsert}`,
       undefined
     );
+
+    // Print current graph status
+    const graph = getMemoryGraph();
+    const stats = graph.getStats();
+    console.log(`│ Graph now has: ${stats.nodeCount} nodes, ${stats.edgeCount} edges`);
+    console.log('└─────────────────────────────────────────────────────────────┘\n');
+    logger.info(
+      `[MEMORY] Episode stored. Graph: ${stats.nodeCount} nodes, ${stats.edgeCount} edges`
+    );
   } catch (err) {
     logger.error(`Failed to store episode: ${err}`);
+    console.log('│ ERROR: Failed to store episode');
+    console.log('└─────────────────────────────────────────────────────────────┘\n');
     // Don't throw - this is background work
   }
 }
@@ -683,12 +749,24 @@ export async function createInstanceMemory(
 export function addMemoryToGraph(memory: Instance): void {
   const graph = getMemoryGraph();
 
+  const id = memory.lookup('id') as string;
+  const content = memory.lookup('content') as string;
+  const type = memory.lookup('type') as 'FACT' | 'PREFERENCE' | 'EPISODE' | 'DERIVED';
+  const containerTag = memory.lookup('containerTag') as string;
+  
+  // Debug: check if we have required fields
+  if (!id || !content || !containerTag) {
+    logger.warn(`[MEMORY] Cannot add to graph - missing fields: id=${!!id}, content=${!!content}, containerTag=${!!containerTag}`);
+    console.log(`│ WARNING: Missing required fields for graph node`);
+    return;
+  }
+
   const node: MemoryNode = {
-    id: memory.lookup('id') as string,
-    content: memory.lookup('content') as string,
-    type: memory.lookup('type') as 'FACT' | 'PREFERENCE' | 'EPISODE' | 'DERIVED',
+    id,
+    content,
+    type,
     category: memory.lookup('category') as string | undefined,
-    containerTag: memory.lookup('containerTag') as string,
+    containerTag,
     confidence: (memory.lookup('confidence') as number) || 1.0,
     isLatest: memory.lookup('isLatest') !== false,
     createdAt: new Date(),
@@ -700,6 +778,7 @@ export function addMemoryToGraph(memory: Instance): void {
   };
 
   graph.addNode(node);
+  logger.debug(`[MEMORY] Added node to graph: ${id.substring(0, 8)}... (${type})`);
 }
 
 /**
@@ -721,11 +800,16 @@ export async function loadMemoriesIntoGraph(containerTag: string): Promise<void>
       undefined
     );
 
-    if (result && result.length > 0) {
-      for (const memory of result) {
-        addMemoryToGraph(memory);
+    // Handle both array and single instance results
+    const memories = Array.isArray(result) ? result : (result ? [result] : []);
+    if (memories.length > 0) {
+      for (const memory of memories) {
+        if (memory && typeof memory.lookup === 'function') {
+          addMemoryToGraph(memory);
+        }
       }
-      logger.debug(`Loaded ${result.length} memories into graph for ${containerTag}`);
+      logger.debug(`Loaded ${memories.length} memories into graph for ${containerTag}`);
+      console.log(`│ Loaded ${memories.length} existing memories from DB`);
     }
   } catch (err) {
     logger.warn(`Failed to load memories into graph: ${err}`);
@@ -759,4 +843,24 @@ function parseStringArray(value: any): string[] | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * Print the current memory graph status to console
+ */
+export function printMemoryGraph(containerTag?: string): void {
+  const graph = getMemoryGraph();
+  graph.printGraph(containerTag);
+}
+
+/**
+ * Get memory graph statistics
+ */
+export function getMemoryGraphStats(): {
+  nodeCount: number;
+  edgeCount: number;
+  containerCount: number;
+} {
+  const graph = getMemoryGraph();
+  return graph.getStats();
 }

@@ -11,6 +11,8 @@ export {
   trackInstanceInteraction,
   getMemoriesForInstance,
   createInstanceMemory,
+  printMemoryGraph,
+  getMemoryGraphStats,
   type SessionContext,
   type MemoryContext,
   type InstanceReference,
