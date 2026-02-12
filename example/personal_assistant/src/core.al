@@ -1,5 +1,19 @@
 module PersonalAssistant
 
+{agentlang.ai/LLM {
+  name "llm01",
+  service "anthropic",
+  config {"model": "claude-sonnet-4-5"}
+  }, @upsert}
+
+ {agentlang.ai/doc {
+   title "company handbook",
+   url "./example/personal_assistant/docs/company_handbook.txt"}}
+
+{agentlang.ai/doc {
+    title "project guidelines",
+    url "./example/personal_assistant/docs/project_guidelines.txt"}}
+
 // ---- The Assistant Agent ----
 // This agent has memory AUTOMATICALLY. Every conversation is stored,
 // facts are extracted, and context is retrieved for future queries.
@@ -28,7 +42,8 @@ Examples of good responses:
 - "Based on our conversation yesterday about your Python learning, here are some resources..."
 
 Your memory is automatic - every conversation is stored and relevant context is retrieved.`,
-    documents ["company handbook", "project guidelines"]
+    documents ["company handbook", "project guidelines"],
+    llm "llm01"
 }
 
 @public workflow chat {
