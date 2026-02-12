@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0](https://github.com/agentlang-ai/agentlang/compare/0.9.11...0.10.0) (2026-02-12)
+
+### Changes
+
+* Introspect joins (#577) ([be01c96](https://github.com/agentlang-ai/agentlang/commit/be01c963581fc18d02e0967db70d7b6855dcd53c)) - @vijayfractl
+* Enhancements to support agent-craft (#575) ([79e6c4a](https://github.com/agentlang-ai/agentlang/commit/79e6c4a3c923b8125418d4153eafe427b8f10623)) - @vijayfractl
+
+---
 ## [0.9.11](https://github.com/agentlang-ai/agentlang/compare/0.9.10...0.9.11) (2026-02-10)
 
 ### Changes
