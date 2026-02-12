@@ -3,6 +3,7 @@ import { CoreMemoryModuleName } from '../modules/memory.js';
 import { Environment, parseAndEvaluateStatement } from '../interpreter.js';
 import { findProviderForLLM } from '../modules/ai.js';
 import { humanMessage, systemMessage } from '../agents/provider.js';
+import { addMemoryToGraph, markMemoryOutdated } from './service.js';
 import type { SessionContext } from './service.js';
 import type { Instance } from '../module.js';
 
@@ -89,10 +90,15 @@ export async function storeExtractedFacts(
       const existingMemory = await findSimilarMemory(session, fact.content);
 
       if (existingMemory) {
-        // Update existing memory if confidence is higher
+        const existingId = existingMemory.lookup('id');
         const existingConfidence = existingMemory.lookup('confidence') || 0;
+
         if (fact.confidence > existingConfidence) {
-          await updateMemory(existingMemory.lookup('id'), fact);
+          // Mark old memory as outdated in the graph
+          markMemoryOutdated(existingId);
+
+          // Create new memory that "updates" the old one
+          await createMemoryFromFactWithRelation(session, fact, existingId, 'updates');
         }
       } else {
         // Create new memory
@@ -150,26 +156,6 @@ async function findSimilarMemory(
 }
 
 /**
- * Update an existing memory
- */
-async function updateMemory(memoryId: string, fact: ExtractedFact): Promise<void> {
-  try {
-    await parseAndEvaluateStatement(
-      `{${CoreMemoryModuleName}/Memory {
-        id "${memoryId}", 
-        content "${escapeString(fact.content)}", 
-        confidence ${fact.confidence}, 
-        isLatest true
-        }, @upsert}`,
-      undefined
-    );
-  } catch (err) {
-    logger.error(`Failed to update memory: ${err}`);
-    throw err;
-  }
-}
-
-/**
  * Create a new memory from a fact
  */
 async function createMemoryFromFact(session: SessionContext, fact: ExtractedFact): Promise<void> {
@@ -197,9 +183,73 @@ async function createMemoryFromFact(session: SessionContext, fact: ExtractedFact
 
     query += `}}`;
 
-    await parseAndEvaluateStatement(query, undefined);
+    const result = await parseAndEvaluateStatement(query, undefined);
+
+    // Add to in-memory graph
+    if (result && result.length > 0) {
+      addMemoryToGraph(result[0]);
+    }
   } catch (err) {
     logger.error(`Failed to create memory from fact: ${err}`);
+    throw err;
+  }
+}
+
+/**
+ * Create a new memory with a relationship to an existing memory
+ */
+async function createMemoryFromFactWithRelation(
+  session: SessionContext,
+  fact: ExtractedFact,
+  relatedId: string,
+  relationType: 'updates' | 'extends'
+): Promise<void> {
+  try {
+    let query =
+      `{${CoreMemoryModuleName}/Memory {` +
+      `type "${fact.type}", ` +
+      `content "${escapeString(fact.content)}", ` +
+      `category "${fact.category}", ` +
+      `sourceType "CONVERSATION", ` +
+      `sourceId "${session.sessionId}", ` +
+      `containerTag "${session.containerTag}", ` +
+      `userId "${session.userId}", ` +
+      `agentId "${session.agentId}", ` +
+      `sessionId "${session.sessionId}", ` +
+      `confidence ${fact.confidence}, ` +
+      `isLatest true`;
+
+    if (relationType === 'updates') {
+      query += `, updatesId "${relatedId}"`;
+    } else if (relationType === 'extends') {
+      query += `, extendsId "${relatedId}"`;
+    }
+
+    if (fact.instanceId) {
+      query += `, instanceId "${fact.instanceId}"`;
+    }
+    if (fact.instanceType) {
+      query += `, instanceType "${fact.instanceType}"`;
+    }
+
+    query += `}}`;
+
+    const result = await parseAndEvaluateStatement(query, undefined);
+
+    // Add to in-memory graph (will automatically create edge due to updatesId/extendsId)
+    if (result && result.length > 0) {
+      addMemoryToGraph(result[0]);
+    }
+
+    // Mark the old memory as not latest in the database
+    if (relationType === 'updates') {
+      await parseAndEvaluateStatement(
+        `{${CoreMemoryModuleName}/Memory {id "${relatedId}", isLatest false}, @upsert}`,
+        undefined
+      );
+    }
+  } catch (err) {
+    logger.error(`Failed to create memory with relation: ${err}`);
     throw err;
   }
 }
