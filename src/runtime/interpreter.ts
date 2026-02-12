@@ -80,7 +80,12 @@ import {
   splitRefs,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
-import { parseStatement, parseWorkflow } from '../language/parser.js';
+import {
+  ExtractedQueryOptions,
+  extractQueryOptions,
+  parseStatement,
+  parseWorkflow,
+} from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 import {
   AgentEntityName,
@@ -1497,17 +1502,18 @@ async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
   }
 }
 
-function maybeSetQueryClauses(inst: Instance, crud: CrudMap) {
-  if (crud.groupByClause) {
-    inst.setGroupBy(crud.groupByClause.colNames);
+function maybeSetQueryClauses(inst: Instance, qopts: ExtractedQueryOptions) {
+  if (qopts.groupByClause) {
+    inst.setGroupBy(qopts.groupByClause.colNames);
   }
-  if (crud.orderByClause) {
-    inst.setOrderBy(crud.orderByClause.colNames, crud.orderByClause.order === '@desc');
+  if (qopts.orderByClause) {
+    inst.setOrderBy(qopts.orderByClause.colNames, qopts.orderByClause.order === '@desc');
   }
 }
 
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
-  if (!env.isInUpsertMode() && crud.upsert.length > 0) {
+  const qopts = extractQueryOptions(crud);
+  if (!env.isInUpsertMode() && qopts.upsert !== undefined) {
     return await evaluateUpsert(crud, env);
   }
   const inst: Instance = crud.source
@@ -1519,12 +1525,12 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   const qattrs = inst.queryAttributes;
   const onlyAggregates = inst.aggregates !== undefined && qattrs === undefined;
   const isQueryAll = onlyAggregates || crud.name.endsWith(QuerySuffix);
-  const distinct: boolean = crud.distinct.length > 0;
-  maybeSetQueryClauses(inst, crud);
+  const distinct: boolean = qopts.distinct !== undefined;
+  maybeSetQueryClauses(inst, qopts);
   if (attrs.size > 0) {
     await maybeValidateOneOfRefs(inst, env);
   }
-  if (crud.into) {
+  if (qopts.into) {
     if (attrs.size > 0) {
       throw new Error(
         `Query pattern for ${entryName} with 'into' clause cannot be used to update attributes`
@@ -1533,10 +1539,16 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
     if (qattrs === undefined && !isQueryAll) {
       throw new Error(`Pattern for ${entryName} with 'into' clause must be a query`);
     }
-    if (crud.joins.length > 0) {
-      await evaluateJoinQuery(crud.joins, crud.into, crud.where, inst, distinct, env);
+    if (qopts.joins && qopts.joins.length > 0) {
+      await evaluateJoinQuery(qopts.joins, qopts.into, qopts.where, inst, distinct, env);
     } else {
-      await evaluateJoinQueryWithRelationships(crud.into, inst, crud.relationships, distinct, env);
+      await evaluateJoinQueryWithRelationships(
+        qopts.into,
+        inst,
+        crud.relationships || [],
+        distinct,
+        env
+      );
     }
     return;
   }

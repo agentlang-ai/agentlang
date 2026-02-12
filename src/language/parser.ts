@@ -8,6 +8,7 @@ import {
   ForEach,
   FullTextSearch,
   Group,
+  GroupByClause,
   Handler,
   If,
   isExpr,
@@ -24,14 +25,17 @@ import {
   ModuleDefinition,
   NegExpr,
   NotExpr,
+  OrderByClause,
   Pattern,
   PrimExpr,
+  QueryOption,
   RelationshipPattern,
   Return,
   SelectIntoEntry,
   SelectIntoSpec,
   SetAttribute,
   Statement,
+  WhereSpec,
   WorkflowDefinition,
 } from './generated/ast.js';
 import { firstAliasSpec, firstCatchSpec, isString, QuerySuffix } from '../runtime/util.js';
@@ -269,8 +273,9 @@ function introspectPattern(pat: Pattern): BasePattern {
     } else {
       r = introspectCreatePattern(pat.crudMap);
     }
-    if (pat.crudMap.into) {
-      r = introspectInto(pat.crudMap.into, r as CrudPattern);
+    const opts = extractQueryOptions(pat.crudMap);
+    if (opts.into) {
+      r = introspectInto(opts.into, r as CrudPattern);
     }
   } else if (pat.expr) {
     r = introspectExpression(pat.expr);
@@ -360,10 +365,11 @@ function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
     crudMap.body?.attributes.forEach((sa: SetAttribute) => {
       cp.addAttribute(sa.name, introspectExpression(sa.value), sa.op);
     });
-    crudMap.relationships.forEach((rp: RelationshipPattern) => {
+    const opts = extractQueryOptions(crudMap);
+    crudMap.relationships?.forEach((rp: RelationshipPattern) => {
       cp.addRelationship(rp.name, introspectPattern(rp.pattern) as CrudPattern | CrudPattern[]);
     });
-    crudMap.joins.forEach((js: JoinSpec) => {
+    opts.joins?.forEach((js: JoinSpec) => {
       const jp: JoinPattern = {
         type: js.type,
         targetEntity: js.name,
@@ -381,6 +387,49 @@ function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
   throw new Error(`Failed to introspect query-pattern: ${crudMap}`);
 }
 
+export type ExtractedQueryOptions = {
+  joins: JoinSpec[] | undefined;
+  into: SelectIntoSpec | undefined;
+  where: WhereSpec | undefined;
+  groupByClause: GroupByClause | undefined;
+  orderByClause: OrderByClause | undefined;
+  upsert: '@upsert' | undefined;
+  distinct: '@distinct' | undefined;
+};
+
+export function extractQueryOptions(crudMap: CrudMap): ExtractedQueryOptions {
+  const r: ExtractedQueryOptions = {
+    joins: undefined,
+    into: undefined,
+    where: undefined,
+    groupByClause: undefined,
+    orderByClause: undefined,
+    upsert: undefined,
+    distinct: undefined,
+  };
+  crudMap.queryOptions.forEach((qo: QueryOption) => {
+    if (qo.join) {
+      if (r.joins === undefined) {
+        r.joins = new Array<JoinSpec>();
+      }
+      r.joins.push(qo.join);
+    } else if (qo.into) {
+      r.into = qo.into;
+    } else if (qo.where) {
+      r.where = qo.where;
+    } else if (qo.groupByClause) {
+      r.groupByClause = qo.groupByClause;
+    } else if (qo.orderByClause) {
+      r.orderByClause = qo.orderByClause;
+    } else if (qo.upsert) {
+      r.upsert = qo.upsert;
+    } else if (qo.distinct) {
+      r.distinct = qo.distinct;
+    }
+  });
+  return r;
+}
+
 function introspectCreatePattern(crudMap: CrudMap): CrudPattern {
   if (crudMap) {
     const cp: CrudPattern = new CrudPattern(crudMap.name);
@@ -393,7 +442,7 @@ function introspectCreatePattern(crudMap: CrudMap): CrudPattern {
       }
       cp.addAttribute(sa.name, introspectExpression(sa.value), sa.op);
     });
-    crudMap.relationships.forEach((rp: RelationshipPattern) => {
+    crudMap.relationships?.forEach((rp: RelationshipPattern) => {
       cp.addRelationship(rp.name, introspectPattern(rp.pattern) as CrudPattern | CrudPattern[]);
     });
     cp.isQueryUpdate = qup;

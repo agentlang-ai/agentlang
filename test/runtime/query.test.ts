@@ -116,9 +116,9 @@ describe('olap-test01', () => {
         {
           SalesFact? {},
           @join DateDim {date_id? SalesFact.date_id},
-          @into {year DateDim.year, quarter DateDim.quarter, month DateDim.month, total_revenue @sum(SalesFact.revenue)},
+          @orderBy(DateDim.year, DateDim.quarter, DateDim.month),
           @groupBy(DateDim.year, DateDim.quarter, DateDim.month),
-          @orderBy(DateDim.year, DateDim.quarter, DateDim.month)
+          @into {year DateDim.year, quarter DateDim.quarter, month DateDim.month, total_revenue @sum(SalesFact.revenue)}
         }
     }
 

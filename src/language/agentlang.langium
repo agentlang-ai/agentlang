@@ -122,17 +122,14 @@ AliasSpec: ('@as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
 ThenSpec: '@then' '{' (statements+=Statement (';' statements+=Statement)*)+ '}';
 
 CrudMap: '{' (name=QueryId (':')? '{''}' 
-             | (name=QualifiedName (':')? '{''}' ',' '@from' source=Literal (',' upsert+='@upsert')?)
+             | (name=QualifiedName (':')? '{''}' ',' '@from' source=Literal)
              | name=QualifiedName (':')? body=CrudMapBody)
              (',' relationships+=RelationshipPattern (',' relationships+=RelationshipPattern)*)?
-             (',' joins+=JoinSpec)*
-             (',' into=SelectIntoSpec)?
-             (',' where=WhereSpec)?
-             (',' groupByClause=GroupByClause)?
-             (',' orderByClause=OrderByClause)?
-             (',' upsert+='@upsert')?
-             (',' distinct+='@distinct')?
-             '}';
+             (',' queryOptions+=QueryOption (',' queryOptions+=QueryOption)*)?
+          '}';
+
+QueryOption: join=JoinSpec | into=SelectIntoSpec | where=WhereSpec | groupByClause=GroupByClause | orderByClause=OrderByClause
+| upsert='@upsert' | distinct='@distinct';
 
 CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}';
 
