@@ -148,6 +148,7 @@ type CatchHandlers = Map<string, Statement>;
 
 export class Environment extends Instance {
   parent: Environment | undefined;
+  private lastPattern: string | undefined;
 
   private activeModule: string;
   private activeEventInstance: Instance | undefined;
@@ -534,6 +535,15 @@ export class Environment extends Instance {
 
   getActiveUser(): string {
     return this.activeUser;
+  }
+
+  setLastPattern(pattern: string | undefined): Environment {
+    this.lastPattern = pattern;
+    return this;
+  }
+
+  getLastPattern(): string | undefined {
+    return this.lastPattern;
   }
 
   setLastResult(result: Result): Environment {
@@ -939,7 +949,13 @@ export let evaluate = async function (
       } else if (isAgentEventInstance(eventInstance)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
         await handleAgentInvocation(eventInstance, env);
-        if (continuation) continuation(env.getLastResult());
+        if (continuation) {
+          if (env.getLastPattern()) {
+            continuation({ result: env.getLastResult(), pattern: env.getLastPattern() });
+          } else {
+            continuation(env.getLastResult());
+          }
+        }
       } else if (isOpenApiEventInstance(eventInstance)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
         await handleOpenApiEvent(eventInstance, env);
@@ -2035,6 +2051,11 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       while (true) {
         try {
           let rs: string = result ? normalizeGeneratedCode(result) : '';
+          if (agent.tools) {
+            env.setLastPattern(rs);
+          } else {
+            env.setLastPattern(undefined);
+          }
           let isWf = rs.startsWith('workflow');
           if (isWf && !agent.runWorkflows) {
             await parseWorkflow(rs);
