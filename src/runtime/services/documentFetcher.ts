@@ -1,5 +1,5 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { readFile } from 'node:fs/promises';
+import { readFile } from '../../utils/fs-utils.js';
 import { logger } from '../logger.js';
 import { parseAndEvaluateStatement } from '../interpreter.js';
 import { CoreAIModuleName } from '../modules/ai.js';
@@ -443,7 +443,7 @@ class DocumentFetcherService {
 
   private async fetchFromLocal(filePath: string): Promise<string> {
     try {
-      const content = await readFile(filePath, 'utf-8');
+      const content = await readFile(filePath);
       const lowerPath = filePath.toLowerCase();
       const isMarkdown = lowerPath.endsWith('.md') || lowerPath.endsWith('.markdown');
 

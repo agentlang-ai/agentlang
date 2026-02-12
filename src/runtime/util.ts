@@ -1,4 +1,4 @@
-import { isNodeEnv } from '../utils/runtime.js';
+import { isNodeEnv, path } from '../utils/runtime.js';
 import {
   AliasSpec,
   CatchSpec,
@@ -15,7 +15,6 @@ import {
 } from '../language/generated/ast.js';
 import { readFile } from '../utils/fs-utils.js';
 import bcrypt from 'bcryptjs';
-import path from 'node:path';
 
 export const QuerySuffix = '?';
 
