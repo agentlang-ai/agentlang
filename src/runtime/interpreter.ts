@@ -91,6 +91,99 @@ import {
   saveFlowStepResult,
 } from './modules/ai.js';
 import { logger } from './logger.js';
+
+/**
+ * Clean decision agent response by removing common formatting artifacts
+ * that models like GPT-5.2 might add (quotes, markdown code blocks, JSON, etc.)
+ */
+function cleanDecisionResponse(response: string): string {
+  if (!response) return response;
+
+  let cleaned = response.trim();
+
+  // Handle JSON responses - extract value from {"result": "..."} or similar
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (typeof parsed === 'object' && parsed !== null) {
+      // Try common JSON response patterns
+      if (parsed.result) return cleanDecisionResponse(String(parsed.result));
+      if (parsed.value) return cleanDecisionResponse(String(parsed.value));
+      if (parsed.answer) return cleanDecisionResponse(String(parsed.answer));
+      if (parsed.response) return cleanDecisionResponse(String(parsed.response));
+      // If it's a simple object with one key, use the value
+      const keys = Object.keys(parsed);
+      if (keys.length === 1) {
+        return cleanDecisionResponse(String(parsed[keys[0]]));
+      }
+    }
+  } catch {
+    // Not valid JSON, continue with other cleaning
+  }
+
+  // Remove markdown code blocks with content
+  cleaned = cleaned.replace(/^```[\w]*\n?/, '');
+  cleaned = cleaned.replace(/\n?```\s*$/, '');
+
+  // Remove inline code backticks
+  cleaned = cleaned.replace(/^`+/, '');
+  cleaned = cleaned.replace(/`+$/, '');
+
+  // Remove surrounding quotes (single or double)
+  cleaned = cleaned.replace(/^["']+/, '');
+  cleaned = cleaned.replace(/["']+$/, '');
+
+  // Remove common prefixes and suffixes
+  cleaned = cleaned.replace(/^(the answer is|i selected|result|value|output|response):\s*/i, '');
+  cleaned = cleaned.replace(/\s*(is the answer|is the result|is my selection)$/i, '');
+
+  // Remove explanatory text before or after the actual value
+  const lines = cleaned.split('\n');
+  if (lines.length > 1) {
+    // Look for a line that looks like a simple value (single word or short phrase)
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Skip empty lines and lines that look like explanations
+      if (
+        trimmed &&
+        !trimmed.startsWith('Based on') &&
+        !trimmed.startsWith('Looking at') &&
+        !trimmed.startsWith('I can see') &&
+        !trimmed.startsWith('Therefore') &&
+        !trimmed.startsWith('This') &&
+        trimmed.length < 100
+      ) {
+        cleaned = trimmed;
+        break;
+      }
+    }
+  }
+
+  cleaned = cleaned.trim();
+
+  // Final aggressive cleaning: extract just the first word or phrase
+  // This handles cases where the model returns verbose explanations
+  if (cleaned.includes(' ')) {
+    // Try to find a single word that matches common decision values
+    const words = cleaned.split(/\s+/);
+    for (const word of words) {
+      const trimmedWord = word.replace(/[^\w]/g, ''); // Remove non-word characters
+      if (
+        trimmedWord &&
+        ['Product', 'Customer', 'Other', 'Employee', 'Manager'].includes(trimmedWord)
+      ) {
+        return trimmedWord;
+      }
+    }
+  }
+
+  // If no known value found, return the first word after removing non-word chars
+  const firstWord = cleaned.split(/\s+/)[0];
+  if (firstWord) {
+    return firstWord.replace(/^[^\w]+/, '').replace(/[^\w]+$/, '');
+  }
+
+  return cleaned;
+}
 import {
   FlowSuspensionTag,
   ParentAttributeName,
@@ -2220,6 +2313,7 @@ async function iterateOnFlow(
       const executedSteps = new Set<string>();
       const monitoringEnabled = isMonitoringEnabled();
       let isfxc = false;
+      let isdec = false;
       if (monitoringEnabled) {
         env.flagMonitorEntryAsFlow().incrementMonitor();
       }
@@ -2237,7 +2331,7 @@ async function iterateOnFlow(
             `Starting to execute flow step ${step} with agent ${agent.name} with iteration ID ${iterId} and context: \n${context}`
           );
           isfxc = agent.isFlowExecutor();
-          const isdec = agent.isDecisionExecutor();
+          isdec = agent.isDecisionExecutor();
           if (isfxc || isdec) env.setFlowContext(context);
           else env.setFlowContext(initContext);
           if (monitoringEnabled) {
@@ -2256,7 +2350,11 @@ async function iterateOnFlow(
           return;
         }
         const r = env.getLastResult();
-        const rs = maybeInstanceAsString(r);
+        let rs = maybeInstanceAsString(r);
+        // Clean decision agent responses to remove formatting artifacts
+        if (isdec) {
+          rs = cleanDecisionResponse(rs);
+        }
         console.debug(
           `\n----> Completed execution of step ${step}, iteration id ${iterId} with result:\n${rs}`
         );

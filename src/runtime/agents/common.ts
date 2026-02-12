@@ -345,6 +345,11 @@ any additional description, direction or comments.
 
 Note that a flow-step could be represented as a simple name, like 'checkOrder' or a complex object as in '{sendPaymentLinkToCustomer: {email: acceptOrder.customerEmail}}'.
 Always return the full-specification of the flow-step; if it's a name - return the name, if it's an object - return the object.
+
+OUTPUT FORMAT - READ CAREFULLY:
+Your response must contain ONLY the exact step name or object specification. Do not add quotes, markdown formatting, explanations, or any other text.
+Example: if the next step is checkOrder, return exactly checkOrder without quotes, backticks, or additional text.
+Return just the plain step specification, nothing else.
 `;
 
 export const DecisionAgentInstructions = `Analyse a decision table with multiple cases along with the context to return one or more values.
@@ -385,6 +390,12 @@ analyseSalesReport --> {"Acme/salesReport": {"employeeId": 101, "employeeGrade":
 you must return giveIncrementToEmployee,promoteEmployee because the data satisfies the first two cases. You must return only the value of the 
 case or cases you selected and no additional text or comments. If you decide to select more than one case, return the values separated by commas.
 Also select the case that is the best match for the given context, no need to look for a perfect match for all values specified in the context.
+
+OUTPUT FORMAT - READ CAREFULLY:
+Your response must contain ONLY the exact value from the selected case. Do not add quotes, markdown formatting, explanations, or any other text.
+Example: if the case value is Product, return exactly Product without quotes, backticks, or additional text.
+Return just the plain value, nothing else.
+
 Now apply the same analysis to the following context and cases provided by the user.
 `;
 export const EvalInstructions = `Consider the following request passed to an intelligent agent and its response. Rate the response on a scale of

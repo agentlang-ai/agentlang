@@ -403,7 +403,7 @@ export class AgentInstance {
   }
 
   static FromDecision(desc: Decision, flowAgent: AgentInstance, context: string): AgentInstance {
-    const instruction = `${DecisionAgentInstructions}\n${context}\n\n${desc.joinedCases()}`;
+    const instruction = `CRITICAL: Return ONLY plain text. NO quotes, NO markdown, NO JSON, NO explanations.\n\n${DecisionAgentInstructions}\n${context}\n\n${desc.joinedCases()}`;
     const inst = makeInstance(
       CoreAIModuleName,
       AgentEntityName,

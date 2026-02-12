@@ -1,6 +1,11 @@
 import { assert, beforeEach, describe, test } from 'vitest';
 import { provider } from '../../src/runtime/agents/registry.js';
-import { AgentServiceProvider, AIResponse, humanMessage, systemMessage, } from '../../src/runtime/agents/provider.js';
+import {
+  AgentServiceProvider,
+  AIResponse,
+  humanMessage,
+  systemMessage,
+} from '../../src/runtime/agents/provider.js';
 import { doInternModule } from '../util.js';
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import {

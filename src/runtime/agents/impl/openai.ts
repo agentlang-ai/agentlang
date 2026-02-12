@@ -117,7 +117,7 @@ export class OpenAIProvider implements AgentServiceProvider {
   private parseConfig(config?: Map<string, any>): OpenAIConfig {
     const defaultConfig: OpenAIConfig = {
       model: 'gpt-5.2',
-      temperature: 0.7,
+      temperature: 0.1,
       maxTokens: 4096,
       topP: 1.0,
       frequencyPenalty: 0,
@@ -219,10 +219,14 @@ export class OpenAIProvider implements AgentServiceProvider {
       if ((message as any)._getType() === 'system') {
         const content = message.content;
         if (typeof content === 'string' && content.length > 1000) {
-          (message as any).additional_kwargs = {
+          // Create a shallow copy of the message to avoid modifying the original
+          const messageCopy = Object.create(Object.getPrototypeOf(message));
+          Object.assign(messageCopy, message);
+          (messageCopy as any).additional_kwargs = {
             ...((message as any).additional_kwargs || {}),
             cache_control: { type: this.config.cacheControl || 'ephemeral' },
           };
+          processedMessages[i] = messageCopy;
         }
         break;
       }
