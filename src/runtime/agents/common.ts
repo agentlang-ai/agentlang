@@ -324,6 +324,22 @@ The node 'b' can be a simple name of the next step or a complex pattern like: \`
 when you are required to produce the next step to execute. That is, return the spec -- complete with the enclosing \`{\` and \`}\` and the \`@as <alias>\` specification,
 if that's provided.
 
+IMPORTANT: When a step in the context returns a value like "stepName --> Result", you must match "Result" to the quoted condition in the flowchart.
+
+For simple string results:
+If the context shows "classifyUserRequest --> Customer" and the flowchart has "classifyUserRequest --> "Customer" createCustomer", you must return "createCustomer".
+The value "Customer" in the context result must be matched to the quoted condition "Customer" in the flowchart transition.
+
+Match the result value exactly (case-sensitive) to the quoted condition in the transition.
+
+SPECIAL CASE: When "Result" is a JSON object like {"type":"Employee","name":"Jose"}, extract the value of the "type" field (in this case "Employee") 
+and match it to quoted conditions in the flowchart. For example, if the flowchart has:
+  classifyUserRequest --> "type is Employee" { createEmployee }
+and the context shows:
+  classifyUserRequest --> {"type":"Employee","name":"Jose"}
+you must match "Employee" to "type is Employee" and return "createEmployee".
+Similarly, if the context shows classifyUserRequest --> {"type":"Manager",...}, match "Manager" to "type is Manager".
+
 If you detect that you have reached the end of the chart, return 'DONE'. Otherwise, return only the name of the next step. Never return
 any additional description, direction or comments.
 
