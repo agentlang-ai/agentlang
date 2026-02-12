@@ -1,15 +1,7 @@
 import { OpenAIProvider } from './impl/openai.js';
 import { AnthropicProvider } from './impl/anthropic.js';
-import { GeminiProvider } from './impl/gemini.js';
-import { GrokProvider } from './impl/grok.js';
 
-const Providers = new Map()
-  .set('openai', OpenAIProvider)
-  .set('anthropic', AnthropicProvider)
-  .set('gemini', GeminiProvider)
-  .set('google', GeminiProvider)
-  .set('grok', GrokProvider)
-  .set('xai', GrokProvider);
+const Providers = new Map().set('openai', OpenAIProvider).set('anthropic', AnthropicProvider);
 
 export function provider(service: string) {
   const requestedService = service.toLowerCase();
