@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.10.1](https://github.com/agentlang-ai/agentlang/compare/0.10.0...0.10.1) (2026-02-12)
+
+### Changes
+
+* Clean up node usages and keep it unbundled for browser usages (#583) ([2f61e34](https://github.com/agentlang-ai/agentlang/commit/2f61e344981c903c44ddab75db75bbaaecdc9b91)) - @pratik
+* Revert "Updates to caching and provider for LLMs (#581)" (#582) ([ce8c57b](https://github.com/agentlang-ai/agentlang/commit/ce8c57b0b29ffafc72e4519a3ad7ce68e02e5547)) - @vijayfractl
+* push user-specific part in system-message to human-message (#578) ([f65e77a](https://github.com/agentlang-ai/agentlang/commit/f65e77a4f0850b22bea14970d4fd1821123c8ad7)) - @vijayfractl
+* Updates to caching and provider for LLMs (#581) ([0e16b70](https://github.com/agentlang-ai/agentlang/commit/0e16b700bb7921e1dfd02bbb142ee6e3ad78382a)) - @pratik
+
+---
 ## [0.10.0](https://github.com/agentlang-ai/agentlang/compare/0.9.11...0.10.0) (2026-02-12)
 
 ### Changes
