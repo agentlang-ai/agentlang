@@ -82,6 +82,15 @@ export class AnthropicProvider implements AgentServiceProvider {
   constructor(config?: Map<string, any>) {
     this.config = this.parseConfig(config);
 
+    // Validate extended output requirements - streaming is required for 128k outputs to avoid timeouts
+    if (this.config.enableExtendedOutput && !this.config.stream) {
+      throw new Error(
+        'Anthropic configuration error: enableExtendedOutput requires stream to be true. ' +
+          'Extended output mode generates up to 128k tokens and streaming is required to avoid timeouts. ' +
+          'Please set stream: true in your configuration or disable enableExtendedOutput.'
+      );
+    }
+
     const chatConfig: any = {
       model: this.config.model,
       temperature: this.config.temperature,
@@ -164,12 +173,12 @@ export class AnthropicProvider implements AgentServiceProvider {
 
   private parseConfig(config?: Map<string, any>): AnthropicConfig {
     const defaultConfig: AnthropicConfig = {
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       temperature: 0.7,
       maxTokens: 8192,
       maxRetries: 2,
       stream: false,
-      enablePromptCaching: false,
+      enablePromptCaching: true,
       cacheControl: 'ephemeral',
       enableThinking: false,
       budgetTokens: 1024,
@@ -319,6 +328,15 @@ export class AnthropicProvider implements AgentServiceProvider {
 
   updateConfig(newConfig: Partial<AnthropicConfig>): void {
     this.config = { ...this.config, ...newConfig };
+
+    // Validate extended output requirements - streaming is required for 128k outputs to avoid timeouts
+    if (this.config.enableExtendedOutput && !this.config.stream) {
+      throw new Error(
+        'Anthropic configuration error: enableExtendedOutput requires stream to be true. ' +
+          'Extended output mode generates up to 128k tokens and streaming is required to avoid timeouts. ' +
+          'Please set stream: true in your configuration or disable enableExtendedOutput.'
+      );
+    }
 
     const chatConfig: any = {
       model: this.config.model,
