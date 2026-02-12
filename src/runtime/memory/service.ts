@@ -157,21 +157,45 @@ export async function storeEpisode(
         sourceId "${sessionId}", 
         containerTag "${containerTag}", 
         sessionId "${sessionId}", 
-        isLatest true
-      }}`,
+        isLatest true}}`,
       undefined
     );
+
+    // Store individual messages as SessionMessage entities
+    await storeSessionMessage(sessionId, 'user', userMessage);
+    await storeSessionMessage(sessionId, 'assistant', assistantResponse);
 
     // Update session last activity
     await parseAndEvaluateStatement(
       `{${CoreMemoryModuleName}/AgentSession {
         id "${sessionId}", 
         lastActivity now()
-      }, @upsert}`,
+        }, @upsert}`,
       undefined
     );
   } catch (err) {
     logger.error(`Failed to store episode: ${err}`);
+    // Don't throw - this is background work
+  }
+}
+
+/**
+ * Store a single session message
+ */
+async function storeSessionMessage(
+  sessionId: string,
+  role: 'user' | 'assistant' | 'system',
+  content: string
+): Promise<void> {
+  try {
+    await parseAndEvaluateStatement(
+      `{${CoreMemoryModuleName}/SessionMessage {
+        role "${role}", 
+        content "${escapeString(content)}"}}`,
+      undefined
+    );
+  } catch (err) {
+    logger.error(`Failed to store session message: ${err}`);
     // Don't throw - this is background work
   }
 }

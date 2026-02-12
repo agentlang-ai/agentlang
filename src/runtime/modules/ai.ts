@@ -80,6 +80,8 @@ import {
   getOrCreateSession,
   retrieveMemoryContext,
   storeEpisode,
+  extractFactsFromConversation,
+  storeExtractedFacts,
 } from '../memory/index.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
@@ -961,6 +963,17 @@ Only return a pure JSON object with no extra text, annotations etc.`;
                 response.content,
                 memorySession.containerTag
               );
+              // Extract and store facts from the conversation
+              const facts = await extractFactsFromConversation(
+                memorySession,
+                message,
+                response.content,
+                env,
+                this.llm
+              );
+              if (facts.length > 0) {
+                await storeExtractedFacts(memorySession, facts);
+              }
             } catch (err) {
               logger.warn(`Failed to store a memory episode: ${err}`);
             }
