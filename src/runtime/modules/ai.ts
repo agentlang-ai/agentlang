@@ -70,7 +70,6 @@ import {
 } from '../agents/common.js';
 import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
-import Handlebars from 'handlebars';
 import { Statement } from '../../language/generated/ast.js';
 import { isMonitoringEnabled, TtlCache } from '../state.js';
 import { isNodeEnv } from '../../utils/runtime.js';
@@ -107,6 +106,7 @@ entity ${AgentEntityName} {
     flows String @optional,
     validate String @optional,
     retry String @optional,
+    saveResponseAs String @optional,
     llm String
 }
 
@@ -323,6 +323,7 @@ export class AgentInstance {
   flows: string | undefined;
   validate: string | undefined;
   retry: string | undefined;
+  saveResponseAs: string | undefined;
   stateless: boolean = false;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
@@ -645,7 +646,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const spad = env.getScratchPad();
     if (spad !== undefined && Object.keys(spad).length > 0) {
       if (finalInstruction.indexOf('{{') > 0) {
-        return AgentInstance.maybeRewriteTemplatePatterns(spad, finalInstruction, env);
+        return env.maybeRewriteTemplatePatterns(finalInstruction, spad);
       } else {
         const ctx = JSON.stringify(spad);
         return `${finalInstruction}\nSome additional context:\n${ctx}`;
@@ -657,6 +658,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   }
 
   private static UserTag = 'user';
+  private static FileTag = 'file';
 
   private async getFullInstructions(
     env: Environment,
@@ -670,13 +672,21 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     }
   }
 
-  private static maybeRewriteTemplatePatterns(
-    scratchPad: any,
-    instruction: string,
-    env: Environment
-  ): string {
-    const templ = Handlebars.compile(env.rewriteTemplateMappings(instruction));
-    return templ(scratchPad);
+  private async maybeFillInFileContents(instructions: string, env: Environment): Promise<string> {
+    const chatId = env.getActiveChatId();
+    const FC = '$FC';
+    if (chatId && instructions.indexOf(`<${AgentInstance.FileTag}>`) > 0) {
+      const ext = extractAndRemoveAllXmlTaggedText(instructions, AgentInstance.FileTag, FC);
+      if (ext.extracted) {
+        instructions = ext.updatedText;
+        for (let i = 0; i < ext.extracted.length; ++i) {
+          const fileName = ext.extracted[i];
+          const contents = await loadLocalAgentResult(chatId, fileName);
+          if (contents) instructions = instructions.replace(FC, contents);
+        }
+      }
+    }
+    return instructions;
   }
 
   maybeValidateJsonResponse(response: string | undefined): object | undefined {
@@ -875,7 +885,8 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         }
         let tmpMsg = message;
         if (extractedText?.extracted) {
-          tmpMsg = `${tmpMsg}\n${extractedText.extracted.join('\n')}`;
+          const s = await this.maybeFillInFileContents(extractedText.extracted.join('\n'), env);
+          tmpMsg = `${tmpMsg}\n${s}`;
         }
         const hmsg = await this.maybeAddRelevantDocuments(
           this.maybeAddFlowContext(tmpMsg, env),
@@ -927,6 +938,9 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           await saveAgentChatSession(chatId, msgs, env);
         }
         if (monitoringEnabled) env.setMonitorEntryLlmResponse(response.content);
+        if (this.saveResponseAs) {
+          await saveAgentResponse(this.saveResponseAs, response.content, env);
+        }
         env.setLastResult(response.content);
       } catch (err: any) {
         logger.error(`Error while invoking ${agentName} - ${err}`);
@@ -1448,15 +1462,9 @@ export async function saveFlowStepResultLocally(
   chatId: string,
   step: string,
   result: string,
-  suspensionId: string
-): Promise<Instance | undefined> {
+  suspensionId?: string | undefined
+): Promise<string> {
   const fs = await getFileSystem();
-  const attrs = newInstanceAttributes()
-    .set('chatId', chatId)
-    .set('step', step)
-    .set('result', result)
-    .set('suspensionId', suspensionId);
-  const inst = makeInstance(CoreAIModuleName, AgentFlowStep, attrs);
   const rootDirName = LocalFlowStepsRootDirName;
   if (!(await fs.exists(rootDirName))) {
     await fs.mkdir(rootDirName);
@@ -1469,8 +1477,18 @@ export async function saveFlowStepResultLocally(
   if (await fs.exists(fileName)) {
     await fs.unlink(fileName);
   }
-  await fs.writeFile(fileName, JSON.stringify(inst.attributesAsObject(true)));
-  return inst;
+  let s = result;
+  if (suspensionId) {
+    const attrs = newInstanceAttributes()
+      .set('chatId', chatId)
+      .set('step', step)
+      .set('result', result)
+      .set('suspensionId', suspensionId);
+    const inst = makeInstance(CoreAIModuleName, AgentFlowStep, attrs);
+    s = JSON.stringify(inst.attributesAsObject(true));
+  }
+  await fs.writeFile(fileName, s);
+  return s;
 }
 
 export async function saveFlowStepResult(
@@ -1479,9 +1497,10 @@ export async function saveFlowStepResult(
   result: string,
   suspensionId: string,
   env: Environment
-): Promise<Instance | undefined> {
+): Promise<boolean> {
   if (LocalAgentgFlow) {
-    return await saveFlowStepResultLocally(chatId, step, result, suspensionId);
+    await saveFlowStepResultLocally(chatId, step, result, suspensionId);
+    return true;
   } else {
     const t = `${CoreAIModuleName}/${AgentFlowStep}`;
     try {
@@ -1495,11 +1514,11 @@ export async function saveFlowStepResult(
         undefined,
         env
       );
-      if (isInstanceOfType(inst, t)) return inst;
-      else return undefined;
+      if (isInstanceOfType(inst, t)) return true;
+      else return false;
     } catch (reason: any) {
       logger.error(`failed to save flow result for step ${step} - ${reason}`);
-      return undefined;
+      return false;
     }
   }
 }
@@ -1537,10 +1556,10 @@ export async function loadFlowStepResults(chatId: string): Promise<Instance[]> {
   }
 }
 
-export async function loadLocalFlowStep(
+export async function loadLocalAgentResult(
   chatId: string,
   step: string
-): Promise<Instance | undefined> {
+): Promise<string | undefined> {
   const fs = await getFileSystem();
   const dirName = `${LocalFlowStepsRootDirName}/${chatId}`;
   if (await fs.exists(dirName)) {
@@ -1548,13 +1567,23 @@ export async function loadLocalFlowStep(
     for (let i = 0; i < fileNames.length; ++i) {
       const fileName = fileNames[i];
       if (fileName === step) {
-        const attrs = objectToInstanceAttributes(
-          JSON.parse(await fs.readFile(`${dirName}/${fileName}`))
-        );
-        return makeInstance(CoreAIModuleName, AgentFlowStep, attrs);
+        return await fs.readFile(`${dirName}/${fileName}`);
       }
     }
     return undefined;
+  } else {
+    return undefined;
+  }
+}
+
+export async function loadLocalFlowStep(
+  chatId: string,
+  step: string
+): Promise<Instance | undefined> {
+  const contents = await loadLocalAgentResult(chatId, step);
+  if (contents) {
+    const attrs = objectToInstanceAttributes(JSON.parse(contents));
+    return makeInstance(CoreAIModuleName, AgentFlowStep, attrs);
   } else {
     return undefined;
   }
@@ -1638,4 +1667,18 @@ export async function fetchAndCreateDocument(
   } else {
     throw new Error(`Failed to fetch document: ${title} from ${url}`);
   }
+}
+
+export async function saveAgentResponse(
+  fileName: string,
+  response: string,
+  env: Environment
+): Promise<string> {
+  const chatId = env.getActiveChatId();
+  if (chatId) {
+    await saveFlowStepResultLocally(chatId, fileName, response);
+  } else {
+    logger.warn(`No chatId set, ${fileName} was not saved.`);
+  }
+  return response;
 }

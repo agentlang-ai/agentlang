@@ -119,6 +119,7 @@ import { Monitor, MonitorEntry } from './monitor.js';
 import { detailedDiff } from 'deep-object-diff';
 import { callMcpTool, mcpClientNameFromToolEvent } from './mcpclient.js';
 import { isNodeEnv } from '../utils/runtime.js';
+import Handlebars from 'handlebars';
 
 export type Result = any;
 
@@ -174,6 +175,7 @@ export class Environment extends Instance {
   private agentChatId: string | undefined = undefined;
   private monitor: Monitor | undefined = undefined;
   private escalatedRole: string | undefined;
+  private activeChatId: string | undefined;
 
   private activeUserData: any = undefined;
 
@@ -201,6 +203,7 @@ export class Environment extends Instance {
       this.agentChatId = parent.agentChatId;
       this.monitor = parent.monitor;
       this.escalatedRole = parent.escalatedRole;
+      this.activeChatId = parent.activeChatId;
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
@@ -327,6 +330,15 @@ export class Environment extends Instance {
     return this.attributes.get(Environment.FlowContextTag);
   }
 
+  setActiveChatId(chatId: string): Environment {
+    this.activeChatId = chatId;
+    return this;
+  }
+
+  getActiveChatId(): string | undefined {
+    return this.activeChatId;
+  }
+
   addToScratchPad(k: string, data: any): Environment {
     if (this.scratchPad === undefined) {
       this.scratchPad = {};
@@ -395,6 +407,11 @@ export class Environment extends Instance {
   resetTemplateMappings(): Environment {
     this.templateMappings?.clear();
     return this;
+  }
+
+  maybeRewriteTemplatePatterns(instruction: string, scratchPad?: any): string {
+    const templ = Handlebars.compile(this.rewriteTemplateMappings(instruction));
+    return templ(scratchPad);
   }
 
   static SuspensionUserData = '^';
@@ -2128,6 +2145,10 @@ export async function handleAgentInvocation(
   env: Environment
 ): Promise<void> {
   const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
+  const chatId = agentEventInst.lookup('chatId');
+  if (chatId) {
+    env.setActiveChatId(chatId);
+  }
   const origMsg: any =
     agentEventInst.lookup('message') || JSON.stringify(agentEventInst.asObject());
   const msg: string = isString(origMsg) ? origMsg : maybeInstanceAsString(origMsg);
@@ -2137,7 +2158,6 @@ export async function handleAgentInvocation(
   } else {
     const mode = agentEventInst.lookup('mode');
     let activeEnv = env;
-    const chatId = agentEventInst.lookup('chatId');
     if (chatId !== undefined) {
       activeEnv.setAgentChatId(chatId);
     }

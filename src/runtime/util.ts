@@ -671,7 +671,11 @@ export type ExtractedText = {
 };
 
 // extract all data between a given xml tag from within an arbitray text.
-export function extractAndRemoveAllXmlTaggedText(text: string, tagName: string): ExtractedText {
+export function extractAndRemoveAllXmlTaggedText(
+  text: string,
+  tagName: string,
+  replaceWith: string = ''
+): ExtractedText {
   const pattern = `<${tagName}\\b[^>]*>([\\s\\S]*?)</${tagName}>`;
   const regex = new RegExp(pattern, 'gi');
 
@@ -683,7 +687,7 @@ export function extractAndRemoveAllXmlTaggedText(text: string, tagName: string):
     extracted.push(match[1]);
   }
 
-  updatedText = text.replace(regex, '');
+  updatedText = text.replace(regex, replaceWith);
 
   return { extracted, updatedText };
 }
