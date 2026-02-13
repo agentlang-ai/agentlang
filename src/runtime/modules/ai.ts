@@ -40,7 +40,7 @@ import {
   resolveDocumentAliases,
   Retry,
 } from '../module.js';
-import { provider } from '../agents/registry.js';
+import { getRemoteAgent, invokeRemoteAgentWithMessage, provider } from '../agents/registry.js';
 import {
   AgentServiceProvider,
   AIResponse,
@@ -331,6 +331,7 @@ export class AgentInstance {
   private decisionExecutor = false;
   private retryObj: Retry | undefined;
   private addContext = false;
+  private remoteAgentSpec: any = undefined;
 
   private constructor() {}
 
@@ -418,6 +419,22 @@ export class AgentInstance {
         .set('instruction', instruction)
     );
     return AgentInstance.FromInstance(inst).disableSession().markAsDecisionExecutor();
+  }
+
+  static FromRemoteAgentSpec(
+    name: string,
+    moduleName: string,
+    remoteAgentSpec: any
+  ): AgentInstance {
+    const result = new AgentInstance();
+    result.name = name;
+    result.moduleName = moduleName;
+    result.remoteAgentSpec = remoteAgentSpec;
+    return result;
+  }
+
+  isRemoteAgent(): boolean {
+    return this.remoteAgentSpec !== undefined;
   }
 
   swapInstruction(newIns: string): string {
@@ -809,6 +826,10 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   }
 
   async invoke(message: string, env: Environment) {
+    if (this.isRemoteAgent()) {
+      env.setLastResult(invokeRemoteAgentWithMessage(this.remoteAgentSpec, message));
+      return;
+    }
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
     const chatId = env.getAgentChatId() || agentName;
@@ -1207,7 +1228,17 @@ async function parseHelper(stmt: string, env: Environment): Promise<any> {
   return env.getLastResult();
 }
 
-export async function findAgentByName(name: string, env: Environment): Promise<AgentInstance> {
+export async function findAgentByName(
+  name: string,
+  moduleName: string | undefined,
+  env: Environment
+): Promise<AgentInstance> {
+  if (moduleName) {
+    const remoteAgentSpec = getRemoteAgent(makeFqName(moduleName, name));
+    if (remoteAgentSpec) {
+      return AgentInstance.FromRemoteAgentSpec(name, moduleName, remoteAgentSpec);
+    }
+  }
   const result = await parseHelper(`{${AgentFqName} {name? "${name}"}}`, env);
   if (result instanceof Array && result.length > 0) {
     const agentInstance: Instance = result[0];
