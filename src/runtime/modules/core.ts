@@ -26,6 +26,7 @@ import {
   evaluateStatements,
   parseAndEvaluateStatement,
   restartFlow,
+  restartFlowFromCheckpoint,
 } from '../interpreter.js';
 import { logger } from '../logger.js';
 import { Statement } from '../../language/generated/ast.js';
@@ -79,6 +80,43 @@ entity activeSuspension {
 
 resolver suspensionResolver ["${DefaultModuleName}/activeSuspension"] {
     query Core.lookupActiveSuspension
+}
+
+entity checkpoint {
+  id UUID @id @default(uuid()),
+  executionId String @indexed,
+  stepLabel String,
+  stepIndex Int,
+  continuation String[],
+  env Any,
+  scratchPad Any @optional,
+  status @enum("active", "invalidated") @default("active") @indexed,
+  createdOn DateTime @default(now()),
+  createdBy String
+}
+
+workflow createCheckpoint {
+  {checkpoint
+    {executionId createCheckpoint.executionId,
+     stepLabel createCheckpoint.stepLabel,
+     stepIndex createCheckpoint.stepIndex,
+     continuation createCheckpoint.continuation,
+     env createCheckpoint.env,
+     scratchPad createCheckpoint.scratchPad,
+     createdBy createCheckpoint.createdBy}}
+}
+
+@public workflow restoreCheckpoint {
+  await Core.restoreCheckpoint(restoreCheckpoint.checkpointId)
+}
+
+@public event listCheckpoints {
+  executionId String
+}
+
+workflow listCheckpoints {
+  {checkpoint {executionId? listCheckpoints.executionId, status? "active"}} @as results
+  results
 }
 
 workflow createSuspension {
@@ -431,6 +469,137 @@ export async function lookupActiveSuspension(
     }
   } else {
     return [];
+  }
+}
+
+// --- Checkpoint support ---
+
+export type Checkpoint = {
+  id: string;
+  executionId: string;
+  stepLabel: string;
+  stepIndex: number;
+  continuation: Statement[];
+  flowContext?: string[];
+  env: Environment;
+  scratchPad?: any;
+};
+
+export async function createCheckpoint(
+  executionId: string,
+  stepLabel: string,
+  stepIndex: number,
+  continuation: string[],
+  env: Environment,
+  scratchPad?: any
+): Promise<string | undefined> {
+  const user = env.getActiveUser();
+  const newEnv = new Environment('ckpt', env).setInKernelMode(true);
+  const envObj = env.asSerializableObject();
+  const inst = makeInstance(
+    'agentlang',
+    'createCheckpoint',
+    newInstanceAttributes()
+      .set('executionId', executionId)
+      .set('stepLabel', stepLabel)
+      .set('stepIndex', stepIndex)
+      .set('continuation', continuation)
+      .set('env', envObj)
+      .set('scratchPad', scratchPad)
+      .set('createdBy', user)
+  );
+  const r: any = await evaluate(inst, undefined, newEnv);
+  if (!isInstanceOfType(r, 'agentlang/checkpoint')) {
+    logger.warn(`Failed to create checkpoint for execution ${executionId}`);
+    return undefined;
+  }
+  return (r as Instance).lookup('id');
+}
+
+async function loadCheckpoint(checkpointId: string, env?: Environment): Promise<Checkpoint | undefined> {
+  const newEnv = new Environment('ckpt-load', env).setInKernelMode(true);
+  const r: any = await parseAndEvaluateStatement(
+    `{agentlang/checkpoint {id? "${checkpointId}"}}`,
+    undefined,
+    newEnv
+  );
+  if (r instanceof Array && r.length > 0) {
+    const inst: Instance = r[0];
+    const cont = inst.lookup('continuation');
+    const ifs = isFlowSuspension(cont);
+    const stmts: Statement[] = ifs ? new Array<Statement>() : await parseStatements(cont);
+    const envStr = inst.lookup('env');
+    const ckptEnv: Environment = Environment.FromSerializableObject(JSON.parse(envStr));
+    return {
+      id: inst.lookup('id'),
+      executionId: inst.lookup('executionId'),
+      stepLabel: inst.lookup('stepLabel'),
+      stepIndex: inst.lookup('stepIndex'),
+      continuation: stmts,
+      env: ckptEnv,
+      flowContext: ifs ? cont : undefined,
+      scratchPad: inst.lookup('scratchPad'),
+    };
+  }
+  return undefined;
+}
+
+export async function listCheckpoints(executionId: string, env?: Environment): Promise<Instance[]> {
+  const newEnv = new Environment('ckpt-list', env).setInKernelMode(true);
+  const r: any = await parseAndEvaluateStatement(
+    `{agentlang/checkpoint {executionId? "${executionId}", status? "active"}}`,
+    undefined,
+    newEnv
+  );
+  if (r instanceof Array) {
+    return r;
+  }
+  return [];
+}
+
+export async function restoreCheckpoint(checkpointId: string, env?: Environment): Promise<any> {
+  const ckpt = await loadCheckpoint(checkpointId, env);
+  if (ckpt) {
+    if (ckpt.flowContext) {
+      await restartFlowFromCheckpoint(ckpt.flowContext, ckpt.env);
+    } else {
+      await evaluateStatements(ckpt.continuation, ckpt.env);
+    }
+    // NOTE: checkpoint is NOT deleted on restore (unlike suspension)
+    return ckpt.env.getLastResult();
+  } else {
+    logger.warn(`Checkpoint ${checkpointId} not found`);
+    return undefined;
+  }
+}
+
+export async function invalidateCheckpoints(executionId: string, env?: Environment): Promise<void> {
+  const ckpts = await listCheckpoints(executionId, env);
+  const newEnv = new Environment('ckpt-invalidate', env).setInKernelMode(true);
+  for (let i = 0; i < ckpts.length; ++i) {
+    const id = ckpts[i].lookup('id');
+    try {
+      await parseAndEvaluateStatement(
+        `{agentlang/checkpoint {id? "${id}", status "invalidated"}}`,
+        undefined,
+        newEnv
+      );
+    } catch (err: any) {
+      logger.warn(`Failed to invalidate checkpoint ${id} - ${err}`);
+    }
+  }
+}
+
+export async function deleteCheckpoints(executionId: string, env?: Environment): Promise<void> {
+  try {
+    const newEnv = new Environment('ckpt-delete', env).setInKernelMode(true);
+    await parseAndEvaluateStatement(
+      `purge {agentlang/checkpoint {executionId? "${executionId}"}}`,
+      undefined,
+      newEnv
+    );
+  } catch (err: any) {
+    logger.warn(`Failed to delete checkpoints for execution ${executionId} - ${err}`);
   }
 }
 

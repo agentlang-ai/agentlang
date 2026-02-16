@@ -106,8 +106,11 @@ import {
   addCreateAudit,
   addDeleteAudit,
   addUpdateAudit,
+  createCheckpoint,
   createSuspension,
   flushMonitoringData,
+  listCheckpoints,
+  restoreCheckpoint,
   triggerTimer,
 } from './modules/core.js';
 import { getModuleDef, invokeModuleFn } from './jsmodules.js';
@@ -174,6 +177,9 @@ export class Environment extends Instance {
   private agentChatId: string | undefined = undefined;
   private monitor: Monitor | undefined = undefined;
   private escalatedRole: string | undefined;
+  private checkpointEnabled: boolean = false;
+  private checkpointExecutionId: string | undefined = undefined;
+  private checkpointStepIndex: number = 0;
 
   private activeUserData: any = undefined;
 
@@ -201,6 +207,9 @@ export class Environment extends Instance {
       this.agentChatId = parent.agentChatId;
       this.monitor = parent.monitor;
       this.escalatedRole = parent.escalatedRole;
+      this.checkpointEnabled = parent.checkpointEnabled;
+      this.checkpointExecutionId = parent.checkpointExecutionId;
+      // NOTE: checkpointStepIndex is NOT propagated — each child env starts at 0
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
@@ -507,6 +516,31 @@ export class Environment extends Instance {
     } else {
       throw new Error('SuspensionId is not set');
     }
+  }
+
+  enableCheckpoint(): Environment {
+    this.checkpointEnabled = true;
+    this.checkpointExecutionId = crypto.randomUUID();
+    this.checkpointStepIndex = 0;
+    return this;
+  }
+
+  isCheckpointEnabled(): boolean {
+    return this.checkpointEnabled;
+  }
+
+  getCheckpointExecutionId(): string | undefined {
+    return this.checkpointExecutionId;
+  }
+
+  setCheckpointExecutionId(id: string): Environment {
+    this.checkpointExecutionId = id;
+    this.checkpointEnabled = true;
+    return this;
+  }
+
+  incrementCheckpointIndex(): number {
+    return this.checkpointStepIndex++;
   }
 
   getActiveAuthContext(): ActiveSessionInfo | undefined {
@@ -2165,6 +2199,9 @@ async function handleAgentInvocationWithFlow(
   env: Environment
 ): Promise<void> {
   rootAgent.markAsFlowExecutor();
+  if (rootAgent.checkpoint) {
+    env.enableCheckpoint();
+  }
   await iterateOnFlow(flow, rootAgent, msg, env);
   env.resetScratchPad();
 }
@@ -2196,6 +2233,19 @@ export async function restartFlow(
     const newCtx = `${ctx}\nRestart the flow at ${step} using the following user-input as additional guidance:\n${userData}\n`;
     env.setScratchPad(JSON.parse(spad));
     await iterateOnFlow(flow, rootAgent, newCtx, env);
+  }
+}
+
+export async function restartFlowFromCheckpoint(
+  flowContext: string[],
+  env: Environment
+): Promise<void> {
+  const [_, agentName, _step, ctx, spad] = flowContext;
+  const rootAgent: AgentInstance = await findAgentByName(agentName, env);
+  const flow = getAgentFlow(agentName, rootAgent.moduleName);
+  if (flow) {
+    env.setScratchPad(JSON.parse(spad));
+    await iterateOnFlow(flow, rootAgent, ctx, env);
   }
 }
 
@@ -2279,6 +2329,16 @@ async function iterateOnFlow(
           await saveFlowSuspension(rootAgent, context, step, suspEnv);
           await saveFlowStepResult(chatId, step, rs, suspEnv.getSuspensionId(), env);
         }
+        if (env.isCheckpointEnabled()) {
+          await createCheckpoint(
+            env.getCheckpointExecutionId()!,
+            step,
+            env.incrementCheckpointIndex(),
+            [FlowSuspensionTag, rootAgent.name, step, context, JSON.stringify(env.getScratchPad() || {})],
+            env,
+            env.getScratchPad()
+          );
+        }
         if (isfxc) {
           preprocResult = await preprocessStep(rs, rootModuleName, env);
         } else {
@@ -2290,6 +2350,16 @@ async function iterateOnFlow(
         needAgentProcessing = preprocResult.needAgentProcessing;
       }
     } catch (reason: any) {
+      if (env.isCheckpointEnabled()) {
+        const ckpts = await listCheckpoints(env.getCheckpointExecutionId()!, env);
+        if (ckpts.length > 0) {
+          const latest = ckpts[ckpts.length - 1];
+          const ckptId = latest.lookup('id');
+          logger.info(`Restoring flow from checkpoint ${ckptId} at step ${latest.lookup('stepLabel')}`);
+          await restoreCheckpoint(ckptId, env);
+          break;
+        }
+      }
       if (fullFlowRetries < MaxFlowRetries) {
         msg = `The previous attempt failed at step ${step} with the error ${reason}. Restart the flow the appropriate step
 (maybe even from the first step) and try to fix the issue.`;

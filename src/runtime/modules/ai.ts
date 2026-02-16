@@ -107,6 +107,7 @@ entity ${AgentEntityName} {
     flows String @optional,
     validate String @optional,
     retry String @optional,
+    checkpoint Boolean @default(false),
     llm String
 }
 
@@ -324,6 +325,7 @@ export class AgentInstance {
   validate: string | undefined;
   retry: string | undefined;
   stateless: boolean = false;
+  checkpoint: boolean = false;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
   private withSession = true;
