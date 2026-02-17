@@ -1475,6 +1475,84 @@ describe('Built-in date functions', () => {
     );
   });
 
+  test('dateFns nested calls in between query with @into', async () => {
+    await doInternModule(
+      'DfShift',
+      `entity Employee {
+        id Int @id,
+        name String
+      }
+      entity Shift {
+        id Int @id,
+        employeeId Int,
+        shiftDate Date,
+        hours Decimal
+      }
+
+      workflow EmployeeShiftsForWeek {
+        dateFns.startOfWeek(EmployeeShiftsForWeek.date) @as targetWeek
+        {Shift {
+            employeeId? EmployeeShiftsForWeek.employeeId,
+            shiftDate?between [dateFns.addWeeks(targetWeek, EmployeeShiftsForWeek.offset),
+                               dateFns.addDays(dateFns.addWeeks(targetWeek, EmployeeShiftsForWeek.offset), 6)]
+        }, @into {hours Shift.hours}} @as shifts
+        shifts
+      }
+      `
+    );
+    await parseAndEvaluateStatement(`{DfShift/Employee {id 1, name "Alice"}}`);
+    // Week of 2026-02-16 (Mon) to 2026-02-22 (Sun)
+    await parseAndEvaluateStatement(
+      `{DfShift/Shift {id 1, employeeId 1, shiftDate "2026-02-18", hours 8.0}}`
+    );
+    await parseAndEvaluateStatement(
+      `{DfShift/Shift {id 2, employeeId 1, shiftDate "2026-02-20", hours 4.0}}`
+    );
+    // Week of 2026-02-09 (Mon) to 2026-02-15 (Sun) - previous week
+    await parseAndEvaluateStatement(
+      `{DfShift/Shift {id 3, employeeId 1, shiftDate "2026-02-10", hours 6.0}}`
+    );
+    // Week of 2026-02-23 (Mon) to 2026-03-01 (Sun) - next week
+    await parseAndEvaluateStatement(
+      `{DfShift/Shift {id 4, employeeId 1, shiftDate "2026-02-25", hours 3.0}}`
+    );
+    // Different employee
+    await parseAndEvaluateStatement(
+      `{DfShift/Shift {id 5, employeeId 2, shiftDate "2026-02-18", hours 5.0}}`
+    );
+
+    // Query current week (offset 0) for employee 1 - base date is mid-week Wednesday
+    const current: any[] = await parseAndEvaluateStatement(
+      `{DfShift/EmployeeShiftsForWeek {employeeId 1, date "2026-02-18", offset 0}}`
+    );
+    assert(current instanceof Array);
+    assert(current.length == 2);
+    assert(current.every((r: any) => r.hours == 8.0 || r.hours == 4.0));
+
+    // Query previous week (offset -1)
+    const prev: any[] = await parseAndEvaluateStatement(
+      `{DfShift/EmployeeShiftsForWeek {employeeId 1, date "2026-02-18", offset -1}}`
+    );
+    assert(prev instanceof Array);
+    assert(prev.length == 1);
+    assert(prev[0].hours == 6.0);
+
+    // Query next week (offset +1)
+    const next: any[] = await parseAndEvaluateStatement(
+      `{DfShift/EmployeeShiftsForWeek {employeeId 1, date "2026-02-18", offset 1}}`
+    );
+    assert(next instanceof Array);
+    assert(next.length == 1);
+    assert(next[0].hours == 3.0);
+
+    // Query week with no shifts (offset +2)
+    const empty: any[] = await parseAndEvaluateStatement(
+      `{DfShift/EmployeeShiftsForWeek {employeeId 1, date "2026-02-18", offset 2}}`
+    );
+    assert(empty instanceof Array);
+    assert(empty.length == 0);
+  });
+
   test('dateFns.toTimezone', async () => {
     await doInternModule(
       'DfTz',
