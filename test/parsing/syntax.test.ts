@@ -89,8 +89,7 @@ describe('Pattern generation using the syntax API', () => {
       crud4.toString() == '{Erp/User {age?between [20, 40], status "ok"}}',
       'Failed to generate query-update'
     );
-    const stmt3 =
-      `{Blog/User {name CreateUser.name},
+    const stmt3 = `{Blog/User {name CreateUser.name},
 UserProfile {Profile {email CreateUser.email}}}`;
     assert(crud3.toString() == stmt3, 'Failed to generate relationship pattern');
     const fe: ForEachPattern = new ForEachPattern('emp', crud2.unsetAlias());
@@ -181,10 +180,11 @@ describe('Pattern introspection', () => {
     cp = pats[0] as CrudPattern;
     assert(cp.isCreate, 'Failed to detect create pattern with relationships');
     assert(cp.relationships && cp.relationships.size == 2, 'Failed to parse relationships');
-    const s = cp.toString()
-    s
+    const s = cp.toString();
+    s;
     assert(
-      cp.toString() == `{User {name CreateUser.name},
+      cp.toString() ==
+        `{User {name CreateUser.name},
 UserProfile {Profile {email CreateUser.email}},UserPost {Post {title "hello, world"}}}`
     );
 
@@ -209,7 +209,7 @@ UserProfile {Profile {email CreateUser.email}},UserPost {Post {title "hello, wor
     assert(fep.alias == 'result', 'Failed to detect for-each alias');
     assert(
       fep.toString() ==
-      'for user in {Blog/User {email? "joe@acme.com"}}{{Blog/Person {name user.name}}} @as result',
+        'for user in {Blog/User {email? "joe@acme.com"}}{{Blog/Person {name user.name}}} @as result',
       'Failed to regenerate for-each'
     );
 
@@ -309,7 +309,7 @@ describe('Relationship and `into` introspection', () => {
     const s = p.toString();
     assert(
       s ==
-      `{Allocation? {},
+        `{Allocation? {},
 ResourceAllocation {Resource? {},
 TeamResource {Team {Id? GetTeamAllocations.TeamId}}},
 @into { Id Allocation.Id,
@@ -373,7 +373,7 @@ describe('Pre/Post workflow syntax', () => {
     const s = mod.toString();
     assert(
       s ==
-      `module WfSyntaxGen
+        `module WfSyntaxGen
 
 entity incident
 {
@@ -404,7 +404,7 @@ workflow onIncident {
     const ss = fetchModule(mname).toString();
     assert(
       ss ==
-      `module WfSyntaxGen
+        `module WfSyntaxGen
 
 entity incident
 {
@@ -508,7 +508,7 @@ in the incident's description."
     const s = mod.toString();
     assert(
       s ==
-      `module FlowSyntax
+        `module FlowSyntax
 
 entity manager
 {
@@ -616,7 +616,7 @@ describe('Extra agent attributes', () => {
     const s = m.toString();
     assert(
       s ==
-      `module XtraAgentAttrs
+        `module XtraAgentAttrs
 
 record emp
 {
@@ -659,7 +659,7 @@ describe('toString with extends', () => {
     const s = m.toString();
     assert(
       s ==
-      `module ExtendsToS
+        `module ExtendsToS
 
 record A
 {
@@ -676,7 +676,7 @@ entity B extends A
     const es = (m.getEntry('B') as Record).toString_(true);
     assert(
       es ==
-      `entity B
+        `entity B
 {
     id Int,
     name String,
@@ -718,7 +718,7 @@ describe('agent-xtras-to-string', () => {
     const s = m.toString();
     assert(
       s ===
-      `module StdAloneAgentXtras
+        `module StdAloneAgentXtras
 
 workflow scenario01 {
     {GA/Employee {name? "Jake"}} @as [employee];
@@ -797,7 +797,7 @@ describe('case-generation', () => {
     const s = d.toString();
     assert(
       s ===
-      `decision acceptOrRejectOffer {
+        `decision acceptOrRejectOffer {
       case ("salary is greater than 1000") {
     Accept
   }
@@ -827,7 +827,7 @@ case (salary < 1000) {
     const mods = fetchModule('caseGen').toString();
     assert(
       mods ===
-      `module caseGen
+        `module caseGen
 
 decision acceptOrRejectOffer {
       case ("salary is greater than 1000") {
@@ -862,7 +862,7 @@ describe('directive-generation', () => {
     const s = d.toString();
     assert(
       s ===
-      `directive A.dir01 {
+        `directive A.dir01 {
         if("salary > 1000") {"accept the offer"}
       }`
     );
@@ -874,7 +874,7 @@ describe('directive-generation', () => {
     const ms = fetchModule('dirGen').toString();
     assert(
       ms ===
-      `module dirGen
+        `module dirGen
 
 agent A
 {
@@ -896,7 +896,7 @@ describe('scenario-generation', () => {
     const s1 = scn01.toString();
     assert(
       s1 ===
-      `scenario A.scn01 {
+        `scenario A.scn01 {
     if("salary > 1000") {acme.core/incrementSalary}
 }
 `
@@ -906,7 +906,7 @@ describe('scenario-generation', () => {
     const s2 = scn02.toString();
     assert(
       s2 ===
-      `scenario A.scn02 {
+        `scenario A.scn02 {
     if("") {}
 }
 `
@@ -920,7 +920,7 @@ describe('scenario-generation', () => {
     const ms = fetchModule('dirGen').toString();
     assert(
       ms ===
-      `module dirGen
+        `module dirGen
 
 agent A
 {
@@ -1071,7 +1071,9 @@ describe('retry-construct', () => {
     );
     const m = fetchModule(mname);
     const s = m.toString();
-    assert(s === `module retryTest
+    assert(
+      s ===
+        `module retryTest
 
 entity A
 {
@@ -1095,7 +1097,8 @@ agent a1
     instruction "test agent",
     validate "v1",
     retry "r1"
-}`)
+}`
+    );
     const s1 = s.substring(s.indexOf('entity')).trim();
     await doInternModule(`${mname}1`, s1);
     const m2 = fetchModule(`${mname}1`);
@@ -1119,7 +1122,7 @@ describe('import-syntax', () => {
     const s1 = m.toString();
     assert(
       s1 ===
-      `module ImpSyn
+        `module ImpSyn
 
 import "./modules/core.ts" @as Core
 
@@ -1134,7 +1137,7 @@ entity A
     const s2 = m.toString();
     assert(
       s2 ===
-      `module ImpSyn
+        `module ImpSyn
 
 import "./modules/core.ts" @as Core
 import "./modules/ai.ts" @as AI
@@ -1149,13 +1152,14 @@ entity A
     assert(m.imports?.length === 2);
     m.removeImportAt(1);
     const s3 = m.toString();
-    assert(s1 === s3)
+    assert(s1 === s3);
   });
 });
 
-describe("introspect-literal-bug", () => {
-  test("instrospect-literal", async () => {
-    const stmts = [`{hubspot/retrieveCRMData {
+describe('introspect-literal-bug', () => {
+  test('instrospect-literal', async () => {
+    const stmts = [
+      `{hubspot/retrieveCRMData {
         companyDomain enrichLeadContext.companyDomain,
         contactEmail enrichLeadContext.contactEmail
     }} @as crmContext;`,
@@ -1183,32 +1187,69 @@ describe("introspect-literal-bug", () => {
             threadStateLeadStage "NEW",
             threadStateEmailCount 0
         }}
-    }`]
-    let r = await introspect(stmts[0])
-    assert(isCreatePattern(r[0]))
-    r = await introspect(stmts[1])
-    assert(isCrudPattern(r[0]))
-    r = await introspect(stmts[2])
-    assert(isIfPattern(r[0]))
-  })
-})
+    }`,
+    ];
+    let r = await introspect(stmts[0]);
+    assert(isCreatePattern(r[0]));
+    r = await introspect(stmts[1]);
+    assert(isCrudPattern(r[0]));
+    r = await introspect(stmts[2]);
+    assert(isIfPattern(r[0]));
+  });
+});
 
 describe('introspect-joins', () => {
   test('instrospect should capture join types', async () => {
     const stmt1 = `{januarythree.core/States? {}, 
     @left_join januarythree.core/Countries {id? States.country_id}, 
-    @into {state_name States.name, country_name Countries.name, currency_name Countries.currency_name}}`
-    const r1 = await introspect(stmt1)
-    const cr1 = r1[0] as CrudPattern
-    cr1.joins[0].type = '@inner_join'
-    const s1 = cr1.toString()
-    assert(s1 === `{januarythree.core/States? {},
+    @into {state_name States.name, country_name Countries.name, currency_name Countries.currency_name}}`;
+    const r1 = await introspect(stmt1);
+    const cr1 = r1[0] as CrudPattern;
+    cr1.joins[0].type = '@inner_join';
+    const s1 = cr1.toString();
+    assert(
+      s1 ===
+        `{januarythree.core/States? {},
 @inner_join januarythree.core/Countries {id? States.country_id},
 @into { state_name States.name,
 country_name Countries.name,
-currency_name Countries.currency_name }}`)
-    const r2 = await introspect(s1)
-    const cr2 = r2[0] as CrudPattern
-    assert(cr2.joins[0].type === '@inner_join')
-  })
-})
+currency_name Countries.currency_name }}`
+    );
+    let r2 = await introspect(s1);
+    const cr2 = r2[0] as CrudPattern;
+    assert(cr2.joins[0].type === '@inner_join');
+    const s2 = `{SalesFact? {},
+           @join ProductDim {product_id? SalesFact.product_id},
+           @join RegionDim {region_id? SalesFact.region_id},
+           @join DateDim {date_id? SalesFact.date_id},
+           @into {state RegionDim.state, revenue @sum(SalesFact.revenue)},
+           @where {ProductDim.category categoryRevenueForYear.category,
+                   RegionDim.country categoryRevenueForYear.country,
+                   DateDim.year? categoryRevenueForYear.year},
+           @groupBy(RegionDim.state, SalesFact.revenue),
+           @orderBy(revenue)}`;
+    r2 = await introspect(s2);
+    const ss2 = r2.toString();
+    assert(
+      ss2 ===
+        `{SalesFact? {},
+@join ProductDim {product_id? SalesFact.product_id},
+@join RegionDim {region_id? SalesFact.region_id},
+@join DateDim {date_id? SalesFact.date_id},
+@into { state RegionDim.state,
+revenue @sum(SalesFact.revenue) },
+@where {ProductDim.category categoryRevenueForYear.category,
+RegionDim.country categoryRevenueForYear.country,
+DateDim.year? categoryRevenueForYear.year},
+@groupBy(RegionDim.state, SalesFact.revenue),
+@orderBy(revenue)}`
+    );
+    const r3 = await introspect(ss2);
+    const cp = r3[0] as CrudPattern;
+    assert(cp.joins.length === 3);
+    assert(cp.where?.length === 3);
+    assert(cp.into?.get('revenue') === '@sum(SalesFact.revenue)');
+    assert(cp.groupBy?.length === 2);
+    assert(cp.orderBy?.length === 1);
+  });
+});
