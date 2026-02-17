@@ -1217,25 +1217,89 @@ describe('custom-defaults', () => {
     const chk = (inst: Instance, x: string) => {
       assert(isInstanceOfType(inst, fqn));
       assert(inst.lookup('id') === c);
-      assert(inst.lookup('x') === x)
+      assert(inst.lookup('x') === x);
     };
     chk(makeInstance('Cdf', 'E', newInstanceAttributes().set('x', 'abc')), 'abc');
     chk(await parseAndEvaluateStatement(`{${fqn} {x "xyz"}}`), 'xyz');
-    const s = fetchModule('Cdf').toString()
-    assert(s === `module Cdf
+    const s = fetchModule('Cdf').toString();
+    assert(
+      s ===
+        `module Cdf
 
 entity E
 {
     id Int @id  @default(agentlang.inc()),
     x String
 }
-`)
+`
+    );
+  });
+});
+
+describe('Inline function call as attribute value', () => {
+  test('function call in CRUD attribute value position', async () => {
+    await doInternModule(
+      'InlineFn',
+      `entity E {
+        id Int @id,
+        x Int
+      }
+      workflow CreateWithAlias {
+        agentlang.getVal() @as v;
+        {E {id CreateWithAlias.id, x v}}
+      }
+      workflow CreateInline {
+        {E {id CreateInline.id, x agentlang.getVal()}}
+      }
+      `
+    );
+    let callCount = 0;
+    agentlang.getVal = () => {
+      ++callCount;
+      return 42;
+    };
+    const ise = (r: any) => isInstanceOfType(r, 'InlineFn/E');
+
+    // Test 1: baseline - function call result bound with @as
+    const r1: Instance = await parseAndEvaluateStatement(`{InlineFn/CreateWithAlias {id 1}}`);
+    assert(ise(r1));
+    assert(r1.lookup('x') === 42);
+    assert(callCount === 1);
+
+    // Test 2: inline function call as attribute value
+    const r2: Instance = await parseAndEvaluateStatement(`{InlineFn/CreateInline {id 2}}`);
+    assert(ise(r2));
+    assert(r2.lookup('x') === 42);
+    assert(callCount === 2);
+
+    // Verify both records persisted correctly
+    const all: Instance[] = await parseAndEvaluateStatement(`{InlineFn/E? {}}`);
+    assert(all.length === 2);
+    assert(all.every((inst: Instance) => ise(inst) && inst.lookup('x') === 42));
+  });
+
+  test('inline function call with arguments', async () => {
+    await doInternModule(
+      'InlineFnArgs',
+      `entity E {
+        id Int @id,
+        x Int
+      }
+      workflow Create {
+        {E {id Create.id, x agentlang.add(Create.a, Create.b)}}
+      }
+      `
+    );
+    agentlang.add = (a: number, b: number) => a + b;
+    const r: Instance = await parseAndEvaluateStatement(`{InlineFnArgs/Create {id 1, a 10, b 20}}`);
+    assert(isInstanceOfType(r, 'InlineFnArgs/E'));
+    assert(r.lookup('x') === 30);
   });
 });
 
 describe('write-only-attributes', () => {
   test('queries must not return writeonly attributes', async () => {
-    const moduleName = 'rda'
+    const moduleName = 'rda';
     await doInternModule(
       moduleName,
       `entity E {
@@ -1248,21 +1312,36 @@ describe('write-only-attributes', () => {
         a Int
       }`
     );
-    const ename = `${moduleName}/E`
-    const cre = async (id: number, x: string, y: string, z: string, a: number): Promise<Instance> => {
+    const ename = `${moduleName}/E`;
+    const cre = async (
+      id: number,
+      x: string,
+      y: string,
+      z: string,
+      a: number
+    ): Promise<Instance> => {
       const inst: Instance = await parseAndEvaluateStatement(`{${ename} {
-        id ${id}, x "${x}", y "${y}", z "${z}", p1 "${x}-${y}", p2 "${x}-${z}", a ${a}}}`)
-        assert(isInstanceOfType(inst, ename))
-        return inst
-    }
-    await cre(1, "a", "b", "c", 10)
-    await cre(2, "p", "q", "r", 20)
-    const r1: Instance[] = await parseAndEvaluateStatement(`{${ename}? {}}`)
-    assert(r1.length === 2)
-    assert(r1.every((inst: Instance) => {
-      return isInstanceOfType(inst, ename) && inst.lookup('id') > 0 && inst.lookup('a') >= 10 &&
-      inst.lookup('x').length >= 1 && inst.lookup('y') === undefined && inst.lookup('z') === undefined &&
-      inst.lookup('p1').length >= 5 && inst.lookup('p2') === undefined
-    }))
-  })
-})
+        id ${id}, x "${x}", y "${y}", z "${z}", p1 "${x}-${y}", p2 "${x}-${z}", a ${a}}}`);
+      assert(isInstanceOfType(inst, ename));
+      return inst;
+    };
+    await cre(1, 'a', 'b', 'c', 10);
+    await cre(2, 'p', 'q', 'r', 20);
+    const r1: Instance[] = await parseAndEvaluateStatement(`{${ename}? {}}`);
+    assert(r1.length === 2);
+    assert(
+      r1.every((inst: Instance) => {
+        return (
+          isInstanceOfType(inst, ename) &&
+          inst.lookup('id') > 0 &&
+          inst.lookup('a') >= 10 &&
+          inst.lookup('x').length >= 1 &&
+          inst.lookup('y') === undefined &&
+          inst.lookup('z') === undefined &&
+          inst.lookup('p1').length >= 5 &&
+          inst.lookup('p2') === undefined
+        );
+      })
+    );
+  });
+});
