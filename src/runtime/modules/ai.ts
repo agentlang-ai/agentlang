@@ -938,6 +938,10 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           await saveAgentChatSession(chatId, msgs, env);
         }
         if (monitoringEnabled) env.setMonitorEntryLlmResponse(response.content);
+        if (monitoringEnabled && response.sysMsg.usage_metadata) {
+          const u = response.sysMsg.usage_metadata;
+          env.setMonitorEntryLlmTokenUsage(u.input_tokens, u.output_tokens, u.total_tokens);
+        }
         if (this.saveResponseAs) {
           await saveAgentResponse(this.saveResponseAs, response.content, env);
         }
