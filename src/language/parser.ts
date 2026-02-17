@@ -36,6 +36,7 @@ import {
   SetAttribute,
   Statement,
   WhereSpec,
+  WhereSpecClause,
   WorkflowDefinition,
 } from './generated/ast.js';
 import { firstAliasSpec, firstCatchSpec, isString, QuerySuffix } from '../runtime/util.js';
@@ -54,6 +55,7 @@ import {
   NegExpressionPattern,
   NotExpressionPattern,
   ReturnPattern,
+  WhereSpecClausePattern,
 } from './syntax.js';
 
 let nextDocumentId = 1;
@@ -299,6 +301,14 @@ function introspectPattern(pat: Pattern): BasePattern {
 function introspectInto(intoSpec: SelectIntoSpec, p: CrudPattern): CrudPattern {
   intoSpec.entries.forEach((se: SelectIntoEntry) => {
     if (se.attribute) p.addInto(se.alias, se.attribute);
+    else if (se.aggregate) {
+      const args = se.aggregate.args
+        .map((s: string) => {
+          return s;
+        })
+        .join(', ');
+      p.addInto(se.alias, `@${se.aggregate?.name}(${args})`);
+    }
   });
   return p;
 }
@@ -379,6 +389,18 @@ function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
       };
       cp.joins.push(jp);
     });
+    if (opts.where?.clauses) {
+      cp.where = new Array<WhereSpecClausePattern>();
+      opts.where.clauses.forEach((wc: WhereSpecClause) => {
+        cp.where?.push({ lhs: wc.lhs, op: wc.op || '=', rhs: wc.rhs.$cstNode?.text || '' });
+      });
+    }
+    if (opts.groupByClause) {
+      cp.groupBy = opts.groupByClause.colNames;
+    }
+    if (opts.orderByClause) {
+      cp.orderBy = opts.orderByClause.colNames;
+    }
     cp.isCreate = false;
     cp.isQueryUpdate = false;
     cp.isQuery = true;
