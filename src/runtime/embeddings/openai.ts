@@ -51,13 +51,13 @@ export class OpenAIEmbeddingProvider extends EmbeddingProvider {
     if (config.apiKey) {
       const keyPreview =
         config.apiKey.substring(0, 10) + '...' + config.apiKey.substring(config.apiKey.length - 4);
-      logger.info(`[OPENAI-EMBEDDING] API key found in config: ${keyPreview}`);
+      logger.debug(`[OPENAI-EMBEDDING] API key found in config: ${keyPreview}`);
       return config.apiKey;
     }
     const envKey = process.env.AGENTLANG_OPENAI_KEY || getLocalEnv('AGENTLANG_OPENAI_KEY');
     if (envKey) {
       const keyPreview = envKey.substring(0, 10) + '...' + envKey.substring(envKey.length - 4);
-      logger.info(`[OPENAI-EMBEDDING] API key found in environment: ${keyPreview}`);
+      logger.debug(`[OPENAI-EMBEDDING] API key found in environment: ${keyPreview}`);
       return envKey;
     }
     logger.warn(

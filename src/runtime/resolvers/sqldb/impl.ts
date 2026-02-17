@@ -74,7 +74,7 @@ export class EmbeddingService {
     this.provider = new providerClass(this.config);
     const chunkSize = this.getChunkSize();
     const chunkOverlap = this.getChunkOverlap();
-    logger.info(
+    logger.debug(
       `[EMBEDDING] Creating EmbeddingService with chunkSize=${chunkSize}, chunkOverlap=${chunkOverlap}`
     );
     this.chunker = new TextChunker(chunkSize, chunkOverlap);
@@ -89,11 +89,11 @@ export class EmbeddingService {
   }
 
   async embedText(text: string): Promise<number[]> {
-    logger.info(`[EMBEDDING] embedText called with ${text.length} chars`);
+    logger.debug(`[EMBEDDING] embedText called with ${text.length} chars`);
 
     // Estimate number of chunks
     const estimatedChunks = this.chunker.estimateChunks(text);
-    logger.info(
+    logger.debug(
       `[EMBEDDING] Estimated chunks: ${estimatedChunks} (chunkSize=${this.getChunkSize()}, overlap=${this.getChunkOverlap()})`
     );
 
@@ -108,13 +108,13 @@ export class EmbeddingService {
     // Check if there's only one chunk
     const secondChunk = chunkIterator.next();
     if (secondChunk.done) {
-      logger.info(`[EMBEDDING] Single chunk, embedding directly...`);
+      logger.debug(`[EMBEDDING] Single chunk, embedding directly...`);
       return await this.provider.embedText(firstChunk.value);
     }
 
     // Process multiple chunks incrementally to save memory
     const CONCURRENCY = 3; // Reduced from 5 to save memory
-    logger.info(`[EMBEDDING] Processing chunks with concurrency ${CONCURRENCY}...`);
+    logger.debug(`[EMBEDDING] Processing chunks with concurrency ${CONCURRENCY}...`);
 
     // Accumulate embeddings incrementally
     let dimension: number | null = null;
@@ -130,20 +130,20 @@ export class EmbeddingService {
       batchNum: number,
       startIdx: number
     ) {
-      logger.info(`[EMBEDDING] Processing batch ${batchNum} (${batchChunks.length} chunks)...`);
+      logger.debug(`[EMBEDDING] Processing batch ${batchNum} (${batchChunks.length} chunks)...`);
       const startTime = Date.now();
 
       const batchEmbeddings = await Promise.all(
         batchChunks.map((chunk, idx) => {
           const chunkNum = startIdx + idx + 1;
-          logger.info(
+          logger.debug(
             `[EMBEDDING] Embedding chunk ${chunkNum}/${estimatedChunks} (${chunk.length} chars)...`
           );
           return this.provider.embedText(chunk);
         })
       );
 
-      logger.info(`[EMBEDDING] Batch embedded in ${Date.now() - startTime}ms`);
+      logger.debug(`[EMBEDDING] Batch embedded in ${Date.now() - startTime}ms`);
       return batchEmbeddings;
     }
 
@@ -205,7 +205,7 @@ export class EmbeddingService {
       }
     }
 
-    logger.info(`[EMBEDDING] All ${totalChunks} chunks embedded, finalizing average...`);
+    logger.debug(`[EMBEDDING] All ${totalChunks} chunks embedded, finalizing average...`);
 
     // Finalize average
     for (let i = 0; i < dimension!; i++) {
@@ -221,11 +221,11 @@ export class EmbeddingService {
 
   async embedTexts(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return [];
-    logger.info(`[EMBEDDING] embedTexts called with ${texts.length} texts`);
+    logger.debug(`[EMBEDDING] embedTexts called with ${texts.length} texts`);
     const startTime = Date.now();
     const results = await this.provider.embedTexts(texts);
     const duration = Date.now() - startTime;
-    logger.info(`[EMBEDDING] embedTexts completed in ${duration}ms`);
+    logger.debug(`[EMBEDDING] embedTexts completed in ${duration}ms`);
     return results;
   }
 }
@@ -363,7 +363,7 @@ export class SqlDbResolver extends Resolver {
                 typeof instanceEmbeddingConfig === 'string'
                   ? JSON.parse(instanceEmbeddingConfig)
                   : instanceEmbeddingConfig;
-              logger.info(
+              logger.debug(
                 `[EMBEDDING] Parsed embeddingConfig from instance: ${JSON.stringify(embeddingConfig)}`
               );
             } catch (e) {
@@ -396,7 +396,7 @@ export class SqlDbResolver extends Resolver {
               embeddingConfig.chunkSize = process.env.AGENTLANG_EMBEDDING_CHUNKSIZE
                 ? parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKSIZE, 10)
                 : 1000;
-              logger.info(
+              logger.debug(
                 `[EMBEDDING] Overriding invalid chunkSize with default: ${embeddingConfig.chunkSize}`
               );
             }
@@ -412,20 +412,26 @@ export class SqlDbResolver extends Resolver {
             logger.warn(`[EMBEDDING] No API key available, skipping embedding for ${path}`);
             return inst;
           }
+
+          // Double-check: verify embeddings weren't created in another transaction
+          const stillExists = await vectorStoreSearchEntryExists(n, path, ctx);
+          if (stillExists) {
+            logger.info(`[EMBEDDING] Embeddings already exist for ${path} (verified), skipping`);
+            return inst;
+          }
+
           logger.info(
-            `[EMBEDDING] Starting embedding generation for ${path} (${textToEmbed.length} chars)`
+            `[EMBEDDING] Generating embeddings for ${path} (${textToEmbed.length} chars, ~${Math.ceil(textToEmbed.length / embeddingConfig.chunkSize)} chunks)`
           );
-          logger.info(
+          logger.debug(
             `[EMBEDDING] Config: chunkSize=${embeddingConfig.chunkSize}, chunkOverlap=${embeddingConfig.chunkOverlap}`
           );
           const embeddingService = new EmbeddingService(embeddingConfig);
-          logger.info(`[EMBEDDING] EmbeddingService created, generating embedding...`);
+          logger.debug(`[EMBEDDING] EmbeddingService created, generating embedding...`);
           const res = await embeddingService.embedText(textToEmbed);
-          logger.info(
-            `[EMBEDDING] Embedding generated (${res.length} dimensions), saving to vector store...`
-          );
+          logger.info(`[EMBEDDING] Embeddings generated (${res.length}d), saving to vector store`);
           await addRowForFullTextSearch(n, path, res, ctx);
-          logger.info(`[EMBEDDING] Successfully saved embedding for ${path}`);
+          logger.info(`[EMBEDDING] Saved embeddings for ${path}`);
         }
       } catch (reason: any) {
         logger.warn(`Full text indexing failed for ${path} - ${reason}`);
