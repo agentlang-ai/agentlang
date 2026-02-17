@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import express, { Request, Response } from 'express';
+import express, { Express, Request, Response } from 'express';
 import * as path from 'path';
 import {
   getAllChildRelationships,
@@ -59,7 +59,7 @@ import {
   deleteFileRecord,
 } from '../runtime/modules/files.js';
 
-export async function createApp(appSpec: ApplicationSpec, config?: Config) {
+export async function createApp(appSpec: ApplicationSpec, config?: Config): Promise<Express> {
   const app = express();
   app.use(express.json());
 
