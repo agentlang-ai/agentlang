@@ -310,6 +310,83 @@ describe('Event Invocation - POST', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────
+// Entity Create with Inline Relationships
+// ──────────────────────────────────────────────────────────────────
+
+describe('Entity Create with Inline Relationships', () => {
+  test('POST with a single inline relationship child object', async () => {
+    const res = await post('/HRT/User', {
+      id: 200,
+      name: 'InlineUser1',
+      email: 'inline1@test.com',
+      UserPost: { id: 300, title: 'Inline Post' },
+    });
+    assert(res.ok, `Expected 200, got ${res.status}`);
+    const body = await res.json();
+    assert(body.User, 'Response should contain User');
+    assert(body.User.id === 200);
+    assert(body.User.name === 'InlineUser1');
+  });
+
+  test('inline relationship child entity is queryable', async () => {
+    const res = await get('/HRT/Post', { id: '300' });
+    assert(res.ok);
+    const body = await res.json();
+    assert(body.length === 1, `Expected 1 post, got ${body.length}`);
+    assert(body[0].Post.title === 'Inline Post');
+  });
+
+  test('inline relationship link is queryable', async () => {
+    const res = await get('/HRT/UserPost');
+    assert(res.ok);
+    const body = await res.json();
+    // Previous tests leave 2 links; inline single-child POST should add 1 more
+    assert(
+      body.length === 3,
+      `Expected 3 UserPost links, got ${body.length}: ${JSON.stringify(body)}`
+    );
+  });
+
+  test('POST with an array of inline relationship children', async () => {
+    const res = await post('/HRT/User', {
+      id: 201,
+      name: 'InlineUser2',
+      email: 'inline2@test.com',
+      UserPost: [
+        { id: 301, title: 'Array Post 1' },
+        { id: 302, title: 'Array Post 2' },
+      ],
+    });
+    assert(res.ok, `Expected 200, got ${res.status}`);
+    const body = await res.json();
+    assert(body.User, 'Response should contain User');
+    assert(body.User.id === 201);
+  });
+
+  test('array inline relationship children are queryable', async () => {
+    const res1 = await get('/HRT/Post', { id: '301' });
+    assert(res1.ok);
+    const body1 = await res1.json();
+    assert(body1.length === 1);
+    assert(body1[0].Post.title === 'Array Post 1');
+
+    const res2 = await get('/HRT/Post', { id: '302' });
+    assert(res2.ok);
+    const body2 = await res2.json();
+    assert(body2.length === 1);
+    assert(body2[0].Post.title === 'Array Post 2');
+  });
+
+  test('array inline relationship links are queryable', async () => {
+    const res = await get('/HRT/UserPost');
+    assert(res.ok);
+    const body = await res.json();
+    // Previous tests leave 2 links, single inline added 1, array inline should add 2 more = 5
+    assert(body.length === 5, `Expected 5 UserPost links, got ${body.length}`);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
 // Edge Cases and Error Handling
 // ──────────────────────────────────────────────────────────────────
 

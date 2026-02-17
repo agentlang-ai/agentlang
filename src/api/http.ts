@@ -8,6 +8,7 @@ import {
   Instance,
   InstanceAttributes,
   isBetweenRelationship,
+  getRelationship,
   makeInstance,
   objectAsInstanceAttributes,
   Relationship,
@@ -353,23 +354,69 @@ function internalError(res: Response) {
   };
 }
 
+function formatAttrValue(v: any, n: string): string {
+  let av = isString(v) ? `"${v}"` : v;
+  if (av instanceof Object) {
+    av = JSON.stringify(av);
+  }
+  if (isPathAttribute(n)) {
+    av = escapeSepInPath(av);
+  }
+  return `${n} ${av}`;
+}
+
+function buildChildPattern(otherFqName: string, childObj: { [key: string]: any }): string {
+  const childAttrs = Object.entries(childObj)
+    .map(([k, v]: [string, any]) => {
+      let av: any;
+      if (isString(v)) {
+        av = `"${v}"`;
+      } else if (v instanceof Object) {
+        av = JSON.stringify(v);
+      } else {
+        av = v;
+      }
+      return `${k} ${av}`;
+    })
+    .join(', ');
+  return `{${otherFqName} {${childAttrs}}}`;
+}
+
 export function patternFromAttributes(
   moduleName: string,
   recName: string,
-  attrs: InstanceAttributes
+  attrs: InstanceAttributes,
+  entityFqName?: string
 ): string {
   const attrsStrs = new Array<string>();
+  const relPatterns = new Array<string>();
+
   attrs.forEach((v: any, n: string) => {
-    let av = isString(v) ? `"${v}"` : v;
-    if (av instanceof Object) {
-      av = JSON.stringify(av);
+    if (entityFqName) {
+      try {
+        if (isBetweenRelationship(n, moduleName)) {
+          const rel = getRelationship(n, moduleName);
+          const otherFqName =
+            rel.getParentFqName() === entityFqName ? rel.getChildFqName() : rel.getParentFqName();
+          const children = Array.isArray(v) ? v : [v];
+          const childPatterns = children
+            .map((child: any) => buildChildPattern(otherFqName, child))
+            .join(', ');
+          relPatterns.push(`${n} [${childPatterns}]`);
+          return;
+        }
+      } catch {
+        // Not a relationship — fall through to normal attribute handling
+      }
     }
-    if (isPathAttribute(n)) {
-      av = escapeSepInPath(av);
-    }
-    attrsStrs.push(`${n} ${av}`);
+    attrsStrs.push(formatAttrValue(v, n));
   });
-  return `{${moduleName}/${recName} { ${attrsStrs.join(',\n')} }}`;
+
+  const entityPat = `{${moduleName}/${recName} {${attrsStrs.join(',\n')}}`;
+  if (relPatterns.length > 0) {
+    return `${entityPat}, ${relPatterns.join(', ')}}`;
+  }
+  return `${entityPat}}`;
 }
 
 function normalizeRequestPath(path: string[], moduleName: string): string[] {
@@ -449,9 +496,15 @@ async function handleEntityPost(
       res.status(401).send('Authorization required');
       return;
     }
+    const entityFqName = makeFqName(moduleName, entityName);
     const pattern = req.params.path
       ? createChildPattern(moduleName, entityName, req)
-      : patternFromAttributes(moduleName, entityName, objectAsInstanceAttributes(req.body));
+      : patternFromAttributes(
+          moduleName,
+          entityName,
+          objectAsInstanceAttributes(req.body),
+          entityFqName
+        );
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
