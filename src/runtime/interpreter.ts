@@ -1832,7 +1832,8 @@ async function handleDocEvent(inst: Instance, env: Environment): Promise<void> {
     await computeExprAttributes(doc, undefined, undefined, env);
     await setMetaAttributes(doc.attributes, env);
     const res: Resolver = await getResolverForPath('Document', CoreAIModuleName, env);
-    await res.createInstance(doc);
+    // Use upsertInstance to handle duplicate documents gracefully
+    await res.upsertInstance(doc);
   }
 }
 

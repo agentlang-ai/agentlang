@@ -1919,7 +1919,10 @@ export class DocumentEntry extends ModuleEntry {
   override toString(): string {
     const escapedTitle = escapeSpecialChars(this.doc.title);
     const escapedUrl = escapeSpecialChars(this.doc.url);
-    return `{${DefaultModuleName}.ai/doc {\n    title "${escapedTitle}",\n    url "${escapedUrl}"\n}}`;
+    return `{${DefaultModuleName}.ai/doc {
+    title "${escapedTitle}",
+    url "${escapedUrl}"
+}, @upsert}`;
   }
 
   get url(): string {
