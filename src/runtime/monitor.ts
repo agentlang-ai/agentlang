@@ -10,9 +10,6 @@ export class MonitorEntry {
   private llm: boolean = false;
   private llmPrompt: string | undefined;
   private llmResponse: string | undefined;
-  private llmInputTokens: number | undefined;
-  private llmOutputTokens: number | undefined;
-  private llmTotalTokens: number | undefined;
   private planner: boolean = false;
   private flowStep: boolean = false;
   private flow: boolean = false;
@@ -68,13 +65,6 @@ export class MonitorEntry {
 
   setLlmResponse(s: string): MonitorEntry {
     if (this.llmResponse === undefined) this.llmResponse = s;
-    return this;
-  }
-
-  setLlmTokenUsage(input: number, output: number, total: number): MonitorEntry {
-    this.llmInputTokens = input;
-    this.llmOutputTokens = output;
-    this.llmTotalTokens = total;
     return this;
   }
 
@@ -147,11 +137,6 @@ export class MonitorEntry {
       llmObj.isFlowStep = this.flowStep;
       llmObj.isDecision = this.decision;
       llmObj.isFlow = this.flow;
-      if (this.llmInputTokens !== undefined) {
-        llmObj.inputTokens = this.llmInputTokens;
-        llmObj.outputTokens = this.llmOutputTokens;
-        llmObj.totalTokens = this.llmTotalTokens;
-      }
       obj.llm = llmObj;
     }
     obj.label = this.input;
@@ -280,13 +265,6 @@ export class Monitor {
   setEntryLlmResponse(s: string): Monitor {
     if (this.lastEntry !== undefined) {
       this.lastEntry.setLlmResponse(s);
-    }
-    return this;
-  }
-
-  setEntryLlmTokenUsage(input: number, output: number, total: number): Monitor {
-    if (this.lastEntry !== undefined) {
-      this.lastEntry.setLlmTokenUsage(input, output, total);
     }
     return this;
   }
