@@ -59,12 +59,7 @@ import {
   deleteFileRecord,
 } from '../runtime/modules/files.js';
 
-export async function startServer(
-  appSpec: ApplicationSpec,
-  port: number,
-  host?: string,
-  config?: Config
-) {
+export async function createApp(appSpec: ApplicationSpec, config?: Config) {
   const app = express();
   app.use(express.json());
 
@@ -285,19 +280,6 @@ export async function startServer(
     });
   });
 
-  const cb = () => {
-    console.log(
-      chalk.green(
-        `Application ${chalk.bold(appName + ' version ' + appVersion)} started on port ${chalk.bold(port)}`
-      )
-    );
-  };
-  if (host) {
-    app.listen(port, host, cb);
-  } else {
-    app.listen(port, cb);
-  }
-
   setEventEndpointsUpdater((moduleName: string) => {
     const m = fetchModule(moduleName);
     const eventNames = m.getEventNames();
@@ -319,6 +301,31 @@ export async function startServer(
       addBetweenHandlers(moduleName, n);
     });
   });
+
+  return app;
+}
+
+export async function startServer(
+  appSpec: ApplicationSpec,
+  port: number,
+  host?: string,
+  config?: Config
+) {
+  const app = await createApp(appSpec, config);
+  const appName: string = appSpec.name;
+  const appVersion: string = appSpec.version;
+  const cb = () => {
+    console.log(
+      chalk.green(
+        `Application ${chalk.bold(appName + ' version ' + appVersion)} started on port ${chalk.bold(port)}`
+      )
+    );
+  };
+  if (host) {
+    app.listen(port, host, cb);
+  } else {
+    app.listen(port, cb);
+  }
 }
 
 function ok(res: Response) {
@@ -346,7 +353,7 @@ function internalError(res: Response) {
   };
 }
 
-function patternFromAttributes(
+export function patternFromAttributes(
   moduleName: string,
   recName: string,
   attrs: InstanceAttributes
