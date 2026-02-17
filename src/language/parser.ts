@@ -39,7 +39,13 @@ import {
   WhereSpecClause,
   WorkflowDefinition,
 } from './generated/ast.js';
-import { firstAliasSpec, firstCatchSpec, firstEmptySpec, isString, QuerySuffix } from '../runtime/util.js';
+import {
+  firstAliasSpec,
+  firstCatchSpec,
+  firstEmptySpec,
+  isString,
+  QuerySuffix,
+} from '../runtime/util.js';
 import {
   BasePattern,
   CrudPattern,
