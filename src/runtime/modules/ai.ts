@@ -1189,7 +1189,10 @@ Only return a pure JSON object with no extra text, annotations etc.`;
                 if (docContext.length + entry.length > AgentInstance.MAX_DOC_CONTEXT_CHARS) {
                   const remaining = AgentInstance.MAX_DOC_CONTEXT_CHARS - docContext.length;
                   if (remaining > 200) {
-                    docContext += (docContext ? '\n\n---\n\n' : '') + entry.substring(0, remaining) + '\n...[truncated]';
+                    docContext +=
+                      (docContext ? '\n\n---\n\n' : '') +
+                      entry.substring(0, remaining) +
+                      '\n...[truncated]';
                   }
                   break;
                 }
@@ -1227,7 +1230,8 @@ Only return a pure JSON object with no extra text, annotations etc.`;
               if (docContext.length + entry.length > AgentInstance.MAX_DOC_CONTEXT_CHARS) {
                 const remaining = AgentInstance.MAX_DOC_CONTEXT_CHARS - docContext.length;
                 if (remaining > 200) {
-                  docContext += (docContext ? '\n\n' : '') + entry.substring(0, remaining) + '\n...[truncated]';
+                  docContext +=
+                    (docContext ? '\n\n' : '') + entry.substring(0, remaining) + '\n...[truncated]';
                 }
                 break;
               }
