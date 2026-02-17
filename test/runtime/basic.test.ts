@@ -675,6 +675,711 @@ describe('Empty hint test', () => {
     assert(isInstanceOfType(result[0], 'Empty/E'));
     assert(result[0].lookup('x') == 200);
   });
+
+  test('empty does not fire when query returns results', async () => {
+    await doInternModule('EmptyNoFire', `entity E { id Int @id, x Int }`);
+    await parseAndEvaluateStatement(`{EmptyNoFire/E {id 1, x 100}}`);
+    // Query for an existing record - @empty should NOT fire
+    const result = await parseAndEvaluateStatement(
+      `{EmptyNoFire/E {id? 1}} @empty {EmptyNoFire/E {id 99, x 999}} @as [E]`
+    );
+    assert(result instanceof Array);
+    assert(result.length == 1);
+    assert(result[0].lookup('id') == 1);
+    assert(result[0].lookup('x') == 100);
+  });
+
+  test('empty with create fallback', async () => {
+    await doInternModule('EmptyCr', `entity E { id Int @id, x Int }`);
+    // Query for non-existent record, @empty creates a new one.
+    // Create operations return a single Instance (not an array),
+    // so @as binds the single Instance to E.
+    const result = await parseAndEvaluateStatement(
+      `{EmptyCr/E {id? 1}} @empty {EmptyCr/E {id 1, x 500}} @as E`
+    );
+    assert(isInstanceOfType(result, 'EmptyCr/E'));
+    assert(result.lookup('x') == 500);
+    // Verify the created record persists
+    const check: Instance[] = await parseAndEvaluateStatement(`{EmptyCr/E {id? 1}}`);
+    assert(check.length == 1);
+    assert(check[0].lookup('x') == 500);
+  });
+});
+
+describe('Query result shape consistency', () => {
+  test('query always returns array', async () => {
+    await doInternModule('QShape', `entity E { id Int @id, x Int }`);
+    // Empty query returns empty array
+    const empty: Instance[] = await parseAndEvaluateStatement(`{QShape/E {id? 1}}`);
+    assert(empty instanceof Array);
+    assert(empty.length == 0);
+    // Create one record
+    await parseAndEvaluateStatement(`{QShape/E {id 1, x 10}}`);
+    // Single result still returns array
+    const single: Instance[] = await parseAndEvaluateStatement(`{QShape/E {id? 1}}`);
+    assert(single instanceof Array);
+    assert(single.length == 1);
+    assert(single[0].lookup('x') == 10);
+    // Multiple results return array
+    await parseAndEvaluateStatement(`{QShape/E {id 2, x 20}}`);
+    const multi: Instance[] = await parseAndEvaluateStatement(`{QShape/E? {}}`);
+    assert(multi instanceof Array);
+    assert(multi.length == 2);
+  });
+
+  test('read-for-update single result returns array', async () => {
+    await doInternModule('QUpd', `entity E { id Int @id, x Int }`);
+    await parseAndEvaluateStatement(`{QUpd/E {id 1, x 10}}`);
+    await parseAndEvaluateStatement(`{QUpd/E {id 2, x 20}}`);
+    // Update single match via query - should return array
+    const updated: Instance[] = await parseAndEvaluateStatement(`{QUpd/E {id? 1, x 99}}`);
+    assert(updated instanceof Array);
+    assert(updated.length == 1);
+    assert(updated[0].lookup('x') == 99);
+    // Verify the other record is untouched
+    const other: Instance[] = await parseAndEvaluateStatement(`{QUpd/E {id? 2}}`);
+    assert(other instanceof Array);
+    assert(other.length == 1);
+    assert(other[0].lookup('x') == 20);
+  });
+
+  test('read-for-update multiple results returns array', async () => {
+    await doInternModule('QUpdM', `entity E { id Int @id, x Int, y Int }`);
+    await parseAndEvaluateStatement(`{QUpdM/E {id 1, x 10, y 1}}`);
+    await parseAndEvaluateStatement(`{QUpdM/E {id 2, x 10, y 2}}`);
+    await parseAndEvaluateStatement(`{QUpdM/E {id 3, x 30, y 3}}`);
+    // Update all records where x=10 - should return array of updated instances
+    const updated: Instance[] = await parseAndEvaluateStatement(`{QUpdM/E {x? 10, y 99}}`);
+    assert(updated instanceof Array);
+    assert(updated.length == 2);
+    assert(updated.every((inst: Instance) => inst.lookup('y') == 99));
+    // Verify the non-matching record is untouched
+    const other: Instance[] = await parseAndEvaluateStatement(`{QUpdM/E {id? 3}}`);
+    assert(other[0].lookup('y') == 3);
+  });
+
+  test('read-for-update no match returns empty array', async () => {
+    await doInternModule('QUpdE', `entity E { id Int @id, x Int }`);
+    await parseAndEvaluateStatement(`{QUpdE/E {id 1, x 10}}`);
+    // Update with non-matching query - should return empty array
+    const updated: Instance[] = await parseAndEvaluateStatement(`{QUpdE/E {id? 999, x 99}}`);
+    assert(updated instanceof Array);
+    assert(updated.length == 0);
+    // Verify existing record is untouched
+    const check: Instance[] = await parseAndEvaluateStatement(`{QUpdE/E {id? 1}}`);
+    assert(check[0].lookup('x') == 10);
+  });
+
+  test('query-all returns array', async () => {
+    await doInternModule('QAll', `entity E { id Int @id, x Int }`);
+    // Query-all on empty table returns empty array
+    const empty: Instance[] = await parseAndEvaluateStatement(`{QAll/E? {}}`);
+    assert(empty instanceof Array);
+    assert(empty.length == 0);
+    await parseAndEvaluateStatement(`{QAll/E {id 1, x 10}}`);
+    await parseAndEvaluateStatement(`{QAll/E {id 2, x 20}}`);
+    await parseAndEvaluateStatement(`{QAll/E {id 3, x 30}}`);
+    const all: Instance[] = await parseAndEvaluateStatement(`{QAll/E? {}}`);
+    assert(all instanceof Array);
+    assert(all.length == 3);
+  });
+});
+
+describe('Between relationship query result shape', () => {
+  test('query via between relationship returns array', async () => {
+    await doInternModule(
+      'BetQ',
+      `entity Author {
+        id Int @id,
+        name String
+      }
+      entity Book {
+        id Int @id,
+        title String
+      }
+      relationship AuthorBook between(Author, Book) @one_many
+
+      workflow LinkAuthorBook {
+        {BetQ/Author {id? LinkAuthorBook.authorId}} @as [A]
+        {BetQ/Book {id? LinkAuthorBook.bookId}} @as [B]
+        {BetQ/AuthorBook {Author A, Book B}}
+      }
+      `
+    );
+    await parseAndEvaluateStatement(`{BetQ/Author {id 1, name "Alice"}}`);
+    await parseAndEvaluateStatement(`{BetQ/Book {id 10, title "Book A"}}`);
+    await parseAndEvaluateStatement(`{BetQ/Book {id 20, title "Book B"}}`);
+    // Link via workflow
+    await parseAndEvaluateStatement(`{BetQ/LinkAuthorBook {authorId 1, bookId 10}}`);
+    await parseAndEvaluateStatement(`{BetQ/LinkAuthorBook {authorId 1, bookId 20}}`);
+    // Query author with related books
+    const result: Instance[] = await parseAndEvaluateStatement(
+      `{BetQ/Author {id? 1},
+       BetQ/AuthorBook {BetQ/Book? {}}}`
+    );
+    assert(result instanceof Array);
+    assert(result.length == 1);
+    assert(isInstanceOfType(result[0], 'BetQ/Author'));
+    const books = result[0].getRelatedInstances('BetQ/AuthorBook');
+    assert(books && books.length == 2);
+  });
+
+  test('between relationship query with no results returns empty array', async () => {
+    await doInternModule(
+      'BetQE',
+      `entity Parent {
+        id Int @id,
+        name String
+      }
+      entity Child {
+        id Int @id,
+        label String
+      }
+      relationship PC between(Parent, Child) @one_many
+      `
+    );
+    await parseAndEvaluateStatement(`{BetQE/Parent {id 1, name "p1"}}`);
+    // Query for parent with children when none linked
+    const result: Instance[] = await parseAndEvaluateStatement(
+      `{BetQE/Parent {id? 1},
+       BetQE/PC {BetQE/Child? {}}}`
+    );
+    assert(result instanceof Array);
+    assert(result.length == 1);
+    const children = result[0].getRelatedInstances('BetQE/PC');
+    assert(!children || children.length == 0);
+  });
+
+  test('between relationship query with @into returns array', async () => {
+    await doInternModule(
+      'BetQI',
+      `entity Resource {
+        id Int @id,
+        name String
+      }
+      entity Task {
+        id Int @id,
+        description String
+      }
+      relationship ResTask between(Resource, Task) @one_many
+
+      workflow FetchResourceTasks {
+        {BetQI/Resource {id? FetchResourceTasks.id},
+         BetQI/ResTask {BetQI/Task? {}},
+         @into {rname BetQI/Resource.name, tdesc BetQI/Task.description}}
+      }
+      `
+    );
+    await parseAndEvaluateStatement(`{BetQI/Resource {id 1, name "r1"}}`);
+    // Create tasks linked to resource via relationship pattern
+    await parseAndEvaluateStatement(
+      `{BetQI/Resource {id? 1},
+       BetQI/ResTask {BetQI/Task {id 10, description "task_a"}}}`
+    );
+    await parseAndEvaluateStatement(
+      `{BetQI/Resource {id? 1},
+       BetQI/ResTask {BetQI/Task {id 20, description "task_b"}}}`
+    );
+    // Query via workflow with @into
+    const result: any[] = await parseAndEvaluateStatement(`{BetQI/FetchResourceTasks {id 1}}`);
+    assert(result instanceof Array);
+    assert(result.length == 2);
+    assert(result.every((r: any) => r.rname == 'r1'));
+    const descs = result.map((r: any) => r.tdesc).sort();
+    assert(descs[0] == 'task_a' && descs[1] == 'task_b');
+  });
+
+  test('reverse between relationship query returns array', async () => {
+    await doInternModule(
+      'BetQR',
+      `entity Manager {
+        id Int @id,
+        name String
+      }
+      entity Employee {
+        id Int @id,
+        name String
+      }
+      relationship MgrEmp between(Manager, Employee) @one_many
+
+      workflow LinkMgrEmp {
+        {BetQR/Manager {id? LinkMgrEmp.mgrId}} @as [M]
+        {BetQR/Employee {id? LinkMgrEmp.empId}} @as [E]
+        {BetQR/MgrEmp {Manager M, Employee E}}
+      }
+
+      workflow FindEmployeeManager {
+        {BetQR/Employee {id? FindEmployeeManager.id},
+         BetQR/MgrEmp {BetQR/Manager? {}},
+         @into {ename BetQR/Employee.name, mname BetQR/Manager.name}}
+      }
+      `
+    );
+    await parseAndEvaluateStatement(`{BetQR/Manager {id 1, name "boss"}}`);
+    await parseAndEvaluateStatement(`{BetQR/Employee {id 10, name "worker"}}`);
+    await parseAndEvaluateStatement(`{BetQR/LinkMgrEmp {mgrId 1, empId 10}}`);
+    // Reverse query: from employee find manager
+    const result: any[] = await parseAndEvaluateStatement(`{BetQR/FindEmployeeManager {id 10}}`);
+    assert(result instanceof Array);
+    assert(result.length == 1);
+    assert(result[0].ename == 'worker');
+    assert(result[0].mname == 'boss');
+  });
+});
+
+describe('Contains relationship query result shape', () => {
+  test('contains query returns array', async () => {
+    await doInternModule(
+      'ContQ',
+      `entity Dept {
+        id Int @id,
+        name String
+      }
+      entity Staff {
+        id Int @id,
+        name String
+      }
+      relationship DeptStaff contains(Dept, Staff)
+      `
+    );
+    await parseAndEvaluateStatement(`{ContQ/Dept {id 1, name "engineering"}}`);
+    // Create staff under department
+    await parseAndEvaluateStatement(
+      `{ContQ/Dept {id? 1},
+       ContQ/DeptStaff {ContQ/Staff {id 10, name "alice"}}}`
+    );
+    await parseAndEvaluateStatement(
+      `{ContQ/Dept {id? 1},
+       ContQ/DeptStaff {ContQ/Staff {id 20, name "bob"}}}`
+    );
+    // Query dept with staff
+    const result: Instance[] = await parseAndEvaluateStatement(
+      `{ContQ/Dept {id? 1},
+       ContQ/DeptStaff {ContQ/Staff? {}}}`
+    );
+    assert(result instanceof Array);
+    assert(result.length == 1);
+    assert(isInstanceOfType(result[0], 'ContQ/Dept'));
+    const staff = result[0].getRelatedInstances('ContQ/DeptStaff');
+    assert(staff && staff.length == 2);
+  });
+
+  test('contains query with @into returns array', async () => {
+    await doInternModule(
+      'ContQI',
+      `entity Folder {
+        id Int @id,
+        name String
+      }
+      entity Doc {
+        id Int @id,
+        title String
+      }
+      relationship FolderDoc contains(Folder, Doc)
+
+      workflow ListDocs {
+        {ContQI/Folder {id? ListDocs.folderId},
+         ContQI/FolderDoc {ContQI/Doc? {}},
+         @into {folder ContQI/Folder.name, doc ContQI/Doc.title}}
+      }
+      `
+    );
+    await parseAndEvaluateStatement(`{ContQI/Folder {id 1, name "root"}}`);
+    await parseAndEvaluateStatement(
+      `{ContQI/Folder {id? 1},
+       ContQI/FolderDoc {ContQI/Doc {id 10, title "readme"}}}`
+    );
+    await parseAndEvaluateStatement(
+      `{ContQI/Folder {id? 1},
+       ContQI/FolderDoc {ContQI/Doc {id 20, title "notes"}}}`
+    );
+    const result: any[] = await parseAndEvaluateStatement(`{ContQI/ListDocs {folderId 1}}`);
+    assert(result instanceof Array);
+    assert(result.length == 2);
+    assert(result.every((r: any) => r.folder == 'root'));
+    const titles = result.map((r: any) => r.doc).sort();
+    assert(titles[0] == 'notes' && titles[1] == 'readme');
+  });
+
+  test('nested contains query with @into returns array', async () => {
+    await doInternModule(
+      'NestC',
+      `entity Org {
+        id Int @id,
+        name String
+      }
+      entity Team {
+        id Int @id,
+        label String
+      }
+      entity Member {
+        id Int @id,
+        who String
+      }
+      relationship OrgTeam contains(Org, Team)
+      relationship TeamMember contains(Team, Member)
+      `
+    );
+    await parseAndEvaluateStatement(`{NestC/Org {id 1, name "acme"}}`);
+    await parseAndEvaluateStatement(
+      `{NestC/Org {id? 1},
+       NestC/OrgTeam {NestC/Team {id 10, label "alpha"}}}`
+    );
+    await parseAndEvaluateStatement(
+      `{NestC/Org {id? 1},
+       NestC/OrgTeam {NestC/Team {id? 10},
+                      NestC/TeamMember {NestC/Member {id 100, who "alice"}}}}`
+    );
+    await parseAndEvaluateStatement(
+      `{NestC/Org {id? 1},
+       NestC/OrgTeam {NestC/Team {id? 10},
+                      NestC/TeamMember {NestC/Member {id 200, who "bob"}}}}`
+    );
+    // Nested query with @into across 3 levels
+    const result: any[] = await parseAndEvaluateStatement(
+      `{NestC/Org {id? 1},
+       NestC/OrgTeam {NestC/Team? {},
+                      NestC/TeamMember {NestC/Member? {}}},
+       @into {org NestC/Org.name, team NestC/Team.label, member NestC/Member.who}}`
+    );
+    assert(result instanceof Array);
+    assert(result.length == 2);
+    assert(result.every((r: any) => r.org == 'acme' && r.team == 'alpha'));
+    const members = result.map((r: any) => r.member).sort();
+    assert(members[0] == 'alice' && members[1] == 'bob');
+  });
+});
+
+describe('Join query result shape', () => {
+  test('simple @join returns array', async () => {
+    await doInternModule(
+      'JoinQ',
+      `entity Order {
+        id Int @id,
+        customerId Int,
+        amount Decimal
+      }
+      entity Customer {
+        id Int @id,
+        customerId Int,
+        name String
+      }
+
+      workflow OrderSummary {
+        {JoinQ/Order? {},
+         @join JoinQ/Customer {customerId? JoinQ/Order.customerId},
+         @into {orderId JoinQ/Order.id, customerName JoinQ/Customer.name, amount JoinQ/Order.amount}}
+      }
+      `
+    );
+    await parseAndEvaluateStatement(`{JoinQ/Customer {id 1, customerId 100, name "Alice"}}`);
+    await parseAndEvaluateStatement(`{JoinQ/Customer {id 2, customerId 200, name "Bob"}}`);
+    await parseAndEvaluateStatement(`{JoinQ/Order {id 1, customerId 100, amount 50.0}}`);
+    await parseAndEvaluateStatement(`{JoinQ/Order {id 2, customerId 100, amount 75.0}}`);
+    await parseAndEvaluateStatement(`{JoinQ/Order {id 3, customerId 200, amount 30.0}}`);
+
+    const result: any[] = await parseAndEvaluateStatement(`{JoinQ/OrderSummary {}}`);
+    assert(result instanceof Array);
+    assert(result.length == 3);
+    const aliceOrders = result.filter((r: any) => r.customerName == 'Alice');
+    assert(aliceOrders.length == 2);
+    const bobOrders = result.filter((r: any) => r.customerName == 'Bob');
+    assert(bobOrders.length == 1);
+    assert(bobOrders[0].amount == 30.0);
+  });
+
+  test('@join with no matching rows returns empty array', async () => {
+    await doInternModule(
+      'JoinQE',
+      `entity Item {
+        id Int @id,
+        catId Int
+      }
+      entity Category {
+        id Int @id,
+        catId Int,
+        label String
+      }
+
+      workflow ItemsByCategory {
+        {JoinQE/Item? {},
+         @join JoinQE/Category {catId? JoinQE/Item.catId},
+         @into {itemId JoinQE/Item.id, label JoinQE/Category.label}}
+      }
+      `
+    );
+    // Items exist but no matching categories
+    await parseAndEvaluateStatement(`{JoinQE/Item {id 1, catId 999}}`);
+    const result: any[] = await parseAndEvaluateStatement(`{JoinQE/ItemsByCategory {}}`);
+    assert(result instanceof Array);
+    assert(result.length == 0);
+  });
+
+  test('@join with aggregates returns array', async () => {
+    await doInternModule(
+      'JoinAgg',
+      `entity Sale {
+        id Int @id,
+        productId Int,
+        revenue Decimal
+      }
+      entity Product {
+        id Int @id,
+        productId Int,
+        category String
+      }
+
+      workflow RevenueByCategory {
+        {JoinAgg/Sale? {},
+         @join JoinAgg/Product {productId? JoinAgg/Sale.productId},
+         @into {category JoinAgg/Product.category, total @sum(JoinAgg/Sale.revenue)},
+         @groupBy(JoinAgg/Product.category)}
+      }
+      `
+    );
+    await parseAndEvaluateStatement(
+      `{JoinAgg/Product {id 1, productId 10, category "electronics"}}`
+    );
+    await parseAndEvaluateStatement(`{JoinAgg/Product {id 2, productId 20, category "books"}}`);
+    await parseAndEvaluateStatement(`{JoinAgg/Sale {id 1, productId 10, revenue 100.0}}`);
+    await parseAndEvaluateStatement(`{JoinAgg/Sale {id 2, productId 10, revenue 200.0}}`);
+    await parseAndEvaluateStatement(`{JoinAgg/Sale {id 3, productId 20, revenue 50.0}}`);
+
+    const result: any[] = await parseAndEvaluateStatement(`{JoinAgg/RevenueByCategory {}}`);
+    assert(result instanceof Array);
+    assert(result.length == 2);
+    const elec = result.find((r: any) => r.category == 'electronics');
+    assert(elec && Math.round(Number(elec.total)) == 300);
+    const books = result.find((r: any) => r.category == 'books');
+    assert(books && Math.round(Number(books.total)) == 50);
+  });
+
+  test('multiple @join (nested joins) returns array', async () => {
+    await doInternModule(
+      'MJoin',
+      `entity Fact {
+        id Int @id,
+        dateId Int,
+        prodId Int,
+        amount Decimal
+      }
+      entity DateDim {
+        id Int @id,
+        dateId Int,
+        year Int
+      }
+      entity ProdDim {
+        id Int @id,
+        prodId Int,
+        name String
+      }
+
+      workflow SalesByYearProduct {
+        {MJoin/Fact? {},
+         @join MJoin/DateDim {dateId? MJoin/Fact.dateId},
+         @join MJoin/ProdDim {prodId? MJoin/Fact.prodId},
+         @into {year MJoin/DateDim.year, product MJoin/ProdDim.name, total @sum(MJoin/Fact.amount)},
+         @groupBy(MJoin/DateDim.year, MJoin/ProdDim.name),
+         @orderBy(MJoin/DateDim.year)}
+      }
+      `
+    );
+    await parseAndEvaluateStatement(`{MJoin/DateDim {id 1, dateId 1, year 2024}}`);
+    await parseAndEvaluateStatement(`{MJoin/DateDim {id 2, dateId 2, year 2025}}`);
+    await parseAndEvaluateStatement(`{MJoin/ProdDim {id 1, prodId 10, name "Widget"}}`);
+    await parseAndEvaluateStatement(`{MJoin/ProdDim {id 2, prodId 20, name "Gadget"}}`);
+    await parseAndEvaluateStatement(`{MJoin/Fact {id 1, dateId 1, prodId 10, amount 100.0}}`);
+    await parseAndEvaluateStatement(`{MJoin/Fact {id 2, dateId 1, prodId 20, amount 200.0}}`);
+    await parseAndEvaluateStatement(`{MJoin/Fact {id 3, dateId 2, prodId 10, amount 150.0}}`);
+
+    const result: any[] = await parseAndEvaluateStatement(`{MJoin/SalesByYearProduct {}}`);
+    assert(result instanceof Array);
+    assert(result.length == 3);
+    // Verify ordering by year
+    assert(result[0].year == 2024);
+    const w2024 = result.find((r: any) => r.year == 2024 && r.product == 'Widget');
+    assert(w2024 && Math.round(Number(w2024.total)) == 100);
+    const g2024 = result.find((r: any) => r.year == 2024 && r.product == 'Gadget');
+    assert(g2024 && Math.round(Number(g2024.total)) == 200);
+    const w2025 = result.find((r: any) => r.year == 2025 && r.product == 'Widget');
+    assert(w2025 && Math.round(Number(w2025.total)) == 150);
+  });
+
+  test('@join with @where filter returns array', async () => {
+    await doInternModule(
+      'JoinW',
+      `entity Invoice {
+        id Int @id,
+        regionId Int,
+        total Decimal
+      }
+      entity Region {
+        id Int @id,
+        regionId Int,
+        country String
+      }
+
+      workflow InvoicesByCountry {
+        {JoinW/Invoice? {},
+         @join JoinW/Region {regionId? JoinW/Invoice.regionId},
+         @into {invoiceId JoinW/Invoice.id, country JoinW/Region.country, total JoinW/Invoice.total},
+         @where {JoinW/Region.country? InvoicesByCountry.country}}
+      }
+      `
+    );
+    await parseAndEvaluateStatement(`{JoinW/Region {id 1, regionId 1, country "US"}}`);
+    await parseAndEvaluateStatement(`{JoinW/Region {id 2, regionId 2, country "India"}}`);
+    await parseAndEvaluateStatement(`{JoinW/Invoice {id 1, regionId 1, total 500.0}}`);
+    await parseAndEvaluateStatement(`{JoinW/Invoice {id 2, regionId 2, total 300.0}}`);
+    await parseAndEvaluateStatement(`{JoinW/Invoice {id 3, regionId 1, total 700.0}}`);
+
+    const result: any[] = await parseAndEvaluateStatement(
+      `{JoinW/InvoicesByCountry {country "US"}}`
+    );
+    assert(result instanceof Array);
+    assert(result.length == 2);
+    assert(result.every((r: any) => r.country == 'US'));
+
+    // Filter for a country with no invoices
+    const empty: any[] = await parseAndEvaluateStatement(
+      `{JoinW/InvoicesByCountry {country "Japan"}}`
+    );
+    assert(empty instanceof Array);
+    assert(empty.length == 0);
+  });
+});
+
+describe('Query with @empty and relationships', () => {
+  test('@empty on entity query with relationship setup', async () => {
+    await doInternModule(
+      'EmptyRel',
+      `entity Project {
+        id Int @id,
+        name String
+      }
+      entity Developer {
+        id Int @id,
+        name String
+      }
+      relationship ProjectDev between(Project, Developer) @one_many
+      `
+    );
+    await parseAndEvaluateStatement(`{EmptyRel/Project {id 1, name "alpha"}}`);
+    await parseAndEvaluateStatement(`{EmptyRel/Project {id 2, name "beta"}}`);
+    // Query project 1 - should find it
+    const found: Instance[] = await parseAndEvaluateStatement(`{EmptyRel/Project {id? 1}}`);
+    assert(found instanceof Array);
+    assert(found.length == 1);
+    assert(found[0].lookup('name') == 'alpha');
+
+    // Query non-existent project, @empty falls back to project 2
+    const fallback: Instance[] = await parseAndEvaluateStatement(
+      `{EmptyRel/Project {id? 999}} @empty {EmptyRel/Project {id? 2}} @as [P]`
+    );
+    assert(fallback instanceof Array);
+    assert(fallback.length == 1);
+    assert(fallback[0].lookup('name') == 'beta');
+  });
+
+  test('@empty on contains relationship query', async () => {
+    await doInternModule(
+      'EmptyCont',
+      `entity Shelf {
+        id Int @id,
+        label String
+      }
+      entity Item {
+        id Int @id,
+        name String
+      }
+      relationship ShelfItem contains(Shelf, Item)
+      `
+    );
+    await parseAndEvaluateStatement(`{EmptyCont/Shelf {id 1, label "A"}}`);
+    await parseAndEvaluateStatement(`{EmptyCont/Shelf {id 2, label "B"}}`);
+    await parseAndEvaluateStatement(
+      `{EmptyCont/Shelf {id? 1},
+       EmptyCont/ShelfItem {EmptyCont/Item {id 10, name "widget"}}}`
+    );
+    // Query non-existent shelf, fall back to shelf 1
+    const result: Instance[] = await parseAndEvaluateStatement(
+      `{EmptyCont/Shelf {id? 999}} @empty {EmptyCont/Shelf {id? 1}} @as [S]`
+    );
+    assert(result instanceof Array);
+    assert(result.length == 1);
+    assert(result[0].lookup('label') == 'A');
+  });
+});
+
+describe('Query-all with relationships returns array', () => {
+  test('query-all with between relationship and @into', async () => {
+    await doInternModule(
+      'QAllRel',
+      `entity Student {
+        id Int @id,
+        name String
+      }
+      entity Course {
+        id Int @id,
+        title String
+      }
+      relationship Enrollment between(Student, Course) @one_many
+
+      workflow Enroll {
+        {QAllRel/Student {id? Enroll.studentId}} @as [S]
+        {QAllRel/Course {id? Enroll.courseId}} @as [C]
+        {QAllRel/Enrollment {Student S, Course C}}
+      }
+
+      workflow AllEnrollments {
+        {QAllRel/Student? {},
+         QAllRel/Enrollment {QAllRel/Course? {}},
+         @into {student QAllRel/Student.name, course QAllRel/Course.title}}
+      }
+      `
+    );
+    await parseAndEvaluateStatement(`{QAllRel/Student {id 1, name "Alice"}}`);
+    await parseAndEvaluateStatement(`{QAllRel/Student {id 2, name "Bob"}}`);
+    await parseAndEvaluateStatement(`{QAllRel/Course {id 10, title "Math"}}`);
+    await parseAndEvaluateStatement(`{QAllRel/Course {id 20, title "Physics"}}`);
+    // Enroll via workflow
+    await parseAndEvaluateStatement(`{QAllRel/Enroll {studentId 1, courseId 10}}`);
+    await parseAndEvaluateStatement(`{QAllRel/Enroll {studentId 2, courseId 20}}`);
+
+    const result: any[] = await parseAndEvaluateStatement(`{QAllRel/AllEnrollments {}}`);
+    assert(result instanceof Array);
+    assert(result.length == 2);
+    const alice = result.find((r: any) => r.student == 'Alice');
+    assert(alice && alice.course == 'Math');
+    const bob = result.find((r: any) => r.student == 'Bob');
+    assert(bob && bob.course == 'Physics');
+  });
+
+  test('query-all with no data returns empty array', async () => {
+    await doInternModule(
+      'QAllE',
+      `entity X {
+        id Int @id,
+        v Int
+      }
+      entity Y {
+        id Int @id,
+        w Int
+      }
+      relationship XY between(X, Y) @one_many
+
+      workflow AllXY {
+        {QAllE/X? {},
+         QAllE/XY {QAllE/Y? {}},
+         @into {xv QAllE/X.v, yw QAllE/Y.w}}
+      }
+      `
+    );
+    // No data at all
+    const result: any[] = await parseAndEvaluateStatement(`{QAllE/AllXY {}}`);
+    assert(result instanceof Array);
+    assert(result.length == 0);
+  });
 });
 
 describe('Expression attributes', () => {
