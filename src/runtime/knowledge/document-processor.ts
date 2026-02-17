@@ -123,7 +123,7 @@ export class DocumentProcessor {
     const entityResults = await runParallel(
       megaBatches,
       async (batch, i) => {
-        logger.info(
+        logger.debug(
           `[KNOWLEDGE] Entity extraction: mega-batch ${i + 1}/${megaBatches.length} (${batch.length} chars)`
         );
         try {
@@ -133,7 +133,9 @@ export class DocumentProcessor {
             llmName,
             MAX_ENTITIES_PER_BATCH
           );
-          logger.info(`[KNOWLEDGE] Extracted ${entities.length} entities from mega-batch ${i + 1}`);
+          logger.debug(
+            `[KNOWLEDGE] Extracted ${entities.length} entities from mega-batch ${i + 1}`
+          );
           return { index: i, entities };
         } catch (err) {
           logger.warn(`[KNOWLEDGE] Failed to extract entities from mega-batch ${i + 1}: ${err}`);
@@ -208,7 +210,7 @@ export class DocumentProcessor {
     const relResults = await runParallel(
       megaBatches,
       async (batch, i) => {
-        logger.info(
+        logger.debug(
           `[KNOWLEDGE] Relationship extraction: mega-batch ${i + 1}/${megaBatches.length}`
         );
         try {
@@ -219,7 +221,7 @@ export class DocumentProcessor {
             llmName,
             MAX_RELATIONSHIPS_PER_BATCH
           );
-          logger.info(
+          logger.debug(
             `[KNOWLEDGE] Extracted ${relationships.length} relationships from mega-batch ${i + 1}`
           );
           return relationships;

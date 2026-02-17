@@ -706,7 +706,10 @@ export class Environment extends Instance {
   }
 
   async commitAllTransactions(): Promise<void> {
+    const txCount = this.activeTransactions.size;
+    logger.info(`[TXN] Committing ${txCount} transactions`);
     await this.endAllTransactions(true);
+    logger.info(`[TXN] Committed ${txCount} transactions`);
   }
 
   async rollbackAllTransactions(): Promise<void> {
@@ -1232,6 +1235,7 @@ export let parseAndEvaluateStatement = async function (
     throw err;
   } finally {
     if (!actievEnv) {
+      logger.info(`[PES] Finalizing transaction (commit=${commit})`);
       if (commit) {
         await env.commitAllTransactions();
       } else {

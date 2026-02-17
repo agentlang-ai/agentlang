@@ -473,9 +473,18 @@ export class SemanticDeduplicator {
     }
     query += `}}`;
 
+    logger.info(`[KNOWLEDGE] Creating node with query: ${query.substring(0, 100)}...`);
     const result = await parseAndEvaluateStatement(query, undefined);
+    logger.info(`[KNOWLEDGE] Node creation result: ${result ? 'success' : 'null'}`);
+
     const inst = Array.isArray(result) ? result[0] : result;
+    if (!inst) {
+      logger.error(`[KNOWLEDGE] Failed to create node - no instance returned`);
+      throw new Error('Failed to create node');
+    }
+
     const node = instanceToGraphNode(inst);
+    logger.info(`[KNOWLEDGE] Node created: ${node.id} (${node.name})`);
 
     if (embedding && embedding.length > 0) {
       logger.debug(

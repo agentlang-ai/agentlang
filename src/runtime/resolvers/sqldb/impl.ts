@@ -420,18 +420,26 @@ export class SqlDbResolver extends Resolver {
             return inst;
           }
 
-          logger.info(
-            `[EMBEDDING] Generating embeddings for ${path} (${textToEmbed.length} chars, ~${Math.ceil(textToEmbed.length / embeddingConfig.chunkSize)} chunks)`
-          );
+          // Only show info log for documents, not for individual entities like KnowledgeNodes
+          const isDocument = path.includes('Document') && !path.includes('KnowledgeNode');
+          if (isDocument) {
+            logger.info(
+              `[EMBEDDING] Generating embeddings for ${path} (${textToEmbed.length} chars, ~${Math.ceil(textToEmbed.length / embeddingConfig.chunkSize)} chunks)`
+            );
+          } else {
+            logger.debug(
+              `[EMBEDDING] Generating embeddings for ${path} (${textToEmbed.length} chars, ~${Math.ceil(textToEmbed.length / embeddingConfig.chunkSize)} chunks)`
+            );
+          }
           logger.debug(
             `[EMBEDDING] Config: chunkSize=${embeddingConfig.chunkSize}, chunkOverlap=${embeddingConfig.chunkOverlap}`
           );
           const embeddingService = new EmbeddingService(embeddingConfig);
           logger.debug(`[EMBEDDING] EmbeddingService created, generating embedding...`);
           const res = await embeddingService.embedText(textToEmbed);
-          logger.info(`[EMBEDDING] Embeddings generated (${res.length}d), saving to vector store`);
+          logger.debug(`[EMBEDDING] Embeddings generated (${res.length}d), saving to vector store`);
           await addRowForFullTextSearch(n, path, res, ctx);
-          logger.info(`[EMBEDDING] Saved embeddings for ${path}`);
+          logger.debug(`[EMBEDDING] Saved embeddings for ${path}`);
         }
       } catch (reason: any) {
         logger.warn(`Full text indexing failed for ${path} - ${reason}`);
