@@ -908,6 +908,13 @@ export class Environment extends Instance {
     return this;
   }
 
+  setMonitorEntryLlmTokenUsage(input: number, output: number, total: number): Environment {
+    if (this.monitor !== undefined) {
+      this.monitor.setEntryLlmTokenUsage(input, output, total);
+    }
+    return this;
+  }
+
   incrementMonitor(): Environment {
     if (this.monitor !== undefined) {
       this.monitor = this.monitor.increment();
