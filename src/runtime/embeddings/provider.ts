@@ -24,11 +24,11 @@ export abstract class EmbeddingProvider {
   abstract getProviderName(): string;
 
   async embedText(text: string): Promise<number[]> {
-    logger.info(`[EMBEDDING-PROVIDER] embedText called (${text.length} chars)`);
+    logger.debug(`[EMBEDDING-PROVIDER] embedText called (${text.length} chars)`);
     const startTime = Date.now();
     const result = await this.embeddings.embedQuery(text);
     const duration = Date.now() - startTime;
-    logger.info(
+    logger.debug(
       `[EMBEDDING-PROVIDER] embedText completed in ${duration}ms (${result.length} dimensions)`
     );
     return result;
@@ -37,11 +37,11 @@ export abstract class EmbeddingProvider {
   async embedTexts(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return [];
     if (texts.length === 1) return [await this.embedText(texts[0])];
-    logger.info(`[EMBEDDING-PROVIDER] embedTexts called (${texts.length} texts)`);
+    logger.debug(`[EMBEDDING-PROVIDER] embedTexts called (${texts.length} texts)`);
     const startTime = Date.now();
     const results = await this.embeddings.embedDocuments(texts);
     const duration = Date.now() - startTime;
-    logger.info(
+    logger.debug(
       `[EMBEDDING-PROVIDER] embedTexts completed in ${duration}ms (${texts.length} texts, ${results[0]?.length || 0} dimensions)`
     );
     return results;
