@@ -1248,11 +1248,6 @@ DateDim.year? categoryRevenueForYear.year},
     const cp = r3[0] as CrudPattern;
     assert(cp.joins.length === 3);
     assert(cp.where?.length === 3);
-    assert(
-      cp.into?.keys().find((s: string) => {
-        return s === 'revenue';
-      })
-    );
     assert(cp.into?.get('revenue') === '@sum(SalesFact.revenue)');
     assert(cp.groupBy?.length === 2);
     assert(cp.orderBy?.length === 1);
