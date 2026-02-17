@@ -202,6 +202,8 @@ importers:
 
   example/customer_support_system: {}
 
+  example/dracula: {}
+
   example/employee_chat: {}
 
   example/joins: {}
@@ -209,8 +211,6 @@ importers:
   example/mcpdemo: {}
 
   example/monitoring: {}
-
-  example/personal_assistant: {}
 
   example/pets: {}
 
