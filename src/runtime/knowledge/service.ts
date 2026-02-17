@@ -486,6 +486,10 @@ export class KnowledgeService {
     }
 
     try {
+      // Clear existing data for this container to ensure sync is idempotent
+      logger.debug(`[KNOWLEDGE] Clearing existing Neo4j data for container: ${containerTag}`);
+      await this.graphDb.clearContainer(containerTag);
+
       const nodeResults: Instance[] = await parseAndEvaluateStatement(
         `{${CoreKnowledgeModuleName}/KnowledgeNode {containerTag? "${escapeString(containerTag)}", isLatest? true}}`,
         undefined
