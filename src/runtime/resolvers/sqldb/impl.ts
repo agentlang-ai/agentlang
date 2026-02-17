@@ -72,7 +72,12 @@ export class EmbeddingService {
     this.config = config || {};
     const providerClass = embeddingProvider(this.config.provider || 'openai');
     this.provider = new providerClass(this.config);
-    this.chunker = new TextChunker(this.getChunkSize(), this.getChunkOverlap());
+    const chunkSize = this.getChunkSize();
+    const chunkOverlap = this.getChunkOverlap();
+    logger.info(
+      `[EMBEDDING] Creating EmbeddingService with chunkSize=${chunkSize}, chunkOverlap=${chunkOverlap}`
+    );
+    this.chunker = new TextChunker(chunkSize, chunkOverlap);
   }
 
   private getChunkSize(): number {
@@ -84,35 +89,144 @@ export class EmbeddingService {
   }
 
   async embedText(text: string): Promise<number[]> {
-    const chunks = this.chunker.splitText(text);
+    logger.info(`[EMBEDDING] embedText called with ${text.length} chars`);
 
-    if (chunks.length === 1) {
-      return await this.provider.embedText(chunks[0]);
-    }
-
-    const chunkEmbeddings = await Promise.all(
-      chunks.map((chunk: string) => this.provider.embedText(chunk))
+    // Estimate number of chunks
+    const estimatedChunks = this.chunker.estimateChunks(text);
+    logger.info(
+      `[EMBEDDING] Estimated chunks: ${estimatedChunks} (chunkSize=${this.getChunkSize()}, overlap=${this.getChunkOverlap()})`
     );
 
-    return this.averageEmbeddings(chunkEmbeddings);
+    // Use iterator to avoid keeping all chunks in memory
+    const chunkIterator = this.chunker.streamChunks(text);
+    const firstChunk = chunkIterator.next();
+
+    if (firstChunk.done) {
+      return [];
+    }
+
+    // Check if there's only one chunk
+    const secondChunk = chunkIterator.next();
+    if (secondChunk.done) {
+      logger.info(`[EMBEDDING] Single chunk, embedding directly...`);
+      return await this.provider.embedText(firstChunk.value);
+    }
+
+    // Process multiple chunks incrementally to save memory
+    const CONCURRENCY = 3; // Reduced from 5 to save memory
+    logger.info(`[EMBEDDING] Processing chunks with concurrency ${CONCURRENCY}...`);
+
+    // Accumulate embeddings incrementally
+    let dimension: number | null = null;
+    const averaged = new Array<number>(1536).fill(0); // text-embedding-3-small has 1536 dimensions
+    let totalChunks = 0;
+
+    // Process first two chunks we already read
+    let batch: string[] = [firstChunk.value, secondChunk.value];
+
+    async function processBatch(
+      this: EmbeddingService,
+      batchChunks: string[],
+      batchNum: number,
+      startIdx: number
+    ) {
+      logger.info(`[EMBEDDING] Processing batch ${batchNum} (${batchChunks.length} chunks)...`);
+      const startTime = Date.now();
+
+      const batchEmbeddings = await Promise.all(
+        batchChunks.map((chunk, idx) => {
+          const chunkNum = startIdx + idx + 1;
+          logger.info(
+            `[EMBEDDING] Embedding chunk ${chunkNum}/${estimatedChunks} (${chunk.length} chars)...`
+          );
+          return this.provider.embedText(chunk);
+        })
+      );
+
+      logger.info(`[EMBEDDING] Batch embedded in ${Date.now() - startTime}ms`);
+      return batchEmbeddings;
+    }
+
+    // Process first batch (starts at index 0)
+    let batchEmbeddings = await processBatch.call(this, batch, 1, 0);
+    let processedCount = batch.length;
+
+    for (const embedding of batchEmbeddings) {
+      if (dimension === null) {
+        dimension = embedding.length;
+      }
+      for (let i = 0; i < dimension; i++) {
+        averaged[i] += embedding[i];
+      }
+      totalChunks++;
+    }
+
+    // Free memory
+    batchEmbeddings = [];
+    batch = [];
+
+    // Process remaining chunks
+    let batchNum = 2;
+    batch = [];
+
+    for (const chunk of chunkIterator) {
+      batch.push(chunk);
+
+      if (batch.length >= CONCURRENCY) {
+        batchEmbeddings = await processBatch.call(this, batch, batchNum++, processedCount);
+        processedCount += batch.length;
+
+        for (const embedding of batchEmbeddings) {
+          for (let i = 0; i < dimension!; i++) {
+            averaged[i] += embedding[i];
+          }
+          totalChunks++;
+        }
+
+        // Free memory immediately
+        batchEmbeddings = [];
+        batch = [];
+
+        // Hint GC if available (e.g. when running with --expose-gc)
+        global.gc?.();
+      }
+    }
+
+    // Process any remaining chunks
+    if (batch.length > 0) {
+      batchEmbeddings = await processBatch.call(this, batch, batchNum, processedCount);
+      processedCount += batch.length;
+
+      for (const embedding of batchEmbeddings) {
+        for (let i = 0; i < dimension!; i++) {
+          averaged[i] += embedding[i];
+        }
+        totalChunks++;
+      }
+    }
+
+    logger.info(`[EMBEDDING] All ${totalChunks} chunks embedded, finalizing average...`);
+
+    // Finalize average
+    for (let i = 0; i < dimension!; i++) {
+      averaged[i] = averaged[i] / totalChunks;
+    }
+
+    return averaged;
   }
 
   async embedQuery(query: string): Promise<number[]> {
     return await this.provider.embedText(query);
   }
 
-  private averageEmbeddings(embeddings: number[][]): number[] {
-    if (embeddings.length === 0) return [];
-    const dimension = embeddings[0].length;
-    const averaged = new Array(dimension).fill(0);
-
-    for (const embedding of embeddings) {
-      for (let i = 0; i < dimension; i++) {
-        averaged[i] += embedding[i];
-      }
-    }
-
-    return averaged.map((v: number) => v / embeddings.length);
+  async embedTexts(texts: string[]): Promise<number[][]> {
+    if (texts.length === 0) return [];
+    logger.info(`[EMBEDDING] embedTexts called with ${texts.length} texts`);
+    const startTime = Date.now();
+    const results = await this.provider.embedTexts(texts);
+    const duration = Date.now() - startTime;
+    logger.info(`[EMBEDDING] embedTexts completed in ${duration}ms`);
+    return results;
   }
 }
 
@@ -249,7 +363,11 @@ export class SqlDbResolver extends Resolver {
                 typeof instanceEmbeddingConfig === 'string'
                   ? JSON.parse(instanceEmbeddingConfig)
                   : instanceEmbeddingConfig;
-            } catch {
+              logger.info(
+                `[EMBEDDING] Parsed embeddingConfig from instance: ${JSON.stringify(embeddingConfig)}`
+              );
+            } catch (e) {
+              logger.warn(`[EMBEDDING] Failed to parse embeddingConfig: ${e}`);
               // If parsing fails, will fall back to env vars
             }
           }
@@ -257,6 +375,7 @@ export class SqlDbResolver extends Resolver {
             embeddingConfig = {
               provider: process.env.AGENTLANG_EMBEDDING_PROVIDER || 'openai',
               model: process.env.AGENTLANG_EMBEDDING_MODEL || 'text-embedding-3-small',
+              apiKey: process.env.AGENTLANG_OPENAI_KEY || process.env.OPENAI_API_KEY,
               chunkSize: process.env.AGENTLANG_EMBEDDING_CHUNKSIZE
                 ? parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKSIZE, 10)
                 : 1000,
@@ -264,10 +383,49 @@ export class SqlDbResolver extends Resolver {
                 ? parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP, 10)
                 : 200,
             };
+          } else {
+            // Ensure apiKey is set even if embeddingConfig was provided
+            if (!embeddingConfig.apiKey) {
+              embeddingConfig.apiKey =
+                process.env.AGENTLANG_OPENAI_KEY || process.env.OPENAI_API_KEY;
+            }
+            // Ensure chunkSize and chunkOverlap have sensible values
+            // If stored config has invalid values (too small), override with defaults
+            const minChunkSize = 500; // Minimum reasonable chunk size
+            if (!embeddingConfig.chunkSize || embeddingConfig.chunkSize < minChunkSize) {
+              embeddingConfig.chunkSize = process.env.AGENTLANG_EMBEDDING_CHUNKSIZE
+                ? parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKSIZE, 10)
+                : 1000;
+              logger.info(
+                `[EMBEDDING] Overriding invalid chunkSize with default: ${embeddingConfig.chunkSize}`
+              );
+            }
+            if (!embeddingConfig.chunkOverlap) {
+              embeddingConfig.chunkOverlap = process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP
+                ? parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP, 10)
+                : 200;
+            }
           }
+
+          // Skip embedding if no API key is available
+          if (!embeddingConfig.apiKey) {
+            logger.warn(`[EMBEDDING] No API key available, skipping embedding for ${path}`);
+            return inst;
+          }
+          logger.info(
+            `[EMBEDDING] Starting embedding generation for ${path} (${textToEmbed.length} chars)`
+          );
+          logger.info(
+            `[EMBEDDING] Config: chunkSize=${embeddingConfig.chunkSize}, chunkOverlap=${embeddingConfig.chunkOverlap}`
+          );
           const embeddingService = new EmbeddingService(embeddingConfig);
+          logger.info(`[EMBEDDING] EmbeddingService created, generating embedding...`);
           const res = await embeddingService.embedText(textToEmbed);
+          logger.info(
+            `[EMBEDDING] Embedding generated (${res.length} dimensions), saving to vector store...`
+          );
           await addRowForFullTextSearch(n, path, res, ctx);
+          logger.info(`[EMBEDDING] Successfully saved embedding for ${path}`);
         }
       } catch (reason: any) {
         logger.warn(`Full text indexing failed for ${path} - ${reason}`);
@@ -363,12 +521,10 @@ export class SqlDbResolver extends Resolver {
         : 200,
     };
     const ftsAttrs = inst.record.getFullTextSearchAttributes();
-    if (
-      (await isVectorStoreSupported()) &&
-      qattrs &&
-      (ftsAttrs || Object.keys(qattrs).some(k => k.endsWith('?')))
-    ) {
-      const vectorSearchAttr = Object.keys(qattrs).find(k => k.endsWith('?'));
+    if ((await isVectorStoreSupported()) && qattrs && ftsAttrs) {
+      // Find a query attribute that matches one of the fullTextSearch attributes
+      // Note: query attribute names already have '?' stripped by the interpreter
+      const vectorSearchAttr = Object.keys(qattrs).find(k => ftsAttrs.includes(k));
       if (vectorSearchAttr) {
         const queryVal = qvals[vectorSearchAttr];
         const searchString = this.valueToString(queryVal);

@@ -74,6 +74,7 @@ import { Statement } from '../../language/generated/ast.js';
 import { isMonitoringEnabled, TtlCache } from '../state.js';
 import { isNodeEnv } from '../../utils/runtime.js';
 import { getFileSystem } from '../../utils/fs-utils.js';
+import { getKnowledgeService } from '../knowledge/service.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -81,6 +82,9 @@ export const LlmEntityName = 'LLM';
 export const AgentLearnerType = 'learner';
 
 const AgentEvalType = 'eval';
+
+// Maximum number of messages to retain in agent chat sessions (prevents memory issues)
+const MAX_AGENT_SESSION_MESSAGES = parseInt(process.env.MAX_AGENT_SESSION_MESSAGES || '20', 10);
 
 export default `module ${CoreAIModuleName}
 
@@ -308,6 +312,19 @@ async function activatedUserDefinedAgentDirectives(
 export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
 const ProviderDb = new Map<string, AgentServiceProvider>();
+const MAX_PROVIDER_CACHE_SIZE = parseInt(process.env.MAX_PROVIDER_CACHE_SIZE || '10', 10);
+
+function cacheProvider(llmName: string, provider: AgentServiceProvider): void {
+  // Limit cache size to prevent memory leaks
+  if (ProviderDb.size >= MAX_PROVIDER_CACHE_SIZE) {
+    // Remove oldest entry (first in map)
+    const firstKey = ProviderDb.keys().next().value;
+    if (firstKey !== undefined) {
+      ProviderDb.delete(firstKey);
+    }
+  }
+  ProviderDb.set(llmName, provider);
+}
 
 export class AgentInstance {
   llm: string = '';
@@ -888,12 +905,58 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           const s = await this.maybeFillInFileContents(extractedText.extracted.join('\n'), env);
           tmpMsg = `${tmpMsg}\n${s}`;
         }
-        const hmsg = await this.maybeAddRelevantDocuments(
-          this.maybeAddFlowContext(tmpMsg, env),
-          env
-        );
-        if (hmsg.length > 0) {
-          msgs.push(humanMessage(hmsg));
+        let hmsg = this.maybeAddFlowContext(tmpMsg, env);
+
+        let knowledgeContextStr = '';
+        let knowledgeSession: {
+          sessionId: string;
+          userId: string;
+          agentId: string;
+          containerTag: string;
+        } | null = null;
+        if (this.withSession) {
+          try {
+            const userId = env.getActiveUser() || 'anonymous';
+            const agentFqName = this.getFqName();
+            const knowledgeService = getKnowledgeService();
+            knowledgeSession = await knowledgeService.getOrCreateSession(
+              this.name,
+              userId,
+              agentFqName
+            );
+
+            // Process agent documents into the knowledge graph (first time only)
+            // Run asynchronously to not block the response
+            if (this.documents) {
+              const docTitles = this.documents.split(',').map(d => d.trim());
+              knowledgeService
+                .maybeProcessAgentDocuments(knowledgeSession, docTitles, env, this.llm)
+                .catch(err => {
+                  logger.warn(`[KNOWLEDGE] Background document processing failed: ${err}`);
+                });
+            }
+
+            const knowledgeContext = await knowledgeService.buildContext(
+              hmsg,
+              knowledgeSession.containerTag,
+              knowledgeSession.userId,
+              knowledgeSession.agentId
+            );
+            knowledgeContextStr = knowledgeService.buildContextString(knowledgeContext);
+          } catch (err) {
+            logger.warn(`Failed to retrieve knowledge context: ${err}`);
+          }
+        }
+
+        // Only fall back to raw document retrieval when knowledge graph is not providing context
+        if (!knowledgeContextStr) {
+          hmsg = await this.maybeAddRelevantDocuments(hmsg, env);
+        }
+
+        const finalMsg = knowledgeContextStr ? `${hmsg}\n${knowledgeContextStr}` : hmsg;
+
+        if (finalMsg.length > 0) {
+          msgs.push(humanMessage(finalMsg));
         }
         const externalToolSpecs = this.getExternalToolSpecs();
         const msgsContent = msgs
@@ -934,8 +997,29 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         if (isplnr) {
           msgs[0] = sysMsg;
         }
+        // Truncate messages to prevent unbounded memory growth
+        // Keep system message (index 0) + last N user/assistant messages
+        if (msgs.length > MAX_AGENT_SESSION_MESSAGES) {
+          const systemMsg = msgs[0];
+          const recentMessages = msgs.slice(-(MAX_AGENT_SESSION_MESSAGES - 1));
+          msgs = [systemMsg, ...recentMessages];
+        }
         if (this.withSession) {
           await saveAgentChatSession(chatId, msgs, env);
+          if (knowledgeSession) {
+            try {
+              const knowledgeService = getKnowledgeService();
+              await knowledgeService.processConversationTurn(
+                message,
+                response.content,
+                knowledgeSession,
+                env,
+                this.llm
+              );
+            } catch (err) {
+              logger.warn(`Failed to process knowledge from conversation: ${err}`);
+            }
+          }
         }
         if (monitoringEnabled) env.setMonitorEntryLlmResponse(response.content);
         if (this.saveResponseAs) {
@@ -1064,6 +1148,13 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     return result;
   }
 
+  // Maximum characters of document context to append to a message
+  // (~100K chars ≈ ~25K tokens, leaving headroom for system prompt + response)
+  private static readonly MAX_DOC_CONTEXT_CHARS = parseInt(
+    process.env.AGENTLANG_MAX_DOC_CONTEXT_CHARS || '100000',
+    10
+  );
+
   private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
     if (this.documents && this.documents.length > 0) {
       try {
@@ -1092,13 +1183,21 @@ Only return a pure JSON object with no extra text, annotations etc.`;
             }
 
             if (docs.length > 0) {
-              return message.concat('\n\nRelevant context from documents:\n').concat(
-                docs
-                  .map((v: Instance) => {
-                    return `Document: ${v.lookup('title')}\n${v.lookup('content') as string}`;
-                  })
-                  .join('\n\n---\n\n')
-              );
+              let docContext = '';
+              for (const v of docs) {
+                const entry = `Document: ${v.lookup('title')}\n${v.lookup('content') as string}`;
+                if (docContext.length + entry.length > AgentInstance.MAX_DOC_CONTEXT_CHARS) {
+                  const remaining = AgentInstance.MAX_DOC_CONTEXT_CHARS - docContext.length;
+                  if (remaining > 200) {
+                    docContext += (docContext ? '\n\n---\n\n' : '') + entry.substring(0, remaining) + '\n...[truncated]';
+                  }
+                  break;
+                }
+                docContext += (docContext ? '\n\n---\n\n' : '') + entry;
+              }
+              if (docContext) {
+                return message.concat('\n\nRelevant context from documents:\n').concat(docContext);
+              }
             }
           }
         } catch (semanticErr) {
@@ -1122,13 +1221,21 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           }
 
           if (docs.length > 0) {
-            return message.concat('\n\nRelevant context from documents:\n').concat(
-              docs
-                .map((v: Instance) => {
-                  return v.lookup('content') as string;
-                })
-                .join('\n\n')
-            );
+            let docContext = '';
+            for (const v of docs) {
+              const entry = v.lookup('content') as string;
+              if (docContext.length + entry.length > AgentInstance.MAX_DOC_CONTEXT_CHARS) {
+                const remaining = AgentInstance.MAX_DOC_CONTEXT_CHARS - docContext.length;
+                if (remaining > 200) {
+                  docContext += (docContext ? '\n\n' : '') + entry.substring(0, remaining) + '\n...[truncated]';
+                }
+                break;
+              }
+              docContext += (docContext ? '\n\n' : '') + entry;
+            }
+            if (docContext) {
+              return message.concat('\n\nRelevant context from documents:\n').concat(docContext);
+            }
           }
         }
       } catch (err) {
@@ -1253,7 +1360,7 @@ export async function findProviderForLLM(
           : new Map(Object.entries(configValue))
         : new Map().set('service', service);
       p = new pclass(providerConfig);
-      if (p) ProviderDb.set(llmName, p);
+      if (p) cacheProvider(llmName, p);
     }
   }
   if (p) {

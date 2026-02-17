@@ -58,6 +58,18 @@ import {
 } from './util.js';
 
 const GraphCache = new Map<string, ExecGraph>();
+const MAX_GRAPH_CACHE_SIZE = 1000;
+
+function addToGraphCache(eventName: string, graph: ExecGraph): void {
+  if (GraphCache.size >= MAX_GRAPH_CACHE_SIZE) {
+    // Remove oldest entry (first key) when cache is full
+    const firstKey = GraphCache.keys().next().value;
+    if (firstKey !== undefined) {
+      GraphCache.delete(firstKey);
+    }
+  }
+  GraphCache.set(eventName, graph);
+}
 
 export async function generateExecutionGraph(eventName: string): Promise<ExecGraph | undefined> {
   const cg = GraphCache.get(eventName);
@@ -67,7 +79,7 @@ export async function generateExecutionGraph(eventName: string): Promise<ExecGra
   const moduleName = parts.hasModule() ? parts.getModuleName() : undefined;
   if (!isEmptyWorkflow(wf)) {
     const g = (await graphFromStatements(wf.statements, moduleName)).setEventName(eventName);
-    if (g.canCache()) GraphCache.set(eventName, g);
+    if (g.canCache()) addToGraphCache(eventName, g);
     return g;
   }
   return undefined;
