@@ -26,8 +26,8 @@
         "name": "llm01",
         "service": "openai",
         "config": {
-          "model": "gpt-4.1",
-          "maxTokens": 200,
+          "model": "gpt-5.2",
+          "maxTokens": 100000,
           "temperature": 0.7
         }
       }
@@ -37,7 +37,7 @@
         "name": "llm02",
         "service": "openai",
         "config": {
-          "model": "gpt-4.0"
+          "model": "gpt-4o"
         }
       }
     },

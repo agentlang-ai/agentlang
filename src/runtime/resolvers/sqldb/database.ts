@@ -313,6 +313,11 @@ function makeSqliteDataSource(
         sqliteVec.load(db);
         logger.info('sqlite-vec extension loaded successfully');
       }
+      // Enable WAL mode for better concurrent read performance
+      if (db?.pragma) {
+        db.pragma('journal_mode = WAL');
+        logger.info('SQLite WAL mode enabled');
+      }
     } catch (err: any) {
       logger.warn(
         `Failed to load sqlite-vec extension: ${err.message}. Vector operations may not be available.`
@@ -534,10 +539,13 @@ export async function addRowForFullTextSearch(
         .values([{ id: id, embedding: pgvector.toSql(vect), __tenant__: tenantId }])
         .execute();
     } else {
+      // sqlite-vec expects embeddings as JSON array string for parameterized queries
+      // TypeORM would expand Float32Array into individual parameters causing "too many parameters" error
+      const embeddingJson = JSON.stringify(Array.from(vect));
       await qb
         .insert()
         .into(vecTableName)
-        .values([{ id: id, embedding: new Float32Array(vect) }])
+        .values([{ id: id, embedding: embeddingJson }])
         .execute();
     }
   } catch (err: any) {
@@ -621,13 +629,14 @@ export async function vectorStoreSearch(
       return await qb.query(sql, [args]);
     } else {
       // sqlite-vec - join with main table to filter by tenant
+      // sqlite-vec MATCH operator expects a JSON array string for the query vector
+      // Note: sqlite-vec requires k=? constraint for KNN queries, not just LIMIT
       const alias = tableName.toLowerCase();
       const sql = `SELECT ${vecTableName}.id FROM ${vecTableName}
         INNER JOIN ${tableName} ${alias} ON ${alias}.${PathAttributeName} = ${vecTableName}.id
         ${ownersJoinCond}
-        WHERE ${alias}.${TenantAttributeName} = '${tenantId}' AND ${alias}.${DeletedFlagAttributeName} = false AND ${vecTableName}.embedding MATCH $1
-        LIMIT ${limit}`;
-      const args = new Float32Array(searchVec);
+        WHERE ${alias}.${TenantAttributeName} = '${tenantId}' AND ${alias}.${DeletedFlagAttributeName} = false AND ${vecTableName}.embedding MATCH ? AND k = ${limit}`;
+      const args = JSON.stringify(searchVec);
       return await qb.query(sql, [args]);
     }
   } catch (err: any) {
@@ -660,7 +669,7 @@ export async function vectorStoreSearchEntryExists(
       const result: any[] = await qb.query(
         `SELECT ${vecTableName}.id FROM ${vecTableName}
          INNER JOIN ${tableName} ${alias} ON ${alias}.${PathAttributeName} = ${vecTableName}.id
-         WHERE ${vecTableName}.id = $1 AND ${alias}.${TenantAttributeName} = '${tenantId}'`,
+         WHERE ${vecTableName}.id = ? AND ${alias}.${TenantAttributeName} = '${tenantId}'`,
         [id]
       );
       return result !== null && result.length > 0;
@@ -686,7 +695,7 @@ export async function deleteFullTextSearchEntry(tableName: string, id: string, c
       );
     } else {
       // sqlite-vec - delete just by id (ownership verified by caller)
-      await qb.query(`delete from ${vecTableName} where id = $1`, [id]);
+      await qb.query(`delete from ${vecTableName} where id = ?`, [id]);
     }
   } catch (err: any) {
     logger.error(`Vector store delete failed - ${err}`);

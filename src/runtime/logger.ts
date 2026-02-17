@@ -36,6 +36,17 @@ export function initializeLogger() {
       maxFiles: '7d',
     });
 
+    // Add console transport for visibility
+    const consoleTransport = new winston.transports.Console({
+      level: logLevel,
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.printf(({ level, message }: any) => {
+          return `${level}: ${message}`;
+        })
+      ),
+    });
+
     logger = winston.createLogger({
       level: logLevel,
       format: winston.format.combine(
@@ -44,7 +55,7 @@ export function initializeLogger() {
           return `[${timestamp}] ${level}: ${message}`;
         })
       ),
-      transports: [fileTransport],
+      transports: [fileTransport, consoleTransport],
     });
   } else {
     function mkLogger(tag: string): Function {
