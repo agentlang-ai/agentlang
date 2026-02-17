@@ -386,12 +386,21 @@ function joinPatternToString(jp: JoinPattern): string {
   return `${jp.type} ${jp.targetEntity} {${jp.conditionLhs}${opr} ${jp.conditionRhs}}`;
 }
 
+export type WhereSpecClausePattern = {
+  lhs: string;
+  op: string;
+  rhs: string;
+};
+
 export class CrudPattern extends BasePattern {
   recordName: string;
   attributes: Array<AttributePattern>;
   relationships: Map<string, CrudPattern[] | CrudPattern> | undefined;
   joins: JoinPattern[];
   into: Map<string, string> | undefined;
+  where: WhereSpecClausePattern[] | undefined;
+  groupBy: string[] | undefined;
+  orderBy: string[] | undefined;
   isQuery: boolean = false;
   isQueryUpdate: boolean = false;
   isCreate: boolean = false;
@@ -521,15 +530,29 @@ export class CrudPattern extends BasePattern {
     return escapeQueryName(this.recordName);
   }
 
-  private intoAsString(): string | undefined {
-    if (this.into) {
-      const ss = new Array<string>();
-      this.into.forEach((attr: string, alias: string) => {
-        ss.push(`${alias} ${attr}`);
-      });
-      return `@into { ${ss.join(',\n')} }`;
-    }
-    return undefined;
+  private intoAsString(): string {
+    const ss = new Array<string>();
+    this.into?.forEach((attr: string, alias: string) => {
+      ss.push(`${alias} ${attr}`);
+    });
+    return `@into { ${ss.join(',\n')} }`;
+  }
+
+  private whereAsString(): string {
+    const ss = new Array<string>();
+    this.where?.forEach((wc: WhereSpecClausePattern) => {
+      if (wc.op == '=') ss.push(`${wc.lhs} ${wc.rhs}`);
+      else ss.push(`${wc.lhs} ${wc.op} ${wc.rhs}`);
+    });
+    return `@where {${ss.join(`,\n`)}}`;
+  }
+
+  private groupByAsString(): string {
+    return `@groupBy(${this.groupBy?.join(', ')})`;
+  }
+
+  private orderByAsString(): string {
+    return `@orderBy(${this.orderBy?.join(', ')})`;
   }
 
   override toString(): string {
@@ -542,10 +565,22 @@ export class CrudPattern extends BasePattern {
       const js = this.joins.map(joinPatternToString);
       s = s.concat(`,\n${js.join(',\n')}`);
     }
-    const ins = this.intoAsString();
-    if (ins) {
-      s = s.concat(`,\n${ins}`);
+    if (this.into) {
+      const ins = this.intoAsString();
+      if (ins) {
+        s = s.concat(`,\n${ins}`);
+      }
     }
+    if (this.where) {
+      s = s.concat(`,\n${this.whereAsString()}`);
+    }
+    if (this.groupBy) {
+      s = s.concat(`,\n${this.groupByAsString()}`);
+    }
+    if (this.orderBy) {
+      s = s.concat(`,\n${this.orderByAsString()}`);
+    }
+
     return s.concat('}', this.hintsAsString());
   }
 }
