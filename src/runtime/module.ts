@@ -724,8 +724,7 @@ export class Record extends ModuleEntry {
       if (isevent && isAgentEvent(this) && toolCall) {
         const m = new Map<string, any>();
         this.meta?.forEach((v: any, k: string) => {
-          if (!InternalMetaKeys.has(k))
-            m.set(k, v);
+          if (!InternalMetaKeys.has(k)) m.set(k, v);
         });
         if (m.size > 0) {
           metaObj = Object.fromEntries(m);
