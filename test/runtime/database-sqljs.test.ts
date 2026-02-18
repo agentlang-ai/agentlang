@@ -258,4 +258,120 @@ relationship Enrollment between(Student, Course) @many_many`
 
     console.log(`SQL.js Performance: ${count} inserts in ${insertTime}ms, query in ${queryTime}ms`);
   });
+
+  test('should handle self-referencing one-to-many between relationship', async () => {
+    await doInternModule(
+      'SelfRef1M',
+      `entity Employee {id Int @id, name String}
+relationship ManagerReportee between(Employee @as manager, Employee @as reportee) @one_many
+
+workflow AssignManager {
+    {Employee {id? AssignManager.managerId}} @as [m];
+    {Employee {id? AssignManager.reporteeId}} @as [r];
+    {ManagerReportee {manager m, reportee r}}
+}`
+    );
+
+    // Create employees
+    await parseAndEvaluateStatement(`{SelfRef1M/Employee {id 1, name "Alice"}}`);
+    await parseAndEvaluateStatement(`{SelfRef1M/Employee {id 2, name "Bob"}}`);
+    await parseAndEvaluateStatement(`{SelfRef1M/Employee {id 3, name "Charlie"}}`);
+
+    // Alice manages Bob and Charlie
+    await parseAndEvaluateStatement(`{SelfRef1M/AssignManager {managerId 1, reporteeId 2}}`);
+    await parseAndEvaluateStatement(`{SelfRef1M/AssignManager {managerId 1, reporteeId 3}}`);
+
+    // Query: find reportees for Alice (manager id=1) via relationship pattern
+    const result = (await parseAndEvaluateStatement(
+      `{SelfRef1M/Employee {id? 1}, SelfRef1M/ManagerReportee {SelfRef1M/Employee? {}}}`
+    )) as Instance[];
+
+    assert.equal(result.length, 1);
+    const reportees = result[0].getRelatedInstances('SelfRef1M/ManagerReportee');
+    assert(reportees, 'Should have related reportees');
+    assert.equal(reportees.length, 2);
+    const reporteeNames = reportees.map(e => e.lookup('name')).sort();
+    assert.deepEqual(reporteeNames, ['Bob', 'Charlie']);
+
+    // Query relationship table directly to find who manages Bob (reverse lookup)
+    const bobRelations = (await parseAndEvaluateStatement(
+      `{SelfRef1M/ManagerReportee? {}}`
+    )) as Instance[];
+    assert.equal(bobRelations.length, 2);
+  });
+
+  test('should handle self-referencing many-to-many between relationship', async () => {
+    await doInternModule(
+      'SelfRefMM',
+      `entity Person {id Int @id, name String}
+relationship Friendship between(Person @as personA, Person @as personB)
+
+workflow MakeFriends {
+    {Person {id? MakeFriends.idA}} @as [a];
+    {Person {id? MakeFriends.idB}} @as [b];
+    {Friendship {personA a, personB b}}
+}`
+    );
+
+    // Create people
+    await parseAndEvaluateStatement(`{SelfRefMM/Person {id 1, name "Alice"}}`);
+    await parseAndEvaluateStatement(`{SelfRefMM/Person {id 2, name "Bob"}}`);
+    await parseAndEvaluateStatement(`{SelfRefMM/Person {id 3, name "Charlie"}}`);
+
+    // Alice is friends with Bob and Charlie
+    await parseAndEvaluateStatement(`{SelfRefMM/MakeFriends {idA 1, idB 2}}`);
+    await parseAndEvaluateStatement(`{SelfRefMM/MakeFriends {idA 1, idB 3}}`);
+    // Bob is also friends with Charlie
+    await parseAndEvaluateStatement(`{SelfRefMM/MakeFriends {idA 2, idB 3}}`);
+
+    // Query friends of Alice (personA side)
+    const result = (await parseAndEvaluateStatement(
+      `{SelfRefMM/Person {id? 1}, SelfRefMM/Friendship {SelfRefMM/Person? {}}}`
+    )) as Instance[];
+
+    assert.equal(result.length, 1);
+    const friends = result[0].getRelatedInstances('SelfRefMM/Friendship');
+    assert(friends, 'Should have friends');
+    assert.equal(friends.length, 2);
+    const friendNames = friends.map(e => e.lookup('name')).sort();
+    assert.deepEqual(friendNames, ['Bob', 'Charlie']);
+
+    // Verify all friendship records
+    const allFriendships = (await parseAndEvaluateStatement(
+      `{SelfRefMM/Friendship? {}}`
+    )) as Instance[];
+    assert.equal(allFriendships.length, 3);
+  });
+
+  test('should handle self-referencing one-to-one between relationship', async () => {
+    await doInternModule(
+      'SelfRef11',
+      `entity Node {id Int @id, label String}
+relationship Partner between(Node @as left, Node @as right) @one_one
+
+workflow LinkPartners {
+    {Node {id? LinkPartners.leftId}} @as [l];
+    {Node {id? LinkPartners.rightId}} @as [r];
+    {Partner {left l, right r}}
+}`
+    );
+
+    // Create nodes
+    await parseAndEvaluateStatement(`{SelfRef11/Node {id 1, label "A"}}`);
+    await parseAndEvaluateStatement(`{SelfRef11/Node {id 2, label "B"}}`);
+
+    // Link A and B as partners
+    await parseAndEvaluateStatement(`{SelfRef11/LinkPartners {leftId 1, rightId 2}}`);
+
+    // Query: find the partner of Node A (left side)
+    const result = (await parseAndEvaluateStatement(
+      `{SelfRef11/Node {id? 1}, SelfRef11/Partner {SelfRef11/Node? {}}}`
+    )) as Instance[];
+
+    assert.equal(result.length, 1);
+    const partners = result[0].getRelatedInstances('SelfRef11/Partner');
+    assert(partners, 'Should have partner');
+    assert.equal(partners.length, 1);
+    assert.equal(partners[0].lookup('label'), 'B');
+  });
 });

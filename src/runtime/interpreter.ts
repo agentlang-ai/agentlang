@@ -132,6 +132,7 @@ export function isEmptyResult(r: Result): boolean {
 type BetweenRelInfo = {
   relationship: Relationship;
   connectedInstance: Instance;
+  connectedAlias?: string;
 };
 
 function mkEnvName(name: string | undefined, parent: Environment | undefined): string {
@@ -1670,7 +1671,8 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         const insts: Instance[] = await res.queryConnectedInstances(
           betRelInfo.relationship,
           betRelInfo.connectedInstance,
-          inst
+          inst,
+          betRelInfo.connectedAlias
         );
         env.setLastResult(insts);
       } else {
@@ -1722,7 +1724,12 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             } else if (isBetweenRelationship(rel.name, moduleName)) {
-              newEnv.setBetweenRelInfo({ relationship: relEntry, connectedInstance: lastRes[j] });
+              const connAlias = relEntry.isSelfReferencing() ? relEntry.node1.alias : undefined;
+              newEnv.setBetweenRelInfo({
+                relationship: relEntry,
+                connectedInstance: lastRes[j],
+                connectedAlias: connAlias,
+              });
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             }

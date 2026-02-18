@@ -1409,6 +1409,10 @@ export class Relationship extends Record {
     return this.relType == RelType.BETWEEN;
   }
 
+  isSelfReferencing(): boolean {
+    return this.node1.path.asFqName() === this.node2.path.asFqName();
+  }
+
   parentNode(): RelationshipNode {
     return this.node1;
   }
@@ -1500,6 +1504,28 @@ export class Relationship extends Record {
     } else {
       return this.node1.alias;
     }
+  }
+
+  /**
+   * For self-referencing relationships, resolve the alias for the connected instance
+   * based on an explicit connectedAlias. Falls back to fqName-based lookup for
+   * non-self-referencing relationships.
+   */
+  getAliasForConnected(inst: Instance, connectedAlias?: string): string {
+    if (connectedAlias && this.isSelfReferencing()) {
+      return connectedAlias;
+    }
+    return this.getAliasFor(inst);
+  }
+
+  getInverseAliasForConnected(inst: Instance, connectedAlias?: string): string {
+    if (connectedAlias && this.isSelfReferencing()) {
+      if (connectedAlias === this.node1.alias) {
+        return this.node2.alias;
+      }
+      return this.node1.alias;
+    }
+    return this.getInverseAliasFor(inst);
   }
 
   isParent(inst: Instance): boolean {
