@@ -72,6 +72,7 @@ import {
   Retry,
   addGlobalRetry,
   AgentEvaluator,
+  normalizeMetaValue,
 } from './module.js';
 import {
   asStringLiteralsMap,
@@ -114,6 +115,14 @@ import {
 import { getDefaultLLMService } from './agents/registry.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
+import {
+  ConnectionPolicy,
+  parseConnectionPolicy,
+  registerConnectionPolicy,
+  getConnectionPolicy,
+  PolicyResolver,
+} from './resolvers/policy.js';
+import { persistConnectionPolicy } from './modules/policy.js';
 import { Config, ConfigSchema, setAppConfig } from './state.js';
 import { getModuleFn, importModule } from './jsmodules.js';
 import { SetSubscription } from './defs.js';
@@ -1136,6 +1145,20 @@ function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
     logger.warn(`Resolver has no associated paths - ${resolverName}`);
     return;
   }
+
+  // Parse connection policy from @meta
+  let connectionPolicy: ConnectionPolicy | undefined;
+  if (def.meta) {
+    const metaMap = new Map<string, any>();
+    def.meta.spec.entries.forEach((entry: MapEntry) => {
+      if (entry.key.str) metaMap.set(entry.key.str, normalizeMetaValue(entry.value));
+    });
+    connectionPolicy = parseConnectionPolicy(resolverName, metaMap);
+    if (connectionPolicy) {
+      registerConnectionPolicy(resolverName, connectionPolicy);
+    }
+  }
+
   registerInitFunction(() => {
     const methods = new Map<string, Function>();
     let subsFn: Function | undefined;
@@ -1151,14 +1174,22 @@ function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
       }
     });
     const methodsObj = Object.fromEntries(methods.entries()) as GenericResolverMethods;
-    const resolver = new GenericResolver(resolverName, methodsObj);
+
+    // Persist policy to DB if present
+    if (connectionPolicy) {
+      persistConnectionPolicy(resolverName, connectionPolicy, new Environment());
+    }
+
     registerResolver(resolverName, () => {
-      return resolver;
+      const base = new GenericResolver(resolverName, methodsObj);
+      const currentPolicy = getConnectionPolicy(resolverName);
+      return currentPolicy ? new PolicyResolver(base, currentPolicy) : base;
     });
     paths.forEach((path: string) => {
       setResolver(path, resolverName);
     });
     if (subsFn) {
+      const resolver = new GenericResolver(resolverName, methodsObj);
       resolver.subs = {
         subscribe: subsFn,
       };

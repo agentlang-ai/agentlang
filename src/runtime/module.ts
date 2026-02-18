@@ -246,7 +246,7 @@ export enum RecordType {
   AGENT,
 }
 
-function normalizeMetaValue(metaValue: any): any {
+export function normalizeMetaValue(metaValue: any): any {
   if (!isLiteral(metaValue)) {
     throw new Error(`Invalid entry ${metaValue} in meta specification - expected a literal`);
   }

@@ -196,7 +196,7 @@ BackoffSpec: 'backoff' '{' (attributes+=SetAttribute (',' attributes+=SetAttribu
 AgentEvaluatorDefinition: 'eval' name=ID '{' '}' | '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ '}';
 
 ResolverDefinition: 'resolver' name=QualifiedName '[' (paths+=ResolverPathEntry (',' paths+=ResolverPathEntry)*)+ ']'
-'{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ '}';
+'{' (methods+=ResolverMethodSpec (',' methods+=ResolverMethodSpec)*)+ (',' meta=MetaDefinition)? '}';
 
 ResolverPathEntry returns string: QualifiedName | GenericName;
 

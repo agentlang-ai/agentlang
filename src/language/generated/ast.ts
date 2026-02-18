@@ -1112,7 +1112,7 @@ export function isMapLiteral(item: unknown): item is MapLiteral {
 }
 
 export interface MetaDefinition extends langium.AstNode {
-    readonly $container: RecordExtraDefinition;
+    readonly $container: RecordExtraDefinition | ResolverDefinition;
     readonly $type: 'MetaDefinition';
     spec: MapLiteral;
 }
@@ -1652,6 +1652,7 @@ export function isRelNodes(item: unknown): item is RelNodes {
 export interface ResolverDefinition extends langium.AstNode {
     readonly $container: ModuleDefinition;
     readonly $type: 'ResolverDefinition';
+    meta?: MetaDefinition;
     methods: Array<ResolverMethodSpec>;
     name: QualifiedName;
     paths: Array<ResolverPathEntry>;
@@ -1659,6 +1660,7 @@ export interface ResolverDefinition extends langium.AstNode {
 
 export const ResolverDefinition = {
     $type: 'ResolverDefinition',
+    meta: 'meta',
     methods: 'methods',
     name: 'name',
     paths: 'paths'
@@ -3312,6 +3314,9 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
         ResolverDefinition: {
             name: ResolverDefinition.$type,
             properties: {
+                meta: {
+                    name: ResolverDefinition.meta
+                },
                 methods: {
                     name: ResolverDefinition.methods,
                     defaultValue: []
