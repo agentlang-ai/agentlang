@@ -136,6 +136,9 @@ export const ConfigSchema = z.object({
       path: z.string().default('/mcp'),
       name: z.string().optional(),
       version: z.string().optional(),
+      instructions: z.string().optional(),
+      stateless: z.boolean().default(false),
+      enableJsonResponse: z.boolean().default(false),
     })
     .optional(),
 });

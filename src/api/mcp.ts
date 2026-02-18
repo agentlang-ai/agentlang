@@ -99,6 +99,7 @@ export async function mountMcpServer(
         tools: {},
         resources: {},
       },
+      ...(mcpConfig.instructions ? { instructions: mcpConfig.instructions } : {}),
     }
   );
 
@@ -239,25 +240,31 @@ export async function mountMcpServer(
     }
   }
 
+  const isStateless = mcpConfig.stateless === true;
+  const enableJsonResponse = mcpConfig.enableJsonResponse === true;
+
   app.post(mcpPath, async (req: Request, res: Response) => {
     try {
       attachAuthToRequest(req);
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
-      if (sessionId && transports.has(sessionId)) {
+      if (!isStateless && sessionId && transports.has(sessionId)) {
         const transport = transports.get(sessionId)!;
         await transport.handleRequest(req, res, req.body);
-      } else if (!sessionId) {
-        // New session — create transport
+      } else if (isStateless || !sessionId) {
+        // New session (or stateless mode) — create transport
         const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => crypto.randomUUID(),
+          sessionIdGenerator: isStateless ? undefined : () => crypto.randomUUID(),
+          enableJsonResponse,
         });
-        transport.onclose = () => {
-          if (transport.sessionId) {
-            transports.delete(transport.sessionId);
-          }
-        };
+        if (!isStateless) {
+          transport.onclose = () => {
+            if (transport.sessionId) {
+              transports.delete(transport.sessionId);
+            }
+          };
+        }
         await server.connect(transport);
-        if (transport.sessionId) {
+        if (!isStateless && transport.sessionId) {
           transports.set(transport.sessionId, transport);
         }
         await transport.handleRequest(req, res, req.body);

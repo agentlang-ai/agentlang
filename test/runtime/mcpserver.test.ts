@@ -164,6 +164,29 @@ describe('MCP config schema', () => {
     const config = ConfigSchema.parse({});
     assert.equal(config.mcp, undefined);
   });
+
+  test('accepts instructions, stateless, and enableJsonResponse', () => {
+    const config = ConfigSchema.parse({
+      mcp: {
+        enabled: true,
+        instructions: 'Use tools to manage tasks',
+        stateless: true,
+        enableJsonResponse: true,
+      },
+    });
+    assert.equal(config.mcp?.instructions, 'Use tools to manage tasks');
+    assert.equal(config.mcp?.stateless, true);
+    assert.equal(config.mcp?.enableJsonResponse, true);
+  });
+
+  test('applies defaults for new config options', () => {
+    const config = ConfigSchema.parse({
+      mcp: {},
+    });
+    assert.equal(config.mcp?.instructions, undefined);
+    assert.equal(config.mcp?.stateless, false);
+    assert.equal(config.mcp?.enableJsonResponse, false);
+  });
 });
 
 // ---- Integration tests with module ----
