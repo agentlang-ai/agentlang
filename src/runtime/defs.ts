@@ -426,6 +426,7 @@ export function isRuntimeMode_undo_migration(): boolean {
 let UpdateEventEndpoints: Function | undefined;
 let UpdateEntityEndpoints: Function | undefined;
 let UpdateRelationshipEndpoints: Function | undefined;
+let UpdateMcpEndpoints: Function | undefined;
 
 export function setEventEndpointsUpdater(f: Function) {
   UpdateEventEndpoints = f;
@@ -439,6 +440,10 @@ export function setRelationshipEndpointsUpdater(f: Function) {
   UpdateRelationshipEndpoints = f;
 }
 
+export function setMcpEndpointsUpdater(f: Function) {
+  UpdateMcpEndpoints = f;
+}
+
 export function updateEndpoints(moduleName: string) {
   if (UpdateEventEndpoints !== undefined) {
     UpdateEventEndpoints(moduleName);
@@ -448,6 +453,9 @@ export function updateEndpoints(moduleName: string) {
   }
   if (UpdateRelationshipEndpoints !== undefined) {
     UpdateRelationshipEndpoints(moduleName);
+  }
+  if (UpdateMcpEndpoints !== undefined) {
+    UpdateMcpEndpoints(moduleName);
   }
 }
 

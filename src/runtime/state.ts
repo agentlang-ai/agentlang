@@ -130,6 +130,14 @@ export const ConfigSchema = z.object({
       })
     )
     .optional(),
+  mcp: z
+    .object({
+      enabled: z.boolean().default(false),
+      path: z.string().default('/mcp'),
+      name: z.string().optional(),
+      version: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
