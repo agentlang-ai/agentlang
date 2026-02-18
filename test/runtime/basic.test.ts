@@ -661,6 +661,22 @@ describe('Catch test', () => {
   });
 });
 
+describe('Empty hint test', () => {
+  test('test01', async () => {
+    await doInternModule('Empty', `entity E { id Int @id, x Int }`);
+    // Create a default record
+    await parseAndEvaluateStatement(`{Empty/E {id 99, x 200}}`);
+    // Query non-existent record, fallback to default
+    const result = await parseAndEvaluateStatement(
+      `{Empty/E {id? 1}} @empty {Empty/E {id? 99}} @as [E]`
+    );
+    assert(result instanceof Array);
+    assert(result.length > 0);
+    assert(isInstanceOfType(result[0], 'Empty/E'));
+    assert(result[0].lookup('x') == 200);
+  });
+});
+
 describe('Expression attributes', () => {
   test('test01', async () => {
     await doInternModule(

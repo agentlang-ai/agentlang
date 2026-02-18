@@ -156,6 +156,7 @@ export class Environment extends Instance {
   private activeUserSet: boolean = false;
   private lastResult: Result;
   private trashedResult: Result = undefined;
+  private lastPattern: string | undefined;
   private returnFlag: boolean = false;
   private parentPath: string | undefined;
   private normalizedParentPath: string | undefined;
@@ -571,6 +572,15 @@ export class Environment extends Instance {
     return this.lastResult;
   }
 
+  setLastPattern(pattern: string | undefined): Environment {
+    this.lastPattern = pattern;
+    return this;
+  }
+
+  getLastPattern(): string | undefined {
+    return this.lastPattern;
+  }
+
   getActiveModuleName(): string {
     return this.activeModule;
   }
@@ -963,7 +973,13 @@ export let evaluate = async function (
       } else if (isAgentEventInstance(eventInstance)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
         await handleAgentInvocation(eventInstance, env);
-        if (continuation) continuation(env.getLastResult());
+        if (continuation) {
+          if (env.getLastPattern()) {
+            continuation({ result: env.getLastResult(), pattern: env.getLastPattern() });
+          } else {
+            continuation(env.getLastResult());
+          }
+        }
       } else if (isOpenApiEventInstance(eventInstance)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
         await handleOpenApiEvent(eventInstance, env);
@@ -1117,6 +1133,9 @@ export async function evaluateStatement(stmt: Statement, env: Environment): Prom
     }
     await evaluatePattern(stmt.pattern, env);
     if (hasHints) {
+      await maybeHandleEmpty(hints, env);
+    }
+    if (hasHints) {
       maybeBindStatementResultToAlias(hints, env);
     }
     await maybeHandleNotFound(handlers, env);
@@ -1141,6 +1160,24 @@ async function maybeHandleNotFound(handlers: CatchHandlers | undefined, env: Env
       const newEnv = new Environment('not-found-env', env).unsetEventExecutor();
       await evaluateStatement(onNotFound, newEnv);
       env.setLastResult(newEnv.getLastResult());
+    }
+  }
+}
+
+async function maybeHandleEmpty(hints: RuntimeHint[], env: Environment) {
+  const lastResult: Result = env.getLastResult();
+  if (
+    lastResult === null ||
+    lastResult === undefined ||
+    (lastResult instanceof Array && lastResult.length == 0)
+  ) {
+    for (const rh of hints) {
+      if (rh.emptySpec) {
+        const newEnv = new Environment('empty-env', env).unsetEventExecutor();
+        await evaluateStatement(rh.emptySpec.stmt, newEnv);
+        env.setLastResult(newEnv.getLastResult());
+        break;
+      }
     }
   }
 }
@@ -2059,6 +2096,11 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       while (true) {
         try {
           let rs: string = result ? normalizeGeneratedCode(result) : '';
+          if (agent.tools) {
+            env.setLastPattern(rs);
+          } else {
+            env.setLastPattern(undefined);
+          }
           let isWf = rs.startsWith('workflow');
           if (isWf && !agent.runWorkflows) {
             await parseWorkflow(rs);
