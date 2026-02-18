@@ -1,5 +1,6 @@
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import { Instance, isInstanceOfType } from '../../src/runtime/module.js';
+import { PathAttributeName } from '../../src/runtime/defs.js';
 import { assert, describe, test } from 'vitest';
 import { doInternModule } from '../util.js';
 
@@ -928,5 +929,102 @@ describe('User-provided value for @expr attribute on update', () => {
       upserted.lookup('y') === 777,
       `Expected y=777 on upsert-update (user wins), got y=${upserted.lookup('y')}`
     );
+  });
+});
+
+// ─── HELPER FUNCTION WITH SIBLING PARAMS ─────────────────────────────────────
+
+describe('Expression attributes with helper functions - sibling params', () => {
+  test('sibling attributes as function params', async () => {
+    await doInternModule(
+      'ExprFnSib',
+      `entity Resource {
+        id Int @id,
+        FirstName String,
+        PreferredFirstName String @optional,
+        LastName String,
+        FullName String @expr(agentlang.calculateFullName(FirstName, LastName, PreferredFirstName))
+      }`
+    );
+    agentlang.calculateFullName = (first: string, last: string, preferred: string | null) => {
+      const displayFirst = preferred || first;
+      return `${displayFirst} ${last}`;
+    };
+    const fqn = 'ExprFnSib/Resource';
+    const isRes = (r: any) => isInstanceOfType(r, fqn);
+    // With preferred first name
+    const r1: any = await parseAndEvaluateStatement(
+      `{${fqn} {id 1, FirstName "Robert", PreferredFirstName "Bob", LastName "Smith"}}`
+    );
+    assert(isRes(r1));
+    assert(r1.lookup('FullName') === 'Bob Smith');
+    // Without preferred first name (optional, falls back to FirstName)
+    const r2: any = await parseAndEvaluateStatement(
+      `{${fqn} {id 2, FirstName "Alice", LastName "Jones"}}`
+    );
+    assert(isRes(r2));
+    assert(r2.lookup('FullName') === 'Alice Jones');
+    // Query and verify persisted values
+    const results: Instance[] = await parseAndEvaluateStatement(`{${fqn}? {}}`);
+    assert(results.length === 2);
+    assert(results.every(isRes));
+    const bob = results.find((r: Instance) => r.lookup('id') === 1);
+    const alice = results.find((r: Instance) => r.lookup('id') === 2);
+    assert(bob?.lookup('FullName') === 'Bob Smith');
+    assert(alice?.lookup('FullName') === 'Alice Jones');
+  });
+});
+
+// ─── HELPER FUNCTION WITH RELATED ENTITY PARAM ──────────────────────────────
+
+describe('Expression attributes with helper functions - related entity param', () => {
+  test('related entity attribute as function param', async () => {
+    await doInternModule(
+      'ExprFnRel',
+      `entity Department {
+        id Int @id,
+        Name String,
+        BudgetMultiplier Int
+      }
+      entity Employee {
+        id Int @id,
+        dept Path,
+        Name String,
+        BaseSalary Int,
+        AdjustedSalary Int @expr(agentlang.adjustSalary(BaseSalary, dept.BudgetMultiplier))
+      }`
+    );
+    agentlang.adjustSalary = (baseSalary: number, multiplier: number) => {
+      return baseSalary * multiplier;
+    };
+    // Create departments
+    const dept1: any = await parseAndEvaluateStatement(
+      `{ExprFnRel/Department {id 1, Name "Engineering", BudgetMultiplier 3}}`
+    );
+    assert(isInstanceOfType(dept1, 'ExprFnRel/Department'));
+    const dept1Path = dept1.lookup(PathAttributeName);
+    const dept2: any = await parseAndEvaluateStatement(
+      `{ExprFnRel/Department {id 2, Name "Sales", BudgetMultiplier 2}}`
+    );
+    assert(isInstanceOfType(dept2, 'ExprFnRel/Department'));
+    const dept2Path = dept2.lookup(PathAttributeName);
+    // Create employees referencing departments
+    const emp1: any = await parseAndEvaluateStatement(
+      `{ExprFnRel/Employee {id 1, dept "${dept1Path}", Name "Alice", BaseSalary 1000}}`
+    );
+    assert(isInstanceOfType(emp1, 'ExprFnRel/Employee'));
+    assert(emp1.lookup('AdjustedSalary') === 3000);
+    const emp2: any = await parseAndEvaluateStatement(
+      `{ExprFnRel/Employee {id 2, dept "${dept2Path}", Name "Bob", BaseSalary 2000}}`
+    );
+    assert(isInstanceOfType(emp2, 'ExprFnRel/Employee'));
+    assert(emp2.lookup('AdjustedSalary') === 4000);
+    // Query and verify
+    const results: Instance[] = await parseAndEvaluateStatement(`{ExprFnRel/Employee? {}}`);
+    assert(results.length === 2);
+    const alice = results.find((r: Instance) => r.lookup('id') === 1);
+    const bob = results.find((r: Instance) => r.lookup('id') === 2);
+    assert(alice?.lookup('AdjustedSalary') === 3000);
+    assert(bob?.lookup('AdjustedSalary') === 4000);
   });
 });
