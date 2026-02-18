@@ -47,6 +47,7 @@ import {
   isEntityInstance,
   isEventInstance,
   isInstanceOfType,
+  getAllBetweenRelationshipsForEntity,
   isOneToOneBetweenRelationship,
   isTimer,
   makeInstance,
@@ -77,6 +78,7 @@ import {
   preprocessRawConfig,
   QuerySuffix,
   restoreSpecialChars,
+  splitFqName,
   splitRefs,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
@@ -1869,6 +1871,46 @@ async function computeExprAttributes(
     updatedAttrs?.forEach((v: any, k: string) => {
       if (v !== undefined) newEnv.bind(k, v);
     });
+    // Bind related instances from between-relationships so that @expr references
+    // like DeptEmployee.Department.BudgetMultiplier can be resolved via followReference.
+    const entityFqName = inst.getFqName();
+    const fqParts = splitFqName(entityFqName);
+    const rels = getAllBetweenRelationshipsForEntity(fqParts[0], fqParts[1]);
+    for (const rel of rels) {
+      const isFirst = rel.isFirstNodeName(entityFqName);
+      // Only bind if this entity is on a valid side for single-entity resolution
+      if (rel.isManyToMany()) continue;
+      if (rel.isOneToMany() && isFirst) continue;
+      // Determine the target entity on the other side
+      const targetNode = isFirst ? rel.node2 : rel.node1;
+      const targetAlias = targetNode.alias;
+      let connectedInst: Instance | undefined;
+      // Fast path: check if the environment carries between-rel info for this relationship
+      const betRelInfo = env.getBetweenRelInfo();
+      if (betRelInfo && betRelInfo.relationship.name === rel.name) {
+        connectedInst = betRelInfo.connectedInstance;
+      } else if (inst.lookup(PathAttributeName)) {
+        // Slow path: query the connected instance through the resolver.
+        // Only possible if the current instance has been persisted (has a __path__).
+        try {
+          const targetFqName = targetNode.path.asFqName();
+          const targetParts = splitFqName(targetFqName);
+          const res: Resolver = await getResolverForPath(targetParts[1], targetParts[0], env);
+          const queryInst = Instance.EmptyInstance(targetParts[1], targetParts[0]);
+          const connected: Instance[] = await res.queryConnectedInstances(rel, inst, queryInst);
+          if (connected && connected.length > 0) {
+            connectedInst = connected[0];
+          }
+        } catch (_) {
+          // Relationship query failed (e.g. not yet linked) - skip binding
+        }
+      }
+      if (connectedInst) {
+        const relMap = new Map<string, Instance>();
+        relMap.set(targetAlias, connectedInst);
+        newEnv.bind(rel.name, relMap);
+      }
+    }
     // Build a map of user-provided values for @expr attributes so that
     // overrides are applied inline during expression evaluation, allowing
     // dependent expressions to see the user's value immediately.
@@ -2560,6 +2602,32 @@ export async function evaluateExpression(expr: Expr, env: Environment): Promise<
     result = !env.getLastResult();
   }
   env.setLastResult(result);
+}
+
+export function extractRefsFromExpr(expr: Expr): string[] {
+  const refs: string[] = [];
+  function walk(e: Expr) {
+    if (isBinExpr(e)) {
+      walk(e.e1);
+      walk(e.e2);
+    } else if (isLiteral(e)) {
+      if (e.ref) refs.push(e.ref);
+      if (e.fnCall) {
+        for (const arg of e.fnCall.args) walk(arg);
+      }
+      if (e.asyncFnCall) {
+        for (const arg of e.asyncFnCall.fnCall.args) walk(arg);
+      }
+    } else if (isGroup(e)) {
+      walk(e.ge);
+    } else if (isNegExpr(e)) {
+      walk(e.ne);
+    } else if (isNotExpr(e)) {
+      walk(e.ne);
+    }
+  }
+  walk(expr);
+  return refs;
 }
 
 async function getRef(r: string, src: any, env: Environment): Promise<Result> {
