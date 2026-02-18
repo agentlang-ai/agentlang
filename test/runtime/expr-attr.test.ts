@@ -4,6 +4,8 @@ import { PathAttributeName } from '../../src/runtime/defs.js';
 import { assert, describe, test } from 'vitest';
 import { doInternModule } from '../util.js';
 
+declare const agentlang: any;
+
 // ─── CREATION TESTS ────────────────────────────────────────────────────────────
 
 describe('Expression attributes on creation', () => {
@@ -943,10 +945,10 @@ describe('Expression attributes with helper functions - sibling params', () => {
         FirstName String,
         PreferredFirstName String @optional,
         LastName String,
-        FullName String @expr(agentlang.calculateFullName(FirstName, LastName, PreferredFirstName))
+        FullName String @expr(agentlang.calculateFullName__test(FirstName, LastName, PreferredFirstName))
       }`
     );
-    agentlang.calculateFullName = (first: string, last: string, preferred: string | null) => {
+    agentlang.calculateFullName__test = (first: string, last: string, preferred: string | null) => {
       const displayFirst = preferred || first;
       return `${displayFirst} ${last}`;
     };
@@ -991,10 +993,10 @@ describe('Expression attributes with helper functions - related entity param', (
         dept Path,
         Name String,
         BaseSalary Int,
-        AdjustedSalary Int @expr(agentlang.adjustSalary(BaseSalary, dept.BudgetMultiplier))
+        AdjustedSalary Int @expr(agentlang.adjustSalary__test(BaseSalary, dept.BudgetMultiplier))
       }`
     );
-    agentlang.adjustSalary = (baseSalary: number, multiplier: number) => {
+    agentlang.adjustSalary__test = (baseSalary: number, multiplier: number) => {
       return baseSalary * multiplier;
     };
     // Create departments
@@ -1044,13 +1046,10 @@ describe('Expression attributes with helper functions - relationship param', () 
         id Int @id,
         Name String,
         BaseSalary Int,
-        AdjustedSalary Int @expr(agentlang.adjustSalaryRel(BaseSalary, DeptEmployee.Department.BudgetMultiplier))
+        AdjustedSalary Int @expr(agentlang.adjustSalary__test(BaseSalary, DeptEmployee.Department.BudgetMultiplier))
       }
       relationship DeptEmployee between(Department, Employee) @one_many`
     );
-    agentlang.adjustSalaryRel = (baseSalary: number, multiplier: number) => {
-      return baseSalary * multiplier;
-    };
     // Create a department
     const dept: any = await parseAndEvaluateStatement(
       `{ExprFnBtwn/Department {id 1, Name "Engineering", BudgetMultiplier 3}}`
@@ -1086,11 +1085,11 @@ describe('Expression attributes with helper functions - relationship param', () 
       entity User {
         id Int @id,
         Name String,
-        DisplayInfo String @expr(agentlang.makeDisplay11(Name, UserProfile.Profile.Bio))
+        DisplayInfo String @expr(agentlang.makeDisplay__test(Name, UserProfile.Profile.Bio))
       }
       relationship UserProfile between(Profile, User) @one_one`
     );
-    agentlang.makeDisplay11 = (name: string, bio: string) => (bio ? `${name}: ${bio}` : name);
+    agentlang.makeDisplay__test = (name: string, bio: string) => (bio ? `${name}: ${bio}` : name);
     // Create a profile first
     const profile: any = await parseAndEvaluateStatement(
       `{ExprRel11/Profile {id 1, Bio "Hello world"}}`
@@ -1127,13 +1126,10 @@ describe('Expression attributes with helper functions - relationship param', () 
         id Int @id,
         Name String,
         BaseSalary Int,
-        AdjustedSalary Int @expr(agentlang.adjustSalaryUpd(BaseSalary, DeptEmployee.Department.BudgetMultiplier))
+        AdjustedSalary Int @expr(agentlang.adjustSalary__test(BaseSalary, DeptEmployee.Department.BudgetMultiplier))
       }
       relationship DeptEmployee between(Department, Employee) @one_many`
     );
-    agentlang.adjustSalaryUpd = (baseSalary: number, multiplier: number) => {
-      return baseSalary * multiplier;
-    };
     // Create department
     await parseAndEvaluateStatement(
       `{ExprRelUpd/Department {id 1, Name "Engineering", BudgetMultiplier 3}}`
@@ -1158,6 +1154,7 @@ describe('Expression attributes with helper functions - relationship param', () 
 
 describe('Expression attributes - relationship validation errors', () => {
   test('one-to-many from "one" side should fail validation', async () => {
+    agentlang.identity__test = (x: any) => x;
     let errorMsg = '';
     try {
       await doInternModule(
@@ -1165,7 +1162,7 @@ describe('Expression attributes - relationship validation errors', () => {
         `entity Department {
           id Int @id,
           Name String,
-          EmpCount Int @expr(agentlang.count1(DeptEmployee.Employee.Name))
+          EmpCount Int @expr(agentlang.identity__test(DeptEmployee.Employee.Name))
         }
         entity Employee {
           id Int @id,
@@ -1190,7 +1187,7 @@ describe('Expression attributes - relationship validation errors', () => {
         `entity Student {
           id Int @id,
           Name String,
-          CourseName String @expr(agentlang.getName2(Enrollment.Course.Name))
+          CourseName String @expr(agentlang.identity__test(Enrollment.Course.Name))
         }
         entity Course {
           id Int @id,
@@ -1221,7 +1218,7 @@ describe('Expression attributes - relationship validation errors', () => {
           id Int @id,
           Name String,
           BaseSalary Int,
-          AdjustedSalary Int @expr(agentlang.adj3(BaseSalary, DeptEmployee.WrongEntity.BudgetMultiplier))
+          AdjustedSalary Int @expr(agentlang.adjustSalary__test(BaseSalary, DeptEmployee.WrongEntity.BudgetMultiplier))
         }
         relationship DeptEmployee between(Department, Employee) @one_many`
       );
