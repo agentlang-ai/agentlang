@@ -411,7 +411,7 @@ function mergeEdges(existing: GraphEdge[], incoming: GraphEdge[], limit: number)
 function groupNodesByContainer(nodes: GraphNode[]): Map<string, GraphNode[]> {
   const grouped = new Map<string, GraphNode[]>();
   for (const node of nodes) {
-    const tag = node.containerTag || '';
+    const tag = node.__tenant__ || '';
     if (!grouped.has(tag)) grouped.set(tag, []);
     grouped.get(tag)!.push(node);
   }

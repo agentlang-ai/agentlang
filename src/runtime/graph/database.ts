@@ -9,7 +9,7 @@ export interface GraphDatabase {
   createNode(node: GraphNode): Promise<string>;
   upsertNode(node: GraphNode): Promise<string>;
   findNodeById(id: string): Promise<GraphNode | null>;
-  findNodesByContainer(containerTag: string): Promise<GraphNode[]>;
+  findNodesByContainer(__tenant__: string): Promise<GraphNode[]>;
   updateNode(id: string, updates: Partial<GraphNode>): Promise<void>;
   deleteNode(id: string): Promise<void>;
 
@@ -24,10 +24,10 @@ export interface GraphDatabase {
   expandGraph(
     seedIds: string[],
     maxDepth: number,
-    containerTag: string
+    __tenant__: string
   ): Promise<GraphTraversalResult>;
 
   // Bulk operations
-  clearContainer(containerTag: string): Promise<void>;
-  getStats(containerTag?: string): Promise<{ nodeCount: number; edgeCount: number }>;
+  clearContainer(__tenant__: string): Promise<void>;
+  getStats(__tenant__?: string): Promise<{ nodeCount: number; edgeCount: number }>;
 }
