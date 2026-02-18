@@ -30,28 +30,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          cache: 'pnpm'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          # Auto-approve build scripts for esbuild and sqlite3 if needed
-          if pnpm approve-builds --help >/dev/null 2>&1; then
-            echo -e "\ny\ny\n" | pnpm approve-builds || true
-          fi
+        run: npm ci
 
       - name: Generate Langium files
-        run: pnpm run langium:generate
+        run: npm run langium:generate
 
       - name: Build project
-        run: pnpm run build
+        run: npm run build
 
       - name: Run Blog Example App
         env:
