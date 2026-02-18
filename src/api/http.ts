@@ -58,6 +58,8 @@ import {
   createFileRecord,
   deleteFileRecord,
 } from '../runtime/modules/files.js';
+import * as XLSX from 'xlsx';
+import { objectToQueryPattern } from '../language/parser.js';
 
 export async function startServer(
   appSpec: ApplicationSpec,
@@ -195,6 +197,14 @@ export async function startServer(
 
   app.get('/meta', (req: Request, res: Response) => {
     handleMetaGet(req, res);
+  });
+
+  app.post('/agentlang/QueryAsCsv', (req: Request, res: Response) => {
+    handleQueryAsCsvPost(req, res);
+  });
+
+  app.post('/agentlang/QueryAsXlsx', (req: Request, res: Response) => {
+    handleQueryAsXlsxPost(req, res);
   });
 
   if (isNodeEnv && upload && uploadDir) {
@@ -730,6 +740,69 @@ function normalizedResult(r: Result): Result {
   }
 }
 
+/**
+ * Converts eval result to an array of flat row objects for CSV/XLSX.
+ * Handles:
+ * - [{ "EntityName": { "attr": "attrval" } }, ...] -> one row per item, columns = Entity + attrs
+ * - [{ "attr": "attrval" }, ...] -> one row per item, columns = attrs
+ * - [[ { "EntityName": { ... } }, ... ]] -> unwrap single outer array, then one row per inner item
+ */
+function evalResultToRows(data: Result): { [key: string]: unknown }[] {
+  let items: Result[];
+  if (Array.isArray(data) && data.length === 1 && Array.isArray(data[0])) {
+    items = data[0] as Result[];
+  } else {
+    items = Array.isArray(data) ? (data as Result[]) : [data];
+  }
+  return items.map((item: Result) => {
+    if (item === null || typeof item !== 'object') {
+      return { value: item };
+    }
+    if (Array.isArray(item)) {
+      return { value: item };
+    }
+    const obj = item as { [key: string]: unknown };
+    const keys = Object.keys(obj);
+    if (keys.length === 1) {
+      const [k] = keys;
+      const v = obj[k];
+      if (
+        v !== null &&
+        typeof v === 'object' &&
+        !Array.isArray(v) &&
+        Object.prototype.toString.call(v) === '[object Object]'
+      ) {
+        return { ...(v as { [key: string]: unknown }) };
+      }
+    }
+    return { ...obj };
+  });
+}
+
+/**
+ * Ensures cell value is stringifiable for CSV/XLSX (nested objects/arrays become JSON string).
+ */
+function cellValue(val: unknown): string | number | boolean | null {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'object') return JSON.stringify(val);
+  return val as string | number | boolean;
+}
+
+/**
+ * Parses column names from the first instance and returns an array-of-arrays
+ * for the sheet: first row = column names, following rows = data. This ensures
+ * CSV/XLSX output has proper headers (col1, col2, ...) not 0, 1, 2, ...
+ */
+function rowsToSheetAoa(
+  rows: { [key: string]: unknown }[]
+): (string | number | boolean | null)[][] {
+  if (rows.length === 0) return [];
+  const columns = Object.keys(rows[0] as object);
+  const headerRow = columns;
+  const dataRows = rows.map(row => columns.map(col => cellValue(row[col])));
+  return [headerRow, ...dataRows];
+}
+
 async function handleMetaGet(req: Request, res: Response): Promise<void> {
   try {
     const sessionInfo = await verifyAuth('', '', req.headers.authorization);
@@ -957,6 +1030,71 @@ async function handleMetaGet(req: Request, res: Response): Promise<void> {
   }
 }
 
+async function handleQueryAsCsvPost(req: Request, res: Response): Promise<void> {
+  try {
+    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const q = req.body?.q;
+    if (q === undefined) {
+      res.status(400).send('Missing or invalid pattern');
+      return;
+    }
+    const qs = objectToQueryPattern(q);
+    const result = await parseAndEvaluateStatement(qs, sessionInfo.userId);
+    const normalized = normalizedResult(result);
+    const rows = evalResultToRows(normalized);
+    const aoa = rowsToSheetAoa(rows);
+    const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'csv' });
+    const filename = `eval-${Date.now()}.csv`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.contentType('text/csv');
+    res.send(buffer);
+  } catch (err: any) {
+    logger.error(err);
+    if (!res.headersSent) {
+      res.status(statusFromErrorType(err)).send(err?.message ?? err?.toString());
+    }
+  }
+}
+
+async function handleQueryAsXlsxPost(req: Request, res: Response): Promise<void> {
+  try {
+    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const q = req.body?.q;
+    if (q === undefined) {
+      res.status(400).send('Missing or invalid pattern');
+      return;
+    }
+    const qs = objectToQueryPattern(q);
+    const result = await parseAndEvaluateStatement(qs, sessionInfo.userId);
+    const normalized = normalizedResult(result);
+    const rows = evalResultToRows(normalized);
+    const aoa = rowsToSheetAoa(rows);
+    const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const filename = `eval-${Date.now()}.xlsx`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.contentType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (err: any) {
+    logger.error(err);
+    if (!res.headersSent) {
+      res.status(statusFromErrorType(err)).send(err?.message ?? err?.toString());
+    }
+  }
+}
 async function handleFileUpload(
   req: Request & { file?: Express.Multer.File },
   res: Response,
