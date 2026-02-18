@@ -21,7 +21,7 @@ import {
   linkInstancesEvent,
 } from '../runtime/module.js';
 import { isNodeEnv } from '../utils/runtime.js';
-import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
+import { Environment, parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
 import { requireAuth, verifySession } from '../runtime/modules/auth.js';
@@ -53,6 +53,7 @@ import {
 } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
 import { Config } from '../runtime/state.js';
+import { SseEmitter, isStreamingRequest } from './sse.js';
 import {
   findFileByFilename,
   createFileRecord,
@@ -74,7 +75,7 @@ export async function startServer(
   app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
 
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
@@ -356,6 +357,20 @@ function internalError(res: Response) {
   };
 }
 
+function okSse(emitter: SseEmitter) {
+  return (value: Result) => {
+    const result: Result = normalizedResult(value);
+    emitter.sendResult(result);
+  };
+}
+
+function internalErrorSse(emitter: SseEmitter) {
+  return (reason: any) => {
+    logger.error(reason);
+    emitter.sendError(reason.message, statusFromErrorType(reason));
+  };
+}
+
 function patternFromAttributes(
   moduleName: string,
   recName: string,
@@ -433,7 +448,15 @@ async function handleEventPost(
       eventName,
       objectAsInstanceAttributes(req.body)
     ).setAuthContext(sessionInfo);
-    evaluate(inst, ok(res)).catch(internalError(res));
+    if (isStreamingRequest(req.headers.accept)) {
+      const emitter = new SseEmitter(res);
+      emitter.initialize();
+      const env = new Environment(eventName + '.sse');
+      env.setSseEmitter(emitter);
+      evaluate(inst, okSse(emitter), env).catch(internalErrorSse(emitter));
+    } else {
+      evaluate(inst, ok(res)).catch(internalError(res));
+    }
   } catch (err: any) {
     logger.error(err);
     res.status(500).send(err.toString());

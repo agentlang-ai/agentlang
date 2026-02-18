@@ -248,6 +248,9 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
           env.appendEntryToMonitor(node.codeStr);
         }
       }
+      if (monitorIncr) {
+        env.emitSseEvent('agent_start', { step: node.codeStr });
+      }
       try {
         if (node.subGraphIndex == -1) {
           await evaluateStatement(node.code as Statement, env);
@@ -301,11 +304,15 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
         }
       } catch (reason: any) {
         if (monitoringEnabled) env.setMonitorEntryError(reason);
+        env.emitSseEvent('error', { step: node.codeStr, error: `${reason}` });
         throw reason;
       } finally {
         if (monitoringEnabled) {
           env.setMonitorEntryResult(env.getLastResult());
           if (monitorIncr) env.decrementMonitor();
+        }
+        if (monitorIncr) {
+          env.emitSseEvent('agent_complete', { step: node.codeStr });
         }
       }
     }

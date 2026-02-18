@@ -116,6 +116,7 @@ import { fetchDoc } from './docs.js';
 import { FlowSpec, FlowStep, getAgentFlow } from './agents/flows.js';
 import { isMonitoringEnabled } from './state.js';
 import { Monitor, MonitorEntry } from './monitor.js';
+import { SseEmitter } from '../api/sse.js';
 import { detailedDiff } from 'deep-object-diff';
 import { callMcpTool, mcpClientNameFromToolEvent } from './mcpclient.js';
 import { isNodeEnv } from '../utils/runtime.js';
@@ -176,6 +177,7 @@ export class Environment extends Instance {
   private agentMode: 'chat' | 'planner' | undefined = undefined;
   private agentChatId: string | undefined = undefined;
   private monitor: Monitor | undefined = undefined;
+  private sseEmitter: SseEmitter | undefined = undefined;
   private escalatedRole: string | undefined;
   private activeChatId: string | undefined;
 
@@ -204,6 +206,7 @@ export class Environment extends Instance {
       this.eventExecutor = parent.eventExecutor;
       this.agentChatId = parent.agentChatId;
       this.monitor = parent.monitor;
+      this.sseEmitter = parent.sseEmitter;
       this.escalatedRole = parent.escalatedRole;
       this.activeChatId = parent.activeChatId;
     } else {
@@ -945,6 +948,21 @@ export class Environment extends Instance {
       this.monitor.setFlowResult(this.lastResult);
     }
     return this;
+  }
+
+  setSseEmitter(emitter: SseEmitter): Environment {
+    this.sseEmitter = emitter;
+    return this;
+  }
+
+  getSseEmitter(): SseEmitter | undefined {
+    return this.sseEmitter;
+  }
+
+  emitSseEvent(eventType: string, data: object): void {
+    if (this.sseEmitter && !this.sseEmitter.isClosed()) {
+      this.sseEmitter.send(eventType, data);
+    }
   }
 }
 
@@ -2085,11 +2103,14 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   console.debug(invokeDebugMsg);
   //
 
+  env.emitSseEvent('agent_start', { agent: agent.name });
+
   const monitoringEnabled = isMonitoringEnabled();
 
   await agent.invoke(msg, env);
   let result: string | undefined = env.getLastResult();
   logger.debug(`Agent ${agent.name} result: ${result}`);
+  env.emitSseEvent('agent_complete', { agent: agent.name });
 
   const isPlanner = !env.isInAgentChatMode() && agent.isPlanner();
   const stmtsExec = env.getStatementsExecutor();
@@ -2331,12 +2352,17 @@ async function iterateOnFlow(
           if (monitoringEnabled) {
             env.appendEntryToMonitor(step);
           }
+          env.emitSseEvent('flow_step_start', { step, agent: agent.name });
           const inst = agent.swapInstruction('');
           await agentInvoke(agent, inst, env);
         } else {
           rootAgent.maybeAddScratchData(env);
         }
         if (monitoringEnabled) env.setMonitorEntryResult(env.getLastResult());
+        env.emitSseEvent('flow_step_complete', {
+          step,
+          result: maybeInstanceAsString(env.getLastResult()),
+        });
         if (env.isSuspended()) {
           console.debug(`${iterId} suspending iteration on step ${step}`);
           await saveFlowSuspension(rootAgent, context, step, env);
