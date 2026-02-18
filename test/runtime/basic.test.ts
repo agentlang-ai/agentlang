@@ -1361,3 +1361,316 @@ describe('write-only-attributes', () => {
     );
   });
 });
+
+describe('Built-in date functions', () => {
+  test('dateFns.addWeeks in workflow', async () => {
+    await doInternModule(
+      'DfTest',
+      `workflow AddW {
+        dateFns.addWeeks(AddW.date, AddW.weeks)
+      }`
+    );
+    const r = await parseAndEvaluateStatement(`{DfTest/AddW {date "2026-01-05", weeks 2}}`);
+    assert(r === '2026-01-19');
+  });
+
+  test('dateFns.addDays and dateFns.addMonths', async () => {
+    await doInternModule(
+      'DfAdd',
+      `workflow TestDays {
+        dateFns.addDays(TestDays.date, TestDays.n)
+      }
+      workflow TestMonths {
+        dateFns.addMonths(TestMonths.date, TestMonths.n)
+      }`
+    );
+    const r1 = await parseAndEvaluateStatement(`{DfAdd/TestDays {date "2026-03-01", n 10}}`);
+    assert(r1 === '2026-03-11');
+    const r2 = await parseAndEvaluateStatement(`{DfAdd/TestMonths {date "2026-01-31", n 1}}`);
+    assert(r2 === '2026-02-28');
+  });
+
+  test('dateFns functions as inline attribute values', async () => {
+    await doInternModule(
+      'DfInline',
+      `entity E {
+        id Int @id,
+        start String,
+        end String
+      }
+      workflow Create {
+        {E {id Create.id,
+            start dateFns.startOfWeek(Create.date),
+            end dateFns.endOfWeek(Create.date)}}
+      }`
+    );
+    const r: Instance = await parseAndEvaluateStatement(
+      `{DfInline/Create {id 1, date "2026-02-18"}}`
+    );
+    assert(r.lookup('start') === '2026-02-16');
+    assert(r.lookup('end') === '2026-02-22');
+  });
+
+  test('dateFns.startOfMonth and endOfMonth', async () => {
+    await doInternModule(
+      'DfMonth',
+      `workflow TestStart {
+        dateFns.startOfMonth(TestStart.date)
+      }
+      workflow TestEnd {
+        dateFns.endOfMonth(TestEnd.date)
+      }`
+    );
+    const r1 = await parseAndEvaluateStatement(`{DfMonth/TestStart {date "2026-02-18"}}`);
+    assert(r1 === '2026-02-01');
+    const r2 = await parseAndEvaluateStatement(`{DfMonth/TestEnd {date "2026-02-18"}}`);
+    assert(r2 === '2026-02-28');
+  });
+
+  test('dateFns.getWeek and dayName', async () => {
+    await doInternModule(
+      'DfWeekInfo',
+      `workflow TestWeek {
+        dateFns.getWeek(TestWeek.date)
+      }
+      workflow TestDay {
+        dateFns.dayName(TestDay.date)
+      }`
+    );
+    const r1 = await parseAndEvaluateStatement(`{DfWeekInfo/TestWeek {date "2026-01-05"}}`);
+    assert(r1 === 2);
+    const r2 = await parseAndEvaluateStatement(`{DfWeekInfo/TestDay {date "2026-02-18"}}`);
+    assert(r2 === 'Wednesday');
+  });
+
+  test('dateFns.diffInDays and diffInWeeks', async () => {
+    await doInternModule(
+      'DfDiff',
+      `workflow TestDiffDays {
+        dateFns.diffInDays(TestDiffDays.d1, TestDiffDays.d2)
+      }
+      workflow TestDiffWeeks {
+        dateFns.diffInWeeks(TestDiffWeeks.d1, TestDiffWeeks.d2)
+      }`
+    );
+    const r1 = await parseAndEvaluateStatement(
+      `{DfDiff/TestDiffDays {d1 "2026-02-20", d2 "2026-02-10"}}`
+    );
+    assert(r1 === 10);
+    const r2 = await parseAndEvaluateStatement(
+      `{DfDiff/TestDiffWeeks {d1 "2026-02-28", d2 "2026-02-14"}}`
+    );
+    assert(r2 === 2);
+  });
+
+  test('dateFns in between queries', async () => {
+    await doInternModule(
+      'DfBetween',
+      `entity E {
+        id Int @id,
+        d Date
+      }
+      workflow QueryBetween {
+        {E {d?between [dateFns.addWeeks(QueryBetween.base, -1),
+                       dateFns.addWeeks(QueryBetween.base, 1)]}}
+      }`
+    );
+    await parseAndEvaluateStatement(`{DfBetween/E {id 1, d "2026-02-10"}}`);
+    await parseAndEvaluateStatement(`{DfBetween/E {id 2, d "2026-02-17"}}`);
+    await parseAndEvaluateStatement(`{DfBetween/E {id 3, d "2026-02-24"}}`);
+    await parseAndEvaluateStatement(`{DfBetween/E {id 4, d "2026-03-10"}}`);
+    const r: Instance[] = await parseAndEvaluateStatement(
+      `{DfBetween/QueryBetween {base "2026-02-17"}}`
+    );
+    assert(r.length === 3);
+    assert(
+      r.every((inst: Instance) => {
+        const id = inst.lookup('id');
+        return id >= 1 && id <= 3;
+      })
+    );
+  });
+
+  test('dateFns nested calls in between query with @into', async () => {
+    await doInternModule(
+      'DfShift',
+      `entity Employee {
+        id Int @id,
+        name String
+      }
+      entity Shift {
+        id Int @id,
+        employeeId Int,
+        shiftDate Date,
+        hours Decimal
+      }
+
+      workflow EmployeeShiftsForWeek {
+        dateFns.startOfWeek(EmployeeShiftsForWeek.date) @as targetWeek
+        {Shift {
+            employeeId? EmployeeShiftsForWeek.employeeId,
+            shiftDate?between [dateFns.addWeeks(targetWeek, EmployeeShiftsForWeek.offset),
+                               dateFns.addDays(dateFns.addWeeks(targetWeek, EmployeeShiftsForWeek.offset), 6)]
+        }, @into {hours Shift.hours}} @as shifts
+        shifts
+      }
+      `
+    );
+    await parseAndEvaluateStatement(`{DfShift/Employee {id 1, name "Alice"}}`);
+    // Week of 2026-02-16 (Mon) to 2026-02-22 (Sun)
+    await parseAndEvaluateStatement(
+      `{DfShift/Shift {id 1, employeeId 1, shiftDate "2026-02-18", hours 8.0}}`
+    );
+    await parseAndEvaluateStatement(
+      `{DfShift/Shift {id 2, employeeId 1, shiftDate "2026-02-20", hours 4.0}}`
+    );
+    // Week of 2026-02-09 (Mon) to 2026-02-15 (Sun) - previous week
+    await parseAndEvaluateStatement(
+      `{DfShift/Shift {id 3, employeeId 1, shiftDate "2026-02-10", hours 6.0}}`
+    );
+    // Week of 2026-02-23 (Mon) to 2026-03-01 (Sun) - next week
+    await parseAndEvaluateStatement(
+      `{DfShift/Shift {id 4, employeeId 1, shiftDate "2026-02-25", hours 3.0}}`
+    );
+    // Different employee
+    await parseAndEvaluateStatement(
+      `{DfShift/Shift {id 5, employeeId 2, shiftDate "2026-02-18", hours 5.0}}`
+    );
+
+    // Query current week (offset 0) for employee 1 - base date is mid-week Wednesday
+    const current: any[] = await parseAndEvaluateStatement(
+      `{DfShift/EmployeeShiftsForWeek {employeeId 1, date "2026-02-18", offset 0}}`
+    );
+    assert(current instanceof Array);
+    assert(current.length == 2);
+    assert(current.every((r: any) => r.hours == 8.0 || r.hours == 4.0));
+
+    // Query previous week (offset -1)
+    const prev: any[] = await parseAndEvaluateStatement(
+      `{DfShift/EmployeeShiftsForWeek {employeeId 1, date "2026-02-18", offset -1}}`
+    );
+    assert(prev instanceof Array);
+    assert(prev.length == 1);
+    assert(prev[0].hours == 6.0);
+
+    // Query next week (offset +1)
+    const next: any[] = await parseAndEvaluateStatement(
+      `{DfShift/EmployeeShiftsForWeek {employeeId 1, date "2026-02-18", offset 1}}`
+    );
+    assert(next instanceof Array);
+    assert(next.length == 1);
+    assert(next[0].hours == 3.0);
+
+    // Query week with no shifts (offset +2)
+    const empty: any[] = await parseAndEvaluateStatement(
+      `{DfShift/EmployeeShiftsForWeek {employeeId 1, date "2026-02-18", offset 2}}`
+    );
+    assert(empty instanceof Array);
+    assert(empty.length == 0);
+  });
+
+  test('dateFns.toTimezone', async () => {
+    await doInternModule(
+      'DfTz',
+      `workflow TestTz {
+        dateFns.toTimezone(TestTz.date, TestTz.tz)
+      }`
+    );
+    const r = await parseAndEvaluateStatement(
+      `{DfTz/TestTz {date "2026-02-18T12:00:00Z", tz "America/New_York"}}`
+    );
+    assert(r.includes('07:00:00'));
+  });
+
+  test('dateFns with datetime strings', async () => {
+    await doInternModule(
+      'DfDateTime',
+      `workflow TestAddDays {
+        dateFns.addDays(TestAddDays.dt, TestAddDays.n)
+      }
+      workflow TestAddWeeks {
+        dateFns.addWeeks(TestAddWeeks.dt, TestAddWeeks.n)
+      }
+      workflow TestStartOfWeek {
+        dateFns.startOfWeek(TestStartOfWeek.dt)
+      }
+      workflow TestDayName {
+        dateFns.dayName(TestDayName.dt)
+      }
+      workflow TestGetWeek {
+        dateFns.getWeek(TestGetWeek.dt)
+      }
+      workflow TestFormatDate {
+        dateFns.formatDate(TestFormatDate.dt, TestFormatDate.fmt)
+      }`
+    );
+    // Use local-time datetime strings (no Z) for timezone-independent assertions
+    const r1 = await parseAndEvaluateStatement(
+      `{DfDateTime/TestAddDays {dt "2026-02-18T14:30:00", n 3}}`
+    );
+    assert(r1 === '2026-02-21');
+    const r2 = await parseAndEvaluateStatement(
+      `{DfDateTime/TestAddWeeks {dt "2026-02-18T14:30:00", n -1}}`
+    );
+    assert(r2 === '2026-02-11');
+    const r3 = await parseAndEvaluateStatement(
+      `{DfDateTime/TestStartOfWeek {dt "2026-02-18T14:30:00"}}`
+    );
+    assert(r3 === '2026-02-16');
+    const r4 = await parseAndEvaluateStatement(
+      `{DfDateTime/TestDayName {dt "2026-02-18T14:30:00"}}`
+    );
+    assert(r4 === 'Wednesday');
+    const r5 = await parseAndEvaluateStatement(
+      `{DfDateTime/TestGetWeek {dt "2026-02-18T14:30:00"}}`
+    );
+    assert(r5 === 8);
+    const r6 = await parseAndEvaluateStatement(
+      `{DfDateTime/TestFormatDate {dt "2026-02-18T14:30:00", fmt "HH:mm"}}`
+    );
+    assert(r6 === '14:30');
+  });
+
+  test('dateFns.diffInDays with datetime strings', async () => {
+    await doInternModule(
+      'DfDiffDt',
+      `workflow TestDiff {
+        dateFns.diffInDays(TestDiff.d1, TestDiff.d2)
+      }`
+    );
+    // differenceInDays uses full 24h periods, so 36h apart = 1 day
+    const r1 = await parseAndEvaluateStatement(
+      `{DfDiffDt/TestDiff {d1 "2026-02-20T10:00:00", d2 "2026-02-18T22:00:00"}}`
+    );
+    assert(r1 === 1);
+    // Exactly 48h apart = 2 days
+    const r2 = await parseAndEvaluateStatement(
+      `{DfDiffDt/TestDiff {d1 "2026-02-20T22:00:00", d2 "2026-02-18T22:00:00"}}`
+    );
+    assert(r2 === 2);
+  });
+
+  test('dateFns datetime inline attribute values', async () => {
+    await doInternModule(
+      'DfDtInline',
+      `entity E {
+        id Int @id,
+        weekStart String,
+        day String,
+        formatted String
+      }
+      workflow Create {
+        {E {id Create.id,
+            weekStart dateFns.startOfWeek(Create.dt),
+            day dateFns.dayName(Create.dt),
+            formatted dateFns.formatDate(Create.dt, "yyyy/MM/dd HH:mm")}}
+      }`
+    );
+    const r: Instance = await parseAndEvaluateStatement(
+      `{DfDtInline/Create {id 1, dt "2026-03-04T09:15:00"}}`
+    );
+    assert(r.lookup('weekStart') === '2026-03-02');
+    assert(r.lookup('day') === 'Wednesday');
+    assert(r.lookup('formatted') === '2026/03/04 09:15');
+  });
+});
