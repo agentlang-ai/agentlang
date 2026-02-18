@@ -379,7 +379,7 @@ function buildChildPattern(otherFqName: string, childObj: { [key: string]: any }
       return `${k} ${av}`;
     })
     .join(', ');
-  return `{${otherFqName} {${childAttrs}}}`;
+  return `{${otherFqName} {${childAttrs}}, @upsert}`;
 }
 
 export function patternFromAttributes(

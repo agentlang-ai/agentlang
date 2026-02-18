@@ -384,6 +384,38 @@ describe('Entity Create with Inline Relationships', () => {
     // Previous tests leave 2 links, single inline added 1, array inline should add 2 more = 5
     assert(body.length === 5, `Expected 5 UserPost links, got ${body.length}`);
   });
+
+  test('POST with inline relationship referencing an existing entity', async () => {
+    // Post 100 ("First Post") already exists from earlier tests.
+    // This should create User 202 and link it to the existing Post 100
+    // without creating a duplicate Post.
+    const res = await post('/HRT/User', {
+      id: 202,
+      name: 'ExistingRefUser',
+      email: 'existref@test.com',
+      UserPost: { id: 100, title: 'First Post' },
+    });
+    assert(res.ok, `Expected 200, got ${res.status}`);
+    const body = await res.json();
+    assert(body.User, 'Response should contain User');
+    assert(body.User.id === 202);
+  });
+
+  test('existing entity is not duplicated after inline relationship POST', async () => {
+    const res = await get('/HRT/Post', { id: '100' });
+    assert(res.ok);
+    const body = await res.json();
+    assert(body.length === 1, `Expected exactly 1 Post with id 100, got ${body.length}`);
+    assert(body[0].Post.title === 'First Post');
+  });
+
+  test('inline relationship link to existing entity is queryable', async () => {
+    const res = await get('/HRT/UserPost');
+    assert(res.ok);
+    const body = await res.json();
+    // 5 previous links + 1 new link (User 202 <-> Post 100) = 6
+    assert(body.length === 6, `Expected 6 UserPost links, got ${body.length}`);
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────
