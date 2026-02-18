@@ -431,9 +431,7 @@ export async function executeEvent(
     if (continuation) {
       if (env.getLastPattern() && isAgentEventInstance(eventInstance)) {
         continuation({
-          result: r.result.map((res: any) =>
-            res.attributes ? Object.fromEntries(res.attributes) : res
-          ),
+          result: r.map((res: any) => (res.attributes ? Object.fromEntries(res.attributes) : res)),
           pattern: env.getLastPattern(),
         });
       } else {
