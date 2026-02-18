@@ -1133,6 +1133,9 @@ export async function evaluateStatement(stmt: Statement, env: Environment): Prom
     }
     await evaluatePattern(stmt.pattern, env);
     if (hasHints) {
+      await maybeHandleEmpty(hints, env);
+    }
+    if (hasHints) {
       maybeBindStatementResultToAlias(hints, env);
     }
     await maybeHandleNotFound(handlers, env);
@@ -1157,6 +1160,24 @@ async function maybeHandleNotFound(handlers: CatchHandlers | undefined, env: Env
       const newEnv = new Environment('not-found-env', env).unsetEventExecutor();
       await evaluateStatement(onNotFound, newEnv);
       env.setLastResult(newEnv.getLastResult());
+    }
+  }
+}
+
+async function maybeHandleEmpty(hints: RuntimeHint[], env: Environment) {
+  const lastResult: Result = env.getLastResult();
+  if (
+    lastResult === null ||
+    lastResult === undefined ||
+    (lastResult instanceof Array && lastResult.length == 0)
+  ) {
+    for (const rh of hints) {
+      if (rh.emptySpec) {
+        const newEnv = new Environment('empty-env', env).unsetEventExecutor();
+        await evaluateStatement(rh.emptySpec.stmt, newEnv);
+        env.setLastResult(newEnv.getLastResult());
+        break;
+      }
     }
   }
 }

@@ -661,6 +661,22 @@ describe('Catch test', () => {
   });
 });
 
+describe('Empty hint test', () => {
+  test('test01', async () => {
+    await doInternModule('Empty', `entity E { id Int @id, x Int }`);
+    // Create a default record
+    await parseAndEvaluateStatement(`{Empty/E {id 99, x 200}}`);
+    // Query non-existent record, fallback to default
+    const result = await parseAndEvaluateStatement(
+      `{Empty/E {id? 1}} @empty {Empty/E {id? 99}} @as [E]`
+    );
+    assert(result instanceof Array);
+    assert(result.length > 0);
+    assert(isInstanceOfType(result[0], 'Empty/E'));
+    assert(result[0].lookup('x') == 200);
+  });
+});
+
 describe('Expression attributes', () => {
   test('test01', async () => {
     await doInternModule(
@@ -1217,25 +1233,28 @@ describe('custom-defaults', () => {
     const chk = (inst: Instance, x: string) => {
       assert(isInstanceOfType(inst, fqn));
       assert(inst.lookup('id') === c);
-      assert(inst.lookup('x') === x)
+      assert(inst.lookup('x') === x);
     };
     chk(makeInstance('Cdf', 'E', newInstanceAttributes().set('x', 'abc')), 'abc');
     chk(await parseAndEvaluateStatement(`{${fqn} {x "xyz"}}`), 'xyz');
-    const s = fetchModule('Cdf').toString()
-    assert(s === `module Cdf
+    const s = fetchModule('Cdf').toString();
+    assert(
+      s ===
+        `module Cdf
 
 entity E
 {
     id Int @id  @default(agentlang.inc()),
     x String
 }
-`)
+`
+    );
   });
 });
 
 describe('write-only-attributes', () => {
   test('queries must not return writeonly attributes', async () => {
-    const moduleName = 'rda'
+    const moduleName = 'rda';
     await doInternModule(
       moduleName,
       `entity E {
@@ -1248,21 +1267,36 @@ describe('write-only-attributes', () => {
         a Int
       }`
     );
-    const ename = `${moduleName}/E`
-    const cre = async (id: number, x: string, y: string, z: string, a: number): Promise<Instance> => {
+    const ename = `${moduleName}/E`;
+    const cre = async (
+      id: number,
+      x: string,
+      y: string,
+      z: string,
+      a: number
+    ): Promise<Instance> => {
       const inst: Instance = await parseAndEvaluateStatement(`{${ename} {
-        id ${id}, x "${x}", y "${y}", z "${z}", p1 "${x}-${y}", p2 "${x}-${z}", a ${a}}}`)
-        assert(isInstanceOfType(inst, ename))
-        return inst
-    }
-    await cre(1, "a", "b", "c", 10)
-    await cre(2, "p", "q", "r", 20)
-    const r1: Instance[] = await parseAndEvaluateStatement(`{${ename}? {}}`)
-    assert(r1.length === 2)
-    assert(r1.every((inst: Instance) => {
-      return isInstanceOfType(inst, ename) && inst.lookup('id') > 0 && inst.lookup('a') >= 10 &&
-      inst.lookup('x').length >= 1 && inst.lookup('y') === undefined && inst.lookup('z') === undefined &&
-      inst.lookup('p1').length >= 5 && inst.lookup('p2') === undefined
-    }))
-  })
-})
+        id ${id}, x "${x}", y "${y}", z "${z}", p1 "${x}-${y}", p2 "${x}-${z}", a ${a}}}`);
+      assert(isInstanceOfType(inst, ename));
+      return inst;
+    };
+    await cre(1, 'a', 'b', 'c', 10);
+    await cre(2, 'p', 'q', 'r', 20);
+    const r1: Instance[] = await parseAndEvaluateStatement(`{${ename}? {}}`);
+    assert(r1.length === 2);
+    assert(
+      r1.every((inst: Instance) => {
+        return (
+          isInstanceOfType(inst, ename) &&
+          inst.lookup('id') > 0 &&
+          inst.lookup('a') >= 10 &&
+          inst.lookup('x').length >= 1 &&
+          inst.lookup('y') === undefined &&
+          inst.lookup('z') === undefined &&
+          inst.lookup('p1').length >= 5 &&
+          inst.lookup('p2') === undefined
+        );
+      })
+    );
+  });
+});
