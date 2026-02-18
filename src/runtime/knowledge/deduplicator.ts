@@ -91,6 +91,7 @@ export class SemanticDeduplicator {
     entity: ExtractedEntity,
     containerTag: string,
     userId: string,
+    tenantId: string,
     sourceType: SourceType,
     sourceId?: string,
     sourceChunk?: string,
@@ -101,7 +102,7 @@ export class SemanticDeduplicator {
     entity.name = normalizedName; // Use normalized name
 
     // Step 1: Check for exact name match (fast, no memory overhead)
-    const existingNode = await this.findNodeByExactName(normalizedName, containerTag);
+    const existingNode = await this.findNodeByExactName(normalizedName, containerTag, tenantId);
 
     if (existingNode) {
       logger.debug(`[KNOWLEDGE] Found existing node "${existingNode.name}" for "${entity.name}"`);
@@ -109,7 +110,7 @@ export class SemanticDeduplicator {
     }
 
     // Step 1b: Semantic similarity search (vector search + string similarity)
-    const similarNode = await this.findSimilarNode(entity, containerTag);
+    const similarNode = await this.findSimilarNode(entity, containerTag, tenantId);
     if (similarNode) {
       logger.debug(`[KNOWLEDGE] Found similar node "${similarNode.name}" for "${entity.name}"`);
       return await this.mergeNode(similarNode, entity);
@@ -122,7 +123,8 @@ export class SemanticDeduplicator {
     const embeddingService = this.getEmbeddingService();
     if (embeddingService) {
       try {
-        const embeddingText = `${entity.name} ${entity.type} ${entity.description || ''}`.trim();
+        const embeddingText =
+          `${entity.name} ${entity.entityType} ${entity.description || ''}`.trim();
         embedding = await embeddingService.embedText(embeddingText);
         logger.debug(
           `[KNOWLEDGE] Generated embedding for "${entity.name}" (${embedding.length} dimensions)`
@@ -155,6 +157,7 @@ export class SemanticDeduplicator {
     entities: ExtractedEntity[],
     containerTag: string,
     userId: string,
+    tenantId: string,
     sourceType: SourceType,
     sourceId?: string,
     sourceChunks?: Map<string, string>,
@@ -171,7 +174,7 @@ export class SemanticDeduplicator {
       entity.name = this.normalizeNodeName(entity.name);
 
       // Check exact name match
-      const existingNode = await this.findNodeByExactName(entity.name, containerTag);
+      const existingNode = await this.findNodeByExactName(entity.name, containerTag, tenantId);
       if (existingNode) {
         logger.debug(`[KNOWLEDGE] Batch: found existing node "${existingNode.name}"`);
         results.push(await this.mergeNode(existingNode, entity));
@@ -179,7 +182,7 @@ export class SemanticDeduplicator {
       }
 
       // Check similarity match
-      const similarNode = await this.findSimilarNode(entity, containerTag);
+      const similarNode = await this.findSimilarNode(entity, containerTag, tenantId);
       if (similarNode) {
         logger.debug(`[KNOWLEDGE] Batch: found similar node "${similarNode.name}"`);
         results.push(await this.mergeNode(similarNode, entity));
@@ -203,7 +206,7 @@ export class SemanticDeduplicator {
     if (embeddingService) {
       try {
         const textsToEmbed = needsEmbedding.map(item =>
-          `${item.entity.name} ${item.entity.type} ${item.entity.description || ''}`.trim()
+          `${item.entity.name} ${item.entity.entityType} ${item.entity.description || ''}`.trim()
         );
         logger.info(
           `[KNOWLEDGE] Batch: generating embeddings for ${textsToEmbed.length} new entities in 1 API call`
@@ -249,13 +252,14 @@ export class SemanticDeduplicator {
    */
   private async findNodeByExactName(
     normalizedName: string,
-    containerTag: string
+    containerTag: string,
+    tenantId: string
   ): Promise<GraphNode | null> {
     try {
       // Query directly by name instead of scanning recent nodes
       // This is much more efficient and prevents duplicates
       const result: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeNode {name? "${escapeString(normalizedName)}", containerTag? "${escapeString(containerTag)}", isLatest? true}}`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {name? "${escapeString(normalizedName)}", containerTag? "${escapeString(containerTag)}", __tenant__? "${escapeString(tenantId)}", isLatest? true}}`,
         undefined
       );
 
@@ -271,14 +275,16 @@ export class SemanticDeduplicator {
 
   private async findSimilarNode(
     entity: ExtractedEntity,
-    containerTag: string
+    containerTag: string,
+    tenantId: string
   ): Promise<GraphNode | null> {
     try {
       // Search using entity name only — do NOT pollute with type/description
       // which degrades full-text search quality
       const result: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeNode {` +
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {` +
           `containerTag? "${escapeString(containerTag)}", ` +
+          `__tenant__? "${escapeString(tenantId)}", ` +
           `isLatest? true, ` +
           `name? "${escapeString(entity.name)}"}, ` +
           `@limit ${MAX_SIMILAR_CANDIDATES}}`,
@@ -294,7 +300,7 @@ export class SemanticDeduplicator {
         const candidate = instanceToGraphNode(inst);
         const candidateName = normalizeForMatch(candidate.name);
         const nameScore = nameSimilarity(queryName, candidateName);
-        const typeCompatible = isTypeCompatible(entity.type, candidate.type);
+        const typeCompatible = isTypeCompatible(entity.entityType, candidate.entityType);
         const score = typeCompatible ? nameScore : nameScore * 0.7;
         if (!bestMatch || score > bestMatch.score) {
           bestMatch = { node: candidate, score };
@@ -342,8 +348,8 @@ export class SemanticDeduplicator {
       updates.confidence = newConfidence;
     }
 
-    if (entity.type && shouldPreferType(entity.type, existing.type)) {
-      updates.type = entity.type;
+    if (entity.entityType && shouldPreferType(entity.entityType, existing.entityType)) {
+      updates.entityType = entity.entityType;
     }
 
     if (Object.keys(updates).length > 0) {
@@ -357,7 +363,7 @@ export class SemanticDeduplicator {
         }
         if (setClauses.length > 0) {
           await parseAndEvaluateStatement(
-            `{${CoreKnowledgeModuleName}/KnowledgeNode {id "${existing.id}", ${setClauses.join(', ')}}, @upsert}`,
+            `{${CoreKnowledgeModuleName}/KnowledgeEntity {id "${existing.id}", ${setClauses.join(', ')}}, @upsert}`,
             undefined
           );
         }
@@ -380,7 +386,7 @@ export class SemanticDeduplicator {
   ): Promise<GraphNode> {
     try {
       await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeNode {id "${existingId}", isLatest false}, @upsert}`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {id "${existingId}", isLatest false}, @upsert}`,
         undefined
       );
       logger.info(`[KNOWLEDGE] Superseded node ${existingId.substring(0, 8)}... with new info`);
@@ -394,7 +400,7 @@ export class SemanticDeduplicator {
     if (embeddingService2) {
       try {
         const embeddingText =
-          `${replacement.name} ${replacement.type} ${replacement.description || ''}`.trim();
+          `${replacement.name} ${replacement.entityType} ${replacement.description || ''}`.trim();
         embedding = await embeddingService2.embedText(embeddingText);
       } catch (err) {
         logger.debug(`[KNOWLEDGE] Embedding generation failed for replacement: ${err}`);
@@ -416,7 +422,7 @@ export class SemanticDeduplicator {
   async removeNode(nodeId: string): Promise<void> {
     try {
       await parseAndEvaluateStatement(
-        `purge {${CoreKnowledgeModuleName}/KnowledgeNode {id? "${nodeId}"}}`,
+        `purge {${CoreKnowledgeModuleName}/KnowledgeEntity {id? "${nodeId}"}}`,
         undefined
       );
       // Also remove edges referencing this node
@@ -450,9 +456,9 @@ export class SemanticDeduplicator {
   ): Promise<GraphNode> {
     // Create in Agentlang first to get a UUID
     let query =
-      `{${CoreKnowledgeModuleName}/KnowledgeNode {` +
+      `{${CoreKnowledgeModuleName}/KnowledgeEntity {` +
       `name "${escapeString(entity.name)}", ` +
-      `type "${escapeString(entity.type)}", ` +
+      `entityType "${escapeString(entity.entityType)}", ` +
       `sourceType "${sourceType}", ` +
       `containerTag "${containerTag}", ` +
       `userId "${userId}", ` +
@@ -471,11 +477,23 @@ export class SemanticDeduplicator {
     if (agentId) {
       query += `, agentId "${escapeString(agentId)}"`;
     }
+    if (embedding && embedding.length > 0) {
+      query += `, embedding "${escapeString(JSON.stringify(embedding))}"`;
+    }
     query += `}}`;
 
+    logger.info(`[KNOWLEDGE] Creating node with query: ${query.substring(0, 100)}...`);
     const result = await parseAndEvaluateStatement(query, undefined);
+    logger.info(`[KNOWLEDGE] Node creation result: ${result ? 'success' : 'null'}`);
+
     const inst = Array.isArray(result) ? result[0] : result;
+    if (!inst) {
+      logger.error(`[KNOWLEDGE] Failed to create node - no instance returned`);
+      throw new Error('Failed to create node');
+    }
+
     const node = instanceToGraphNode(inst);
+    logger.info(`[KNOWLEDGE] Node created: ${node.id} (${node.name})`);
 
     if (embedding && embedding.length > 0) {
       logger.debug(

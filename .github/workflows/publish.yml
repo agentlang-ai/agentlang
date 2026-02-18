@@ -34,46 +34,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      # Step 2: Setup pnpm
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      # Step 3: Setup Node.js
+      # Step 2: Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '22'
-          cache: 'pnpm'
+          cache: 'npm'
           registry-url: 'https://registry.npmjs.org/'
 
-      # Step 4: Install dependencies
+      # Step 3: Install dependencies
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          # Auto-approve build scripts for esbuild and sqlite3 if needed
-          if pnpm approve-builds --help >/dev/null 2>&1; then
-            echo -e "\ny\ny\n" | pnpm approve-builds || true
-          fi
+        run: npm ci
 
-      # Step 5: Generate Langium files
+      # Step 4: Generate Langium files
       - name: Generate Langium files
-        run: pnpm run langium:generate
+        run: npm run langium:generate
 
-      # Step 6: Build package
+      # Step 5: Build package
       - name: Build package
-        run: pnpm run build
+        run: npm run build
 
-      # Step 6.5: Rebuild better-sqlite3 for correct native bindings
+      # Step 6: Rebuild better-sqlite3 for correct native bindings
       - name: Rebuild better-sqlite3 for correct native bindings
         run: npm rebuild better-sqlite3
 
       # Step 7: Run tests
       - name: Run tests
-        run: NODE_ENV=test pnpm test
+        run: NODE_ENV=test npm test
 
       # Step 8: Publish to npm Registry
       - name: Publish to npm
-        run: pnpm publish --no-git-checks
+        run: npm publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

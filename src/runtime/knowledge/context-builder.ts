@@ -23,6 +23,7 @@ export class ContextBuilder {
     query: string,
     containerTag: string,
     _userId: string,
+    tenantId: string,
     extraContainerTags?: string[]
   ): Promise<KnowledgeContext> {
     const startTime = Date.now();
@@ -40,7 +41,7 @@ export class ContextBuilder {
       let exactMatches: GraphNode[] = [];
       for (const tag of containerTags) {
         if (exactMatches.length >= MAX_SEED_NODES) break;
-        const matches = await this.findExactMatches(query, tag);
+        const matches = await this.findExactMatches(query, tag, tenantId);
         exactMatches = mergeNodes(exactMatches, matches, MAX_SEED_NODES);
       }
 
@@ -49,7 +50,7 @@ export class ContextBuilder {
       if (seedNodes.length < MAX_SEED_NODES) {
         for (const tag of containerTags) {
           if (seedNodes.length >= MAX_SEED_NODES) break;
-          const vectorSeeds = await this.vectorSearchNodes(query, tag);
+          const vectorSeeds = await this.vectorSearchNodes(query, tag, tenantId);
           seedNodes = mergeNodes(seedNodes, vectorSeeds, MAX_SEED_NODES);
         }
       }
@@ -133,13 +134,17 @@ export class ContextBuilder {
     }
   }
 
-  private async vectorSearchNodes(query: string, containerTag: string): Promise<GraphNode[]> {
+  private async vectorSearchNodes(
+    query: string,
+    containerTag: string,
+    tenantId: string
+  ): Promise<GraphNode[]> {
     try {
       // Use Agentlang's fullTextSearch via content? query
       // Limit to MAX_SEED_NODES to prevent memory issues
       const result: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeNode {
-          containerTag? "${escapeString(containerTag)}",
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {
+          __tenant__? "${escapeString(tenantId)}",
           name? "${escapeString(query)}"},
           @limit ${MAX_SEED_NODES}}`,
         undefined
@@ -154,7 +159,11 @@ export class ContextBuilder {
     }
   }
 
-  private async findExactMatches(query: string, containerTag: string): Promise<GraphNode[]> {
+  private async findExactMatches(
+    query: string,
+    containerTag: string,
+    tenantId: string
+  ): Promise<GraphNode[]> {
     const candidates = extractEntityCandidates(query);
     if (candidates.length === 0) return [];
 
@@ -165,8 +174,8 @@ export class ContextBuilder {
       if (results.length >= MAX_SEED_NODES) break;
       try {
         const result: Instance[] = await parseAndEvaluateStatement(
-          `{${CoreKnowledgeModuleName}/KnowledgeNode {` +
-            `containerTag? "${escapeString(containerTag)}", ` +
+          `{${CoreKnowledgeModuleName}/KnowledgeEntity {` +
+            `__tenant__? "${escapeString(tenantId)}", ` +
             `name? "${escapeString(candidate)}"}, ` +
             `@limit ${MAX_SEED_NODES}}`,
           undefined
@@ -240,8 +249,8 @@ export class ContextBuilder {
     context += '### Relevant Entities\n';
     const byType = new Map<string, GraphNode[]>();
     for (const node of nodes) {
-      if (!byType.has(node.type)) byType.set(node.type, []);
-      byType.get(node.type)!.push(node);
+      if (!byType.has(node.entityType)) byType.set(node.entityType, []);
+      byType.get(node.entityType)!.push(node);
     }
     for (const [type, entities] of byType) {
       context += `\n**${type}s:**\n`;

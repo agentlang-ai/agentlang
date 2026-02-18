@@ -29,7 +29,7 @@ describe('Knowledge Graph Memory System', () => {
     test('Knowledge module should contain expected entities', () => {
       const knowledgeDef = CoreModules.find(m => m.includes('agentlang.knowledge'));
       expect(knowledgeDef).toBeDefined();
-      expect(knowledgeDef).toContain('KnowledgeNode');
+      expect(knowledgeDef).toContain('KnowledgeEntity');
       expect(knowledgeDef).toContain('KnowledgeEdge');
       expect(knowledgeDef).toContain('KnowledgeSession');
       expect(knowledgeDef).toContain('SessionMessage');
@@ -58,7 +58,7 @@ describe('Knowledge Graph Memory System', () => {
         {
           id: '1',
           name: 'Alice',
-          type: 'Person',
+          entityType: 'Person',
           description: 'Main character',
           containerTag: 'test',
           userId: 'u1',
@@ -71,7 +71,7 @@ describe('Knowledge Graph Memory System', () => {
         {
           id: '2',
           name: 'Wonderland',
-          type: 'Location',
+          entityType: 'Location',
           description: 'Fantasy world',
           containerTag: 'test',
           userId: 'u1',
@@ -99,7 +99,7 @@ describe('Knowledge Graph Memory System', () => {
         {
           id: '1',
           name: 'Alice',
-          type: 'Person',
+          entityType: 'Person',
           containerTag: 'test',
           userId: 'u1',
           confidence: 1.0,
@@ -111,7 +111,7 @@ describe('Knowledge Graph Memory System', () => {
         {
           id: '2',
           name: 'White Rabbit',
-          type: 'Person',
+          entityType: 'Person',
           containerTag: 'test',
           userId: 'u1',
           confidence: 1.0,
@@ -139,7 +139,7 @@ describe('Knowledge Graph Memory System', () => {
         {
           id: '1',
           name: 'Order',
-          type: 'Product',
+          entityType: 'Product',
           instanceId: 'order-123',
           instanceType: 'Shop/Order',
           containerTag: 'test',

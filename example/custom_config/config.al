@@ -7,6 +7,13 @@
       "type": "sqlite",
       "dbname": "cc.db"
     },
+    "vectorStore": {
+      "type": "lancedb",
+      "dbname": "./data/vector-store/cc-vectors.lance"
+    },
+    "knowledgeGraph": {
+      "enabled": true
+    },
     "retry": [
       {
         "name": "classifyRetry",

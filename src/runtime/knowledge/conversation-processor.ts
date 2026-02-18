@@ -31,7 +31,7 @@ export class ConversationProcessor {
   private async buildExistingContext(containerTag: string): Promise<string> {
     try {
       const result: import('../module.js').Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeNode {containerTag? "${escapeString(containerTag)}", isLatest? true}, @limit 20}`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {containerTag? "${escapeString(containerTag)}", isLatest? true}, @limit 20}`,
         undefined
       );
 
@@ -40,9 +40,9 @@ export class ConversationProcessor {
       const lines: string[] = [];
       for (const inst of result) {
         const name = inst.lookup('name') as string;
-        const type = inst.lookup('type') as string;
+        const entityType = inst.lookup('entityType') as string;
         const desc = inst.lookup('description') as string | undefined;
-        lines.push(`- ${name} (${type})${desc ? ': ' + desc.substring(0, 100) : ''}`);
+        lines.push(`- ${name} (${entityType})${desc ? ': ' + desc.substring(0, 100) : ''}`);
       }
       return lines.join('\n');
     } catch (err) {
@@ -101,6 +101,7 @@ export class ConversationProcessor {
           entity,
           containerTag,
           userId,
+          containerTag,
           'CONVERSATION',
           sessionId,
           `User: ${userMessage}\nAssistant: ${assistantResponse}`,

@@ -59,6 +59,7 @@
     "@langchain/anthropic": "^1.3.12",
     "@langchain/core": "^1.1.17",
     "@langchain/openai": "^1.2.3",
+    "@lancedb/lancedb": "^0.15.0",
     "@modelcontextprotocol/sdk": "^1.25.3",
     "@types/multer": "^2.0.0",
     "amazon-cognito-identity-js": "^6.3.16",
@@ -187,6 +188,5 @@
     "*.{json,md,yml,yaml}": [
       "prettier --write"
     ]
-  },
-  "packageManager": "pnpm@10.28.2"
+  }
 }

@@ -38,7 +38,7 @@ const LLM_CONCURRENCY = parseInt(process.env.KG_LLM_CONCURRENCY || '5', 10);
 interface EntityCandidate {
   key: string;
   name: string;
-  type: string;
+  entityType: string;
   description?: string;
   mentions: number;
   salienceSum: number;
@@ -77,6 +77,7 @@ export class DocumentProcessor {
     document: Document,
     containerTag: string,
     userId: string,
+    tenantId: string,
     agentId?: string,
     env?: Environment,
     llmName?: string
@@ -123,7 +124,7 @@ export class DocumentProcessor {
     const entityResults = await runParallel(
       megaBatches,
       async (batch, i) => {
-        logger.info(
+        logger.debug(
           `[KNOWLEDGE] Entity extraction: mega-batch ${i + 1}/${megaBatches.length} (${batch.length} chars)`
         );
         try {
@@ -133,7 +134,9 @@ export class DocumentProcessor {
             llmName,
             MAX_ENTITIES_PER_BATCH
           );
-          logger.info(`[KNOWLEDGE] Extracted ${entities.length} entities from mega-batch ${i + 1}`);
+          logger.debug(
+            `[KNOWLEDGE] Extracted ${entities.length} entities from mega-batch ${i + 1}`
+          );
           return { index: i, entities };
         } catch (err) {
           logger.warn(`[KNOWLEDGE] Failed to extract entities from mega-batch ${i + 1}: ${err}`);
@@ -172,7 +175,7 @@ export class DocumentProcessor {
 
     const entitiesToCreate = coreEntities.map(e => ({
       name: e.name,
-      type: e.type,
+      entityType: e.entityType,
       description: e.description,
     }));
     const sourceChunks = new Map<string, string>();
@@ -184,6 +187,7 @@ export class DocumentProcessor {
       entitiesToCreate,
       containerTag,
       userId,
+      tenantId,
       'DOCUMENT',
       document.name,
       sourceChunks,
@@ -208,7 +212,7 @@ export class DocumentProcessor {
     const relResults = await runParallel(
       megaBatches,
       async (batch, i) => {
-        logger.info(
+        logger.debug(
           `[KNOWLEDGE] Relationship extraction: mega-batch ${i + 1}/${megaBatches.length}`
         );
         try {
@@ -219,7 +223,7 @@ export class DocumentProcessor {
             llmName,
             MAX_RELATIONSHIPS_PER_BATCH
           );
-          logger.info(
+          logger.debug(
             `[KNOWLEDGE] Extracted ${relationships.length} relationships from mega-batch ${i + 1}`
           );
           return relationships;
@@ -291,8 +295,8 @@ export class DocumentProcessor {
           existing.description = entity.description;
         }
       }
-      if (entity.type && shouldPreferType(entity.type, existing.type)) {
-        existing.type = entity.type;
+      if (entity.entityType && shouldPreferType(entity.entityType, existing.entityType)) {
+        existing.entityType = entity.entityType;
       }
       return;
     }
@@ -300,7 +304,7 @@ export class DocumentProcessor {
     candidates.set(key, {
       key,
       name: entity.name,
-      type: entity.type,
+      entityType: entity.entityType,
       description: entity.description,
       mentions,
       salienceSum: salience,
@@ -455,8 +459,8 @@ function selectCoreEntities(
 
   const byType = new Map<string, CandidateScore[]>();
   for (const candidate of scored) {
-    if (!byType.has(candidate.type)) byType.set(candidate.type, []);
-    byType.get(candidate.type)!.push(candidate);
+    if (!byType.has(candidate.entityType)) byType.set(candidate.entityType, []);
+    byType.get(candidate.entityType)!.push(candidate);
   }
 
   const selected = new Map<string, CandidateScore>();

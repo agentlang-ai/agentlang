@@ -35,6 +35,21 @@ export const ConfigSchema = z.object({
         type: z.literal('sqlite'),
         dbname: z.string().optional(),
       }),
+      z.object({
+        type: z.literal('lancedb'),
+        path: z.string().optional(),
+      }),
+    ])
+    .optional(),
+  vectorStore: z
+    .discriminatedUnion('type', [
+      z.object({
+        type: z.literal('pgvector'),
+      }),
+      z.object({
+        type: z.literal('lancedb'),
+        dbname: z.string().optional(),
+      }),
     ])
     .optional(),
   integrations: z
@@ -69,6 +84,18 @@ export const ConfigSchema = z.object({
   monitoring: z
     .object({
       enabled: z.boolean().default(false),
+    })
+    .optional(),
+  knowledgeGraph: z
+    .object({
+      enabled: z.boolean().default(false),
+      neo4j: z
+        .object({
+          uri: z.string().default('#js process.env.GRAPH_DB_URI || "bolt://localhost:7687"'),
+          user: z.string().default('#js process.env.GRAPH_DB_USER || "neo4j"'),
+          password: z.string().default('#js process.env.GRAPH_DB_PASSWORD || "password"'),
+        })
+        .optional(),
     })
     .optional(),
   authentication: z

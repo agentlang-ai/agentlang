@@ -391,7 +391,7 @@ function parseExtractionResponse(content: string): ExtractionResult {
       const processedEntities: ExtractedEntity[] = (parsed.entities || [])
         .map((e: any) => ({
           name: normalizeEntityName(String(e.name || '')),
-          type: normalizeEntityType(String(e.type || 'Concept')),
+          entityType: normalizeEntityType(String(e.type || 'Concept')),
           description: e.description ? String(e.description).trim() : undefined,
           salience: normalizeSalience(e.salience ?? e.importance),
           update_type: (['new', 'update', 'supplement'].includes(e.update_type)
@@ -499,7 +499,7 @@ function parseMegaBatchEntityResponse(content: string): ExtractedEntity[] {
       const entities: ExtractedEntity[] = (parsed.entities || [])
         .map((e: any) => ({
           name: normalizeEntityName(String(e.name || '')),
-          type: normalizeEntityType(String(e.type || 'Concept')),
+          entityType: normalizeEntityType(String(e.type || 'Concept')),
           description: e.description ? String(e.description).trim() : undefined,
           salience: normalizeSalience(e.salience ?? e.importance),
           mentions: typeof e.mentions === 'number' ? Math.max(1, e.mentions) : 1,

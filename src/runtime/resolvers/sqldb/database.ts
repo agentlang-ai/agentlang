@@ -46,6 +46,8 @@ import { saveMigration } from '../../modules/core.js';
 import { getAppSpec } from '../../loader.js';
 import { WhereClause } from '../interface.js';
 import { AppConfig } from '../../state.js';
+import { createLanceDBStore } from '../vector/lancedb-store.js';
+import type { VectorStore } from '../vector/types.js';
 
 export let defaultDataSource: DataSource | undefined;
 
@@ -58,57 +60,8 @@ function isBrowser(): boolean {
   );
 }
 
-// SQLite WASM with built-in sqlite-vec for browsers
-// Loaded from CDN - this has sqlite-vec statically compiled in
-let sqliteVecWasmModule: any = null;
-
-async function loadSqliteVecWasm(): Promise<any> {
-  if (sqliteVecWasmModule) {
-    return sqliteVecWasmModule;
-  }
-
-  try {
-    // Use dynamic import with string to prevent bundlers from analyzing
-    const cdnUrl = 'https://cdn.jsdelivr.net/npm/sqlite-vec-wasm-demo@latest/sqlite3.mjs';
-    const module = await import(/* @vite-ignore */ cdnUrl);
-    sqliteVecWasmModule = await module.default();
-    return sqliteVecWasmModule;
-  } catch (err) {
-    logger.warn('Failed to load sqlite-vec WASM:', err);
-    return null;
-  }
-}
-
-// Helper to load sqlite-vec based on environment
-async function loadSqliteVec(): Promise<any> {
-  // In browser, use WASM version with built-in sqlite-vec
-  // In Node.js, use the npm package
-  if (isBrowser()) {
-    const wasmModule = await loadSqliteVecWasm();
-    if (wasmModule) {
-      // WASM version has sqlite-vec built-in, no need to call load()
-      // Return a compatible interface
-      return {
-        load: () => {
-          // No-op: sqlite-vec is already loaded in WASM version
-          logger.info('sqlite-vec WASM loaded (built-in)');
-        },
-        // Expose the WASM module for direct use if needed
-        _wasmModule: wasmModule,
-      };
-    }
-    return null;
-  }
-
-  // Node.js: use npm package
-  try {
-    // Use variable to prevent bundlers from statically analyzing this import
-    const moduleName = 'sqlite-vec';
-    return await import(/* @vite-ignore */ moduleName);
-  } catch {
-    return null;
-  }
-}
+// LanceDB vector store cache - keyed by module name
+const lanceDBStores: Map<string, VectorStore> = new Map();
 
 export class DbContext {
   txnId: string | undefined;
@@ -306,22 +259,15 @@ function makeSqliteDataSource(
   ds.initialize = async () => {
     const res = await originalInit();
     try {
-      const sqliteVec = await loadSqliteVec();
       const driver = ds.driver as any;
       const db = driver.databaseConnection || driver.nativeDatabase;
-      if (db && sqliteVec?.load) {
-        sqliteVec.load(db);
-        logger.info('sqlite-vec extension loaded successfully');
-      }
       // Enable WAL mode for better concurrent read performance
       if (db?.pragma) {
         db.pragma('journal_mode = WAL');
         logger.info('SQLite WAL mode enabled');
       }
     } catch (err: any) {
-      logger.warn(
-        `Failed to load sqlite-vec extension: ${err.message}. Vector operations may not be available.`
-      );
+      logger.warn(`Failed to enable WAL mode: ${err.message}.`);
     }
     return res;
   };
@@ -417,6 +363,20 @@ function forceGetDbType(config: DatabaseConfig | undefined): string {
 
 let DbType: string | undefined;
 
+function getVectorStoreType(): string {
+  // Check explicit vectorStore config first
+  const vectorStoreConfig = AppConfig?.vectorStore;
+  if (vectorStoreConfig?.type) {
+    if (vectorStoreConfig.type === 'pgvector') return 'postgres';
+    if (vectorStoreConfig.type === 'lancedb') return 'lancedb';
+  }
+
+  // Fallback to main store type
+  const dbType = getDbType(AppConfig?.store);
+  if (dbType === 'postgres') return 'postgres';
+  return 'lancedb';
+}
+
 function getDbType(config: DatabaseConfig | undefined): string {
   if (DbType === undefined) DbType = forceGetDbType(config);
   return DbType;
@@ -450,12 +410,9 @@ export function isUsingSqljs(): boolean {
 }
 
 export async function isVectorStoreSupported(): Promise<boolean> {
-  const dbType = getDbType(AppConfig?.store);
-  if (dbType === 'postgres') return true;
-  if (dbType === 'sqlite') {
-    const sqliteVecModule = await loadSqliteVec();
-    return !!sqliteVecModule;
-  }
+  const vectorStoreType = getVectorStoreType();
+  if (vectorStoreType === 'postgres') return true;
+  if (vectorStoreType === 'lancedb') return true;
   return false;
 }
 
@@ -514,9 +471,14 @@ async function insertRowsHelper(
   ctx: DbContext,
   doUpsert: boolean
 ): Promise<void> {
-  const repo = getDatasourceForTransaction(ctx.txnId).getRepository(tableName);
-  if (doUpsert) await repo.save(rows);
-  else await repo.insert(rows);
+  const ds = getDatasourceForTransaction(ctx.txnId);
+  const repo = ds.getRepository(tableName);
+
+  if (doUpsert) {
+    await repo.save(rows);
+  } else {
+    await repo.insert(rows);
+  }
 }
 
 export async function addRowForFullTextSearch(
@@ -525,31 +487,45 @@ export async function addRowForFullTextSearch(
   vect: number[],
   ctx: DbContext
 ) {
-  if (!(await isVectorStoreSupported())) return;
+  if (!(await isVectorStoreSupported())) {
+    logger.warn(`[VECTOR] Vector store not supported, skipping save for ${id}`);
+    return;
+  }
   try {
     const vecTableName = tableName + VectorSuffix;
-    const qb = getDatasourceForTransaction(ctx.txnId).createQueryBuilder();
+    logger.info(
+      `[VECTOR] Saving embedding to ${vecTableName} for ${id} (${vect.length} dimensions)`
+    );
+    const dbType = getVectorStoreType();
     const tenantId = await ctx.getTenantId();
-    const dbType = getDbType(AppConfig?.store);
-    if (dbType === 'postgres') {
+
+    if (dbType === 'lancedb') {
+      let store = lanceDBStores.get(tableName);
+      if (!store) {
+        store = createLanceDBStore({
+          moduleName: tableName,
+          vectorDimension: vect.length,
+        });
+        await store.init();
+        lanceDBStores.set(tableName, store);
+      }
+      await store.addEmbedding({
+        id,
+        embedding: Array.from(vect),
+        tenantId,
+      });
+    } else if (dbType === 'postgres') {
+      const qb = getDatasourceForTransaction(ctx.txnId).createQueryBuilder();
       const { default: pgvector } = await import('pgvector');
       await qb
         .insert()
         .into(vecTableName)
         .values([{ id: id, embedding: pgvector.toSql(vect), __tenant__: tenantId }])
         .execute();
-    } else {
-      // sqlite-vec expects embeddings as JSON array string for parameterized queries
-      // TypeORM would expand Float32Array into individual parameters causing "too many parameters" error
-      const embeddingJson = JSON.stringify(Array.from(vect));
-      await qb
-        .insert()
-        .into(vecTableName)
-        .values([{ id: id, embedding: embeddingJson }])
-        .execute();
     }
+    logger.info(`[VECTOR] Successfully saved embedding to ${vecTableName} for ${id}`);
   } catch (err: any) {
-    logger.error(`Failed to add row to vector store - ${err}`);
+    logger.error(`[VECTOR] Failed to add row to vector store - ${err}`);
   }
 }
 
@@ -558,11 +534,21 @@ export async function initVectorStore(tableNames: string[], ctx: DbContext) {
     logger.info(`Vector store not supported for ${getDbType(AppConfig?.store)}, skipping init...`);
     return;
   }
-  const dbType = getDbType(AppConfig?.store);
+  const dbType = getVectorStoreType();
   let notInited = true;
   for (const vecTableName of tableNames) {
-    const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
-    if (dbType === 'postgres') {
+    if (dbType === 'lancedb') {
+      if (!lanceDBStores.has(vecTableName)) {
+        const store = createLanceDBStore({
+          moduleName: vecTableName,
+          vectorDimension: DefaultVectorDimension,
+        });
+        await store.init();
+        lanceDBStores.set(vecTableName, store);
+        logger.info(`[VECTOR] Initialized LanceDB store for ${vecTableName}`);
+      }
+    } else if (dbType === 'postgres') {
+      const vecRepo = getDatasourceForTransaction(ctx.txnId).getRepository(vecTableName);
       if (notInited) {
         let failure = false;
         try {
@@ -576,18 +562,11 @@ export async function initVectorStore(tableNames: string[], ctx: DbContext) {
       }
       await vecRepo.query(
         `CREATE TABLE IF NOT EXISTS ${vecTableName} (
-            id varchar PRIMARY KEY,
-            embedding vector(${DefaultVectorDimension}),
-            ${TenantAttributeName} varchar,
-            __is_deleted__ boolean default false
-          )`
-      );
-    } else {
-      // sqlite-vec - vec0 doesn't support type declarations for metadata columns
-      await vecRepo.query(
-        `CREATE VIRTUAL TABLE IF NOT EXISTS ${vecTableName} USING vec0(
-            id TEXT PRIMARY KEY,
-            embedding FLOAT[${DefaultVectorDimension}])`
+          id varchar PRIMARY KEY,
+          embedding vector(${DefaultVectorDimension}),
+          ${TenantAttributeName} varchar,
+          __is_deleted__ boolean default false
+        )`
       );
     }
   }
@@ -604,6 +583,19 @@ export async function vectorStoreSearch(
     return [];
   }
   try {
+    const dbType = getVectorStoreType();
+    const tenantId = await ctx.getTenantId();
+
+    if (dbType === 'lancedb') {
+      const store = lanceDBStores.get(tableName);
+      if (!store) {
+        logger.warn(`[VECTOR] LanceDB store not found for ${tableName}`);
+        return [];
+      }
+      const results = await store.search(searchVec, tenantId, limit);
+      return results.map(r => ({ id: r.id }));
+    }
+
     let hasGlobalPerms = ctx.isPermitted();
     if (!hasGlobalPerms) {
       const userId = ctx.getUserId();
@@ -613,8 +605,6 @@ export async function vectorStoreSearch(
     }
     const vecTableName = tableName + VectorSuffix;
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
-    const dbType = getDbType(AppConfig?.store);
-    const tenantId = await ctx.getTenantId();
     let ownersJoinCond: string = '';
     if (!hasGlobalPerms) {
       const ot = ownersTable(tableName);
@@ -626,17 +616,6 @@ export async function vectorStoreSearch(
       const { default: pgvector } = await import('pgvector');
       const sql = `select ${vecTableName}.id from ${vecTableName} ${ownersJoinCond} order by embedding <-> $1 LIMIT ${limit}`;
       const args = pgvector.toSql(searchVec);
-      return await qb.query(sql, [args]);
-    } else {
-      // sqlite-vec - join with main table to filter by tenant
-      // sqlite-vec MATCH operator expects a JSON array string for the query vector
-      // Note: sqlite-vec requires k=? constraint for KNN queries, not just LIMIT
-      const alias = tableName.toLowerCase();
-      const sql = `SELECT ${vecTableName}.id FROM ${vecTableName}
-        INNER JOIN ${tableName} ${alias} ON ${alias}.${PathAttributeName} = ${vecTableName}.id
-        ${ownersJoinCond}
-        WHERE ${alias}.${TenantAttributeName} = '${tenantId}' AND ${alias}.${DeletedFlagAttributeName} = false AND ${vecTableName}.embedding MATCH ? AND k = ${limit}`;
-      const args = JSON.stringify(searchVec);
       return await qb.query(sql, [args]);
     }
   } catch (err: any) {
@@ -652,24 +631,24 @@ export async function vectorStoreSearchEntryExists(
 ): Promise<boolean> {
   if (!(await isVectorStoreSupported())) return false;
   try {
+    const dbType = getVectorStoreType();
+
+    if (dbType === 'lancedb') {
+      const store = lanceDBStores.get(tableName);
+      if (!store) {
+        logger.warn(`[VECTOR] LanceDB store not found for ${tableName}`);
+        return false;
+      }
+      return await store.exists(id);
+    }
+
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const vecTableName = tableName + VectorSuffix;
-    const dbType = getDbType(AppConfig?.store);
     const tenantId = await ctx.getTenantId();
 
     if (dbType === 'postgres') {
       const result: any[] = await qb.query(
         `select id from ${vecTableName} where id = $1 and ${TenantAttributeName} = '${tenantId}'`,
-        [id]
-      );
-      return result !== null && result.length > 0;
-    } else {
-      // sqlite-vec - join with main table to verify tenant
-      const alias = tableName.toLowerCase();
-      const result: any[] = await qb.query(
-        `SELECT ${vecTableName}.id FROM ${vecTableName}
-         INNER JOIN ${tableName} ${alias} ON ${alias}.${PathAttributeName} = ${vecTableName}.id
-         WHERE ${vecTableName}.id = ? AND ${alias}.${TenantAttributeName} = '${tenantId}'`,
         [id]
       );
       return result !== null && result.length > 0;
@@ -683,9 +662,20 @@ export async function vectorStoreSearchEntryExists(
 export async function deleteFullTextSearchEntry(tableName: string, id: string, ctx: DbContext) {
   if (!(await isVectorStoreSupported())) return;
   try {
+    const dbType = getVectorStoreType();
+
+    if (dbType === 'lancedb') {
+      const store = lanceDBStores.get(tableName);
+      if (!store) {
+        logger.warn(`[VECTOR] LanceDB store not found for ${tableName}`);
+        return;
+      }
+      await store.delete(id);
+      return;
+    }
+
     const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
     const vecTableName = tableName + VectorSuffix;
-    const dbType = getDbType(AppConfig?.store);
     const tenantId = await ctx.getTenantId();
 
     if (dbType === 'postgres') {
@@ -693,9 +683,6 @@ export async function deleteFullTextSearchEntry(tableName: string, id: string, c
         `delete from ${vecTableName} where id = $1 and ${TenantAttributeName} = '${tenantId}'`,
         [id]
       );
-    } else {
-      // sqlite-vec - delete just by id (ownership verified by caller)
-      await qb.query(`delete from ${vecTableName} where id = ?`, [id]);
     }
   } catch (err: any) {
     logger.error(`Vector store delete failed - ${err}`);
@@ -1373,14 +1360,16 @@ async function endTransaction(txnId: string, commit: boolean): Promise<void> {
   const qr: QueryRunner | undefined = transactionsDb.get(txnId);
   if (qr && qr.isTransactionActive) {
     try {
-      if (commit)
-        await qr.commitTransaction().catch((reason: any) => {
-          logger.error(`failed to commit transaction ${txnId} - ${reason}`);
-        });
-      else
-        await qr.rollbackTransaction().catch((reason: any) => {
-          logger.error(`failed to rollback transaction ${txnId} - ${reason}`);
-        });
+      if (commit) {
+        await qr.commitTransaction();
+      } else {
+        await qr.rollbackTransaction();
+      }
+    } catch (err: any) {
+      logger.error(
+        `Failed to ${commit ? 'commit' : 'rollback'} transaction ${txnId}: ${err.message}`
+      );
+      throw err;
     } finally {
       await qr.release();
       transactionsDb.delete(txnId);
