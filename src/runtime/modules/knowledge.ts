@@ -19,6 +19,7 @@ entity KnowledgeNode {
     agentId String @optional,
     confidence Float @default(1.0),
     isLatest Boolean @default(true),
+    embedding String @optional,
     @meta {"fullTextSearch": ["name", "type", "description"]}
 }
 

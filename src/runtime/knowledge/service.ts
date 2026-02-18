@@ -350,13 +350,6 @@ export class KnowledgeService {
       return;
     }
 
-    if (this.processedAgents.has(session.agentId)) {
-      logger.info(
-        `[KNOWLEDGE] Documents already processed in this process for agent ${session.agentId}, skipping`
-      );
-      return;
-    }
-
     // Check if documents are already being processed first (fast check, no DB query)
     // This prevents race conditions between concurrent requests
     const processingKey = `${session.agentId}:${documentTitles.join(',')}`;
@@ -402,6 +395,14 @@ export class KnowledgeService {
       }
     } catch (err) {
       logger.debug(`[KNOWLEDGE] Error checking document processing status: ${err}`);
+    }
+
+    // Only after DB checks fail, check in-memory cache
+    if (this.processedAgents.has(session.agentId)) {
+      logger.info(
+        `[KNOWLEDGE] Documents already processed in this process for agent ${session.agentId}, skipping`
+      );
+      return;
     }
 
     // Mark as processing BEFORE any async work to prevent race conditions

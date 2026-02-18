@@ -317,8 +317,14 @@ export class SqlDbResolver extends Resolver {
   }
 
   private async insertInstance(inst: Instance, orUpdate = false): Promise<Instance> {
-    const ctx = this.getDbContext(inst.getFqName());
+    const fqName = inst.getFqName();
+    logger.info(`[INSERT-INSTANCE] Starting insert for ${fqName}, orUpdate=${orUpdate}`);
+
+    const ctx = this.getDbContext(fqName);
+    logger.info(`[INSERT-INSTANCE] Got DbContext for ${fqName}, txnId=${ctx.txnId}`);
+
     if (isBetweenRelationship(inst.name, inst.moduleName)) {
+      logger.info(`[INSERT-INSTANCE] Handling as between-relationship`);
       const nodeVals: BetweenInstanceNodeValuesResult = getBetweenInstanceNodeValues(inst);
       assertInstance(nodeVals.node1);
       assertInstance(nodeVals.node2);
@@ -345,14 +351,41 @@ export class SqlDbResolver extends Resolver {
     }
     const n: string = asTableReference(inst.moduleName, inst.name);
     const rowObj: object = inst.attributesWithStringifiedObjects();
+    logger.info(
+      `[INSERT-INSTANCE] Calling insertRow for table=${n}, rowKeys=${Object.keys(rowObj)}`
+    );
     await insertRow(n, rowObj, ctx, orUpdate);
+    logger.info(`[INSERT-INSTANCE] insertRow completed for ${fqName}`);
     if (inst.record.getEmbeddingConfig() || inst.record.getFullTextSearchAttributes()) {
       const path = attrs.get(PathAttributeName);
+      logger.info(
+        `[EMBEDDING-CHECK] Entity ${path} has embedding/fullTextSearch config, checking vector store...`
+      );
       try {
-        if (
-          (await isVectorStoreSupported()) &&
-          !(await vectorStoreSearchEntryExists(n, path, ctx))
-        ) {
+        const vectorSupported = await isVectorStoreSupported();
+        const entryExists = await vectorStoreSearchEntryExists(n, path, ctx);
+        logger.info(
+          `[EMBEDDING-CHECK] vectorSupported=${vectorSupported}, entryExists=${entryExists}`
+        );
+        if (vectorSupported && !entryExists) {
+          // Check if instance already has a pre-computed embedding
+          const instanceEmbedding = inst.get('embedding');
+          if (instanceEmbedding && typeof instanceEmbedding === 'string') {
+            try {
+              const embeddingArray = JSON.parse(instanceEmbedding);
+              if (Array.isArray(embeddingArray) && embeddingArray.length > 0) {
+                logger.info(
+                  `[EMBEDDING] Using pre-computed embedding for ${path} (${embeddingArray.length}d)`
+                );
+                await addRowForFullTextSearch(n, path, embeddingArray, ctx);
+                logger.info(`[EMBEDDING] Saved pre-computed embedding for ${path}`);
+                return inst;
+              }
+            } catch (e) {
+              logger.warn(`[EMBEDDING] Failed to parse pre-computed embedding: ${e}`);
+            }
+          }
+
           const ftsAttrs = inst.record.getFullTextSearchAttributes() || ['*'];
           const textToEmbed = this.extractTextForEmbedding(rowObj, ftsAttrs);
           let embeddingConfig: any = undefined;
@@ -427,7 +460,7 @@ export class SqlDbResolver extends Resolver {
               `[EMBEDDING] Generating embeddings for ${path} (${textToEmbed.length} chars, ~${Math.ceil(textToEmbed.length / embeddingConfig.chunkSize)} chunks)`
             );
           } else {
-            logger.debug(
+            logger.info(
               `[EMBEDDING] Generating embeddings for ${path} (${textToEmbed.length} chars, ~${Math.ceil(textToEmbed.length / embeddingConfig.chunkSize)} chunks)`
             );
           }
@@ -437,9 +470,9 @@ export class SqlDbResolver extends Resolver {
           const embeddingService = new EmbeddingService(embeddingConfig);
           logger.debug(`[EMBEDDING] EmbeddingService created, generating embedding...`);
           const res = await embeddingService.embedText(textToEmbed);
-          logger.debug(`[EMBEDDING] Embeddings generated (${res.length}d), saving to vector store`);
+          logger.info(`[EMBEDDING] Embeddings generated (${res.length}d), saving to vector store`);
           await addRowForFullTextSearch(n, path, res, ctx);
-          logger.debug(`[EMBEDDING] Saved embeddings for ${path}`);
+          logger.info(`[EMBEDDING] Saved embeddings for ${path}`);
         }
       } catch (reason: any) {
         logger.warn(`Full text indexing failed for ${path} - ${reason}`);

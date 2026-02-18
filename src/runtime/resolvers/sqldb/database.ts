@@ -514,9 +514,14 @@ async function insertRowsHelper(
   ctx: DbContext,
   doUpsert: boolean
 ): Promise<void> {
-  const repo = getDatasourceForTransaction(ctx.txnId).getRepository(tableName);
-  if (doUpsert) await repo.save(rows);
-  else await repo.insert(rows);
+  const ds = getDatasourceForTransaction(ctx.txnId);
+  const repo = ds.getRepository(tableName);
+
+  if (doUpsert) {
+    await repo.save(rows);
+  } else {
+    await repo.insert(rows);
+  }
 }
 
 export async function addRowForFullTextSearch(
@@ -525,9 +530,15 @@ export async function addRowForFullTextSearch(
   vect: number[],
   ctx: DbContext
 ) {
-  if (!(await isVectorStoreSupported())) return;
+  if (!(await isVectorStoreSupported())) {
+    logger.warn(`[VECTOR] Vector store not supported, skipping save for ${id}`);
+    return;
+  }
   try {
     const vecTableName = tableName + VectorSuffix;
+    logger.info(
+      `[VECTOR] Saving embedding to ${vecTableName} for ${id} (${vect.length} dimensions)`
+    );
     const qb = getDatasourceForTransaction(ctx.txnId).createQueryBuilder();
     const tenantId = await ctx.getTenantId();
     const dbType = getDbType(AppConfig?.store);
@@ -548,8 +559,9 @@ export async function addRowForFullTextSearch(
         .values([{ id: id, embedding: embeddingJson }])
         .execute();
     }
+    logger.info(`[VECTOR] Successfully saved embedding to ${vecTableName} for ${id}`);
   } catch (err: any) {
-    logger.error(`Failed to add row to vector store - ${err}`);
+    logger.error(`[VECTOR] Failed to add row to vector store - ${err}`);
   }
 }
 
@@ -1357,14 +1369,16 @@ async function endTransaction(txnId: string, commit: boolean): Promise<void> {
   const qr: QueryRunner | undefined = transactionsDb.get(txnId);
   if (qr && qr.isTransactionActive) {
     try {
-      if (commit)
-        await qr.commitTransaction().catch((reason: any) => {
-          logger.error(`failed to commit transaction ${txnId} - ${reason}`);
-        });
-      else
-        await qr.rollbackTransaction().catch((reason: any) => {
-          logger.error(`failed to rollback transaction ${txnId} - ${reason}`);
-        });
+      if (commit) {
+        await qr.commitTransaction();
+      } else {
+        await qr.rollbackTransaction();
+      }
+    } catch (err: any) {
+      logger.error(
+        `Failed to ${commit ? 'commit' : 'rollback'} transaction ${txnId}: ${err.message}`
+      );
+      throw err;
     } finally {
       await qr.release();
       transactionsDb.delete(txnId);

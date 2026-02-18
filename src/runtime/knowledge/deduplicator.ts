@@ -471,6 +471,9 @@ export class SemanticDeduplicator {
     if (agentId) {
       query += `, agentId "${escapeString(agentId)}"`;
     }
+    if (embedding && embedding.length > 0) {
+      query += `, embedding "${escapeString(JSON.stringify(embedding))}"`;
+    }
     query += `}}`;
 
     logger.info(`[KNOWLEDGE] Creating node with query: ${query.substring(0, 100)}...`);
