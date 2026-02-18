@@ -15,7 +15,7 @@ export class OpenAIEmbeddingProvider extends EmbeddingProvider {
   constructor(config?: EmbeddingProviderConfig) {
     super(config || {});
     this.openaiConfig = (this.config as OpenAIEmbeddingConfig) || {};
-    logger.info(
+    logger.debug(
       `[OPENAI-EMBEDDING] Provider created with model: ${this.openaiConfig.model || 'default'}`
     );
   }

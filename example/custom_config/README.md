@@ -1,6 +1,7 @@
 # Resolver Configuration Example — Using Entities as Config Providers
 
 This example demonstrates:
+
 1. How an Agentlang application can expose configuration values to JavaScript resolvers using **entities** and **`fetchConfig`**.
 2. How to configure documents from various sources: local files, S3, HTTPS, and the secure **Document Service**.
 
@@ -12,10 +13,10 @@ A resolver may require external configuration—such as API keys, endpoints, or 
 
 In this module:
 
-* The `Config` entity is used to **store resolver configuration** (server URL and API key).
-* The configuration is **initialized via `config.al`**, not created through workflows.
-* The resolver (`ChatResolver`) uses the JavaScript function `createChatMessage` to send or simulate sending chat messages.
-* The resolver retrieves configuration using the Agentlang runtime helper **`fetchConfig()`**.
+- The `Config` entity is used to **store resolver configuration** (server URL and API key).
+- The configuration is **initialized via `config.al`**, not created through workflows.
+- The resolver (`ChatResolver`) uses the JavaScript function `createChatMessage` to send or simulate sending chat messages.
+- The resolver retrieves configuration using the Agentlang runtime helper **`fetchConfig()`**.
 
 This architecture cleanly separates **configuration**, **data**, and **resolver behavior**, enabling maintainable and secure integrations.
 
@@ -47,33 +48,33 @@ resolver ChatResolver ["custom_config.core/ChatMessage"] {
 
 ### Key Features
 
-* `ChatMessage` is resolved by `ChatResolver`, which implements the **create** handler.
-* The resolver pulls configuration from the `Config` entity using `fetchConfig('custom_config.core/Config')`.
+- `ChatMessage` is resolved by `ChatResolver`, which implements the **create** handler.
+- The resolver pulls configuration from the `Config` entity using `fetchConfig('custom_config.core/Config')`.
 
 ---
 
 ## 3. Resolver Logic (`resolver.js`)
 
 ```js
-import { fetchConfig } from "../../../out/runtime/api.js"
+import { fetchConfig } from '../../../out/runtime/api.js';
 
 export async function createChatMessage(_, inst) {
-    const config = await fetchConfig('custom_config.core/Config')
-    console.log(`Connecting to chat server ${config.server} using key ${config.key}`)
+  const config = await fetchConfig('custom_config.core/Config');
+  console.log(`Connecting to chat server ${config.server} using key ${config.key}`);
 
-    const to = inst.lookup('to')
-    const message = inst.lookup('message')
-    console.log(`To: ${to}, Body: ${message}`)
+  const to = inst.lookup('to');
+  const message = inst.lookup('message');
+  console.log(`To: ${to}, Body: ${message}`);
 
-    return inst
+  return inst;
 }
 ```
 
 ### How it Works
 
-* **`fetchConfig(entityName)`** loads the config entity from the service configuration.
-* The resolver reads attributes from the `ChatMessage` instance via `inst.lookup()`.
-* The function returns the instance, completing the creation process.
+- **`fetchConfig(entityName)`** loads the config entity from the service configuration.
+- The resolver reads attributes from the `ChatMessage` instance via `inst.lookup()`.
+- The function returns the instance, completing the creation process.
 
 ---
 
@@ -83,11 +84,11 @@ The `Chat` package declares that it expects configuration for the `Config` entit
 
 ```json
 {
-    "name": "Chat",
-    "version": "0.0.1",
-    "agentlang": {
-        "config": ["custom_config.core/Config"]
-    }
+  "name": "Chat",
+  "version": "0.0.1",
+  "agentlang": {
+    "config": ["custom_config.core/Config"]
+  }
 }
 ```
 
@@ -100,6 +101,7 @@ This tells Agentlang that the configuration must be provided in **config.al**.
 This example also demonstrates various ways to configure documents for agents:
 
 ### 5.1 Local File
+
 ```json
 {
   "agentlang.ai/doc": {
@@ -110,6 +112,7 @@ This example also demonstrates various ways to configure documents for agents:
 ```
 
 ### 5.2 S3 Storage
+
 ```json
 {
   "agentlang.ai/doc": {
@@ -128,6 +131,7 @@ This example also demonstrates various ways to configure documents for agents:
 ```
 
 ### 5.3 HTTPS URL
+
 ```json
 {
   "agentlang.ai/doc": {
@@ -142,6 +146,7 @@ This example also demonstrates various ways to configure documents for agents:
 The secure way to access documents uploaded via Studio:
 
 **Option A: Direct URL (with document-service:// protocol)**
+
 ```json
 {
   "agentlang.ai/doc": {
@@ -165,6 +170,7 @@ The secure way to access documents uploaded via Studio:
 ```
 
 **Option B: Lookup by Title**
+
 ```json
 {
   "agentlang.ai/doc": {
@@ -208,15 +214,77 @@ The secure way to access documents uploaded via Studio:
     "store": {
         "type": "sqlite",
         "dbname": "cc.db"
+    },
+    "vectorStore": {
+        "type": "lancedb",
+        "dbname": "./data/vector-store/cc-vectors.lance"
+    },
+    "knowledgeGraph": {
+        "enabled": true
     }
 }
 ```
 
 ### Notes
 
-* The `Config` entity is populated at startup using values in this file.
-* These values are immediately accessible to resolvers via `fetchConfig`.
-* This design avoids hard-coding sensitive values (API keys, credentials).
+- The `Config` entity is populated at startup using values in this file.
+- These values are immediately accessible to resolvers via `fetchConfig`.
+- This design avoids hard-coding sensitive values (API keys, credentials).
+
+---
+
+## 6.1 Vector Store Configuration
+
+The `vectorStore` configuration controls how document embeddings are stored and searched:
+
+### LanceDB (Default for SQLite)
+
+```json
+{
+  "vectorStore": {
+    "type": "lancedb",
+    "dbname": "./data/vector-store/cc-vectors.lance"
+  }
+}
+```
+
+### pgvector (for PostgreSQL)
+
+```json
+{
+  "vectorStore": {
+    "type": "pgvector"
+  }
+}
+```
+
+- **Note**: `vectorStore` does not have an `enabled` field. If present in config, it's enabled. If absent, vector store operations fall back to the main `store` type (LanceDB for SQLite, pgvector for PostgreSQL).
+- **LanceDB**: Embedded vector database (no separate server). Uses `dbname` as the file path.
+- **pgvector**: PostgreSQL extension. Shares the main PostgreSQL connection (no `dbname` needed in `vectorStore`).
+- If `vectorStore` is not specified, defaults are: LanceDB for SQLite, pgvector for PostgreSQL.
+
+---
+
+## 6.2 Knowledge Graph Configuration
+
+The `knowledgeGraph` configuration enables Neo4j integration for graph-based document relationships:
+
+```json
+{
+  "knowledgeGraph": {
+    "enabled": true,
+    "neo4j": {
+      "uri": "#js process.env.GRAPH_DB_URI || 'bolt://localhost:7687'",
+      "user": "#js process.env.GRAPH_DB_USER || 'neo4j'",
+      "password": "#js process.env.GRAPH_DB_PASSWORD || 'password'"
+    }
+  }
+}
+```
+
+- When enabled, document entities and relationships are synced to Neo4j.
+- Enables graph traversal queries (e.g., "find all documents related to X").
+- Set `enabled: false` to disable Neo4j integration.
 
 ---
 

@@ -6,6 +6,12 @@
     "store": {
         "type": "sqlite",
         "dbname": "dracula.db"
+    },
+    "vectorStore": {
+      "type": "lancedb"
+    },
+    "knowledgeGraph": {
+      "enabled": true
     }
    }
 }

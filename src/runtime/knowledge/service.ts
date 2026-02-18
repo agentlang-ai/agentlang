@@ -122,7 +122,7 @@ export class KnowledgeService {
         `{${CoreKnowledgeModuleName}/KnowledgeSession {
           agentId? "${escapeString(agentId)}",
           userId? "${escapeString(userId)}",
-          containerTag? "${escapeString(containerTag)}"}}`,
+          __tenant__? "${escapeString(containerTag)}"}}`,
         undefined
       );
 
@@ -132,7 +132,7 @@ export class KnowledgeService {
           sessionId: session.lookup('id'),
           userId: session.lookup('userId'),
           agentId: session.lookup('agentId'),
-          containerTag: session.lookup('containerTag'),
+          containerTag: session.lookup('__tenant__'),
         };
       }
 
@@ -140,7 +140,7 @@ export class KnowledgeService {
       const sessionStatement = `{${CoreKnowledgeModuleName}/KnowledgeSession {
           agentId "${escapeString(agentId)}",
           userId "${escapeString(userId)}",
-          containerTag "${escapeString(containerTag)}",
+          __tenant__ "${escapeString(containerTag)}",
           messages "[]",
           createdAt now(),
           lastActivity now()}}`;
@@ -159,7 +159,7 @@ export class KnowledgeService {
         `{${CoreKnowledgeModuleName}/KnowledgeSession {
           agentId? "${escapeString(agentId)}",
           userId? "${escapeString(userId)}",
-          containerTag? "${escapeString(containerTag)}"}}`,
+          __tenant__? "${escapeString(containerTag)}"}}`,
         undefined
       );
 
@@ -170,7 +170,7 @@ export class KnowledgeService {
           sessionId: session.lookup('id'),
           userId: session.lookup('userId'),
           agentId: session.lookup('agentId'),
-          containerTag: session.lookup('containerTag'),
+          containerTag: session.lookup('__tenant__'),
         };
       }
 
@@ -204,6 +204,7 @@ export class KnowledgeService {
       document,
       containerTag,
       userId,
+      containerTag, // tenantId
       agentId,
       env,
       llmName
@@ -259,7 +260,7 @@ export class KnowledgeService {
       return { entities: [], relationships: [], instanceData: [], contextString: '' };
     }
     const extraTags = await this.resolveDocumentContainerTags(agentId, containerTag, userId);
-    return this.contextBuilder.buildContext(query, containerTag, userId, extraTags);
+    return this.contextBuilder.buildContext(query, containerTag, userId, containerTag, extraTags);
   }
 
   buildContextString(context: KnowledgeContext): string {
@@ -350,13 +351,6 @@ export class KnowledgeService {
       return;
     }
 
-    if (this.processedAgents.has(session.agentId)) {
-      logger.info(
-        `[KNOWLEDGE] Documents already processed in this process for agent ${session.agentId}, skipping`
-      );
-      return;
-    }
-
     // Check if documents are already being processed first (fast check, no DB query)
     // This prevents race conditions between concurrent requests
     const processingKey = `${session.agentId}:${documentTitles.join(',')}`;
@@ -370,7 +364,7 @@ export class KnowledgeService {
     try {
       // First check if any knowledge nodes exist for this agent's documents
       const nodeResult = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeNode {agentId? "${session.agentId}", sourceType? "DOCUMENT"}} @limit 1`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {agentId? "${session.agentId}", sourceType? "DOCUMENT"}} @limit 1`,
         undefined
       );
       if (nodeResult && nodeResult.length > 0) {
@@ -402,6 +396,14 @@ export class KnowledgeService {
       }
     } catch (err) {
       logger.debug(`[KNOWLEDGE] Error checking document processing status: ${err}`);
+    }
+
+    // Only after DB checks fail, check in-memory cache
+    if (this.processedAgents.has(session.agentId)) {
+      logger.info(
+        `[KNOWLEDGE] Documents already processed in this process for agent ${session.agentId}, skipping`
+      );
+      return;
     }
 
     // Mark as processing BEFORE any async work to prevent race conditions
@@ -491,7 +493,7 @@ export class KnowledgeService {
       await this.graphDb.clearContainer(containerTag);
 
       const nodeResults: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeNode {containerTag? "${escapeString(containerTag)}", isLatest? true}}`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {          __tenant__? "${escapeString(containerTag)}", isLatest? true}}`,
         undefined
       );
 
@@ -506,14 +508,14 @@ export class KnowledgeService {
           const node = {
             id: inst.lookup('id') as string,
             name: inst.lookup('name') as string,
-            type: inst.lookup('type') as string,
+            entityType: inst.lookup('entityType') as string,
             description: inst.lookup('description') as string | undefined,
             sourceType: (inst.lookup('sourceType') as any) || 'DERIVED',
             sourceId: inst.lookup('sourceId') as string | undefined,
             sourceChunk: inst.lookup('sourceChunk') as string | undefined,
             instanceId: inst.lookup('instanceId') as string | undefined,
             instanceType: inst.lookup('instanceType') as string | undefined,
-            containerTag: inst.lookup('containerTag') as string,
+            containerTag: inst.lookup('__tenant__') as string,
             userId: inst.lookup('userId') as string,
             agentId: inst.lookup('agentId') as string | undefined,
             confidence: (inst.lookup('confidence') as number) || 1.0,
@@ -529,7 +531,7 @@ export class KnowledgeService {
       }
 
       const edgeResults: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeEdge {containerTag? "${escapeString(containerTag)}"}}`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEdge {__tenant__? "${escapeString(containerTag)}"}}`,
         undefined
       );
 
@@ -568,7 +570,7 @@ export class KnowledgeService {
 
     try {
       const allNodes: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeNode {isLatest? true}}`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {isLatest? true}}`,
         undefined
       );
 
@@ -579,7 +581,7 @@ export class KnowledgeService {
 
       const containerTags = new Set<string>();
       for (const inst of allNodes) {
-        const tag = inst.lookup('containerTag') as string;
+        const tag = inst.lookup('__tenant__') as string;
         if (tag) containerTags.add(tag);
       }
 
@@ -604,7 +606,7 @@ export class KnowledgeService {
    */
   async supersedeNode(
     existingNodeId: string,
-    replacement: { name: string; type: string; description?: string },
+    replacement: { name: string; entityType: string; description?: string },
     session: KnowledgeSessionContext
   ): Promise<void> {
     await this.deduplicator.supersedeNode(
@@ -635,7 +637,7 @@ export class KnowledgeService {
   ): Promise<void> {
     try {
       await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeNode {
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {
           id "${nodeId}",
           instanceId "${instanceId}",
           instanceType "${instanceType}"}, @upsert}`,
@@ -697,9 +699,10 @@ export class KnowledgeService {
     for (const fact of facts) {
       try {
         await this.deduplicator.findOrCreateNode(
-          { name: fact.content, type: 'Fact', description: fact.category },
+          { name: fact.content, entityType: 'Fact', description: fact.category },
           session.containerTag,
           session.userId,
+          session.containerTag,
           'CONVERSATION',
           session.sessionId,
           undefined,
@@ -728,12 +731,12 @@ export class KnowledgeService {
 
     try {
       const results: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeNode {agentId? "${agentId}", sourceType? "DOCUMENT"}} @limit 10`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {agentId? "${agentId}", sourceType? "DOCUMENT"}} @limit 10`,
         undefined
       );
       if (results && results.length > 0) {
         for (const inst of results) {
-          const tag = inst.lookup('containerTag') as string | undefined;
+          const tag = inst.lookup('__tenant__') as string | undefined;
           if (tag) tags.add(tag);
         }
       }

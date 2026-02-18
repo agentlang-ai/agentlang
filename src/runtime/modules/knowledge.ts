@@ -4,22 +4,23 @@ export const CoreKnowledgeModuleName = makeCoreModuleName('knowledge');
 
 export default `module ${CoreKnowledgeModuleName}
 
-entity KnowledgeNode {
+entity KnowledgeEntity {
     id UUID @id @default(uuid()),
     name String,
-    type String,
+    entityType String,
     description String @optional,
     sourceType @enum("DOCUMENT", "CONVERSATION", "INSTANCE", "DERIVED"),
     sourceId String @optional,
     sourceChunk String @optional,
     instanceId String @optional,
     instanceType String @optional,
-    containerTag String,
+    __tenant__ String,
     userId String,
     agentId String @optional,
     confidence Float @default(1.0),
     isLatest Boolean @default(true),
-    @meta {"fullTextSearch": ["name", "type", "description"]}
+    embedding String @optional,
+    @meta {"fullTextSearch": ["name", "entityType", "description"]}
 }
 
 entity KnowledgeEdge {
@@ -29,7 +30,7 @@ entity KnowledgeEdge {
     relType String,
     weight Float @default(1.0),
     sourceType @enum("DOCUMENT", "CONVERSATION", "INSTANCE", "DERIVED") @optional,
-    containerTag String,
+    __tenant__ String,
     userId String,
     agentId String @optional,
     createdAt DateTime @default(now())
@@ -39,7 +40,7 @@ entity KnowledgeSession {
     id UUID @id @default(uuid()),
     userId String,
     agentId String,
-    containerTag String,
+    __tenant__ String,
     messages String,
     contextNodeIds String @optional,
     activeInstances String @optional,
@@ -57,4 +58,29 @@ entity SessionMessage {
     extractedNodeIds String @optional,
     timestamp DateTime @default(now())
 }
+
+entity DocumentGroup {
+    id UUID @id @default(uuid()),
+    name String,
+    __tenant__ String,
+    agentId String @optional,
+    userId String,
+    createdAt DateTime @default(now())
+}
+
+entity Document {
+    id UUID @id @default(uuid()),
+    title String @optional,
+    content String @optional,
+    sourceType @enum("FILE", "URL", "TEXT", "CONVERSATION"),
+    sourceUrl String @optional,
+    documentGroupId String @optional,
+    __tenant__ String,
+    agentId String @optional,
+    userId String,
+    createdAt DateTime @default(now()),
+    @meta {"fullTextSearch": ["title", "content"]}
+}
+
+relationship DocumentGroupContains contains(DocumentGroup, Document)
 `;

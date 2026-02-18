@@ -3,7 +3,7 @@ export type SourceType = 'DOCUMENT' | 'CONVERSATION' | 'INSTANCE' | 'DERIVED';
 export interface GraphNode {
   id: string;
   name: string;
-  type: string; // Person, Organization, Location, Product, Concept, Event, Role
+  entityType: string; // Person, Organization, Location, Product, Concept, Event, Role
   description?: string;
   embedding?: number[];
   sourceType: SourceType;
@@ -64,7 +64,7 @@ export interface ExtractionResult {
 
 export interface ExtractedEntity {
   name: string;
-  type: string;
+  entityType: string;
   description?: string;
   // 1-5 scale where 5 = most central to the text
   salience?: number;

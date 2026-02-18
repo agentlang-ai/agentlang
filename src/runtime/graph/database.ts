@@ -5,7 +5,7 @@ export interface GraphDatabase {
   disconnect(): Promise<void>;
   isConnected(): boolean;
 
-  // Node operations (synced from Agentlang KnowledgeNode)
+  // Node operations (synced from Agentlang KnowledgeEntity)
   createNode(node: GraphNode): Promise<string>;
   upsertNode(node: GraphNode): Promise<string>;
   findNodeById(id: string): Promise<GraphNode | null>;
