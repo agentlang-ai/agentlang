@@ -1732,7 +1732,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             false,
             true
           );
-          env.setLastResult(inst);
+          env.setLastResult([inst]);
         } else {
           const insts: Instance[] = await res.queryInstances(inst, isQueryAll, distinct);
           env.setLastResult(insts);
@@ -1795,7 +1795,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           await runPreUpdateEvents(lastRes, env);
           const finalInst: Instance = await res.updateInstance(lastRes, attrs);
           await runPostUpdateEvents(finalInst, lastRes, env);
-          env.setLastResult(finalInst);
+          env.setLastResult([finalInst]);
         }
       }
     }
