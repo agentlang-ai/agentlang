@@ -41,7 +41,7 @@ describe('Test harness - Banking module', () => {
       doInternModule
     );
 
-    let account = await m.create_BankAccount({
+    const account = await m.create_BankAccount({
       accountNo: 101992,
       balance: 100,
       interestRate: 0.5,
@@ -52,7 +52,7 @@ describe('Test harness - Banking module', () => {
 
     await m.makeDeposit({ accountNo: 101992, amount: 50 });
 
-    let accounts = await m.get_BankAccount({ accountNo: 101992 });
+    const accounts = await m.get_BankAccount({ accountNo: 101992 });
     is(accounts[0].accountNo == 101992);
     is(accounts[0].balance == 200);
   });

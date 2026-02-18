@@ -1,19 +1,14 @@
 import { parseAndEvaluateStatement } from './runtime/interpreter.js';
-import {
-  fetchModule,
-  Instance,
-  Module,
-  Record,
-} from './runtime/module.js';
+import { fetchModule, Instance, Module, Record } from './runtime/module.js';
 
 type AttributeMap = { [key: string]: any };
 
 // A related entity within a relationship pattern
 export interface RelEntity {
-  entity: string;         // entity name, e.g. "Post"
-  attrs: AttributeMap;    // entity attributes
-  query?: boolean;        // true = query mode ({Entity? {}} or {Entity {k? v}})
-  rels?: RelSpec;         // nested relationships
+  entity: string; // entity name, e.g. "Post"
+  attrs: AttributeMap; // entity attributes
+  query?: boolean; // true = query mode ({Entity? {}} or {Entity {k? v}})
+  rels?: RelSpec; // nested relationships
 }
 
 // Maps relationship names to related entity specs
@@ -23,8 +18,7 @@ export type RelSpec = {
 
 function formatValue(value: any): string {
   if (typeof value === 'string') return `"${value}"`;
-  if (Array.isArray(value))
-    return '[' + value.map(formatValue).join(', ') + ']';
+  if (Array.isArray(value)) return '[' + value.map(formatValue).join(', ') + ']';
   return String(value);
 }
 
@@ -134,9 +128,7 @@ export function is(condition: boolean, message?: string): void {
     const err = new Error(message ?? 'Assertion failed');
     if (err.stack) {
       const lines = err.stack.split('\n');
-      const callerLine = lines.find(
-        (l) => !l.includes('test-harness') && l.includes('.test.')
-      );
+      const callerLine = lines.find(l => !l.includes('test-harness') && l.includes('.test.'));
       if (callerLine) {
         err.message += `\n  at ${callerLine.trim()}`;
       }
@@ -329,10 +321,7 @@ function parseCrudPattern(s: string): ParsedPattern | null {
   return { isDelete, fqName, entityQuery, attrs };
 }
 
-function patternToScript(
-  pattern: string,
-  eventNames: Set<string>
-): string {
+function patternToScript(pattern: string, eventNames: Set<string>): string {
   const trimmed = pattern.trim();
   if (trimmed.startsWith('is(')) return trimmed;
 
@@ -405,14 +394,10 @@ export async function testModule(
 
     proxy[`update_${entityName}`] = async (attrs: AttributeMap, rels?: RelSpec) => {
       if (!idAttrName) {
-        throw new Error(
-          `Cannot update ${fqName}: no @id attribute defined`
-        );
+        throw new Error(`Cannot update ${fqName}: no @id attribute defined`);
       }
       if (!(idAttrName in attrs)) {
-        throw new Error(
-          `Cannot update ${fqName}: @id attribute '${idAttrName}' not provided`
-        );
+        throw new Error(`Cannot update ${fqName}: @id attribute '${idAttrName}' not provided`);
       }
       const pattern = buildPattern(fqName, attrs, idAttrName, moduleName, rels);
       return await evalPattern(pattern);
