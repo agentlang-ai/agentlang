@@ -31,4 +31,9 @@ export function getResolver(fqEntryName: string): Resolver {
   throw new Error(`No resolver registered for ${fqEntryName}`);
 }
 
+export function resetResolverRegistry() {
+  resolverDb.clear();
+  resolverPathMappings.clear();
+}
+
 setSubscriptionFn(setSubscriptionEvent);
