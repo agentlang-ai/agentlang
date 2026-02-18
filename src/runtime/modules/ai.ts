@@ -942,6 +942,17 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           const u = response.sysMsg.usage_metadata;
           env.setMonitorEntryLlmTokenUsage(u.input_tokens, u.output_tokens, u.total_tokens);
         }
+        env.emitSseEvent('llm_response', {
+          agent: this.name,
+          content: response.content,
+          tokens: response.sysMsg.usage_metadata
+            ? {
+                input: response.sysMsg.usage_metadata.input_tokens,
+                output: response.sysMsg.usage_metadata.output_tokens,
+                total: response.sysMsg.usage_metadata.total_tokens,
+              }
+            : undefined,
+        });
         if (this.saveResponseAs) {
           await saveAgentResponse(this.saveResponseAs, response.content, env);
         }
@@ -949,6 +960,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       } catch (err: any) {
         logger.error(`Error while invoking ${agentName} - ${err}`);
         if (monitoringEnabled) env.setMonitorEntryError(`${err}`);
+        env.emitSseEvent('error', { agent: this.name, error: `${err}` });
         env.setLastResult(undefined);
       }
     } else {
