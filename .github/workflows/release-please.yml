@@ -148,23 +148,15 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Update npm lock file
+       - name: Update npm lock file
         run: |
           npm install
           echo "npm lock file updated"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Update pnpm lock file
-        run: |
-          pnpm install --no-frozen-lockfile
-          echo "pnpm lock file updated"
-
       - name: Format code
         run: |
           if grep -q '"format"' package.json; then
-            pnpm run format || npm run format || true
+            npm run format || true
             echo "Code formatted"
           else
             echo "No format script found, skipping"
@@ -173,7 +165,7 @@ jobs:
       - name: Lint code
         run: |
           if grep -q '"lint"' package.json; then
-            pnpm run lint || npm run lint || true
+            npm run lint || true
             echo "Code linted"
           else
             echo "No lint script found, skipping"
@@ -189,7 +181,7 @@ jobs:
 
             - Update package.json to ${{ steps.version.outputs.version }}
             - Update CHANGELOG.md with commits since ${{ steps.prev_tag.outputs.prev_tag }}
-            - Update package-lock.json and pnpm-lock.yaml
+            - Update package-lock.json
           branch: release/${{ steps.version.outputs.version }}
           delete-branch: true
           title: "Release ${{ steps.version.outputs.version }}"
@@ -202,7 +194,6 @@ jobs:
             - ✅ Updated `package.json` version to `${{ steps.version.outputs.version }}`
             - ✅ Updated `CHANGELOG.md` with all commits since `${{ steps.prev_tag.outputs.prev_tag }}`
             - ✅ Updated `package-lock.json` (npm)
-            - ✅ Updated `pnpm-lock.yaml` (pnpm)
 
             ### Commits included in this release:
 

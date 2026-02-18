@@ -22,8 +22,8 @@ export class GraphVisualizer {
     const nodes: GraphNodeViz[] = allNodes.map(n => ({
       id: n.id,
       name: n.name,
-      type: n.type,
-      color: getNodeColor(n.type),
+      type: n.entityType,
+      color: getNodeColor(n.entityType),
       description: n.description,
     }));
 

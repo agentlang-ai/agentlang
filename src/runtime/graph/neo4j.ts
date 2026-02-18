@@ -69,18 +69,18 @@ export class Neo4jDatabase implements GraphDatabase {
     const session = this.driver.session();
     try {
       const result = await session.run(
-        `CREATE (n:KnowledgeNode {
-          id: $id, name: $name, type: $type, description: $description,
+        `CREATE (n:KnowledgeEntity {
+          id: $id, name: $name, entityType: $entityType, description: $description,
           sourceType: $sourceType, sourceId: $sourceId, sourceChunk: $sourceChunk,
           instanceId: $instanceId, instanceType: $instanceType,
-          containerTag: $containerTag, userId: $userId, agentId: $agentId,
+          __tenant__: $containerTag, userId: $userId, agentId: $agentId,
           confidence: $confidence, isLatest: $isLatest,
           createdAt: datetime(), updatedAt: datetime()
         }) RETURN n.id AS id`,
         {
           id: node.id,
           name: node.name,
-          type: node.type,
+          entityType: node.entityType,
           description: node.description || null,
           sourceType: node.sourceType,
           sourceId: node.sourceId || null,
@@ -104,11 +104,11 @@ export class Neo4jDatabase implements GraphDatabase {
     const session = this.driver.session();
     try {
       const result = await session.run(
-        `MERGE (n:KnowledgeNode {id: $id})
-         SET n.name = $name, n.type = $type, n.description = $description,
+        `MERGE (n:KnowledgeEntity {id: $id})
+         SET n.name = $name, n.entityType = $entityType, n.description = $description,
              n.sourceType = $sourceType, n.sourceId = $sourceId, n.sourceChunk = $sourceChunk,
              n.instanceId = $instanceId, n.instanceType = $instanceType,
-             n.containerTag = $containerTag, n.userId = $userId, n.agentId = $agentId,
+              n.__tenant__ = $containerTag, n.userId = $userId, n.agentId = $agentId,
              n.confidence = $confidence, n.isLatest = $isLatest,
              n.updatedAt = datetime(),
              n.createdAt = coalesce(n.createdAt, datetime())
@@ -116,7 +116,7 @@ export class Neo4jDatabase implements GraphDatabase {
         {
           id: node.id,
           name: node.name,
-          type: node.type,
+          entityType: node.entityType,
           description: node.description || null,
           sourceType: node.sourceType,
           sourceId: node.sourceId || null,
@@ -139,7 +139,7 @@ export class Neo4jDatabase implements GraphDatabase {
   async findNodeById(id: string): Promise<GraphNode | null> {
     const session = this.driver.session();
     try {
-      const result = await session.run('MATCH (n:KnowledgeNode {id: $id}) RETURN n', { id });
+      const result = await session.run('MATCH (n:KnowledgeEntity {id: $id}) RETURN n', { id });
       if (result.records.length === 0) return null;
       return this.recordToNode(result.records[0].get('n'));
     } finally {
@@ -151,7 +151,7 @@ export class Neo4jDatabase implements GraphDatabase {
     const session = this.driver.session();
     try {
       const result = await session.run(
-        'MATCH (n:KnowledgeNode {containerTag: $containerTag}) RETURN n',
+        'MATCH (n:KnowledgeEntity {__tenant__: $containerTag}) RETURN n',
         { containerTag }
       );
       return result.records.map((r: any) => this.recordToNode(r.get('n')));
@@ -170,7 +170,7 @@ export class Neo4jDatabase implements GraphDatabase {
       if (!setClause) return;
 
       await session.run(
-        `MATCH (n:KnowledgeNode {id: $id}) SET ${setClause}, n.updatedAt = datetime()`,
+        `MATCH (n:KnowledgeEntity {id: $id}) SET ${setClause}, n.updatedAt = datetime()`,
         { id, ...updates }
       );
     } finally {
@@ -181,7 +181,7 @@ export class Neo4jDatabase implements GraphDatabase {
   async deleteNode(id: string): Promise<void> {
     const session = this.driver.session();
     try {
-      await session.run('MATCH (n:KnowledgeNode {id: $id}) DETACH DELETE n', { id });
+      await session.run('MATCH (n:KnowledgeEntity {id: $id}) DETACH DELETE n', { id });
     } finally {
       await session.close();
     }
@@ -192,7 +192,7 @@ export class Neo4jDatabase implements GraphDatabase {
     try {
       const edgeId = edge.id || crypto.randomUUID();
       await session.run(
-        `MATCH (a:KnowledgeNode {id: $sourceId}), (b:KnowledgeNode {id: $targetId})
+        `MATCH (a:KnowledgeEntity {id: $sourceId}), (b:KnowledgeEntity {id: $targetId})
          CREATE (a)-[r:${sanitizeCypherLabel(edge.relationship)} {
            id: $edgeId, weight: $weight, sourceType: $sourceType
          }]->(b)
@@ -216,7 +216,7 @@ export class Neo4jDatabase implements GraphDatabase {
     try {
       const edgeId = edge.id || crypto.randomUUID();
       await session.run(
-        `MATCH (a:KnowledgeNode {id: $sourceId}), (b:KnowledgeNode {id: $targetId})
+        `MATCH (a:KnowledgeEntity {id: $sourceId}), (b:KnowledgeEntity {id: $targetId})
          MERGE (a)-[r:${sanitizeCypherLabel(edge.relationship)}]->(b)
          SET r.id = $edgeId, r.weight = $weight, r.sourceType = $sourceType
          RETURN r`,
@@ -238,7 +238,7 @@ export class Neo4jDatabase implements GraphDatabase {
     const session = this.driver.session();
     try {
       const result = await session.run(
-        `MATCH (a:KnowledgeNode {id: $nodeId})-[r]->(b:KnowledgeNode)
+        `MATCH (a:KnowledgeEntity {id: $nodeId})-[r]->(b:KnowledgeEntity)
          RETURN a.id AS sourceId, b.id AS targetId, type(r) AS relationship,
                 r.weight AS weight, r.sourceType AS sourceType, r.id AS id`,
         { nodeId }
@@ -260,7 +260,7 @@ export class Neo4jDatabase implements GraphDatabase {
     const session = this.driver.session();
     try {
       const result = await session.run(
-        `MATCH (a:KnowledgeNode)-[r]->(b:KnowledgeNode {id: $nodeId})
+        `MATCH (a:KnowledgeEntity)-[r]->(b:KnowledgeEntity {id: $nodeId})
          RETURN a.id AS sourceId, b.id AS targetId, type(r) AS relationship,
                 r.weight AS weight, r.sourceType AS sourceType, r.id AS id`,
         { nodeId }
@@ -281,7 +281,7 @@ export class Neo4jDatabase implements GraphDatabase {
   async deleteEdgesForNode(nodeId: string): Promise<void> {
     const session = this.driver.session();
     try {
-      await session.run('MATCH (n:KnowledgeNode {id: $nodeId})-[r]-() DELETE r', { nodeId });
+      await session.run('MATCH (n:KnowledgeEntity {id: $nodeId})-[r]-() DELETE r', { nodeId });
     } finally {
       await session.close();
     }
@@ -295,8 +295,8 @@ export class Neo4jDatabase implements GraphDatabase {
     const session = this.driver.session();
     try {
       const result = await session.run(
-        `MATCH (seed:KnowledgeNode)
-         WHERE seed.id IN $seedIds AND seed.containerTag = $containerTag
+        `MATCH (seed:KnowledgeEntity)
+         WHERE seed.id IN $seedIds AND seed.__tenant__ = $containerTag
          CALL apoc.path.subgraphAll(seed, {maxLevel: $maxDepth, labelFilter: 'KnowledgeNode'})
          YIELD nodes, relationships
          UNWIND nodes AS n
@@ -349,9 +349,9 @@ export class Neo4jDatabase implements GraphDatabase {
 
     for (let depth = 0; depth <= maxDepth && currentIds.length > 0; depth++) {
       const result = await session.run(
-        `MATCH (n:KnowledgeNode)
-         WHERE n.id IN $ids AND n.containerTag = $containerTag
-         OPTIONAL MATCH (n)-[r]->(m:KnowledgeNode {containerTag: $containerTag})
+        `MATCH (n:KnowledgeEntity)
+         WHERE n.id IN $ids AND n.__tenant__ = $containerTag
+         OPTIONAL MATCH (n)-[r]->(m:KnowledgeEntity {__tenant__: $containerTag})
          RETURN n, m, r, type(r) AS relType, r.weight AS weight`,
         { ids: currentIds, containerTag }
       );
@@ -389,7 +389,7 @@ export class Neo4jDatabase implements GraphDatabase {
   async clearContainer(containerTag: string): Promise<void> {
     const session = this.driver.session();
     try {
-      await session.run('MATCH (n:KnowledgeNode {containerTag: $containerTag}) DETACH DELETE n', {
+      await session.run('MATCH (n:KnowledgeEntity {__tenant__: $containerTag}) DETACH DELETE n', {
         containerTag,
       });
     } finally {
@@ -400,13 +400,13 @@ export class Neo4jDatabase implements GraphDatabase {
   async getStats(containerTag?: string): Promise<{ nodeCount: number; edgeCount: number }> {
     const session = this.driver.session();
     try {
-      const whereClause = containerTag ? 'WHERE n.containerTag = $containerTag' : '';
+      const whereClause = containerTag ? 'WHERE n.__tenant__ = $containerTag' : '';
       const nodeResult = await session.run(
-        `MATCH (n:KnowledgeNode) ${whereClause} RETURN count(n) AS cnt`,
+        `MATCH (n:KnowledgeEntity) ${whereClause} RETURN count(n) AS cnt`,
         containerTag ? { containerTag } : {}
       );
       const edgeResult = await session.run(
-        `MATCH (n:KnowledgeNode)${whereClause ? ' ' + whereClause : ''}-[r]->() RETURN count(r) AS cnt`,
+        `MATCH (n:KnowledgeEntity)${whereClause ? ' ' + whereClause : ''}-[r]->() RETURN count(r) AS cnt`,
         containerTag ? { containerTag } : {}
       );
       return {
@@ -423,14 +423,14 @@ export class Neo4jDatabase implements GraphDatabase {
     return {
       id: props.id,
       name: props.name,
-      type: props.type,
+      entityType: props.entityType,
       description: props.description,
       sourceType: props.sourceType,
       sourceId: props.sourceId,
       sourceChunk: props.sourceChunk,
       instanceId: props.instanceId,
       instanceType: props.instanceType,
-      containerTag: props.containerTag,
+      containerTag: props.__tenant__,
       userId: props.userId,
       agentId: props.agentId,
       confidence: props.confidence ?? 1.0,

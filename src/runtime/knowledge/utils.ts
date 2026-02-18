@@ -24,7 +24,7 @@ export function instanceToGraphNode(inst: Instance): GraphNode {
   return {
     id: inst.lookup('id') as string,
     name: inst.lookup('name') as string,
-    type: inst.lookup('type') as string,
+    entityType: inst.lookup('entityType') as string,
     description: inst.lookup('description') as string | undefined,
     sourceType: (inst.lookup('sourceType') as SourceType) || 'DERIVED',
     sourceId: inst.lookup('sourceId') as string | undefined,
