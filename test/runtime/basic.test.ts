@@ -1245,16 +1245,16 @@ describe('Inline function call as attribute value', () => {
         x Int
       }
       workflow CreateWithAlias {
-        agentlang.getVal() @as v;
+        agentlang.getVal__test() @as v;
         {E {id CreateWithAlias.id, x v}}
       }
       workflow CreateInline {
-        {E {id CreateInline.id, x agentlang.getVal()}}
+        {E {id CreateInline.id, x agentlang.getVal__test()}}
       }
       `
     );
     let callCount = 0;
-    agentlang.getVal = () => {
+    agentlang.getVal__test = () => {
       ++callCount;
       return 42;
     };
@@ -1286,11 +1286,11 @@ describe('Inline function call as attribute value', () => {
         x Int
       }
       workflow Create {
-        {E {id Create.id, x agentlang.add(Create.a, Create.b)}}
+        {E {id Create.id, x agentlang.add__test(Create.a, Create.b)}}
       }
       `
     );
-    agentlang.add = (a: number, b: number) => a + b;
+    agentlang.add__test = (a: number, b: number) => a + b;
     const r: Instance = await parseAndEvaluateStatement(`{InlineFnArgs/Create {id 1, a 10, b 20}}`);
     assert(isInstanceOfType(r, 'InlineFnArgs/E'));
     assert(r.lookup('x') === 30);
