@@ -2,6 +2,9 @@ packages:
   - .
   - example/*
 
+overrides:
+  qs: '>=6.15.0'
+
 ignoredBuiltDependencies:
   - better-sqlite3
 
