@@ -84,8 +84,6 @@ const AgentEvalType = 'eval';
 
 // --- Agent cancellation infrastructure ---
 
-const cancelledChatIds = new Set<string>();
-
 export class AgentCancelledException extends Error {
   constructor(chatId: string) {
     super(`Agent cancelled for chatId: ${chatId}`);
@@ -93,15 +91,38 @@ export class AgentCancelledException extends Error {
   }
 }
 
-export function cancelAgent(chatId: string): string {
-  cancelledChatIds.add(chatId);
+export async function cancelAgent(chatId: string): Promise<string> {
+  const t = `${CoreAIModuleName}/${CancelledAgentEntity}`;
+  await parseAndEvaluateStatement(`{${t} {chatId "${chatId}"}, @upsert}`);
   return `Cancellation requested for chatId: ${chatId}`;
 }
 
-export function checkCancelled(chatId: string): void {
-  if (chatId && cancelledChatIds.has(chatId)) {
-    cancelledChatIds.delete(chatId);
-    throw new AgentCancelledException(chatId);
+export async function checkCancelled(chatId: string): Promise<void> {
+  if (!chatId) return;
+  try {
+    const results: Instance[] = await parseAndEvaluateStatement(
+      `{${CoreAIModuleName}/${CancelledAgentEntity} {chatId? "${chatId}"}}`
+    );
+    if (results && results.length > 0) {
+      await parseAndEvaluateStatement(
+        `purge {${CoreAIModuleName}/${CancelledAgentEntity} {chatId? "${chatId}"}}`
+      );
+      throw new AgentCancelledException(chatId);
+    }
+  } catch (err: any) {
+    if (err instanceof AgentCancelledException) throw err;
+    logger.debug(`checkCancelled DB error for ${chatId}: ${err}`);
+  }
+}
+
+export async function clearCancellation(chatId: string): Promise<void> {
+  if (!chatId) return;
+  try {
+    await parseAndEvaluateStatement(
+      `purge {${CoreAIModuleName}/${CancelledAgentEntity} {chatId? "${chatId}"}}`
+    );
+  } catch (err: any) {
+    logger.debug(`clearCancellation DB error for ${chatId}: ${err}`);
   }
 }
 
@@ -223,6 +244,10 @@ entity AgentFlowStep {
     step String @indexed,
     result String,
     suspensionId String
+}
+
+entity CancelledAgent {
+    chatId String @id
 }
 
 @public event restartFlow {
@@ -853,7 +878,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
     const chatId = env.getAgentChatId() || agentName;
-    checkCancelled(chatId);
+    await checkCancelled(chatId);
     let isplnr = this.isPlanner();
     const isflow = !isplnr && this.isFlowExecutor();
     const iseval = !isplnr && !isflow && this.isEvaluator();
@@ -1050,7 +1075,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         let attempt = 0;
         let delay = this.retryObj.getNextDelayMs(attempt);
         while (delay) {
-          if (chatId) checkCancelled(chatId);
+          if (chatId) await checkCancelled(chatId);
           msgs.push(assistantMessage(resp.content));
           const vs = JSON.stringify(r.asSerializableObject());
           msgs.push(
@@ -1495,6 +1520,7 @@ export async function processAgentLearning(
 const LocalAgentgFlow = true;
 const LocalFlowStepsRootDirName = 'flows';
 const AgentFlowStep = 'AgentFlowStep';
+const CancelledAgentEntity = 'CancelledAgent';
 
 export async function saveFlowStepResultLocally(
   chatId: string,

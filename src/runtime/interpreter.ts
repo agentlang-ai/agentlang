@@ -93,6 +93,7 @@ import {
   AgentFqName,
   AgentInstance,
   checkCancelled,
+  clearCancellation,
   findAgentByName,
   normalizeGeneratedCode,
   saveFlowStepResult,
@@ -2060,6 +2061,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   //
 
   const agentChatId = env.getAgentChatId() || env.getActiveChatId() || '';
+  await clearCancellation(agentChatId);
   const monitoringEnabled = isMonitoringEnabled();
 
   await agent.invoke(msg, env);
@@ -2076,7 +2078,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       }
       let retries = 0;
       while (true) {
-        checkCancelled(agentChatId);
+        await checkCancelled(agentChatId);
         try {
           let rs: string = result ? normalizeGeneratedCode(result) : '';
           if (agent.tools) {
@@ -2138,7 +2140,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
     } else {
       let retries = 0;
       while (true) {
-        checkCancelled(agentChatId);
+        await checkCancelled(agentChatId);
         try {
           result = normalizeGeneratedCode(result);
           const obj = agent.maybeValidateJsonResponse(result);
@@ -2264,10 +2266,11 @@ async function iterateOnFlow(
   rootAgent.disableSession();
   const chatId = env.getActiveEventInstance()?.lookup('chatId');
   const iterId = chatId || crypto.randomUUID();
+  await clearCancellation(iterId);
   let step = '';
   let fullFlowRetries = 0;
   while (true) {
-    checkCancelled(iterId);
+    await checkCancelled(iterId);
     try {
       const initContext = msg;
       const s = `Now consider the following flowchart and return the next step:\n${flow}\n
@@ -2290,7 +2293,7 @@ async function iterateOnFlow(
         env.flagMonitorEntryAsFlow().incrementMonitor();
       }
       while (step != 'DONE' && !executedSteps.has(step)) {
-        checkCancelled(iterId);
+        await checkCancelled(iterId);
         if (stepc > MaxFlowSteps) {
           throw new Error(`Flow execution exceeded maximum steps limit`);
         }
