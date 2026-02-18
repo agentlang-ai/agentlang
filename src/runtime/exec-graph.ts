@@ -428,7 +428,18 @@ export async function executeEvent(
       await handleAgentInvocation(eventInstance, env);
     }
     const r = env.getLastResult();
-    if (continuation) continuation(r);
+    if (continuation) {
+      if (env.getLastPattern() && isAgentEventInstance(eventInstance)) {
+        continuation({
+          result: r.result.map((res: any) =>
+            res.attributes ? Object.fromEntries(res.attributes) : res
+          ),
+          pattern: env.getLastPattern(),
+        });
+      } else {
+        continuation(r);
+      }
+    }
     return r;
   } catch (err) {
     if (env && env.hasHandlers()) {

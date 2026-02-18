@@ -750,5 +750,8 @@ export function migrationDowns(inst: Instance): string[] | undefined {
 export async function doRawQuery(q: any): Promise<any> {
   const qs = objectToQueryPattern(q);
   const result = await parseAndEvaluateStatement(qs);
-  return { query: qs, result: result };
+  return {
+    query: qs,
+    result: result.map((res: any) => (res.attributes ? Object.fromEntries(res.attributes) : res)),
+  };
 }
