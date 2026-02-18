@@ -1586,7 +1586,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
       let r: Instance | undefined;
-      await computeExprAttributes(inst, undefined, undefined, env);
+      await computeExprAttributes(inst, crud.body?.attributes, inst.attributes, env);
       await setMetaAttributes(inst.attributes, env);
       if (env.isInUpsertMode()) {
         await runPreUpdateEvents(inst, env);
@@ -1883,11 +1883,16 @@ async function computeExprAttributes(
         }
       }
     }
-    if (origAttrs && updatedAttrs) {
+    if (exprAttrs && origAttrs && updatedAttrs) {
       for (let i = 0; i < origAttrs.length; ++i) {
         const a: SetAttribute = origAttrs[i];
         const n = a.name;
-        if (!n.endsWith(QuerySuffix) && updatedAttrs.has(n) && a.value !== undefined) {
+        if (
+          exprAttrs.has(n) &&
+          !n.endsWith(QuerySuffix) &&
+          updatedAttrs.has(n) &&
+          a.value !== undefined
+        ) {
           await evaluateExpression(a.value, newEnv);
           const v: Result = newEnv.getLastResult();
           updatedAttrs.set(n, v);
