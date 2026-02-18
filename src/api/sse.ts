@@ -35,7 +35,7 @@ export class SseEmitter {
   }
 
   sendResult(result: any): void {
-    this.send('result', { result });
+    this.send('result', result);
     this.close();
   }
 
