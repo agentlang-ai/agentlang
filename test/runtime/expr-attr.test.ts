@@ -735,6 +735,28 @@ describe('User-provided value for @expr attribute on creation', () => {
     const inst: Instance = await parseAndEvaluateStatement(`{ExprOverride05/E {id 1, x 5}}`);
     assert(inst.lookup('y') === 50, `Expected y=50 (from expr), got y=${inst.lookup('y')}`);
   });
+
+  test('user override of intermediate expr propagates to dependent expr on create', async () => {
+    await doInternModule(
+      'ExprOverride06',
+      `entity E {
+        id Int @id,
+        x Int,
+        y Int @expr(x + 1),
+        z Int @expr(y * 2)
+      }`
+    );
+    // User overrides y=100 but does NOT provide z
+    // z's expr (y*2) should use the user's y=100, giving z=200
+    const inst: Instance = await parseAndEvaluateStatement(
+      `{ExprOverride06/E {id 1, x 10, y 100}}`
+    );
+    assert(inst.lookup('y') === 100, `Expected y=100 (user provided), got y=${inst.lookup('y')}`);
+    assert(
+      inst.lookup('z') === 200,
+      `Expected z=200 (expr y*2 using user's y=100), got z=${inst.lookup('z')}`
+    );
+  });
 });
 
 describe('User-provided value for @expr attribute on update', () => {
@@ -840,7 +862,7 @@ describe('User-provided value for @expr attribute on update', () => {
     );
   });
 
-  test('user override on update with chained expressions', async () => {
+  test('user override on update with chained expressions propagates to dependents', async () => {
     await doInternModule(
       'ExprOverrideUp05',
       `entity E {
@@ -854,10 +876,9 @@ describe('User-provided value for @expr attribute on update', () => {
     await parseAndEvaluateStatement(`{ExprOverrideUp05/E {id 1, x 10}}`);
 
     // Update: provide explicit y=100, don't change x
-    // The user override for y happens AFTER all @expr attributes are evaluated.
-    // So z's expression (y * 2) uses the expr-computed y (x+1=11), not the user's y=100.
-    // Then the user override sets y=100 in the final result.
-    // Net effect: y=100 (user override), z=22 (from expr using expr-computed y=11)
+    // User override for y is applied inline during expr evaluation,
+    // so z's expression (y * 2) uses the user's y=100.
+    // Net effect: y=100 (user override), z=200 (expr uses user's y=100)
     const updated: Instance[] = await parseAndEvaluateStatement(
       `{ExprOverrideUp05/E {id? 1, y 100}}`
     );
@@ -865,10 +886,7 @@ describe('User-provided value for @expr attribute on update', () => {
     const yVal = updated[0].lookup('y');
     const zVal = updated[0].lookup('z');
     assert(yVal === 100, `Expected y=100 (user override), got y=${yVal}`);
-    assert(
-      zVal === 22,
-      `Expected z=22 (expr used expr-computed y=11, not user's y=100), got z=${zVal}`
-    );
+    assert(zVal === 200, `Expected z=200 (expr y*2 using user's y=100), got z=${zVal}`);
   });
 
   test('upsert create: user-provided value overrides expr', async () => {

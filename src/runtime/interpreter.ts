@@ -1869,35 +1869,43 @@ async function computeExprAttributes(
     updatedAttrs?.forEach((v: any, k: string) => {
       if (v !== undefined) newEnv.bind(k, v);
     });
+    // Build a map of user-provided values for @expr attributes so that
+    // overrides are applied inline during expression evaluation, allowing
+    // dependent expressions to see the user's value immediately.
+    let userExprOverrides: Map<string, Expr> | undefined;
+    if (exprAttrs && origAttrs) {
+      for (let i = 0; i < origAttrs.length; ++i) {
+        const a: SetAttribute = origAttrs[i];
+        const n = a.name;
+        if (exprAttrs.has(n) && !n.endsWith(QuerySuffix) && a.value !== undefined) {
+          if (userExprOverrides === undefined) {
+            userExprOverrides = new Map();
+          }
+          userExprOverrides.set(n, a.value);
+        }
+      }
+    }
     if (exprAttrs) {
       const ks = [...exprAttrs.keys()];
       for (let i = 0; i < ks.length; ++i) {
         const n = ks[i];
-        const expr: Expr | undefined = exprAttrs.get(n);
-        if (expr) {
-          await evaluateExpression(expr, newEnv);
-          const v: Result = newEnv.getLastResult();
-          newEnv.bind(n, v);
-          inst.attributes.set(n, v);
-          updatedAttrs?.set(n, v);
+        const userValue = userExprOverrides?.get(n);
+        if (userValue !== undefined) {
+          // User explicitly provided a value for this @expr attribute - use it
+          await evaluateExpression(userValue, newEnv);
+        } else {
+          // No user override - evaluate the @expr expression
+          const expr: Expr | undefined = exprAttrs.get(n);
+          if (expr) {
+            await evaluateExpression(expr, newEnv);
+          } else {
+            continue;
+          }
         }
-      }
-    }
-    if (exprAttrs && origAttrs && updatedAttrs) {
-      for (let i = 0; i < origAttrs.length; ++i) {
-        const a: SetAttribute = origAttrs[i];
-        const n = a.name;
-        if (
-          exprAttrs.has(n) &&
-          !n.endsWith(QuerySuffix) &&
-          updatedAttrs.has(n) &&
-          a.value !== undefined
-        ) {
-          await evaluateExpression(a.value, newEnv);
-          const v: Result = newEnv.getLastResult();
-          updatedAttrs.set(n, v);
-          newEnv.bind(n, v);
-        }
+        const v: Result = newEnv.getLastResult();
+        newEnv.bind(n, v);
+        inst.attributes.set(n, v);
+        updatedAttrs?.set(n, v);
       }
     }
   }
