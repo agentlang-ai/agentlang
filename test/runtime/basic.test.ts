@@ -1252,6 +1252,67 @@ entity E
   });
 });
 
+describe('Inline function call as attribute value', () => {
+  test('function call in CRUD attribute value position', async () => {
+    await doInternModule(
+      'InlineFn',
+      `entity E {
+        id Int @id,
+        x Int
+      }
+      workflow CreateWithAlias {
+        agentlang.getVal__test() @as v;
+        {E {id CreateWithAlias.id, x v}}
+      }
+      workflow CreateInline {
+        {E {id CreateInline.id, x agentlang.getVal__test()}}
+      }
+      `
+    );
+    let callCount = 0;
+    agentlang.getVal__test = () => {
+      ++callCount;
+      return 42;
+    };
+    const ise = (r: any) => isInstanceOfType(r, 'InlineFn/E');
+
+    // Test 1: baseline - function call result bound with @as
+    const r1: Instance = await parseAndEvaluateStatement(`{InlineFn/CreateWithAlias {id 1}}`);
+    assert(ise(r1));
+    assert(r1.lookup('x') === 42);
+    assert(callCount === 1);
+
+    // Test 2: inline function call as attribute value
+    const r2: Instance = await parseAndEvaluateStatement(`{InlineFn/CreateInline {id 2}}`);
+    assert(ise(r2));
+    assert(r2.lookup('x') === 42);
+    assert(callCount === 2);
+
+    // Verify both records persisted correctly
+    const all: Instance[] = await parseAndEvaluateStatement(`{InlineFn/E? {}}`);
+    assert(all.length === 2);
+    assert(all.every((inst: Instance) => ise(inst) && inst.lookup('x') === 42));
+  });
+
+  test('inline function call with arguments', async () => {
+    await doInternModule(
+      'InlineFnArgs',
+      `entity E {
+        id Int @id,
+        x Int
+      }
+      workflow Create {
+        {E {id Create.id, x agentlang.add__test(Create.a, Create.b)}}
+      }
+      `
+    );
+    agentlang.add__test = (a: number, b: number) => a + b;
+    const r: Instance = await parseAndEvaluateStatement(`{InlineFnArgs/Create {id 1, a 10, b 20}}`);
+    assert(isInstanceOfType(r, 'InlineFnArgs/E'));
+    assert(r.lookup('x') === 30);
+  });
+});
+
 describe('write-only-attributes', () => {
   test('queries must not return writeonly attributes', async () => {
     const moduleName = 'rda';
