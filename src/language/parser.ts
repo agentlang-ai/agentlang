@@ -272,7 +272,7 @@ function introspectStatement(stmt: Statement): BasePattern {
   }
   const emptySpec = firstEmptySpec(stmt);
   if (emptySpec) {
-    r.addHandler('not_found', introspectStatement(emptySpec.stmt));
+    r.setEmptyHandler(introspectStatement(emptySpec.stmt));
   }
   return r;
 }
