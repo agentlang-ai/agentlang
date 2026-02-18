@@ -148,9 +148,9 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-       - name: Update npm lock file
+      - name: Update npm lock file
         run: |
-          npm install
+          npm ci
           echo "npm lock file updated"
 
       - name: Format code
