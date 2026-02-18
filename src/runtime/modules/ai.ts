@@ -82,6 +82,29 @@ export const AgentLearnerType = 'learner';
 
 const AgentEvalType = 'eval';
 
+// --- Agent cancellation infrastructure ---
+
+const cancelledChatIds = new Set<string>();
+
+export class AgentCancelledException extends Error {
+  constructor(chatId: string) {
+    super(`Agent cancelled for chatId: ${chatId}`);
+    this.name = 'AgentCancelledException';
+  }
+}
+
+export function cancelAgent(chatId: string): string {
+  cancelledChatIds.add(chatId);
+  return `Cancellation requested for chatId: ${chatId}`;
+}
+
+export function checkCancelled(chatId: string): void {
+  if (chatId && cancelledChatIds.has(chatId)) {
+    cancelledChatIds.delete(chatId);
+    throw new AgentCancelledException(chatId);
+  }
+}
+
 export default `module ${CoreAIModuleName}
 
 import "./modules/ai.js" @as ai
@@ -213,6 +236,14 @@ workflow restartFlow {
   if (fs) {
     {${DefaultModuleName}/restartSuspension {id fs.suspensionId, data restartFlow.userInput}}
   }
+}
+
+@public event cancelAgent {
+  chatId String
+}
+
+workflow cancelAgent {
+  await ai.cancelAgent(cancelAgent.chatId)
 }
 `;
 
@@ -822,6 +853,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
     const chatId = env.getAgentChatId() || agentName;
+    checkCancelled(chatId);
     let isplnr = this.isPlanner();
     const isflow = !isplnr && this.isFlowExecutor();
     const iseval = !isplnr && !isflow && this.isEvaluator();
@@ -920,7 +952,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         let response: AIResponse = await p.invoke(msgs, externalToolSpecs);
         const v = this.getValidationEvent();
         if (v) {
-          response = await this.handleValidation(response, v, msgs, p);
+          response = await this.handleValidation(response, v, msgs, p, chatId);
         }
         if (!iseval)
           await AgentInstance.maybeEvaluateResponse(
@@ -1005,7 +1037,8 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     response: AIResponse,
     validationEventName: string,
     msgs: BaseMessage[],
-    provider: AgentServiceProvider
+    provider: AgentServiceProvider,
+    chatId?: string
   ): Promise<AIResponse> {
     let r: Instance = await this.invokeValidator(response, validationEventName);
     const status = r.lookup('status');
@@ -1017,6 +1050,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         let attempt = 0;
         let delay = this.retryObj.getNextDelayMs(attempt);
         while (delay) {
+          if (chatId) checkCancelled(chatId);
           msgs.push(assistantMessage(resp.content));
           const vs = JSON.stringify(r.asSerializableObject());
           msgs.push(

@@ -2004,7 +2004,7 @@ export class Retry extends ModuleEntry {
 
   constructor(name: string, moduleName: string, attempts: number) {
     super(name, moduleName);
-    this.attempts = attempts <= 0 ? 0 : attempts;
+    this.attempts = attempts;
     this.backoff = {
       strategy: undefined,
       delay: undefined,
