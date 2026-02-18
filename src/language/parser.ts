@@ -19,12 +19,14 @@ import {
   isPrimExpr,
   isWorkflowDefinition,
   JoinSpec,
+  LimitClause,
   Literal,
   MapEntry,
   MapLiteral,
   ModuleDefinition,
   NegExpr,
   NotExpr,
+  OffsetClause,
   OrderByClause,
   Pattern,
   PrimExpr,
@@ -401,6 +403,12 @@ function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
     if (opts.orderByClause) {
       cp.orderBy = opts.orderByClause.colNames;
     }
+    if (opts.limitClause) {
+      cp.limit = opts.limitClause.value;
+    }
+    if (opts.offsetClause) {
+      cp.offset = opts.offsetClause.value;
+    }
     cp.isCreate = false;
     cp.isQueryUpdate = false;
     cp.isQuery = true;
@@ -415,6 +423,8 @@ export type ExtractedQueryOptions = {
   where: WhereSpec | undefined;
   groupByClause: GroupByClause | undefined;
   orderByClause: OrderByClause | undefined;
+  limitClause: LimitClause | undefined;
+  offsetClause: OffsetClause | undefined;
   upsert: '@upsert' | undefined;
   distinct: '@distinct' | undefined;
 };
@@ -426,6 +436,8 @@ export function extractQueryOptions(crudMap: CrudMap): ExtractedQueryOptions {
     where: undefined,
     groupByClause: undefined,
     orderByClause: undefined,
+    limitClause: undefined,
+    offsetClause: undefined,
     upsert: undefined,
     distinct: undefined,
   };
@@ -443,6 +455,10 @@ export function extractQueryOptions(crudMap: CrudMap): ExtractedQueryOptions {
       r.groupByClause = qo.groupByClause;
     } else if (qo.orderByClause) {
       r.orderByClause = qo.orderByClause;
+    } else if (qo.limitClause) {
+      r.limitClause = qo.limitClause;
+    } else if (qo.offsetClause) {
+      r.offsetClause = qo.offsetClause;
     } else if (qo.upsert) {
       r.upsert = qo.upsert;
     } else if (qo.distinct) {
@@ -604,6 +620,8 @@ export function objectToQueryPattern(obj: any): string {
         });
       } else if (k === '@groupBy' || k === '@orderBy') {
         strs.push(`${k} ( ${xs.join(', ')} )`);
+      } else if (k === '@limit' || k === '@offset') {
+        strs.push(`${k}(${xs})`);
       } else {
         strs.push(`${k} ${objectToQuerySpecPattern(xs, true)}`);
       }

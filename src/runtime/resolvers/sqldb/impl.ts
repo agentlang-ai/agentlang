@@ -402,6 +402,8 @@ export class SqlDbResolver extends Resolver {
       joinClauses: undefined,
       intoSpec: undefined,
       whereClauses: undefined,
+      limit: inst.limit,
+      offset: inst.offset,
     };
     const readOnlyAttrs = inst.record.getWriteOnlyAttributes();
     const rslt: any =
@@ -566,6 +568,8 @@ export class SqlDbResolver extends Resolver {
       joinClauses,
       whereClauses,
       intoSpec,
+      limit: inst.limit,
+      offset: inst.offset,
     };
     const rslt: any = await getManyByJoin(tableName, qspec, this.getDbContext(inst.getFqName()));
     return rslt;

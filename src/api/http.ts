@@ -543,15 +543,23 @@ const joinTags = new Map()
   .set('@leftJoinOn', '@left_join')
   .set('@rightJoinOn', '@right_join');
 
-function objectAsAttributesPattern(entityFqName: string, obj: object): [string, boolean] {
+const paginationTags = new Set(['@limit', '@offset']);
+
+function objectAsAttributesPattern(entityFqName: string, obj: object): [string, boolean, string] {
   const attrs = new Array<string>();
   let joinType: string | undefined;
   let joinOnAttr: string | undefined;
+  const paginationParts = new Array<string>();
   Object.keys(obj).forEach(key => {
     const s: string = obj[key as keyof object];
     if (joinTags.has(key)) {
       joinType = joinTags.get(key);
       joinOnAttr = s;
+    } else if (paginationTags.has(key)) {
+      const n = parseInt(s, 10);
+      if (!Number.isNaN(n) && Number.isInteger(n) && n >= 0) {
+        paginationParts.push(`${key}(${n})`);
+      }
     } else {
       let v = s;
       if (!s.startsWith('"')) {
@@ -579,12 +587,14 @@ function objectAsAttributesPattern(entityFqName: string, obj: object): [string, 
     });
     const intoPat = `@into {${intoSpec.join(', ')}}`;
     joinOnAttr = reverseJoin ? splitRefs(joinOnAttr)[1] : joinOnAttr;
+    const paginationStr = paginationParts.length > 0 ? `,\n${paginationParts.join(',\n')}` : '';
     return [
-      `${pat},\n${joinType} ${targetEntity} {${targetAttr}? ${entityFqName}.${joinOnAttr}}, \n${intoPat}`,
+      `${pat},\n${joinType} ${targetEntity} {${targetAttr}? ${entityFqName}.${joinOnAttr}}, \n${intoPat}${paginationStr}`,
       hasQueryAttrs,
+      '',
     ];
   } else {
-    return [pat, hasQueryAttrs];
+    return [pat, hasQueryAttrs, paginationParts.length > 0 ? `,\n${paginationParts.join(',\n')}` : ''];
   }
 }
 
@@ -597,9 +607,9 @@ function queryPatternFromPath(path: string, req: Request): string {
   const fqName = `${moduleName}/${entityName}`;
   if (parts.length == 2 && id === undefined) {
     if (req.query && Object.keys(req.query).length > 0) {
-      const [pat, hasQueryAttrs] = objectAsAttributesPattern(fqName, req.query);
+      const [pat, hasQueryAttrs, paginationPat] = objectAsAttributesPattern(fqName, req.query);
       const n = hasQueryAttrs ? fqName : `${fqName}?`;
-      return `{${n} ${pat}}`;
+      return `{${n} ${pat}${paginationPat}}`;
     } else {
       return `{${fqName}? {}}`;
     }

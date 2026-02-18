@@ -3749,6 +3749,8 @@ export class Instance {
   groupBy: string[] | undefined;
   orderBy: string[] | undefined;
   orderByDesc: boolean = false;
+  limit: number | undefined;
+  offset: number | undefined;
   private contextData: Map<string, any> | undefined;
   private ___id: string;
 
@@ -3858,6 +3860,16 @@ export class Instance {
   setOrderBy(n: string[], desc: boolean = false): Instance {
     this.orderBy = n;
     this.orderByDesc = desc;
+    return this;
+  }
+
+  setLimit(n: number): Instance {
+    this.limit = n;
+    return this;
+  }
+
+  setOffset(n: number): Instance {
+    this.offset = n;
     return this;
   }
 

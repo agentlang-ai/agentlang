@@ -401,6 +401,8 @@ export class CrudPattern extends BasePattern {
   where: WhereSpecClausePattern[] | undefined;
   groupBy: string[] | undefined;
   orderBy: string[] | undefined;
+  limit: number | undefined;
+  offset: number | undefined;
   isQuery: boolean = false;
   isQueryUpdate: boolean = false;
   isCreate: boolean = false;
@@ -579,6 +581,12 @@ export class CrudPattern extends BasePattern {
     }
     if (this.orderBy) {
       s = s.concat(`,\n${this.orderByAsString()}`);
+    }
+    if (this.limit !== undefined) {
+      s = s.concat(`,\n@limit(${this.limit})`);
+    }
+    if (this.offset !== undefined) {
+      s = s.concat(`,\n@offset(${this.offset})`);
     }
 
     return s.concat('}', this.hintsAsString());

@@ -3,7 +3,7 @@
  * DO NOT EDIT MANUALLY!
  ******************************************************************************/
 
- 
+/* eslint-disable */
 import * as langium from 'langium';
 
 export const AgentlangTerminals = {
@@ -58,7 +58,9 @@ export type AgentlangKeywordNames =
     | "@into"
     | "@join"
     | "@left_join"
+    | "@limit"
     | "@meta"
+    | "@offset"
     | "@oneof"
     | "@orderBy"
     | "@public"
@@ -1013,6 +1015,21 @@ export function isKvPairs(item: unknown): item is KvPairs {
     return reflection.isInstance(item, KvPairs.$type);
 }
 
+export interface LimitClause extends langium.AstNode {
+    readonly $container: QueryOption;
+    readonly $type: 'LimitClause';
+    value: number;
+}
+
+export const LimitClause = {
+    $type: 'LimitClause',
+    value: 'value'
+} as const;
+
+export function isLimitClause(item: unknown): item is LimitClause {
+    return reflection.isInstance(item, LimitClause.$type);
+}
+
 export interface Literal extends langium.AstNode {
     readonly $container: AttributeDefinition | BinExpr | CaseEntry | CrudMap | FnCall | FullTextSearch | GenericPropertyDef | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError | WhereSpecClause;
     readonly $type: 'Literal';
@@ -1173,6 +1190,21 @@ export const NotExpr = {
 
 export function isNotExpr(item: unknown): item is NotExpr {
     return reflection.isInstance(item, NotExpr.$type);
+}
+
+export interface OffsetClause extends langium.AstNode {
+    readonly $container: QueryOption;
+    readonly $type: 'OffsetClause';
+    value: number;
+}
+
+export const OffsetClause = {
+    $type: 'OffsetClause',
+    value: 'value'
+} as const;
+
+export function isOffsetClause(item: unknown): item is OffsetClause {
+    return reflection.isInstance(item, OffsetClause.$type);
 }
 
 export interface OneOfSpec extends langium.AstNode {
@@ -1363,6 +1395,8 @@ export interface QueryOption extends langium.AstNode {
     groupByClause?: GroupByClause;
     into?: SelectIntoSpec;
     join?: JoinSpec;
+    limitClause?: LimitClause;
+    offsetClause?: OffsetClause;
     orderByClause?: OrderByClause;
     upsert?: '@upsert';
     where?: WhereSpec;
@@ -1374,6 +1408,8 @@ export const QueryOption = {
     groupByClause: 'groupByClause',
     into: 'into',
     join: 'join',
+    limitClause: 'limitClause',
+    offsetClause: 'offsetClause',
     orderByClause: 'orderByClause',
     upsert: 'upsert',
     where: 'where'
@@ -2127,6 +2163,7 @@ export type AgentlangAstType = {
     JoinSpec: JoinSpec
     KvPair: KvPair
     KvPairs: KvPairs
+    LimitClause: LimitClause
     Literal: Literal
     MapEntry: MapEntry
     MapKey: MapKey
@@ -2136,6 +2173,7 @@ export type AgentlangAstType = {
     NegExpr: NegExpr
     NodeDefinition: NodeDefinition
     NotExpr: NotExpr
+    OffsetClause: OffsetClause
     OneOfSpec: OneOfSpec
     OrderByClause: OrderByClause
     Pattern: Pattern
@@ -2820,6 +2858,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             },
             superTypes: []
         },
+        LimitClause: {
+            name: LimitClause.$type,
+            properties: {
+                value: {
+                    name: LimitClause.value
+                }
+            },
+            superTypes: []
+        },
         Literal: {
             name: Literal.$type,
             properties: {
@@ -2945,6 +2992,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 }
             },
             superTypes: [PrimExpr.$type]
+        },
+        OffsetClause: {
+            name: OffsetClause.$type,
+            properties: {
+                value: {
+                    name: OffsetClause.value
+                }
+            },
+            superTypes: []
         },
         OneOfSpec: {
             name: OneOfSpec.$type,
@@ -3084,6 +3140,12 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 },
                 join: {
                     name: QueryOption.join
+                },
+                limitClause: {
+                    name: QueryOption.limitClause
+                },
+                offsetClause: {
+                    name: QueryOption.offsetClause
                 },
                 orderByClause: {
                     name: QueryOption.orderByClause

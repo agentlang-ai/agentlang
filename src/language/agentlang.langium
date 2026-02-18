@@ -129,7 +129,7 @@ CrudMap: '{' (name=QueryId (':')? '{''}'
           '}';
 
 QueryOption: join=JoinSpec | into=SelectIntoSpec | where=WhereSpec | groupByClause=GroupByClause | orderByClause=OrderByClause
-| upsert='@upsert' | distinct='@distinct';
+| limitClause=LimitClause | offsetClause=OffsetClause | upsert='@upsert' | distinct='@distinct';
 
 CrudMapBody: '{' (attributes+=SetAttribute (',' attributes+=SetAttribute)*)+ properties+=PropertyDefinition* '}';
 
@@ -146,6 +146,8 @@ WhereSpecClause: lhs=QueryId op=SqlComparisonOpr? rhs=Expr;
 
 GroupByClause: '@groupBy' ('(' (colNames+=QualifiedName (',' colNames+=QualifiedName)*)+ ')');
 OrderByClause: '@orderBy' ('(' (colNames+=QualifiedName (',' colNames+=QualifiedName)*)+ ')') (order=('@asc' | '@desc'))?;
+LimitClause: '@limit' '(' value=INT ')';
+OffsetClause: '@offset' '(' value=INT ')';
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 

@@ -17,7 +17,7 @@ import {
   LiteralPattern,
   ReferencePattern,
 } from '../../src/language/syntax.js';
-import { introspect, introspectCase } from '../../src/language/parser.js';
+import { introspect, introspectCase, objectToQueryPattern } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
 import {
   addBeforeDeleteWorkflow,
@@ -1251,5 +1251,92 @@ DateDim.year? categoryRevenueForYear.year},
     assert(cp.into?.get('revenue') === '@sum(SalesFact.revenue)');
     assert(cp.groupBy?.length === 2);
     assert(cp.orderBy?.length === 1);
+  });
+});
+
+describe('introspect-limit-offset', () => {
+  test('CrudPattern toString emits limit and offset', () => {
+    const cp = new CrudPattern('User?');
+    cp.limit = 10;
+    assert(cp.toString() === '{User? {},\n@limit(10)}');
+
+    cp.offset = 20;
+    assert(cp.toString() === '{User? {},\n@limit(10),\n@offset(20)}');
+
+    const cp2 = new CrudPattern('User?');
+    cp2.offset = 5;
+    assert(cp2.toString() === '{User? {},\n@offset(5)}');
+  });
+
+  test('introspect pattern with @limit', async () => {
+    const pats = await introspect('{User? {}, @limit(5)}');
+    const cp = pats[0] as CrudPattern;
+    assert(cp.isQuery);
+    assert(cp.limit === 5);
+    assert(cp.offset === undefined);
+    assert(cp.toString() === '{User? {},\n@limit(5)}');
+  });
+
+  test('introspect pattern with @offset', async () => {
+    const pats = await introspect('{User? {}, @offset(10)}');
+    const cp = pats[0] as CrudPattern;
+    assert(cp.isQuery);
+    assert(cp.offset === 10);
+    assert(cp.limit === undefined);
+    assert(cp.toString() === '{User? {},\n@offset(10)}');
+  });
+
+  test('introspect pattern with both @limit and @offset', async () => {
+    const pats = await introspect('{User? {}, @limit(5), @offset(10)}');
+    const cp = pats[0] as CrudPattern;
+    assert(cp.isQuery);
+    assert(cp.limit === 5);
+    assert(cp.offset === 10);
+    assert(cp.toString() === '{User? {},\n@limit(5),\n@offset(10)}');
+  });
+
+  test('introspect pattern with query attrs, orderBy, limit, offset', async () => {
+    const pats = await introspect('{User {name? "Alice"}, @orderBy(name), @limit(3), @offset(6)}');
+    const cp = pats[0] as CrudPattern;
+    assert(cp.isQuery);
+    assert(cp.orderBy?.length === 1);
+    assert(cp.orderBy?.[0] === 'name');
+    assert(cp.limit === 3);
+    assert(cp.offset === 6);
+  });
+
+  test('introspect round-trip preserves limit and offset', async () => {
+    const original = '{Blog/Post? {}, @orderBy(title), @limit(10), @offset(20)}';
+    const pats = await introspect(original);
+    const cp = pats[0] as CrudPattern;
+    const regenerated = cp.toString();
+    const pats2 = await introspect(regenerated);
+    const cp2 = pats2[0] as CrudPattern;
+    assert(cp2.limit === 10);
+    assert(cp2.offset === 20);
+    assert(cp2.orderBy?.length === 1);
+  });
+
+  test('objectToQueryPattern emits @limit and @offset', async () => {
+    const qobj = {
+      'Test/Item?': {},
+      '@limit': 5,
+      '@offset': 10,
+    };
+    const qs = objectToQueryPattern(qobj);
+    assert(qs.includes('@limit(5)'), `Pattern should contain @limit(5): ${qs}`);
+    assert(qs.includes('@offset(10)'), `Pattern should contain @offset(10): ${qs}`);
+    // Verify the generated pattern can be parsed
+    const pats = await introspect(qs);
+    const cp = pats[0] as CrudPattern;
+    assert(cp.limit === 5);
+    assert(cp.offset === 10);
+  });
+
+  test('@limit(0) is preserved', async () => {
+    const pats = await introspect('{User? {}, @limit(0)}');
+    const cp = pats[0] as CrudPattern;
+    assert(cp.limit === 0);
+    assert(cp.toString() === '{User? {},\n@limit(0)}');
   });
 });
