@@ -139,6 +139,8 @@ export const ConfigSchema = z.object({
       instructions: z.string().optional(),
       stateless: z.boolean().default(false),
       enableJsonResponse: z.boolean().default(false),
+      sessionTtl: z.number().default(1800000),
+      uriScheme: z.string().optional(),
     })
     .optional(),
 });

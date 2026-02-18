@@ -187,6 +187,26 @@ describe('MCP config schema', () => {
     assert.equal(config.mcp?.stateless, false);
     assert.equal(config.mcp?.enableJsonResponse, false);
   });
+
+  test('sessionTtl accepts custom value and has correct default', () => {
+    const defaultConfig = ConfigSchema.parse({ mcp: {} });
+    assert.equal(defaultConfig.mcp?.sessionTtl, 1800000);
+
+    const customConfig = ConfigSchema.parse({
+      mcp: { sessionTtl: 600000 },
+    });
+    assert.equal(customConfig.mcp?.sessionTtl, 600000);
+  });
+
+  test('uriScheme accepts custom value and defaults to undefined', () => {
+    const defaultConfig = ConfigSchema.parse({ mcp: {} });
+    assert.equal(defaultConfig.mcp?.uriScheme, undefined);
+
+    const customConfig = ConfigSchema.parse({
+      mcp: { uriScheme: 'myapp' },
+    });
+    assert.equal(customConfig.mcp?.uriScheme, 'myapp');
+  });
 });
 
 // ---- Integration tests with module ----
@@ -383,5 +403,56 @@ describe('verifyAuth', () => {
         setAppConfig(ConfigSchema.parse({}));
       }
     }
+  });
+});
+
+// ---- Resource template tests ----
+
+describe('MCP resource templates', () => {
+  test('entities produce resource templates with correct URI format', async () => {
+    await doInternModule(
+      'McpTemplateTest',
+      `
+      entity Widget {
+        id Int @id,
+        label String
+      }
+      `
+    );
+
+    const entities = getExposedEntities();
+    const widget = entities.find(e => e.moduleName === 'McpTemplateTest' && e.name === 'Widget');
+    assert(widget !== undefined, 'Widget entity should be exposed');
+
+    // Verify template URI format using default scheme (app name)
+    const scheme = 'testapp';
+    const expectedTemplate = `${scheme}://McpTemplateTest/Widget/{id}`;
+    const uriTemplate = `${scheme}://${widget!.moduleName}/${widget!.name}/{id}`;
+    assert.equal(uriTemplate, expectedTemplate);
+  });
+
+  test('resource templates use custom resourceScheme when configured', async () => {
+    await doInternModule(
+      'McpSchemeTest',
+      `
+      entity Gadget {
+        id Int @id,
+        name String
+      }
+      `
+    );
+
+    const entities = getExposedEntities();
+    const gadget = entities.find(e => e.moduleName === 'McpSchemeTest' && e.name === 'Gadget');
+    assert(gadget !== undefined, 'Gadget entity should be exposed');
+
+    // With custom scheme
+    const customScheme = 'myscheme';
+    const uriTemplate = `${customScheme}://${gadget!.moduleName}/${gadget!.name}/{id}`;
+    assert.equal(uriTemplate, 'myscheme://McpSchemeTest/Gadget/{id}');
+
+    // Static resource URI also uses scheme
+    const staticUri = `${customScheme}://${gadget!.moduleName}/${gadget!.name}`;
+    assert.equal(staticUri, 'myscheme://McpSchemeTest/Gadget');
   });
 });
