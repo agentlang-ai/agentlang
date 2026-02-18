@@ -62,7 +62,7 @@ export class Neo4jBrowserDatabase implements GraphDatabase {
     throw new Error('Neo4j Browser: findNodeById not yet implemented');
   }
 
-  async findNodesByContainer(_containerTag: string): Promise<GraphNode[]> {
+  async findNodesByContainer(__tenant__: string): Promise<GraphNode[]> {
     throw new Error('Neo4j Browser: findNodesByContainer not yet implemented');
   }
 
@@ -97,16 +97,16 @@ export class Neo4jBrowserDatabase implements GraphDatabase {
   async expandGraph(
     _seedIds: string[],
     _maxDepth: number,
-    _containerTag: string
+    __tenant__: string
   ): Promise<GraphTraversalResult> {
     throw new Error('Neo4j Browser: expandGraph not yet implemented');
   }
 
-  async clearContainer(_containerTag: string): Promise<void> {
+  async clearContainer(__tenant__: string): Promise<void> {
     throw new Error('Neo4j Browser: clearContainer not yet implemented');
   }
 
-  async getStats(_containerTag?: string): Promise<{ nodeCount: number; edgeCount: number }> {
+  async getStats(__tenant__?: string): Promise<{ nodeCount: number; edgeCount: number }> {
     throw new Error('Neo4j Browser: getStats not yet implemented');
   }
 }

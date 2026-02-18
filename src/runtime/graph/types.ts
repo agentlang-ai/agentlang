@@ -3,7 +3,7 @@ export type SourceType = 'DOCUMENT' | 'CONVERSATION' | 'INSTANCE' | 'DERIVED';
 export interface GraphNode {
   id: string;
   name: string;
-  entityType: string; // Person, Organization, Location, Product, Concept, Event, Role
+  entityType: string;
   description?: string;
   embedding?: number[];
   sourceType: SourceType;
@@ -11,7 +11,7 @@ export interface GraphNode {
   sourceChunk?: string;
   instanceId?: string;
   instanceType?: string;
-  containerTag: string;
+  __tenant__: string;
   userId: string;
   agentId?: string;
   confidence: number;
@@ -24,7 +24,7 @@ export interface GraphEdge {
   id?: string;
   sourceId: string;
   targetId: string;
-  relationship: string; // WORKS_AT, HAS_ROLE, INSTANCE_LINK, etc.
+  relationship: string;
   weight: number;
   sourceType?: SourceType;
   properties?: Record<string, unknown>;

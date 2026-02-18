@@ -515,7 +515,7 @@ export class KnowledgeService {
             sourceChunk: inst.lookup('sourceChunk') as string | undefined,
             instanceId: inst.lookup('instanceId') as string | undefined,
             instanceType: inst.lookup('instanceType') as string | undefined,
-            containerTag: inst.lookup('__tenant__') as string,
+            __tenant__: inst.lookup('__tenant__') as string,
             userId: inst.lookup('userId') as string,
             agentId: inst.lookup('agentId') as string | undefined,
             confidence: (inst.lookup('confidence') as number) || 1.0,
