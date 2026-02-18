@@ -2096,7 +2096,7 @@ export class Retry extends ModuleEntry {
   }
 
   getNextDelayMs(attempt: number): number {
-    if (attempt >= this.attempts) {
+    if (this.attempts >= 0 && attempt >= this.attempts) {
       return 0;
     }
     const delay = this.backoff.delay === undefined ? 2 : this.backoff.delay;
