@@ -191,11 +191,11 @@ describe('Issue-350', () => {
   test('Permissions on between', async () => {
     await doInitRuntime();
     const managerRole = 'i2350manager';
-    const userId = 'user@i350.com';
-    const tempuser = 'temp@i350.com';
+    const userId = crypto.randomUUID();
+    const tempuser = crypto.randomUUID();
     let env = new Environment();
-    await createUser(userId, userId, 'User', '01', env);
-    await createUser(tempuser, tempuser, 'User', 'temp', env);
+    await createUser(userId, 'user@i350.com', 'User', '01', env);
+    await createUser(tempuser, 'temp@i350.com', 'User', 'temp', env);
     await ensureUserRoles(userId, [managerRole], env);
     await createPermission(
       'i350p1',
