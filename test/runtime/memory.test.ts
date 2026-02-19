@@ -60,8 +60,7 @@ describe('Knowledge Graph Memory System', () => {
           name: 'Alice',
           entityType: 'Person',
           description: 'Main character',
-          containerTag: 'test',
-          userId: 'u1',
+          __tenant__: 'test',
           confidence: 1.0,
           sourceType: 'DOCUMENT',
           isLatest: true,
@@ -73,8 +72,7 @@ describe('Knowledge Graph Memory System', () => {
           name: 'Wonderland',
           entityType: 'Location',
           description: 'Fantasy world',
-          containerTag: 'test',
-          userId: 'u1',
+          __tenant__: 'test',
           confidence: 1.0,
           sourceType: 'DOCUMENT',
           isLatest: true,
@@ -312,18 +310,17 @@ describe('Knowledge Graph Memory System', () => {
       expect(session.sessionId).toBeDefined();
       expect(session.userId).toBe('test-user-001');
       expect(session.agentId).toBe('supportAgent');
-      expect(session.containerTag).toBe(`${agentFqName}:test-user-001`);
+      expect(session.containerTag).toBe(agentFqName);
 
       const context = await knowledgeService.buildContext(
         'Hello',
-        session.containerTag,
-        session.userId
+        session.containerTag
       );
       expect(context).toBeDefined();
       expect(typeof context.contextString).toBe('string');
     });
 
-    test('isolates sessions between users', async () => {
+    test('shares knowledge container across users (agent-level isolation)', async () => {
       await doInternModule('KGSessionIsolation', `entity Data { id Int @id }`);
       const knowledgeService = getKnowledgeService();
       const agentFqName = 'KGSessionIsolation/testAgent';
@@ -339,12 +336,14 @@ describe('Knowledge Graph Memory System', () => {
         agentFqName
       );
 
-      expect(session1.containerTag).not.toBe(session2.containerTag);
-      expect(session1.containerTag).toContain('user-alpha');
-      expect(session2.containerTag).toContain('user-beta');
+      // Both users share the same agent-level container
+      expect(session1.containerTag).toBe(session2.containerTag);
+      expect(session1.containerTag).toBe(agentFqName);
+      // Sessions are still per-user
+      expect(session1.sessionId).not.toBe(session2.sessionId);
     });
 
-    test('formats containerTag as agentFqName:userId', async () => {
+    test('formats containerTag as agentFqName (agent-only)', async () => {
       await doInternModule('KGFormatTest', `entity X { id Int @id }`);
       const knowledgeService = getKnowledgeService();
       const agentFqName = 'KGFormatTest/testAgent';
@@ -355,7 +354,7 @@ describe('Knowledge Graph Memory System', () => {
         agentFqName
       );
 
-      expect(session.containerTag).toBe('KGFormatTest/testAgent:test-user');
+      expect(session.containerTag).toBe('KGFormatTest/testAgent');
     });
   });
 });

@@ -15,7 +15,6 @@ entity KnowledgeEntity {
     instanceId String @optional,
     instanceType String @optional,
     __tenant__ String,
-    userId String @optional,
     agentId String @optional,
     confidence Float @default(1.0),
     isLatest Boolean @default(true),
@@ -31,7 +30,6 @@ entity KnowledgeEdge {
     weight Float @default(1.0),
     sourceType @enum("DOCUMENT", "CONVERSATION", "INSTANCE", "DERIVED") @optional,
     __tenant__ String,
-    userId String @optional,
     agentId String @optional,
     createdAt DateTime @default(now())
 }
@@ -64,7 +62,6 @@ entity DocumentGroup {
     name String,
     __tenant__ String,
     agentId String @optional,
-    userId String @optional,
     createdAt DateTime @default(now())
 }
 
@@ -77,7 +74,6 @@ entity Document {
     documentGroupId String @optional,
     __tenant__ String,
     agentId String @optional,
-    userId String @optional,
     createdAt DateTime @default(now()),
     @meta {"fullTextSearch": ["title", "content"]}
 }

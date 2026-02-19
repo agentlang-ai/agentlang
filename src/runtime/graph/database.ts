@@ -28,6 +28,7 @@ export interface GraphDatabase {
   ): Promise<GraphTraversalResult>;
 
   // Bulk operations
+  clearAll(): Promise<void>;
   clearContainer(__tenant__: string): Promise<void>;
   getStats(__tenant__?: string): Promise<{ nodeCount: number; edgeCount: number }>;
 }

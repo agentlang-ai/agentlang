@@ -32,7 +32,6 @@ export function instanceToGraphNode(inst: Instance): GraphNode {
     instanceId: inst.lookup('instanceId') as string | undefined,
     instanceType: inst.lookup('instanceType') as string | undefined,
     __tenant__: inst.lookup('__tenant__') as string,
-    userId: inst.lookup('userId') as string,
     agentId: inst.lookup('agentId') as string | undefined,
     confidence: (inst.lookup('confidence') as number) || 1.0,
     createdAt: new Date(),

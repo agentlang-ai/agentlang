@@ -261,13 +261,25 @@ function makeSqliteDataSource(
     try {
       const driver = ds.driver as any;
       const db = driver.databaseConnection || driver.nativeDatabase;
-      // Enable WAL mode for better concurrent read performance
+      // Enable WAL mode and additional pragmas for better write performance
       if (db?.pragma) {
         db.pragma('journal_mode = WAL');
-        logger.info('SQLite WAL mode enabled');
+
+        const syncMode = process.env.SQLITE_SYNC_MODE || 'NORMAL';
+        const busyTimeout = process.env.SQLITE_BUSY_TIMEOUT || '5000';
+        const cacheSize = process.env.SQLITE_CACHE_SIZE || '-20000';
+
+        db.pragma(`synchronous = ${syncMode}`);
+        db.pragma(`busy_timeout = ${busyTimeout}`);
+        db.pragma(`cache_size = ${cacheSize}`);
+        db.pragma('temp_store = MEMORY');
+
+        logger.info(
+          `SQLite pragmas enabled: WAL mode, synchronous=${syncMode}, busy_timeout=${busyTimeout}, cache_size=${cacheSize}, temp_store=MEMORY`
+        );
       }
     } catch (err: any) {
-      logger.warn(`Failed to enable WAL mode: ${err.message}.`);
+      logger.warn(`Failed to enable SQLite pragmas: ${err.message}.`);
     }
     return res;
   };
