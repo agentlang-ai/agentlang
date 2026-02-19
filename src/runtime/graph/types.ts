@@ -11,8 +11,7 @@ export interface GraphNode {
   sourceChunk?: string;
   instanceId?: string;
   instanceType?: string;
-  __tenant__: string;
-  agentId?: string;
+  agentId: string;
   confidence: number;
   createdAt: Date;
   updatedAt: Date;

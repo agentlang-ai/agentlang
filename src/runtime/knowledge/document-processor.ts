@@ -389,7 +389,7 @@ export class DocumentProcessor {
           `relType "${escapeString(edge.relationship)}", ` +
           `weight ${edge.weight}, ` +
           `sourceType "DOCUMENT", ` +
-          `__tenant__ "${escapeString(containerTag)}"` +
+          `agentId "${escapeString(containerTag)}"` +
           (agentId ? `, agentId "${escapeString(agentId)}"` : '') +
           `}}`,
         undefined
