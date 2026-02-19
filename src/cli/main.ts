@@ -21,6 +21,7 @@ import { Instance, Module } from '../runtime/module.js';
 import { ModuleDefinition } from '../language/generated/ast.js';
 import { Config } from '../runtime/state.js';
 import { prepareIntegrations } from '../runtime/integrations.js';
+import { configureIntegrationClient } from '../runtime/integration-client.js';
 import { isExecGraphEnabled, isNodeEnv } from '../utils/runtime.js';
 import { OpenAPIClientAxios } from 'openapi-client-axios';
 import { registerOpenApiModule } from '../runtime/openapi.js';
@@ -239,6 +240,8 @@ export const runModule = async (fileName: string, releaseDb: boolean = false): P
       config.integrations.password,
       config.integrations.connections
     );
+    // Configure the thin HTTP client to talk to integration-manager for auth
+    configureIntegrationClient(config.integrations.host);
   }
   if (config.openapi) {
     await loadOpenApiSpec(config.openapi);
