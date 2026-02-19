@@ -88,9 +88,12 @@ import {
 } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 import {
+  AgentCancelledException,
   AgentEntityName,
   AgentFqName,
   AgentInstance,
+  checkCancelled,
+  clearCancellation,
   findAgentByName,
   normalizeGeneratedCode,
   saveFlowStepResult,
@@ -2085,6 +2088,8 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   console.debug(invokeDebugMsg);
   //
 
+  const agentChatId = env.getAgentChatId() || env.getActiveChatId() || '';
+  await clearCancellation(agentChatId);
   const monitoringEnabled = isMonitoringEnabled();
 
   await agent.invoke(msg, env);
@@ -2101,6 +2106,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       }
       let retries = 0;
       while (true) {
+        await checkCancelled(agentChatId);
         try {
           let rs: string = result ? normalizeGeneratedCode(result) : '';
           if (agent.tools) {
@@ -2162,6 +2168,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
     } else {
       let retries = 0;
       while (true) {
+        await checkCancelled(agentChatId);
         try {
           result = normalizeGeneratedCode(result);
           const obj = agent.maybeValidateJsonResponse(result);
@@ -2287,9 +2294,11 @@ async function iterateOnFlow(
   rootAgent.disableSession();
   const chatId = env.getActiveEventInstance()?.lookup('chatId');
   const iterId = chatId || crypto.randomUUID();
+  await clearCancellation(iterId);
   let step = '';
   let fullFlowRetries = 0;
   while (true) {
+    await checkCancelled(iterId);
     try {
       const initContext = msg;
       const s = `Now consider the following flowchart and return the next step:\n${flow}\n
@@ -2312,6 +2321,7 @@ async function iterateOnFlow(
         env.flagMonitorEntryAsFlow().incrementMonitor();
       }
       while (step != 'DONE' && !executedSteps.has(step)) {
+        await checkCancelled(iterId);
         if (stepc > MaxFlowSteps) {
           throw new Error(`Flow execution exceeded maximum steps limit`);
         }
@@ -2366,6 +2376,9 @@ async function iterateOnFlow(
         needAgentProcessing = preprocResult.needAgentProcessing;
       }
     } catch (reason: any) {
+      if (reason instanceof AgentCancelledException) {
+        throw reason;
+      }
       if (fullFlowRetries < MaxFlowRetries) {
         msg = `The previous attempt failed at step ${step} with the error ${reason}. Restart the flow the appropriate step
 (maybe even from the first step) and try to fix the issue.`;
