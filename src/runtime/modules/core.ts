@@ -2,6 +2,7 @@ import { default as ai, normalizeGeneratedCode } from './ai.js';
 import { default as auth } from './auth.js';
 import { default as files } from './files.js';
 import { default as mcp } from './mcp.js';
+import { default as policy, startPolicyRefreshTimer } from './policy.js';
 import {
   DefaultModuleName,
   DefaultModules,
@@ -41,6 +42,7 @@ import {
 import { getMonitor, getMonitorsForEvent, Monitor } from '../monitor.js';
 import { registerResolver, setResolver } from '../resolvers/registry.js';
 import { base64Encode, isNodeEnv } from '../../utils/runtime.js';
+import { AppConfig } from '../state.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
@@ -188,6 +190,7 @@ export function registerCoreModules() {
     { def: ai, name: makeCoreModuleName('ai') },
     { def: files, name: makeCoreModuleName('files') },
     { def: mcp, name: mcpn },
+    { def: policy, name: makeCoreModuleName('policy') },
   ];
 
   coreModuleInfo.forEach(({ def, name }) => {
@@ -662,6 +665,8 @@ export function initCoreModuleManager() {
       internPersistentModules();
     }, 10000);
   }
+
+  startPolicyRefreshTimer(AppConfig?.resolver?.connectionPolicy?.refreshIntervalSeconds);
 }
 
 const SqlSep = ';\n\n';

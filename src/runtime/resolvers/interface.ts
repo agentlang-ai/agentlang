@@ -16,6 +16,14 @@ import {
 } from '../module.js';
 import { CrudType, nameToPath, generateLoggerCallId } from '../util.js';
 import { DefaultAuthInfo, ResolverAuthInfo } from './authinfo.js';
+import { SubscriptionEnvelope, isSubscriptionEnvelope, envelopeToSessionInfo } from './envelope.js';
+
+export {
+  SubscriptionEnvelope,
+  isSubscriptionEnvelope,
+  envelopeToSessionInfo,
+  createSubscriptionEnvelope,
+} from './envelope.js';
 
 export type JoinInfo = {
   relationship: Relationship;
@@ -129,7 +137,7 @@ export class Resolver {
     relationship: Relationship,
     connectedInstance: Instance,
     inst: Instance,
-    connectedAlias?: string
+    _connectedAlias?: string
   ): Promise<any> {
     return this.notImpl(`queryConnectedInstances(${relationship}, ${connectedInstance}, ${inst})`);
   }
@@ -202,8 +210,14 @@ export class Resolver {
   private async onOutOfBandCrud(
     inst: Instance,
     operation: CrudType,
-    env: Environment
+    env: Environment,
+    envelope?: SubscriptionEnvelope
   ): Promise<any> {
+    if (envelope) {
+      env.setActiveUser(envelope.userId);
+      env.setActiveTenantId(envelope.tenantId);
+      inst.setAuthContext(envelopeToSessionInfo(envelope));
+    }
     switch (operation) {
       case CrudType.CREATE:
         return await runPostCreateEvents(inst, env);
@@ -216,24 +230,44 @@ export class Resolver {
     }
   }
 
-  public async onCreate(inst: Instance, env: Environment): Promise<any> {
-    return this.onOutOfBandCrud(inst, CrudType.CREATE, env);
+  public async onCreate(
+    inst: Instance,
+    env: Environment,
+    envelope?: SubscriptionEnvelope
+  ): Promise<any> {
+    return this.onOutOfBandCrud(inst, CrudType.CREATE, env, envelope);
   }
 
-  public async onUpdate(inst: Instance, env: Environment): Promise<any> {
-    return this.onOutOfBandCrud(inst, CrudType.UPDATE, env);
+  public async onUpdate(
+    inst: Instance,
+    env: Environment,
+    envelope?: SubscriptionEnvelope
+  ): Promise<any> {
+    return this.onOutOfBandCrud(inst, CrudType.UPDATE, env, envelope);
   }
 
-  public async onDelete(inst: Instance, env: Environment): Promise<any> {
-    return this.onOutOfBandCrud(inst, CrudType.DELETE, env);
+  public async onDelete(
+    inst: Instance,
+    env: Environment,
+    envelope?: SubscriptionEnvelope
+  ): Promise<any> {
+    return this.onOutOfBandCrud(inst, CrudType.DELETE, env, envelope);
   }
 
   public async onSubscription(result: any, callPostCrudEvent: boolean = false): Promise<any> {
     if (result !== undefined) {
+      let envelope: SubscriptionEnvelope | undefined;
+      let actualResult = result;
+
+      if (isSubscriptionEnvelope(result)) {
+        envelope = result;
+        actualResult = envelope.data;
+      }
+
       try {
         if (callPostCrudEvent) {
-          const inst = result as Instance;
-          return await callPostEventOnSubscription(CrudType.CREATE, inst);
+          const inst = actualResult as Instance;
+          return await callPostEventOnSubscription(CrudType.CREATE, inst, undefined, envelope);
         } else {
           const eventName = getSubscriptionEvent(this.name);
           if (eventName) {
@@ -241,8 +275,11 @@ export class Resolver {
             const inst = makeInstance(
               path.getModuleName(),
               path.getEntryName(),
-              newInstanceAttributes().set('data', result)
+              newInstanceAttributes().set('data', actualResult)
             );
+            if (envelope) {
+              inst.setAuthContext(envelopeToSessionInfo(envelope));
+            }
             const { evaluate } = await import('../interpreter.js');
             return await evaluate(inst);
           }

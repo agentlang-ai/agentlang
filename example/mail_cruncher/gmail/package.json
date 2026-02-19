@@ -1,0 +1,14 @@
+{
+  "name": "gmail",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Browser-compatible Gmail resolver for agentlang",
+  "agentlang": {
+    "config": [
+      "gmail/GmailConfig"
+    ]
+  },
+  "dependencies": {
+    "agentlang": "file:../../../agentlang"
+  }
+}

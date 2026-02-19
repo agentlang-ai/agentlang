@@ -58,6 +58,7 @@ import {
   Workflow,
 } from './module.js';
 import { JoinInfo, Resolver, WhereClause } from './resolvers/interface.js';
+import { SubscriptionEnvelope, envelopeToSessionInfo } from './resolvers/envelope.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
 import {
@@ -183,6 +184,7 @@ export class Environment extends Instance {
   private activeChatId: string | undefined;
 
   private activeUserData: any = undefined;
+  private activeTenantId: string | undefined;
 
   constructor(name?: string, parent?: Environment) {
     super(
@@ -209,6 +211,7 @@ export class Environment extends Instance {
       this.monitor = parent.monitor;
       this.escalatedRole = parent.escalatedRole;
       this.activeChatId = parent.activeChatId;
+      this.activeTenantId = parent.activeTenantId;
     } else {
       this.activeModule = DefaultModuleName;
       this.activeResolvers = new Map<string, Resolver>();
@@ -556,6 +559,15 @@ export class Environment extends Instance {
 
   getActiveUser(): string {
     return this.activeUser;
+  }
+
+  setActiveTenantId(id: string): Environment {
+    this.activeTenantId = id;
+    return this;
+  }
+
+  getActiveTenantId(): string | undefined {
+    return this.activeTenantId;
   }
 
   setLastResult(result: Result): Environment {
@@ -2705,10 +2717,16 @@ async function realizeMap(mapLiteral: MapLiteral, env: Environment): Promise<voi
 export async function callPostEventOnSubscription(
   crudType: CrudType,
   inst: Instance,
-  env?: Environment
+  env?: Environment,
+  envelope?: SubscriptionEnvelope
 ): Promise<any> {
   const localEnv = env === undefined;
   const newEnv = env ? env : new Environment('onSubs.env');
+  if (envelope) {
+    newEnv.setActiveUser(envelope.userId);
+    newEnv.setActiveTenantId(envelope.tenantId);
+    inst.setAuthContext(envelopeToSessionInfo(envelope));
+  }
   try {
     await runPrePostEvents(crudType, false, inst, newEnv);
     if (localEnv) {
@@ -2743,7 +2761,7 @@ async function runPrePostEvents(
       p.getEntryName(),
       newInstanceAttributes().set(inst.record.name, inst)
     );
-    const authContext = env.getActiveAuthContext();
+    const authContext = env.getActiveAuthContext() || inst.getAuthContext();
     if (authContext) eventInst.setAuthContext(authContext);
     const prefix = `${pre ? 'Pre' : 'Post'}-${CrudType[crudType]} ${inst.record.getFqName()}`;
     const callback = (value: Result) => {

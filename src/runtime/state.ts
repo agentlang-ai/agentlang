@@ -130,6 +130,41 @@ export const ConfigSchema = z.object({
       })
     )
     .optional(),
+  resolver: z
+    .object({
+      connectionPolicy: z
+        .object({
+          refreshIntervalSeconds: z.number().default(300),
+          timeout: z
+            .object({
+              connectTimeoutMs: z.number().default(5000),
+              requestTimeoutMs: z.number().default(30000),
+            })
+            .optional(),
+          retry: z
+            .object({
+              maxAttempts: z.number().default(3),
+              backoff: z
+                .object({
+                  strategy: z.enum(['exponential', 'linear', 'constant']).default('exponential'),
+                  delayMs: z.number().default(1000),
+                  factor: z.number().default(2),
+                  maxDelayMs: z.number().default(30000),
+                })
+                .optional(),
+            })
+            .optional(),
+          circuitBreaker: z
+            .object({
+              failureThreshold: z.number().default(5),
+              resetTimeoutMs: z.number().default(60000),
+              halfOpenMaxAttempts: z.number().default(1),
+            })
+            .optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
