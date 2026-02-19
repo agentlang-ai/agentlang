@@ -7,11 +7,10 @@ import { ConversationProcessor } from './conversation-processor.js';
 import { ContextBuilder } from './context-builder.js';
 import { EntityExtractor, type ExtractedFact } from './extractor.js';
 import { CoreKnowledgeModuleName } from '../modules/knowledge.js';
-import { parseAndEvaluateStatement } from '../interpreter.js';
+import { parseAndEvaluateStatement, Environment } from '../interpreter.js';
 import { escapeString } from './utils.js';
 import type { Instance } from '../module.js';
 import type { Document, KnowledgeContext, ProcessingResult, SourceType } from '../graph/types.js';
-import type { Environment } from '../interpreter.js';
 
 // Maximum number of session messages to retain per session (prevents database bloat)
 const MAX_KNOWLEDGE_SESSION_MESSAGES = parseInt(
@@ -23,7 +22,7 @@ export interface KnowledgeSessionContext {
   sessionId: string;
   userId: string;
   agentId: string;
-  containerTag: string;
+  containerTag: string; // Now agent-only: "agentFqName" (no user suffix)
 }
 
 let knowledgeServiceInstance: KnowledgeService | null = null;
@@ -115,7 +114,8 @@ export class KnowledgeService {
       throw new Error('Knowledge base is disabled: no embedding API key configured');
     }
 
-    const containerTag = `${agentFqName}:${userId}`;
+    // Agent-level isolation only - all users share the same knowledge graph
+    const containerTag = agentFqName;
 
     try {
       const result = await parseAndEvaluateStatement(
@@ -439,10 +439,10 @@ export class KnowledgeService {
         return;
       }
 
-      const docContainerTag = computeSharedContainerTag(session.containerTag, session.userId);
+      // All knowledge is agent-level (shared across users)
       const result = await this.processDocuments(
         matchingDocs,
-        docContainerTag,
+        session.containerTag,
         session.userId,
         session.agentId,
         env,
@@ -455,7 +455,7 @@ export class KnowledgeService {
       );
 
       // Sync to Neo4j after document processing
-      await this.syncToNeo4j(docContainerTag);
+      await this.syncToNeo4j(session.containerTag);
 
       this.processedAgents.add(session.agentId);
 
@@ -628,6 +628,129 @@ export class KnowledgeService {
     await this.deduplicator.removeNode(nodeId);
   }
 
+  // --- Batch Operations ---
+
+  /**
+   * Batch insert multiple knowledge entities in a single transaction.
+   * Significantly faster than individual inserts for large document processing.
+   */
+  async batchCreateEntities(
+    entities: Array<{
+      name: string;
+      entityType: string;
+      description?: string;
+      sourceType: SourceType;
+      sourceId?: string;
+      sourceChunk?: string;
+      agentId?: string;
+      confidence?: number;
+    }>,
+    containerTag: string,
+    userId: string,
+    env?: Environment
+  ): Promise<Array<{ id: string; name: string; entityType: string }>> {
+    if (!this.enabled || entities.length === 0) {
+      return [];
+    }
+
+    const results: Array<{ id: string; name: string; entityType: string }> = [];
+
+    try {
+      await (env || new Environment()).callInTransaction(async () => {
+        for (const entity of entities) {
+          const query =
+            `{${CoreKnowledgeModuleName}/KnowledgeEntity {` +
+            `name "${escapeString(entity.name)}", ` +
+            `entityType "${escapeString(entity.entityType)}", ` +
+            `sourceType "${entity.sourceType}", ` +
+            `containerTag "${escapeString(containerTag)}", ` +
+            `userId "${userId}", ` +
+            `isLatest true, ` +
+            `confidence ${entity.confidence || 1.0}` +
+            (entity.description ? `, description "${escapeString(entity.description)}"` : '') +
+            (entity.sourceId ? `, sourceId "${escapeString(entity.sourceId)}"` : '') +
+            (entity.sourceChunk
+              ? `, sourceChunk "${escapeString(entity.sourceChunk.substring(0, 500))}"`
+              : '') +
+            (entity.agentId ? `, agentId "${escapeString(entity.agentId)}"` : '') +
+            `}}`;
+
+          const result = await parseAndEvaluateStatement(query, undefined, env);
+          const inst = Array.isArray(result) ? result[0] : result;
+          if (inst) {
+            results.push({
+              id: inst.lookup('id') as string,
+              name: inst.lookup('name') as string,
+              entityType: inst.lookup('entityType') as string,
+            });
+          }
+        }
+      });
+
+      logger.info(`[KNOWLEDGE] Batch created ${results.length} entities in single transaction`);
+      return results;
+    } catch (err) {
+      logger.error(`[KNOWLEDGE] Batch entity creation failed: ${err}`);
+      throw err;
+    }
+  }
+
+  /**
+   * Batch insert multiple knowledge edges in a single transaction.
+   * Significantly faster than individual inserts for large document processing.
+   */
+  async batchCreateEdges(
+    edges: Array<{
+      sourceId: string;
+      targetId: string;
+      relType: string;
+      weight?: number;
+      sourceType: SourceType;
+      containerTag: string;
+    }>,
+    userId: string,
+    env?: Environment
+  ): Promise<Array<{ id: string; sourceId: string; targetId: string }>> {
+    if (!this.enabled || edges.length === 0) {
+      return [];
+    }
+
+    const results: Array<{ id: string; sourceId: string; targetId: string }> = [];
+
+    try {
+      await (env || new Environment()).callInTransaction(async () => {
+        for (const edge of edges) {
+          const query =
+            `{${CoreKnowledgeModuleName}/KnowledgeEdge {` +
+            `sourceId "${edge.sourceId}", ` +
+            `targetId "${edge.targetId}", ` +
+            `relType "${escapeString(edge.relType)}", ` +
+            `weight ${edge.weight || 1.0}, ` +
+            `sourceType "${edge.sourceType}", ` +
+            `containerTag "${escapeString(edge.containerTag)}", ` +
+            `userId "${userId}"` +
+            `}}`;
+
+          const result = await parseAndEvaluateStatement(query, undefined, env);
+          const inst = Array.isArray(result) ? result[0] : result;
+          if (inst) {
+            results.push({
+              id: inst.lookup('id') as string,
+              sourceId: inst.lookup('sourceId') as string,
+              targetId: inst.lookup('targetId') as string,
+            });
+          }
+        }
+      });
+
+      logger.info(`[KNOWLEDGE] Batch created ${results.length} edges in single transaction`);
+      return results;
+    } catch (err) {
+      logger.error(`[KNOWLEDGE] Batch edge creation failed: ${err}`);
+      throw err;
+    }
+  }
+
   // --- Instance Linking ---
 
   async linkNodeToInstance(
@@ -715,48 +838,13 @@ export class KnowledgeService {
   }
 
   private async resolveDocumentContainerTags(
-    agentId: string | undefined,
-    containerTag: string,
-    userId: string
+    _agentId: string | undefined,
+    _containerTag: string,
+    _userId: string
   ): Promise<string[]> {
-    const tags = new Set<string>();
-    const sharedTag = computeSharedContainerTag(containerTag, userId);
-    if (sharedTag) {
-      tags.add(sharedTag);
-    }
-
-    if (!agentId) {
-      return Array.from(tags);
-    }
-
-    try {
-      const results: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeEntity {agentId? "${agentId}", sourceType? "DOCUMENT"}} @limit 10`,
-        undefined
-      );
-      if (results && results.length > 0) {
-        for (const inst of results) {
-          const tag = inst.lookup('__tenant__') as string | undefined;
-          if (tag) tags.add(tag);
-        }
-      }
-    } catch (err) {
-      logger.debug(`[KNOWLEDGE] Failed to resolve document container tags: ${err}`);
-    }
-
-    return Array.from(tags);
+    // Agent-level isolation: all knowledge in single container, no need to resolve multiple tags
+    return [];
   }
-}
-
-function computeSharedContainerTag(containerTag: string, userId: string): string {
-  if (containerTag.endsWith(':shared')) {
-    return containerTag;
-  }
-  const suffix = `:${userId}`;
-  if (containerTag.endsWith(suffix)) {
-    return `${containerTag.slice(0, -suffix.length)}:shared`;
-  }
-  return `${containerTag}:shared`;
 }
 
 export function getKnowledgeService(): KnowledgeService {
