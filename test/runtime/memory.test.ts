@@ -98,8 +98,7 @@ describe('Knowledge Graph Memory System', () => {
           id: '1',
           name: 'Alice',
           entityType: 'Person',
-          containerTag: 'test',
-          userId: 'u1',
+          __tenant__: 'test',
           confidence: 1.0,
           sourceType: 'DOCUMENT',
           isLatest: true,
@@ -110,8 +109,7 @@ describe('Knowledge Graph Memory System', () => {
           id: '2',
           name: 'White Rabbit',
           entityType: 'Person',
-          containerTag: 'test',
-          userId: 'u1',
+          __tenant__: 'test',
           confidence: 1.0,
           sourceType: 'DOCUMENT',
           isLatest: true,
@@ -140,8 +138,7 @@ describe('Knowledge Graph Memory System', () => {
           entityType: 'Product',
           instanceId: 'order-123',
           instanceType: 'Shop/Order',
-          containerTag: 'test',
-          userId: 'u1',
+          __tenant__: 'test',
           confidence: 1.0,
           sourceType: 'INSTANCE',
           isLatest: true,
@@ -312,10 +309,7 @@ describe('Knowledge Graph Memory System', () => {
       expect(session.agentId).toBe('supportAgent');
       expect(session.containerTag).toBe(agentFqName);
 
-      const context = await knowledgeService.buildContext(
-        'Hello',
-        session.containerTag
-      );
+      const context = await knowledgeService.buildContext('Hello', session.containerTag);
       expect(context).toBeDefined();
       expect(typeof context.contextString).toBe('string');
     });
