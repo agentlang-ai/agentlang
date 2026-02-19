@@ -12,9 +12,6 @@ import type {
 } from '../graph/types.js';
 import type { Environment } from '../interpreter.js';
 
-const MAX_CONVERSATION_NODES = parseInt(process.env.KG_MAX_CONVERSATION_NODES || '10', 10);
-const MAX_CONVERSATION_EDGES = parseInt(process.env.KG_MAX_CONVERSATION_EDGES || '20', 10);
-
 export class ConversationProcessor {
   private extractor: EntityExtractor;
   private deduplicator: SemanticDeduplicator;
@@ -55,7 +52,6 @@ export class ConversationProcessor {
     userMessage: string,
     assistantResponse: string,
     containerTag: string,
-    userId: string,
     sessionId: string,
     agentId?: string,
     env?: Environment,
@@ -88,19 +84,10 @@ export class ConversationProcessor {
 
       const nodeMap = new Map<string, GraphNode>();
       for (const entity of extraction.entities) {
-        // Limit nodes to prevent memory issues
-        if (allNodes.length >= MAX_CONVERSATION_NODES) {
-          logger.warn(
-            `[KNOWLEDGE] Reached max conversation nodes limit (${MAX_CONVERSATION_NODES})`
-          );
-          break;
-        }
-
         const beforeCount = allNodes.length;
         const node = await this.deduplicator.findOrCreateNode(
           entity,
           containerTag,
-          userId,
           containerTag,
           'CONVERSATION',
           sessionId,
@@ -119,17 +106,10 @@ export class ConversationProcessor {
       }
 
       for (const rel of extraction.relationships) {
-        if (allEdges.length >= MAX_CONVERSATION_EDGES) {
-          logger.warn(
-            `[KNOWLEDGE] Reached max conversation edges limit (${MAX_CONVERSATION_EDGES})`
-          );
-          break;
-        }
         const edge = await this.createEdgeFromRelationship(
           rel,
           nodeMap,
           containerTag,
-          userId,
           sessionId,
           agentId
         );
@@ -155,7 +135,6 @@ export class ConversationProcessor {
     rel: ExtractedRelationship,
     nodeMap: Map<string, GraphNode>,
     containerTag: string,
-    userId: string,
     sessionId: string,
     agentId?: string
   ): Promise<GraphEdge | null> {
@@ -214,8 +193,7 @@ export class ConversationProcessor {
           `relType "${escapeString(edge.relationship)}", ` +
           `weight ${edge.weight}, ` +
           `sourceType "CONVERSATION", ` +
-          `containerTag "${escapeString(containerTag)}", ` +
-          `userId "${escapeString(userId)}"` +
+          `__tenant__ "${escapeString(containerTag)}"` +
           (agentId ? `, agentId "${escapeString(agentId)}"` : '') +
           `}}`,
         undefined

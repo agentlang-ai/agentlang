@@ -90,7 +90,6 @@ export class SemanticDeduplicator {
   async findOrCreateNode(
     entity: ExtractedEntity,
     containerTag: string,
-    userId: string,
     tenantId: string,
     sourceType: SourceType,
     sourceId?: string,
@@ -139,7 +138,6 @@ export class SemanticDeduplicator {
     return await this.createNewNode(
       entity,
       containerTag,
-      userId,
       sourceType,
       sourceId,
       sourceChunk,
@@ -156,7 +154,6 @@ export class SemanticDeduplicator {
   async findOrCreateNodesBatch(
     entities: ExtractedEntity[],
     containerTag: string,
-    userId: string,
     tenantId: string,
     sourceType: SourceType,
     sourceId?: string,
@@ -228,7 +225,6 @@ export class SemanticDeduplicator {
       const node = await this.createNewNode(
         entity,
         containerTag,
-        userId,
         sourceType,
         sourceId,
         sourceChunk,
@@ -378,7 +374,6 @@ export class SemanticDeduplicator {
     existingId: string,
     replacement: ExtractedEntity,
     containerTag: string,
-    userId: string,
     sourceType: SourceType,
     sourceId?: string,
     sourceChunk?: string,
@@ -410,7 +405,6 @@ export class SemanticDeduplicator {
     return await this.createNewNode(
       replacement,
       containerTag,
-      userId,
       sourceType,
       sourceId,
       sourceChunk,
@@ -447,7 +441,6 @@ export class SemanticDeduplicator {
   private async createNewNode(
     entity: ExtractedEntity,
     containerTag: string,
-    userId: string,
     sourceType: SourceType,
     sourceId?: string,
     sourceChunk?: string,
@@ -460,8 +453,7 @@ export class SemanticDeduplicator {
       `name "${escapeString(entity.name)}", ` +
       `entityType "${escapeString(entity.entityType)}", ` +
       `sourceType "${sourceType}", ` +
-      `containerTag "${containerTag}", ` +
-      `userId "${userId}", ` +
+      `__tenant__ "${containerTag}", ` +
       `isLatest true, ` +
       `confidence 1.0`;
 

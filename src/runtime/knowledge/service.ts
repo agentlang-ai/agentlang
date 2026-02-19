@@ -194,7 +194,6 @@ export class KnowledgeService {
   async processDocument(
     document: Document,
     containerTag: string,
-    userId: string,
     agentId?: string,
     env?: Environment,
     llmName?: string
@@ -203,7 +202,6 @@ export class KnowledgeService {
     return this.documentProcessor.processDocument(
       document,
       containerTag,
-      userId,
       containerTag, // tenantId
       agentId,
       env,
@@ -214,7 +212,6 @@ export class KnowledgeService {
   async processDocuments(
     documents: Document[],
     containerTag: string,
-    userId: string,
     agentId?: string,
     env?: Environment,
     llmName?: string
@@ -231,7 +228,7 @@ export class KnowledgeService {
 
     for (const doc of documents) {
       logger.info(`[KNOWLEDGE] Processing document: ${doc.name} (${doc.content.length} chars)`);
-      const result = await this.processDocument(doc, containerTag, userId, agentId, env, llmName);
+      const result = await this.processDocument(doc, containerTag, agentId, env, llmName);
       logger.info(
         `[KNOWLEDGE] Document ${doc.name} processed: ${result.nodesCreated} nodes, ${result.edgesCreated} edges`
       );
@@ -253,14 +250,12 @@ export class KnowledgeService {
   async buildContext(
     query: string,
     containerTag: string,
-    userId: string,
     agentId?: string
   ): Promise<KnowledgeContext> {
     if (!this.enabled) {
       return { entities: [], relationships: [], instanceData: [], contextString: '' };
     }
-    const extraTags = await this.resolveDocumentContainerTags(agentId, containerTag, userId);
-    return this.contextBuilder.buildContext(query, containerTag, userId, containerTag, extraTags);
+    return this.contextBuilder.buildContext(query, containerTag, containerTag);
   }
 
   buildContextString(context: KnowledgeContext): string {
@@ -300,7 +295,6 @@ export class KnowledgeService {
         userMessage,
         assistantResponse,
         session.containerTag,
-        session.userId,
         session.sessionId,
         session.agentId,
         env,
@@ -443,7 +437,6 @@ export class KnowledgeService {
       const result = await this.processDocuments(
         matchingDocs,
         session.containerTag,
-        session.userId,
         session.agentId,
         env,
         llmName
@@ -516,7 +509,6 @@ export class KnowledgeService {
             instanceId: inst.lookup('instanceId') as string | undefined,
             instanceType: inst.lookup('instanceType') as string | undefined,
             __tenant__: inst.lookup('__tenant__') as string,
-            userId: inst.lookup('userId') as string,
             agentId: inst.lookup('agentId') as string | undefined,
             confidence: (inst.lookup('confidence') as number) || 1.0,
             createdAt: new Date(),
@@ -562,13 +554,18 @@ export class KnowledgeService {
   }
 
   /**
-   * Discover all containerTags that have knowledge data and sync each to Neo4j.
-   * Called on startup so Neo4j always reflects the authoritative entity store.
+   * Full rebuild of Neo4j from SQLite/LanceDB on startup.
+   * Clears all Neo4j data first, then syncs each agent container.
+   * SQLite/LanceDB is the source of truth; Neo4j is a derived view.
    */
   private async syncAllContainersToNeo4j(): Promise<void> {
     if (!this.graphDb.isConnected()) return;
 
     try {
+      // Clear all existing Neo4j data — full rebuild from source of truth
+      await this.graphDb.clearAll();
+      logger.info('[KNOWLEDGE] Cleared all Neo4j data for full rebuild');
+
       const allNodes: Instance[] = await parseAndEvaluateStatement(
         `{${CoreKnowledgeModuleName}/KnowledgeEntity {isLatest? true}}`,
         undefined
@@ -586,7 +583,7 @@ export class KnowledgeService {
       }
 
       logger.info(
-        `[KNOWLEDGE] Syncing ${allNodes.length} nodes across ${containerTags.size} container(s) to Neo4j`
+        `[KNOWLEDGE] Rebuilding Neo4j: ${allNodes.length} nodes across ${containerTags.size} agent container(s)`
       );
 
       for (const tag of containerTags) {
@@ -613,7 +610,6 @@ export class KnowledgeService {
       existingNodeId,
       replacement,
       session.containerTag,
-      session.userId,
       'CONVERSATION',
       session.sessionId,
       undefined,
@@ -646,7 +642,6 @@ export class KnowledgeService {
       confidence?: number;
     }>,
     containerTag: string,
-    userId: string,
     env?: Environment
   ): Promise<Array<{ id: string; name: string; entityType: string }>> {
     if (!this.enabled || entities.length === 0) {
@@ -663,8 +658,7 @@ export class KnowledgeService {
             `name "${escapeString(entity.name)}", ` +
             `entityType "${escapeString(entity.entityType)}", ` +
             `sourceType "${entity.sourceType}", ` +
-            `containerTag "${escapeString(containerTag)}", ` +
-            `userId "${userId}", ` +
+            `__tenant__ "${escapeString(containerTag)}", ` +
             `isLatest true, ` +
             `confidence ${entity.confidence || 1.0}` +
             (entity.description ? `, description "${escapeString(entity.description)}"` : '') +
@@ -708,7 +702,6 @@ export class KnowledgeService {
       sourceType: SourceType;
       containerTag: string;
     }>,
-    userId: string,
     env?: Environment
   ): Promise<Array<{ id: string; sourceId: string; targetId: string }>> {
     if (!this.enabled || edges.length === 0) {
@@ -727,8 +720,7 @@ export class KnowledgeService {
             `relType "${escapeString(edge.relType)}", ` +
             `weight ${edge.weight || 1.0}, ` +
             `sourceType "${edge.sourceType}", ` +
-            `containerTag "${escapeString(edge.containerTag)}", ` +
-            `userId "${userId}"` +
+            `__tenant__ "${escapeString(edge.containerTag)}"` +
             `}}`;
 
           const result = await parseAndEvaluateStatement(query, undefined, env);
@@ -824,7 +816,6 @@ export class KnowledgeService {
         await this.deduplicator.findOrCreateNode(
           { name: fact.content, entityType: 'Fact', description: fact.category },
           session.containerTag,
-          session.userId,
           session.containerTag,
           'CONVERSATION',
           session.sessionId,
@@ -835,15 +826,6 @@ export class KnowledgeService {
         logger.debug(`[KNOWLEDGE] Failed to store fact: ${err}`);
       }
     }
-  }
-
-  private async resolveDocumentContainerTags(
-    _agentId: string | undefined,
-    _containerTag: string,
-    _userId: string
-  ): Promise<string[]> {
-    // Agent-level isolation: all knowledge in single container, no need to resolve multiple tags
-    return [];
   }
 }
 
