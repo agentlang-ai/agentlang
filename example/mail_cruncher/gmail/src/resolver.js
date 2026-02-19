@@ -81,7 +81,7 @@ const getResponseBody = async response => {
   try {
     try {
       return await response.json();
-    } catch (e) {
+    } catch {
       return await response.text();
     }
   } catch (error) {
@@ -274,7 +274,7 @@ export const createEmail = async (env, attributes) => {
       Object.entries(headerObj).forEach(([key, value]) => {
         headerString += `${key}: ${value}\n`;
       });
-    } catch (e) {
+    } catch {
       console.warn('GMAIL RESOLVER: Invalid headers format, ignoring');
     }
   }
@@ -300,7 +300,6 @@ export const queryEmail = async (env, attrs) => {
   const id = attrs.queryAttributeValues?.get('__path__')?.split('/')?.pop() ?? null;
 
   try {
-    let inst;
     if (id) {
       const messageDetail = await makeGetRequest(`/gmail/v1/users/me/messages/${id}`);
       const headers =
@@ -519,7 +518,7 @@ export const sendEmail = async (env, attributes) => {
       Object.entries(headerObj).forEach(([key, value]) => {
         headerString += `${key}: ${value}\n`;
       });
-    } catch (e) {
+    } catch {
       console.warn('GMAIL RESOLVER: Invalid headers format, ignoring');
     }
   }

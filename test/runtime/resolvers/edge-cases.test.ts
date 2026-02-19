@@ -1,4 +1,4 @@
-import { assert, describe, test, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { assert, describe, test, beforeAll, afterAll, beforeEach } from 'vitest';
 import { doInternModule, doPreInit } from '../../util.js';
 import {
   initDatabase,

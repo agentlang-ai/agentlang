@@ -137,7 +137,7 @@ export class Resolver {
     relationship: Relationship,
     connectedInstance: Instance,
     inst: Instance,
-    connectedAlias?: string
+    _connectedAlias?: string
   ): Promise<any> {
     return this.notImpl(`queryConnectedInstances(${relationship}, ${connectedInstance}, ${inst})`);
   }

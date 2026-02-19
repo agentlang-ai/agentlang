@@ -15,14 +15,13 @@ import {
   TimeoutError,
   CircuitOpenError,
   CircuitState,
-  CircuitBreakerState,
   getCircuitBreakerState,
   resetCircuitBreakerState,
   resetAllCircuitBreakerStates,
   PolicyResolver,
 } from '../../../src/runtime/resolvers/policy.js';
 import { createInMemoryResolver } from './utils.js';
-import { Instance, InstanceAttributes } from '../../../src/runtime/module.js';
+import { Instance } from '../../../src/runtime/module.js';
 import {
   startPolicyRefreshTimer,
   stopPolicyRefreshTimer,
