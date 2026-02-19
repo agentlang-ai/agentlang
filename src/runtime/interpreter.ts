@@ -1999,6 +1999,25 @@ async function computeExprAttributes(
         updatedAttrs?.set(n, v);
       }
     }
+    // Re-evaluate non-@expr attribute expressions from origAttrs in the context
+    // of the queried instance. This handles workflow update expressions like
+    // `balance balance + (balance * interestRate) + makeDeposit.amount` where
+    // the local attribute references must resolve from the existing instance.
+    // Only runs on the update path (where updatedAttrs is a separate map from
+    // inst.attributes) to avoid double-evaluating expressions on create.
+    if (origAttrs && updatedAttrs && updatedAttrs !== inst.attributes) {
+      for (let i = 0; i < origAttrs.length; ++i) {
+        const a: SetAttribute = origAttrs[i];
+        const n = a.name;
+        if (exprAttrs?.has(n)) continue;
+        if (!n.endsWith(QuerySuffix) && updatedAttrs.has(n) && a.value !== undefined) {
+          await evaluateExpression(a.value, newEnv);
+          const v: Result = newEnv.getLastResult();
+          updatedAttrs.set(n, v);
+          newEnv.bind(n, v);
+        }
+      }
+    }
   }
 }
 

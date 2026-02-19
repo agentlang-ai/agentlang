@@ -2,8 +2,7 @@ import { assert, describe, test } from 'vitest';
 import { testModule, is, runTests, runPatternTests } from '../../src/test-harness.js';
 import { doInternModule } from '../util.js';
 
-const bankingModule = `module banking.core
-entity BankAccount {
+const bankingModuleBody = `entity BankAccount {
   accountNo Int @id,
   balance Decimal,
   interestRate Decimal
@@ -18,28 +17,11 @@ workflow makeDeposit {
                  balance balance + (balance * interestRate) + makeDeposit.amount}
   }
 }`;
+const bankingModule = `module banking.core\n${bankingModuleBody}`;
 
 describe('Test harness - Banking module', () => {
   test('deposit increases balance with interest', async () => {
-    const m = await testModule(
-      'banking.core',
-      `entity BankAccount {
-        accountNo Int @id,
-        balance Decimal,
-        interestRate Decimal
-      }
-      @public event makeDeposit {
-        accountNo Int,
-        amount Decimal
-      }
-      workflow makeDeposit {
-        {
-          BankAccount {accountNo? makeDeposit.accountNo,
-                       balance balance + (balance * interestRate) + makeDeposit.amount}
-        }
-      }`,
-      doInternModule
-    );
+    const m = await testModule('banking.core', bankingModuleBody, doInternModule);
 
     const account = await m.create_BankAccount({
       accountNo: 101992,
@@ -157,22 +139,7 @@ describe('Test harness - Relationships', () => {
 describe('runTests - string-based test runner', () => {
   test('passing tests', async () => {
     const result = await runTests(
-      `module banking.core
-      entity BankAccount {
-        accountNo Int @id,
-        balance Decimal,
-        interestRate Decimal
-      }
-      @public event makeDeposit {
-        accountNo Int,
-        amount Decimal
-      }
-      workflow makeDeposit {
-        {
-          BankAccount {accountNo? makeDeposit.accountNo,
-                       balance balance + (balance * interestRate) + makeDeposit.amount}
-        }
-      }`,
+      bankingModule,
       `
       let account = await create_BankAccount({accountNo: 101992, balance: 100, interestRate: 0.5});
       is(account.accountNo == 101992);
