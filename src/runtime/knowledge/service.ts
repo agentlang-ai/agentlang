@@ -23,9 +23,7 @@ const MAX_KNOWLEDGE_SESSION_MESSAGES = parseInt(
 
 export interface KnowledgeSessionContext {
   sessionId: string;
-  userId: string;
   agentId: string;
-  containerTag: string; // Now agent-only: "agentFqName" (no user suffix)
 }
 
 let knowledgeServiceInstance: KnowledgeService | null = null;
@@ -108,24 +106,19 @@ export class KnowledgeService {
 
   // --- Session Management ---
 
-  async getOrCreateSession(
-    agentId: string,
-    userId: string,
-    agentFqName: string
-  ): Promise<KnowledgeSessionContext> {
+  async getOrCreateSession(agentFqName: string): Promise<KnowledgeSessionContext> {
     if (!this.enabled) {
       throw new Error('Knowledge base is disabled: no embedding API key configured');
     }
 
-    // Agent-level isolation only - all users share the same knowledge graph
-    const containerTag = agentFqName;
+    const agentId = agentFqName;
 
     try {
       const result = await parseAndEvaluateStatement(
         `{${CoreKnowledgeModuleName}/KnowledgeSession {
           agentId? "${escapeString(agentId)}",
-          userId? "${escapeString(userId)}",
-          __tenant__? "${escapeString(containerTag)}"}}`,
+          
+          agentId? "${escapeString(agentId)}"}}`,
         undefined
       );
 
@@ -133,17 +126,15 @@ export class KnowledgeService {
         const session = result[0];
         return {
           sessionId: session.lookup('id'),
-          userId: session.lookup('userId'),
           agentId: session.lookup('agentId'),
-          containerTag: session.lookup('__tenant__'),
         };
       }
 
-      logger.info(`[KNOWLEDGE] Creating new session for agentId=${agentId}, userId=${userId}`);
+      logger.info(`[KNOWLEDGE] Creating new session for agentId=${agentId}`);
       const sessionStatement = `{${CoreKnowledgeModuleName}/KnowledgeSession {
           agentId "${escapeString(agentId)}",
-          userId "${escapeString(userId)}",
-          __tenant__ "${escapeString(containerTag)}",
+          
+          agentId "${escapeString(agentId)}",
           messages "[]",
           createdAt now(),
           lastActivity now()}}`;
@@ -161,8 +152,8 @@ export class KnowledgeService {
       const queryResult = await parseAndEvaluateStatement(
         `{${CoreKnowledgeModuleName}/KnowledgeSession {
           agentId? "${escapeString(agentId)}",
-          userId? "${escapeString(userId)}",
-          __tenant__? "${escapeString(containerTag)}"}}`,
+          
+          agentId? "${escapeString(agentId)}"}}`,
         undefined
       );
 
@@ -171,9 +162,7 @@ export class KnowledgeService {
         logger.info(`[KNOWLEDGE] Session found after creation: ${session.lookup('id')}`);
         return {
           sessionId: session.lookup('id'),
-          userId: session.lookup('userId'),
           agentId: session.lookup('agentId'),
-          containerTag: session.lookup('__tenant__'),
         };
       }
 
@@ -489,7 +478,7 @@ export class KnowledgeService {
       await this.graphDb.clearContainer(containerTag);
 
       const nodeResults: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeEntity {          __tenant__? "${escapeString(containerTag)}", isLatest? true}}`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {          agentId? "${escapeString(agentId)}", isLatest? true}}`,
         undefined
       );
 
@@ -511,7 +500,7 @@ export class KnowledgeService {
             sourceChunk: inst.lookup('sourceChunk') as string | undefined,
             instanceId: inst.lookup('instanceId') as string | undefined,
             instanceType: inst.lookup('instanceType') as string | undefined,
-            __tenant__: inst.lookup('__tenant__') as string,
+            agentId: inst.lookup('agentId') as string,
             agentId: inst.lookup('agentId') as string | undefined,
             confidence: (inst.lookup('confidence') as number) || 1.0,
             createdAt: new Date(),
@@ -526,7 +515,7 @@ export class KnowledgeService {
       }
 
       const edgeResults: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeEdge {__tenant__? "${escapeString(containerTag)}"}}`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEdge {agentId? "${escapeString(agentId)}"}}`,
         undefined
       );
 
@@ -581,7 +570,7 @@ export class KnowledgeService {
 
       const containerTags = new Set<string>();
       for (const inst of allNodes) {
-        const tag = inst.lookup('__tenant__') as string;
+        const tag = inst.lookup('agentId') as string;
         if (tag) containerTags.add(tag);
       }
 
@@ -673,7 +662,7 @@ export class KnowledgeService {
             sourceChunk: entity.sourceChunk ? entity.sourceChunk.substring(0, 500) : null,
             instanceId: null,
             instanceType: null,
-            __tenant__: containerTag,
+            agentId: containerTag,
             agentId: entity.agentId || null,
             confidence: entity.confidence || 1.0,
             isLatest: true,
@@ -749,7 +738,7 @@ export class KnowledgeService {
             relType: edge.relType,
             weight: edge.weight || 1.0,
             sourceType: edge.sourceType,
-            __tenant__: edge.containerTag,
+            agentId: edge.containerTag,
             agentId: null,
             createdAt: new Date().toISOString(),
             __path__: path,

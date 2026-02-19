@@ -14,8 +14,7 @@ entity KnowledgeEntity {
     sourceChunk String @optional,
     instanceId String @optional,
     instanceType String @optional,
-    __tenant__ String,
-    agentId String @optional,
+    agentId String,
     confidence Float @default(1.0),
     isLatest Boolean @default(true),
     embedding String @optional,
@@ -29,16 +28,13 @@ entity KnowledgeEdge {
     relType String,
     weight Float @default(1.0),
     sourceType @enum("DOCUMENT", "CONVERSATION", "INSTANCE", "DERIVED") @optional,
-    __tenant__ String,
-    agentId String @optional,
+    agentId String,
     createdAt DateTime @default(now())
 }
 
 entity KnowledgeSession {
     id UUID @id @default(uuid()),
-    userId String @optional,
     agentId String,
-    __tenant__ String,
     messages String,
     contextNodeIds String @optional,
     activeInstances String @optional,
@@ -60,8 +56,7 @@ entity SessionMessage {
 entity DocumentGroup {
     id UUID @id @default(uuid()),
     name String,
-    __tenant__ String,
-    agentId String @optional,
+    agentId String,
     createdAt DateTime @default(now())
 }
 
@@ -72,8 +67,7 @@ entity Document {
     sourceType @enum("FILE", "URL", "TEXT", "CONVERSATION"),
     sourceUrl String @optional,
     documentGroupId String @optional,
-    __tenant__ String,
-    agentId String @optional,
+    agentId String,
     createdAt DateTime @default(now()),
     @meta {"fullTextSearch": ["title", "content"]}
 }

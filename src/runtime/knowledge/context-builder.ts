@@ -143,7 +143,7 @@ export class ContextBuilder {
       // Limit to MAX_SEED_NODES to prevent memory issues
       const result: Instance[] = await parseAndEvaluateStatement(
         `{${CoreKnowledgeModuleName}/KnowledgeEntity {
-          __tenant__? "${escapeString(tenantId)}",
+          agentId? "${escapeString(tenantId)}",
           name? "${escapeString(query)}"},
           @limit ${MAX_SEED_NODES}}`,
         undefined
@@ -174,7 +174,7 @@ export class ContextBuilder {
       try {
         const result: Instance[] = await parseAndEvaluateStatement(
           `{${CoreKnowledgeModuleName}/KnowledgeEntity {` +
-            `__tenant__? "${escapeString(tenantId)}", ` +
+            `agentId? "${escapeString(tenantId)}", ` +
             `name? "${escapeString(candidate)}"}, ` +
             `@limit ${MAX_SEED_NODES}}`,
           undefined
@@ -410,7 +410,7 @@ function mergeEdges(existing: GraphEdge[], incoming: GraphEdge[], limit: number)
 function groupNodesByContainer(nodes: GraphNode[]): Map<string, GraphNode[]> {
   const grouped = new Map<string, GraphNode[]>();
   for (const node of nodes) {
-    const tag = node.__tenant__ || '';
+    const tag = node.agentId || '';
     if (!grouped.has(tag)) grouped.set(tag, []);
     grouped.get(tag)!.push(node);
   }

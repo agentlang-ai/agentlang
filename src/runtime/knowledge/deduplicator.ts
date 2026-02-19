@@ -255,7 +255,7 @@ export class SemanticDeduplicator {
       // Query directly by name instead of scanning recent nodes
       // This is much more efficient and prevents duplicates
       const result: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeEntity {name? "${escapeString(normalizedName)}", containerTag? "${escapeString(containerTag)}", __tenant__? "${escapeString(tenantId)}", isLatest? true}}`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {name? "${escapeString(normalizedName)}", containerTag? "${escapeString(containerTag)}", agentId? "${escapeString(tenantId)}", isLatest? true}}`,
         undefined
       );
 
@@ -280,7 +280,7 @@ export class SemanticDeduplicator {
       const result: Instance[] = await parseAndEvaluateStatement(
         `{${CoreKnowledgeModuleName}/KnowledgeEntity {` +
           `containerTag? "${escapeString(containerTag)}", ` +
-          `__tenant__? "${escapeString(tenantId)}", ` +
+          `agentId? "${escapeString(tenantId)}", ` +
           `isLatest? true, ` +
           `name? "${escapeString(entity.name)}"}, ` +
           `@limit ${MAX_SIMILAR_CANDIDATES}}`,
@@ -453,7 +453,7 @@ export class SemanticDeduplicator {
       `name "${escapeString(entity.name)}", ` +
       `entityType "${escapeString(entity.entityType)}", ` +
       `sourceType "${sourceType}", ` +
-      `__tenant__ "${containerTag}", ` +
+      `agentId "${containerTag}", ` +
       `isLatest true, ` +
       `confidence 1.0`;
 
