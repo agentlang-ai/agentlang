@@ -73,7 +73,7 @@ export class Neo4jDatabase implements GraphDatabase {
           id: $id, name: $name, entityType: $entityType, description: $description,
           sourceType: $sourceType, sourceId: $sourceId, sourceChunk: $sourceChunk,
           instanceId: $instanceId, instanceType: $instanceType,
-          __tenant__: $containerTag, userId: $userId, agentId: $agentId,
+          __tenant__: $containerTag, agentId: $agentId,
           confidence: $confidence, isLatest: $isLatest,
           createdAt: datetime(), updatedAt: datetime()
         }) RETURN n.id AS id`,
@@ -88,7 +88,6 @@ export class Neo4jDatabase implements GraphDatabase {
           instanceId: node.instanceId || null,
           instanceType: node.instanceType || null,
           containerTag: node.__tenant__,
-          userId: node.userId,
           agentId: node.agentId || null,
           confidence: node.confidence,
           isLatest: node.isLatest,
@@ -108,7 +107,7 @@ export class Neo4jDatabase implements GraphDatabase {
          SET n.name = $name, n.entityType = $entityType, n.description = $description,
              n.sourceType = $sourceType, n.sourceId = $sourceId, n.sourceChunk = $sourceChunk,
              n.instanceId = $instanceId, n.instanceType = $instanceType,
-              n.__tenant__ = $containerTag, n.userId = $userId, n.agentId = $agentId,
+             n.__tenant__ = $containerTag, n.agentId = $agentId,
              n.confidence = $confidence, n.isLatest = $isLatest,
              n.updatedAt = datetime(),
              n.createdAt = coalesce(n.createdAt, datetime())
@@ -124,7 +123,6 @@ export class Neo4jDatabase implements GraphDatabase {
           instanceId: node.instanceId || null,
           instanceType: node.instanceType || null,
           containerTag: node.__tenant__,
-          userId: node.userId,
           agentId: node.agentId || null,
           confidence: node.confidence,
           isLatest: node.isLatest,
@@ -383,6 +381,16 @@ export class Neo4jDatabase implements GraphDatabase {
     }
 
     return { nodes: Array.from(nodeMap.values()), edges };
+  }
+
+  async clearAll(): Promise<void> {
+    const session = this.driver.session();
+    try {
+      await session.run('MATCH (n:KnowledgeEntity) DETACH DELETE n');
+      logger.info('[GRAPH] Cleared all Neo4j knowledge data');
+    } finally {
+      await session.close();
+    }
   }
 
   async clearContainer(__tenant__: string): Promise<void> {

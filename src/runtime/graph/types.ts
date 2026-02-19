@@ -12,7 +12,6 @@ export interface GraphNode {
   instanceId?: string;
   instanceType?: string;
   __tenant__: string;
-  userId: string;
   agentId?: string;
   confidence: number;
   createdAt: Date;

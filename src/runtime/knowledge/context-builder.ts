@@ -22,7 +22,6 @@ export class ContextBuilder {
   async buildContext(
     query: string,
     containerTag: string,
-    _userId: string,
     tenantId: string,
     extraContainerTags?: string[]
   ): Promise<KnowledgeContext> {

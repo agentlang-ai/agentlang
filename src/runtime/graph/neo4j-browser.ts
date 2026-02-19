@@ -102,6 +102,10 @@ export class Neo4jBrowserDatabase implements GraphDatabase {
     throw new Error('Neo4j Browser: expandGraph not yet implemented');
   }
 
+  async clearAll(): Promise<void> {
+    throw new Error('Neo4j Browser: clearAll not yet implemented');
+  }
+
   async clearContainer(__tenant__: string): Promise<void> {
     throw new Error('Neo4j Browser: clearContainer not yet implemented');
   }

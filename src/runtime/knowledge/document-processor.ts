@@ -19,8 +19,6 @@ import { findProviderForLLM } from '../modules/ai.js';
 
 const DEFAULT_CHUNK_SIZE = parseInt(process.env.KG_CHUNK_SIZE || '1000', 10);
 const DEFAULT_CHUNK_OVERLAP = parseInt(process.env.KG_CHUNK_OVERLAP || '200', 10);
-const MAX_DOCUMENT_NODES = parseInt(process.env.KG_MAX_DOCUMENT_NODES || '1000', 10);
-const MAX_DOCUMENT_EDGES = parseInt(process.env.KG_MAX_DOCUMENT_EDGES || '2000', 10);
 const MAX_MEGA_BATCH_CHARS = parseInt(process.env.KG_MEGA_BATCH_CHARS || '50000', 10);
 const MAX_ENTITIES_PER_BATCH = parseInt(process.env.KG_MAX_ENTITIES_PER_BATCH || '50', 10);
 const MAX_RELATIONSHIPS_PER_BATCH = parseInt(
@@ -76,7 +74,6 @@ export class DocumentProcessor {
   async processDocument(
     document: Document,
     containerTag: string,
-    userId: string,
     tenantId: string,
     agentId?: string,
     env?: Environment,
@@ -158,8 +155,7 @@ export class DocumentProcessor {
       CORE_ENTITY_LIMIT,
       CORE_ENTITY_PER_TYPE,
       MIN_ENTITY_MENTIONS,
-      MIN_ENTITY_SALIENCE,
-      MAX_DOCUMENT_NODES
+      MIN_ENTITY_SALIENCE
     );
 
     if (coreEntities.length === 0) {
@@ -186,7 +182,6 @@ export class DocumentProcessor {
     const nodes = await this.deduplicator.findOrCreateNodesBatch(
       entitiesToCreate,
       containerTag,
-      userId,
       tenantId,
       'DOCUMENT',
       document.name,
@@ -245,14 +240,7 @@ export class DocumentProcessor {
 
     // Create edges from accumulated relationships
     for (const rel of candidateRelationships.values()) {
-      if (edgesCreated >= MAX_DOCUMENT_EDGES) break;
-      const edge = await this.createEdgeFromCandidate(
-        rel,
-        coreNodeMap,
-        containerTag,
-        userId,
-        agentId
-      );
+      const edge = await this.createEdgeFromCandidate(rel, coreNodeMap, containerTag, agentId);
       if (edge) {
         edgesCreated++;
       }
@@ -342,7 +330,6 @@ export class DocumentProcessor {
     rel: RelationshipCandidate,
     nodeMap: Map<string, GraphNode>,
     containerTag: string,
-    userId: string,
     agentId?: string
   ): Promise<GraphEdge | null> {
     const sourceNode = nodeMap.get(rel.sourceKey);
@@ -402,8 +389,7 @@ export class DocumentProcessor {
           `relType "${escapeString(edge.relationship)}", ` +
           `weight ${edge.weight}, ` +
           `sourceType "DOCUMENT", ` +
-          `containerTag "${escapeString(containerTag)}", ` +
-          `userId "${escapeString(userId)}"` +
+          `__tenant__ "${escapeString(containerTag)}"` +
           (agentId ? `, agentId "${escapeString(agentId)}"` : '') +
           `}}`,
         undefined
@@ -445,8 +431,7 @@ function selectCoreEntities(
   coreLimit: number,
   perTypeLimit: number,
   minMentions: number,
-  minSalience: number,
-  maxNodes: number
+  minSalience: number
 ): CandidateScore[] {
   const scored = Array.from(candidates.values()).map(candidate => {
     const salienceAvg = candidate.salienceSum / Math.max(1, candidate.salienceCount);
@@ -489,9 +474,5 @@ function selectCoreEntities(
     }
   }
 
-  let results = Array.from(selected.values());
-  if (results.length > maxNodes) {
-    results = results.sort((a, b) => b.score - a.score).slice(0, maxNodes);
-  }
-  return results;
+  return Array.from(selected.values());
 }
