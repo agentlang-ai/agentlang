@@ -82,6 +82,50 @@ export const AgentLearnerType = 'learner';
 
 const AgentEvalType = 'eval';
 
+// --- Agent cancellation infrastructure ---
+
+export class AgentCancelledException extends Error {
+  constructor(chatId: string) {
+    super(`Agent cancelled for chatId: ${chatId}`);
+    this.name = 'AgentCancelledException';
+  }
+}
+
+export async function cancelAgent(chatId: string): Promise<string> {
+  const t = `${CoreAIModuleName}/${CancelledAgentEntity}`;
+  await parseAndEvaluateStatement(`{${t} {chatId "${chatId}"}, @upsert}`);
+  return `Cancellation requested for chatId: ${chatId}`;
+}
+
+export async function checkCancelled(chatId: string): Promise<void> {
+  if (!chatId) return;
+  try {
+    const results: Instance[] = await parseAndEvaluateStatement(
+      `{${CoreAIModuleName}/${CancelledAgentEntity} {chatId? "${chatId}"}}`
+    );
+    if (results && results.length > 0) {
+      await parseAndEvaluateStatement(
+        `purge {${CoreAIModuleName}/${CancelledAgentEntity} {chatId? "${chatId}"}}`
+      );
+      throw new AgentCancelledException(chatId);
+    }
+  } catch (err: any) {
+    if (err instanceof AgentCancelledException) throw err;
+    logger.debug(`checkCancelled DB error for ${chatId}: ${err}`);
+  }
+}
+
+export async function clearCancellation(chatId: string): Promise<void> {
+  if (!chatId) return;
+  try {
+    await parseAndEvaluateStatement(
+      `purge {${CoreAIModuleName}/${CancelledAgentEntity} {chatId? "${chatId}"}}`
+    );
+  } catch (err: any) {
+    logger.debug(`clearCancellation DB error for ${chatId}: ${err}`);
+  }
+}
+
 export default `module ${CoreAIModuleName}
 
 import "./modules/ai.js" @as ai
@@ -202,6 +246,10 @@ entity AgentFlowStep {
     suspensionId String
 }
 
+entity CancelledAgent {
+    chatId String @id
+}
+
 @public event restartFlow {
   chatId String,
   step String,
@@ -213,6 +261,14 @@ workflow restartFlow {
   if (fs) {
     {${DefaultModuleName}/restartSuspension {id fs.suspensionId, data restartFlow.userInput}}
   }
+}
+
+@public event cancelAgent {
+  chatId String
+}
+
+workflow cancelAgent {
+  await ai.cancelAgent(cancelAgent.chatId)
 }
 `;
 
@@ -822,6 +878,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const p = await findProviderForLLM(this.llm, env);
     const agentName = this.name;
     const chatId = env.getAgentChatId() || agentName;
+    await checkCancelled(chatId);
     let isplnr = this.isPlanner();
     const isflow = !isplnr && this.isFlowExecutor();
     const iseval = !isplnr && !isflow && this.isEvaluator();
@@ -920,7 +977,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         let response: AIResponse = await p.invoke(msgs, externalToolSpecs);
         const v = this.getValidationEvent();
         if (v) {
-          response = await this.handleValidation(response, v, msgs, p);
+          response = await this.handleValidation(response, v, msgs, p, chatId);
         }
         if (!iseval)
           await AgentInstance.maybeEvaluateResponse(
@@ -1005,7 +1062,8 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     response: AIResponse,
     validationEventName: string,
     msgs: BaseMessage[],
-    provider: AgentServiceProvider
+    provider: AgentServiceProvider,
+    chatId?: string
   ): Promise<AIResponse> {
     let r: Instance = await this.invokeValidator(response, validationEventName);
     const status = r.lookup('status');
@@ -1017,6 +1075,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         let attempt = 0;
         let delay = this.retryObj.getNextDelayMs(attempt);
         while (delay) {
+          if (chatId) await checkCancelled(chatId);
           msgs.push(assistantMessage(resp.content));
           const vs = JSON.stringify(r.asSerializableObject());
           msgs.push(
@@ -1461,6 +1520,7 @@ export async function processAgentLearning(
 const LocalAgentgFlow = true;
 const LocalFlowStepsRootDirName = 'flows';
 const AgentFlowStep = 'AgentFlowStep';
+const CancelledAgentEntity = 'CancelledAgent';
 
 export async function saveFlowStepResultLocally(
   chatId: string,
