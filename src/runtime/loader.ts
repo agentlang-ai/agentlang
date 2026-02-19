@@ -123,7 +123,7 @@ import {
 import { getDefaultLLMService } from './agents/registry.js';
 import { GenericResolver, GenericResolverMethods } from './resolvers/interface.js';
 import { registerResolver, setResolver } from './resolvers/registry.js';
-import { Config, ConfigSchema, setAppConfig } from './state.js';
+import { AppConfig, Config, ConfigSchema, setAppConfig } from './state.js';
 import { getModuleFn, importModule } from './jsmodules.js';
 import { SetSubscription } from './defs.js';
 import { ExtendedFileSystem } from '../utils/fs/interfaces.js';
@@ -432,7 +432,9 @@ export async function loadAppConfig(configDirOrContent: string): Promise<Config>
       const envConfig = JSON.parse(envAppConfig);
       cfg = { ...cfg, ...envConfig };
     }
-    return setAppConfig(cfg);
+    const result = setAppConfig(cfg);
+
+    return result;
   } catch (err: any) {
     if (err instanceof z.ZodError) {
       console.log(chalk.red('Config validation failed:'));
@@ -1161,6 +1163,15 @@ function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
     });
     const methodsObj = Object.fromEntries(methods.entries()) as GenericResolverMethods;
     const resolver = new GenericResolver(resolverName, methodsObj);
+    const connections = AppConfig?.integrations?.connections;
+    if (connections) {
+      for (const [integName, conn] of Object.entries(connections)) {
+        if (conn.resolvers.includes(resolverName)) {
+          resolver.setIntegrationName(integName);
+          break;
+        }
+      }
+    }
     registerResolver(resolverName, () => {
       return resolver;
     });

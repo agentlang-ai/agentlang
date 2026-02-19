@@ -42,7 +42,10 @@ export const ConfigSchema = z.object({
       host: z.string(),
       username: z.string().optional(),
       password: z.string().optional(),
-      connections: z.record(z.string(), z.string()),
+      connections: z.record(z.string(), z.object({
+        config: z.string(),
+        resolvers: z.array(z.string()),
+      })),
     })
     .optional(),
   graphql: z
