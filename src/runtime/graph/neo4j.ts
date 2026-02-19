@@ -438,7 +438,6 @@ export class Neo4jDatabase implements GraphDatabase {
       instanceId: props.instanceId,
       instanceType: props.instanceType,
       __tenant__: props.__tenant__,
-      userId: props.userId,
       agentId: props.agentId,
       confidence: props.confidence ?? 1.0,
       createdAt: props.createdAt ? new Date(props.createdAt) : new Date(),

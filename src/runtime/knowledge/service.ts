@@ -250,7 +250,7 @@ export class KnowledgeService {
   async buildContext(
     query: string,
     containerTag: string,
-    agentId?: string
+    _agentId?: string
   ): Promise<KnowledgeContext> {
     if (!this.enabled) {
       return { entities: [], relationships: [], instanceData: [], contextString: '' };
