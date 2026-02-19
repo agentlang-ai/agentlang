@@ -60,7 +60,7 @@ describe('Knowledge Graph Memory System', () => {
           name: 'Alice',
           entityType: 'Person',
           description: 'Main character',
-          __tenant__: 'test',
+          agentId: 'test',
           confidence: 1.0,
           sourceType: 'DOCUMENT',
           isLatest: true,
@@ -72,7 +72,7 @@ describe('Knowledge Graph Memory System', () => {
           name: 'Wonderland',
           entityType: 'Location',
           description: 'Fantasy world',
-          __tenant__: 'test',
+          agentId: 'test',
           confidence: 1.0,
           sourceType: 'DOCUMENT',
           isLatest: true,
@@ -98,7 +98,7 @@ describe('Knowledge Graph Memory System', () => {
           id: '1',
           name: 'Alice',
           entityType: 'Person',
-          __tenant__: 'test',
+          agentId: 'test',
           confidence: 1.0,
           sourceType: 'DOCUMENT',
           isLatest: true,
@@ -109,7 +109,7 @@ describe('Knowledge Graph Memory System', () => {
           id: '2',
           name: 'White Rabbit',
           entityType: 'Person',
-          __tenant__: 'test',
+          agentId: 'test',
           confidence: 1.0,
           sourceType: 'DOCUMENT',
           isLatest: true,
@@ -138,7 +138,7 @@ describe('Knowledge Graph Memory System', () => {
           entityType: 'Product',
           instanceId: 'order-123',
           instanceType: 'Shop/Order',
-          __tenant__: 'test',
+          agentId: 'test',
           confidence: 1.0,
           sourceType: 'INSTANCE',
           isLatest: true,
@@ -298,57 +298,39 @@ describe('Knowledge Graph Memory System', () => {
       const knowledgeService = getKnowledgeService();
       const agentFqName = 'KnowledgeTestApp/supportAgent';
 
-      const session = await knowledgeService.getOrCreateSession(
-        'supportAgent',
-        'test-user-001',
-        agentFqName
-      );
+      const session = await knowledgeService.getOrCreateSession(agentFqName);
       expect(session).toBeDefined();
       expect(session.sessionId).toBeDefined();
-      expect(session.userId).toBe('test-user-001');
-      expect(session.agentId).toBe('supportAgent');
-      expect(session.containerTag).toBe(agentFqName);
+      expect(session.agentId).toBe(agentFqName);
 
-      const context = await knowledgeService.buildContext('Hello', session.containerTag);
+      const context = await knowledgeService.buildContext('Hello', agentFqName);
       expect(context).toBeDefined();
       expect(typeof context.contextString).toBe('string');
     });
 
-    test('shares knowledge container across users (agent-level isolation)', async () => {
+    test('shares knowledge container across sessions (agent-level isolation)', async () => {
       await doInternModule('KGSessionIsolation', `entity Data { id Int @id }`);
       const knowledgeService = getKnowledgeService();
       const agentFqName = 'KGSessionIsolation/testAgent';
 
-      const session1 = await knowledgeService.getOrCreateSession(
-        'testAgent',
-        'user-alpha',
-        agentFqName
-      );
-      const session2 = await knowledgeService.getOrCreateSession(
-        'testAgent',
-        'user-beta',
-        agentFqName
-      );
+      const session1 = await knowledgeService.getOrCreateSession(agentFqName);
+      const session2 = await knowledgeService.getOrCreateSession(agentFqName);
 
-      // Both users share the same agent-level container
-      expect(session1.containerTag).toBe(session2.containerTag);
-      expect(session1.containerTag).toBe(agentFqName);
-      // Sessions are still per-user
+      // Both sessions share the same agent-level container
+      expect(session1.agentId).toBe(agentFqName);
+      expect(session2.agentId).toBe(agentFqName);
+      // Sessions are still unique
       expect(session1.sessionId).not.toBe(session2.sessionId);
     });
 
-    test('formats containerTag as agentFqName (agent-only)', async () => {
+    test('uses agentFqName for agent-level isolation', async () => {
       await doInternModule('KGFormatTest', `entity X { id Int @id }`);
       const knowledgeService = getKnowledgeService();
       const agentFqName = 'KGFormatTest/testAgent';
 
-      const session = await knowledgeService.getOrCreateSession(
-        'testAgent',
-        'test-user',
-        agentFqName
-      );
+      const session = await knowledgeService.getOrCreateSession(agentFqName);
 
-      expect(session.containerTag).toBe('KGFormatTest/testAgent');
+      expect(session.agentId).toBe('KGFormatTest/testAgent');
     });
   });
 });

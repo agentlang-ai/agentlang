@@ -12,7 +12,12 @@
       "dbname": "./data/vector-store/cc-vectors.lance"
     },
     "knowledgeGraph": {
-      "enabled": true
+      "enabled": true,
+      "neo4j": {
+        "uri": "#js process.env.GRAPH_DB_URI || 'bolt://localhost:7687'",
+        "user": "#js process.env.GRAPH_DB_USER || 'neo4j'",
+        "password": "#js process.env.GRAPH_DB_PASSWORD || 'password'"
+      }
     },
     "retry": [
       {

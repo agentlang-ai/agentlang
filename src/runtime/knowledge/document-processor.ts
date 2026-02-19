@@ -73,9 +73,7 @@ export class DocumentProcessor {
 
   async processDocument(
     document: Document,
-    containerTag: string,
-    tenantId: string,
-    agentId?: string,
+    agentId: string,
     env?: Environment,
     llmName?: string
   ): Promise<ProcessingResult> {
@@ -181,12 +179,10 @@ export class DocumentProcessor {
 
     const nodes = await this.deduplicator.findOrCreateNodesBatch(
       entitiesToCreate,
-      containerTag,
-      tenantId,
+      agentId,
       'DOCUMENT',
       document.name,
-      sourceChunks,
-      agentId
+      sourceChunks
     );
 
     for (let i = 0; i < coreEntities.length; i++) {
@@ -240,7 +236,7 @@ export class DocumentProcessor {
 
     // Create edges from accumulated relationships
     for (const rel of candidateRelationships.values()) {
-      const edge = await this.createEdgeFromCandidate(rel, coreNodeMap, containerTag, agentId);
+      const edge = await this.createEdgeFromCandidate(rel, coreNodeMap, agentId);
       if (edge) {
         edgesCreated++;
       }
@@ -329,8 +325,7 @@ export class DocumentProcessor {
   private async createEdgeFromCandidate(
     rel: RelationshipCandidate,
     nodeMap: Map<string, GraphNode>,
-    containerTag: string,
-    agentId?: string
+    agentId: string
   ): Promise<GraphEdge | null> {
     const sourceNode = nodeMap.get(rel.sourceKey);
     const targetNode = nodeMap.get(rel.targetKey);
@@ -389,8 +384,7 @@ export class DocumentProcessor {
           `relType "${escapeString(edge.relationship)}", ` +
           `weight ${edge.weight}, ` +
           `sourceType "DOCUMENT", ` +
-          `agentId "${escapeString(containerTag)}"` +
-          (agentId ? `, agentId "${escapeString(agentId)}"` : '') +
+          `agentId "${escapeString(agentId)}"` +
           `}}`,
         undefined
       );

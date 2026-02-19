@@ -1,6 +1,7 @@
 import { default as ai, normalizeGeneratedCode } from './ai.js';
 import { default as auth } from './auth.js';
 import { default as files } from './files.js';
+import { default as knowledge } from './knowledge.js';
 import { default as mcp } from './mcp.js';
 import {
   DefaultModuleName,
@@ -187,6 +188,7 @@ export function registerCoreModules() {
     { def: auth, name: makeCoreModuleName('auth') },
     { def: ai, name: makeCoreModuleName('ai') },
     { def: files, name: makeCoreModuleName('files') },
+    { def: knowledge, name: makeCoreModuleName('knowledge') },
     { def: mcp, name: mcpn },
   ];
 

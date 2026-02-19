@@ -88,11 +88,9 @@ export class ConversationProcessor {
         const node = await this.deduplicator.findOrCreateNode(
           entity,
           containerTag,
-          containerTag,
           'CONVERSATION',
           sessionId,
-          `User: ${userMessage}\nAssistant: ${assistantResponse}`,
-          agentId
+          `User: ${userMessage}\nAssistant: ${assistantResponse}`
         );
         const canonicalKey = entity.name.toLowerCase();
         nodeMap.set(canonicalKey, node);

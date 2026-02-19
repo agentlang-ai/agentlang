@@ -182,6 +182,14 @@ export function isMonitoringEnabled(): boolean {
   return internalMonitoringEnabled || AppConfig?.monitoring?.enabled === true;
 }
 
+export function isKnowledgeGraphEnabled(): boolean {
+  return AppConfig?.knowledgeGraph?.enabled === true;
+}
+
+export function getKnowledgeGraphConfig(): Config['knowledgeGraph'] | undefined {
+  return AppConfig?.knowledgeGraph;
+}
+
 type TtlCacheEntry<T> = {
   value: T;
   expireTime: number;

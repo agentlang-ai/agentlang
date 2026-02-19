@@ -73,7 +73,7 @@ export class Neo4jDatabase implements GraphDatabase {
           id: $id, name: $name, entityType: $entityType, description: $description,
           sourceType: $sourceType, sourceId: $sourceId, sourceChunk: $sourceChunk,
           instanceId: $instanceId, instanceType: $instanceType,
-          agentId: $agentId, agentId: $agentId,
+          agentId: $agentId,
           confidence: $confidence, isLatest: $isLatest,
           createdAt: datetime(), updatedAt: datetime()
         }) RETURN n.id AS id`,
@@ -88,7 +88,6 @@ export class Neo4jDatabase implements GraphDatabase {
           instanceId: node.instanceId || null,
           instanceType: node.instanceType || null,
           agentId: node.agentId,
-          agentId: node.agentId || null,
           confidence: node.confidence,
           isLatest: node.isLatest,
         }
@@ -107,7 +106,7 @@ export class Neo4jDatabase implements GraphDatabase {
          SET n.name = $name, n.entityType = $entityType, n.description = $description,
              n.sourceType = $sourceType, n.sourceId = $sourceId, n.sourceChunk = $sourceChunk,
              n.instanceId = $instanceId, n.instanceType = $instanceType,
-             n.agentId = $agentId, n.agentId = $agentId,
+             n.agentId = $agentId,
              n.confidence = $confidence, n.isLatest = $isLatest,
              n.updatedAt = datetime(),
              n.createdAt = coalesce(n.createdAt, datetime())
@@ -123,7 +122,6 @@ export class Neo4jDatabase implements GraphDatabase {
           instanceId: node.instanceId || null,
           instanceType: node.instanceType || null,
           agentId: node.agentId,
-          agentId: node.agentId || null,
           confidence: node.confidence,
           isLatest: node.isLatest,
         }
@@ -437,7 +435,6 @@ export class Neo4jDatabase implements GraphDatabase {
       sourceChunk: props.sourceChunk,
       instanceId: props.instanceId,
       instanceType: props.instanceType,
-      agentId: props.agentId,
       agentId: props.agentId,
       confidence: props.confidence ?? 1.0,
       createdAt: props.createdAt ? new Date(props.createdAt) : new Date(),

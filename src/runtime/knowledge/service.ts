@@ -13,6 +13,7 @@ import type { Instance } from '../module.js';
 import type { Document, KnowledgeContext, ProcessingResult, SourceType } from '../graph/types.js';
 import { insertRows, DbContext } from '../resolvers/sqldb/database.js';
 import { DefaultAuthInfo } from '../resolvers/authinfo.js';
+import { isKnowledgeGraphEnabled, getKnowledgeGraphConfig } from '../state.js';
 import crypto from 'crypto';
 
 // Maximum number of session messages to retain per session (prevents database bloat)
@@ -40,7 +41,21 @@ export class KnowledgeService {
   private readonly enabled: boolean;
 
   constructor(graphDb?: GraphDatabase, embeddingConfig?: any) {
-    this.graphDb = graphDb || new Neo4jDatabase();
+    // Check if knowledge graph is enabled via config
+    const configEnabled = isKnowledgeGraphEnabled();
+    const kgConfig = getKnowledgeGraphConfig();
+
+    // Create Neo4jDatabase with config values if available
+    // Config values fall back to environment variables, then to defaults
+    if (graphDb) {
+      this.graphDb = graphDb;
+    } else {
+      const neo4jConfig = kgConfig?.neo4j;
+      const uri = neo4jConfig?.uri || process.env.GRAPH_DB_URI || 'bolt://localhost:7687';
+      const user = neo4jConfig?.user || process.env.GRAPH_DB_USER || 'neo4j';
+      const password = neo4jConfig?.password || process.env.GRAPH_DB_PASSWORD || 'password';
+      this.graphDb = new Neo4jDatabase(uri, user, password);
+    }
 
     // Ensure embedding config has API key from environment
     const resolvedEmbeddingConfig = embeddingConfig || {
@@ -61,7 +76,13 @@ export class KnowledgeService {
       process.env.OPENAI_API_KEY
     );
 
-    if (!hasApiKey) {
+    // Knowledge graph is enabled only if config says so AND we have an API key
+    if (!configEnabled) {
+      logger.info(
+        '[KNOWLEDGE] Knowledge graph is disabled in config. Set knowledgeGraph.enabled to true to enable.'
+      );
+      this.enabled = false;
+    } else if (!hasApiKey) {
       logger.warn(
         '[KNOWLEDGE] No embedding API key configured (AGENTLANG_OPENAI_KEY or OPENAI_API_KEY). ' +
           'Knowledge base features are disabled. Set an API key to enable knowledge graph extraction, ' +
@@ -191,14 +212,7 @@ export class KnowledgeService {
     llmName?: string
   ): Promise<ProcessingResult> {
     if (!this.enabled) return KnowledgeService.EMPTY_RESULT;
-    return this.documentProcessor.processDocument(
-      document,
-      containerTag,
-      containerTag, // tenantId
-      agentId,
-      env,
-      llmName
-    );
+    return this.documentProcessor.processDocument(document, containerTag, env, llmName);
   }
 
   async processDocuments(
@@ -247,7 +261,7 @@ export class KnowledgeService {
     if (!this.enabled) {
       return { entities: [], relationships: [], instanceData: [], contextString: '' };
     }
-    return this.contextBuilder.buildContext(query, containerTag, containerTag);
+    return this.contextBuilder.buildContext(query, containerTag, containerTag, []);
   }
 
   buildContextString(context: KnowledgeContext): string {
@@ -286,7 +300,7 @@ export class KnowledgeService {
       const entityResult = await this.conversationProcessor.processMessage(
         userMessage,
         assistantResponse,
-        session.containerTag,
+        session.agentId,
         session.sessionId,
         session.agentId,
         env,
@@ -428,7 +442,7 @@ export class KnowledgeService {
       // All knowledge is agent-level (shared across users)
       const result = await this.processDocuments(
         matchingDocs,
-        session.containerTag,
+        session.agentId,
         session.agentId,
         env,
         llmName
@@ -440,7 +454,7 @@ export class KnowledgeService {
       );
 
       // Sync to Neo4j after document processing
-      await this.syncToNeo4j(session.containerTag);
+      await this.syncToNeo4j(session.agentId);
 
       this.processedAgents.add(session.agentId);
 
@@ -478,7 +492,7 @@ export class KnowledgeService {
       await this.graphDb.clearContainer(containerTag);
 
       const nodeResults: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeEntity {          agentId? "${escapeString(agentId)}", isLatest? true}}`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEntity {          agentId? "${escapeString(containerTag)}", isLatest? true}}`,
         undefined
       );
 
@@ -501,7 +515,6 @@ export class KnowledgeService {
             instanceId: inst.lookup('instanceId') as string | undefined,
             instanceType: inst.lookup('instanceType') as string | undefined,
             agentId: inst.lookup('agentId') as string,
-            agentId: inst.lookup('agentId') as string | undefined,
             confidence: (inst.lookup('confidence') as number) || 1.0,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -515,7 +528,7 @@ export class KnowledgeService {
       }
 
       const edgeResults: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeEdge {agentId? "${escapeString(agentId)}"}}`,
+        `{${CoreKnowledgeModuleName}/KnowledgeEdge {agentId? "${escapeString(containerTag)}"}}`,
         undefined
       );
 
@@ -601,11 +614,9 @@ export class KnowledgeService {
     await this.deduplicator.supersedeNode(
       existingNodeId,
       replacement,
-      session.containerTag,
+      session.agentId,
       'CONVERSATION',
-      session.sessionId,
-      undefined,
-      session.agentId
+      session.sessionId
     );
   }
 
@@ -662,7 +673,6 @@ export class KnowledgeService {
             sourceChunk: entity.sourceChunk ? entity.sourceChunk.substring(0, 500) : null,
             instanceId: null,
             instanceType: null,
-            agentId: containerTag,
             agentId: entity.agentId || null,
             confidence: entity.confidence || 1.0,
             isLatest: true,
@@ -711,7 +721,7 @@ export class KnowledgeService {
       relType: string;
       weight?: number;
       sourceType: SourceType;
-      containerTag: string;
+      agentId: string;
     }>,
     env?: Environment
   ): Promise<Array<{ id: string; sourceId: string; targetId: string }>> {
@@ -738,8 +748,7 @@ export class KnowledgeService {
             relType: edge.relType,
             weight: edge.weight || 1.0,
             sourceType: edge.sourceType,
-            agentId: edge.containerTag,
-            agentId: null,
+            agentId: edge.agentId,
             createdAt: new Date().toISOString(),
             __path__: path,
           };
@@ -846,12 +855,10 @@ export class KnowledgeService {
       try {
         await this.deduplicator.findOrCreateNode(
           { name: fact.content, entityType: 'Fact', description: fact.category },
-          session.containerTag,
-          session.containerTag,
+          session.agentId,
           'CONVERSATION',
           session.sessionId,
-          undefined,
-          session.agentId
+          undefined
         );
       } catch (err) {
         logger.debug(`[KNOWLEDGE] Failed to store fact: ${err}`);
