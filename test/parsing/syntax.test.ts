@@ -1253,3 +1253,75 @@ DateDim.year? categoryRevenueForYear.year},
     assert(cp.orderBy?.length === 1);
   });
 });
+
+describe('Handler syntax - @catch and @empty', () => {
+  test('programmatic @catch handler roundtrip', () => {
+    const crud = new CrudPattern('Blog/User')
+      .addAttribute('email?', LiteralPattern.String('joe@acme.com'))
+      .setAlias('users');
+    crud.addHandler(
+      'not_found',
+      new CrudPattern('Blog/User').addAttribute('email', LiteralPattern.String('default@acme.com'))
+    );
+    crud.addHandler(
+      'error',
+      new CrudPattern('Blog/Error').addAttribute('code', LiteralPattern.Number(500))
+    );
+    const s = crud.toString();
+    assert(
+      s ===
+        '{Blog/User {email? "joe@acme.com"}} @as users @catch {not_found {Blog/User {email "default@acme.com"}} error {Blog/Error {code 500}}}',
+      `Unexpected @catch output: ${s}`
+    );
+  });
+
+  test('programmatic @empty handler roundtrip', () => {
+    const crud = new CrudPattern('Blog/User')
+      .addAttribute('id?', LiteralPattern.Number(1))
+      .setAlias('users');
+    crud.setEmptyHandler(
+      new CrudPattern('Blog/User').addAttribute('id?', LiteralPattern.Number(99))
+    );
+    const s = crud.toString();
+    assert(
+      s === '{Blog/User {id? 1}} @as users @empty {Blog/User {id? 99}}',
+      `Unexpected @empty output: ${s}`
+    );
+  });
+
+  test('introspect @empty roundtrip', async () => {
+    const input = '{Blog/User {id? 1}} @as [U] @empty {Blog/User {id? 99}}';
+    const pats = await introspect(input);
+    assert(pats.length === 1);
+    const cp = pats[0] as CrudPattern;
+    assert(cp.emptyHandler !== undefined, 'emptyHandler should be set');
+    assert(cp.handlers === undefined, 'catch handlers should not be set');
+    assert(cp.aliases && cp.aliases[0] === 'U', 'alias should be U');
+    const s = cp.toString();
+    assert(s === input, `Roundtrip failed: ${s}`);
+  });
+
+  test('introspect @catch not_found roundtrip', async () => {
+    const input =
+      '{Blog/User {id? 1}} @as users @catch {not_found {Blog/User {id 99, name "default"}} error {Blog/Error {code 500}}}';
+    const pats = await introspect(input);
+    assert(pats.length === 1);
+    const cp = pats[0] as CrudPattern;
+    assert(cp.handlers !== undefined, 'catch handlers should be set');
+    assert(cp.handlers!.has('not_found'), 'should have not_found handler');
+    assert(cp.handlers!.has('error'), 'should have error handler');
+    assert(cp.emptyHandler === undefined, '@empty handler should not be set');
+  });
+
+  test('@empty combined with @catch error', async () => {
+    // @as and @catch must come before @empty (which is greedy in the grammar)
+    const input =
+      '{Blog/User {id? 1}} @as result @catch {error {Blog/Error {code 500}}} @empty {Blog/User {id? 99}}';
+    const pats = await introspect(input);
+    assert(pats.length === 1);
+    const cp = pats[0] as CrudPattern;
+    assert(cp.emptyHandler !== undefined, '@empty handler should be set');
+    assert(cp.handlers !== undefined, 'catch error handler should be set');
+    assert(cp.handlers!.has('error'), 'should have error handler');
+  });
+});

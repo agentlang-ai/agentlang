@@ -90,9 +90,12 @@ import {
 } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 import {
+  AgentCancelledException,
   AgentEntityName,
   AgentFqName,
   AgentInstance,
+  checkCancelled,
+  clearCancellation,
   findAgentByName,
   normalizeGeneratedCode,
   saveFlowStepResult,
@@ -134,6 +137,7 @@ export function isEmptyResult(r: Result): boolean {
 type BetweenRelInfo = {
   relationship: Relationship;
   connectedInstance: Instance;
+  connectedAlias?: string;
 };
 
 function mkEnvName(name: string | undefined, parent: Environment | undefined): string {
@@ -158,6 +162,7 @@ export class Environment extends Instance {
   private activeUserSet: boolean = false;
   private lastResult: Result;
   private trashedResult: Result = undefined;
+  private lastPattern: string | undefined;
   private returnFlag: boolean = false;
   private parentPath: string | undefined;
   private normalizedParentPath: string | undefined;
@@ -573,6 +578,15 @@ export class Environment extends Instance {
     return this.lastResult;
   }
 
+  setLastPattern(pattern: string | undefined): Environment {
+    this.lastPattern = pattern;
+    return this;
+  }
+
+  getLastPattern(): string | undefined {
+    return this.lastPattern;
+  }
+
   getActiveModuleName(): string {
     return this.activeModule;
   }
@@ -965,7 +979,13 @@ export let evaluate = async function (
       } else if (isAgentEventInstance(eventInstance)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
         await handleAgentInvocation(eventInstance, env);
-        if (continuation) continuation(env.getLastResult());
+        if (continuation) {
+          if (env.getLastPattern()) {
+            continuation({ result: env.getLastResult(), pattern: env.getLastPattern() });
+          } else {
+            continuation(env.getLastResult());
+          }
+        }
       } else if (isOpenApiEventInstance(eventInstance)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
         await handleOpenApiEvent(eventInstance, env);
@@ -1119,6 +1139,9 @@ export async function evaluateStatement(stmt: Statement, env: Environment): Prom
     }
     await evaluatePattern(stmt.pattern, env);
     if (hasHints) {
+      await maybeHandleEmpty(hints, env);
+    }
+    if (hasHints) {
       maybeBindStatementResultToAlias(hints, env);
     }
     await maybeHandleNotFound(handlers, env);
@@ -1143,6 +1166,24 @@ async function maybeHandleNotFound(handlers: CatchHandlers | undefined, env: Env
       const newEnv = new Environment('not-found-env', env).unsetEventExecutor();
       await evaluateStatement(onNotFound, newEnv);
       env.setLastResult(newEnv.getLastResult());
+    }
+  }
+}
+
+async function maybeHandleEmpty(hints: RuntimeHint[], env: Environment) {
+  const lastResult: Result = env.getLastResult();
+  if (
+    lastResult === null ||
+    lastResult === undefined ||
+    (lastResult instanceof Array && lastResult.length == 0)
+  ) {
+    for (const rh of hints) {
+      if (rh.emptySpec) {
+        const newEnv = new Environment('empty-env', env).unsetEventExecutor();
+        await evaluateStatement(rh.emptySpec.stmt, newEnv);
+        env.setLastResult(newEnv.getLastResult());
+        break;
+      }
     }
   }
 }
@@ -1672,7 +1713,8 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         const insts: Instance[] = await res.queryConnectedInstances(
           betRelInfo.relationship,
           betRelInfo.connectedInstance,
-          inst
+          inst,
+          betRelInfo.connectedAlias
         );
         env.setLastResult(insts);
       } else {
@@ -1697,7 +1739,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             false,
             true
           );
-          env.setLastResult(inst);
+          env.setLastResult([inst]);
         } else {
           const insts: Instance[] = await res.queryInstances(inst, isQueryAll, distinct);
           env.setLastResult(insts);
@@ -1724,7 +1766,12 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             } else if (isBetweenRelationship(rel.name, moduleName)) {
-              newEnv.setBetweenRelInfo({ relationship: relEntry, connectedInstance: lastRes[j] });
+              const connAlias = relEntry.isSelfReferencing() ? relEntry.node1.alias : undefined;
+              newEnv.setBetweenRelInfo({
+                relationship: relEntry,
+                connectedInstance: lastRes[j],
+                connectedAlias: connAlias,
+              });
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             }
@@ -1760,7 +1807,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           await runPreUpdateEvents(lastRes, env);
           const finalInst: Instance = await res.updateInstance(lastRes, attrs);
           await runPostUpdateEvents(finalInst, lastRes, env);
-          env.setLastResult(finalInst);
+          env.setLastResult([finalInst]);
         }
       }
     }
@@ -2098,6 +2145,8 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   console.debug(invokeDebugMsg);
   //
 
+  const agentChatId = env.getAgentChatId() || env.getActiveChatId() || '';
+  await clearCancellation(agentChatId);
   const monitoringEnabled = isMonitoringEnabled();
 
   await agent.invoke(msg, env);
@@ -2114,8 +2163,14 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       }
       let retries = 0;
       while (true) {
+        await checkCancelled(agentChatId);
         try {
           let rs: string = result ? normalizeGeneratedCode(result) : '';
+          if (agent.tools) {
+            env.setLastPattern(rs);
+          } else {
+            env.setLastPattern(undefined);
+          }
           let isWf = rs.startsWith('workflow');
           if (isWf && !agent.runWorkflows) {
             await parseWorkflow(rs);
@@ -2170,6 +2225,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
     } else {
       let retries = 0;
       while (true) {
+        await checkCancelled(agentChatId);
         try {
           result = normalizeGeneratedCode(result);
           const obj = agent.maybeValidateJsonResponse(result);
@@ -2295,9 +2351,11 @@ async function iterateOnFlow(
   rootAgent.disableSession();
   const chatId = env.getActiveEventInstance()?.lookup('chatId');
   const iterId = chatId || crypto.randomUUID();
+  await clearCancellation(iterId);
   let step = '';
   let fullFlowRetries = 0;
   while (true) {
+    await checkCancelled(iterId);
     try {
       const initContext = msg;
       const s = `Now consider the following flowchart and return the next step:\n${flow}\n
@@ -2320,6 +2378,7 @@ async function iterateOnFlow(
         env.flagMonitorEntryAsFlow().incrementMonitor();
       }
       while (step != 'DONE' && !executedSteps.has(step)) {
+        await checkCancelled(iterId);
         if (stepc > MaxFlowSteps) {
           throw new Error(`Flow execution exceeded maximum steps limit`);
         }
@@ -2374,6 +2433,9 @@ async function iterateOnFlow(
         needAgentProcessing = preprocResult.needAgentProcessing;
       }
     } catch (reason: any) {
+      if (reason instanceof AgentCancelledException) {
+        throw reason;
+      }
       if (fullFlowRetries < MaxFlowRetries) {
         msg = `The previous attempt failed at step ${step} with the error ${reason}. Restart the flow the appropriate step
 (maybe even from the first step) and try to fix the issue.`;

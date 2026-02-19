@@ -1,7 +1,7 @@
 import { assert, beforeEach, describe, test } from 'vitest';
 import { provider } from '../../src/runtime/agents/registry.js';
 import { AgentServiceProvider, AIResponse, humanMessage, systemMessage, } from '../../src/runtime/agents/provider.js';
-import { doInternModule } from '../util.js';
+import { doInitRuntime, doInternModule } from '../util.js';
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import {
   Agent,
@@ -11,11 +11,12 @@ import {
   isInstanceOfType,
   makeInstance,
   newInstanceAttributes,
+  Retry,
 } from '../../src/runtime/module.js';
 import { WorkflowDefinition } from '../../src/language/generated/ast.js';
 import { parseWorkflow } from '../../src/language/parser.js';
 import { addWorkflowFromDef } from '../../src/runtime/loader.js';
-import { CoreAIModuleName } from '../../src/runtime/modules/ai.js';
+import { AgentCancelledException, cancelAgent, checkCancelled, clearCancellation, CoreAIModuleName } from '../../src/runtime/modules/ai.js';
 import { enableInternalMonitoring } from '../../src/runtime/state.js';
 import { getMonitorsForEvent, Monitor } from '../../src/runtime/monitor.js';
 import { executeEvent } from '../../src/runtime/exec-graph.js';
@@ -66,6 +67,57 @@ agent agent02
     tools [A, B]
 }`
     );
+  });
+});
+
+describe('Agent cancellation', () => {
+  test('cancelAgent marks chatId and checkCancelled throws', async () => {
+    await doInitRuntime();
+    const chatId = 'test-cancel-' + Date.now();
+    // checkCancelled should be a no-op for unknown chatIds
+    await checkCancelled(chatId); // should not throw
+
+    // cancelAgent should mark the chatId
+    await cancelAgent(chatId);
+
+    // checkCancelled should throw AgentCancelledException
+    let caught: AgentCancelledException | undefined;
+    try {
+      await checkCancelled(chatId);
+    } catch (e: any) {
+      caught = e;
+    }
+    assert(caught instanceof AgentCancelledException, 'Expected AgentCancelledException');
+    assert(caught!.message.includes(chatId), 'Error message should contain the chatId');
+
+    // After throwing, the chatId should be cleared — no second throw
+    await checkCancelled(chatId); // should not throw
+  });
+
+  test('clearCancellation removes stale entries without throwing', async () => {
+    await doInitRuntime();
+    const chatId = 'test-clear-' + Date.now();
+
+    // cancelAgent to insert a row
+    await cancelAgent(chatId);
+
+    // clearCancellation should silently purge it
+    await clearCancellation(chatId);
+
+    // checkCancelled should NOT throw since we cleared
+    await checkCancelled(chatId); // should not throw
+
+    // clearing a non-existent entry is also a no-op
+    await clearCancellation('nonexistent-' + Date.now());
+  });
+
+  test('Retry allows negative attempts for infinite retry', () => {
+    const retry = new Retry('test-retry', 'TestModule', -1);
+    assert(retry.attempts === -1, 'Negative attempts should be preserved');
+    // getNextDelayMs should always return a positive delay (never 0) for infinite retry
+    assert(retry.getNextDelayMs(0) > 0, 'First delay should be positive');
+    assert(retry.getNextDelayMs(100) > 0, 'Delay at attempt 100 should still be positive');
+    assert(retry.getNextDelayMs(10000) > 0, 'Delay at attempt 10000 should still be positive');
   });
 });
 

@@ -188,13 +188,27 @@ function ormSchemaFromRecordSchema(
   const fqName = makeFqName(moduleName, entityName);
   getAllOneToOneRelationshipsForEntity(moduleName, entityName, allBetRels).forEach(
     (re: Relationship) => {
-      const colName = re.getInverseAliasForName(fqName);
-      if (cols.has(colName)) {
-        throw new Error(
-          `Cannot establish relationship ${re.name}, ${entityName}.${colName} already exists`
-        );
+      if (re.isSelfReferencing()) {
+        // Self-referencing one-to-one: add columns for both aliases
+        // so each side of the relationship can be stored on the entity.
+        // Both must be nullable since they're set after entity creation.
+        [re.node1.alias, re.node2.alias].forEach((colName: string) => {
+          if (cols.has(colName)) {
+            throw new Error(
+              `Cannot establish relationship ${re.name}, ${entityName}.${colName} already exists`
+            );
+          }
+          cols.set(colName, { type: 'varchar', unique: true });
+        });
+      } else {
+        const colName = re.getInverseAliasForName(fqName);
+        if (cols.has(colName)) {
+          throw new Error(
+            `Cannot establish relationship ${re.name}, ${entityName}.${colName} already exists`
+          );
+        }
+        cols.set(colName, { type: 'varchar', unique: true });
       }
-      cols.set(colName, { type: 'varchar', unique: true });
     }
   );
   if (relsSpec.size > 0) {
