@@ -73,3 +73,92 @@ workflow generateAPI {
     {generateAPISpec {message generateAPI.message, chatId generateAPI.chatId}} @as response;
     {"response": response, "file": "apiSpec.md"}
 }
+
+agentlang/retry dataModelRetry {
+    attempts 50,
+    backoff {
+        strategy constant,
+        delay 5,
+        magnitude seconds
+    }
+}
+
+agent generateDataModel {
+    instruction ins.GenerateDataModelInstructions,
+    role "You are a Senior Data Architect who translates application requirements, domain objects, and API specifications into precise agentlang data model definitions with entities and relationships.",
+    llm "sonnet_llm",
+    saveResponseAs "dataModel.al",
+    validate agentlang/validateModule,
+    retry NewAgentCraft/dataModelRetry,
+    stateless false
+}
+
+@public event generateModel {
+    chatId UUID,
+    message String
+}
+
+workflow generateModel {
+    {generateDataModel {message generateModel.message, chatId generateModel.chatId}} @as response;
+    {"response": response, "file": "dataModel.al"}
+}
+
+agent generateWorkflows {
+    instruction ins.GenerateWorkflowsInstructions,
+    role "You are a Senior Software Architect who translates data models and API specifications into executable agentlang workflows with events.",
+    llm "sonnet_llm",
+    saveResponseAs "workflows.al",
+    validate agentlang/validateModule,
+    retry NewAgentCraft/dataModelRetry,
+    stateless false
+}
+
+@public event generateWflows {
+    chatId UUID,
+    message String
+}
+
+workflow generateWflows {
+    {generateWorkflows {message generateWflows.message, chatId generateWflows.chatId}} @as response;
+    {"response": response, "file": "workflows.al"}
+}
+
+agent generateAgents {
+    instruction ins.GenerateAgentsInstructions,
+    role "You are a Senior AI Engineer who designs intelligent agents that interact with a data model and its workflows to serve user queries and automate tasks.",
+    llm "sonnet_llm",
+    saveResponseAs "agents.al",
+    validate agentlang/validateModule,
+    retry NewAgentCraft/dataModelRetry,
+    stateless false
+}
+
+@public event generateAgentSpecs {
+    chatId UUID,
+    message String
+}
+
+workflow generateAgentSpecs {
+    {generateAgents {message generateAgentSpecs.message, chatId generateAgentSpecs.chatId}} @as response;
+    {"response": response, "file": "agents.al"}
+}
+
+agent assembleFinalApp {
+    instruction ins.AssembleFinalAppInstructions,
+    role "You are a Senior Software Architect who assembles validated components into a complete, deployable agentlang application with all required configuration files.",
+    llm "sonnet_llm",
+    saveResponseAs "finalApp.md",
+    stateless false
+}
+
+@public event assembleApp {
+    chatId UUID,
+    message String,
+    outputDir String
+}
+
+workflow assembleApp {
+    {assembleFinalApp {message assembleApp.message, chatId assembleApp.chatId}} @as response;
+    {agentlang/writeAppFiles {content response, outputDir assembleApp.outputDir}} @as writeResult;
+    {"response": response, "file": "finalApp.md", "outputDir": assembleApp.outputDir, "writtenFiles": writeResult}
+}

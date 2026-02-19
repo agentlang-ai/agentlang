@@ -41,6 +41,7 @@ import {
 import { getMonitor, getMonitorsForEvent, Monitor } from '../monitor.js';
 import { registerResolver, setResolver } from '../resolvers/registry.js';
 import { base64Encode, isNodeEnv } from '../../utils/runtime.js';
+import { getFileSystem, ensureDir } from '../../utils/fs-utils.js';
 
 const CoreModuleDefinition = `module ${DefaultModuleName}
 
@@ -172,6 +173,15 @@ entity Migration {
 
 workflow Query {
   await Core.doRawQuery(Query.q)
+}
+
+@public event writeAppFiles {
+  content String,
+  outputDir String
+}
+
+workflow writeAppFiles {
+  await Core.writeAppFiles(writeAppFiles.content, writeAppFiles.outputDir)
 }
 `;
 
@@ -556,6 +566,54 @@ export async function validateModule(moduleDef: any): Promise<Instance> {
       newInstanceAttributes().set('status', 'error').set('reason', `${reason}`)
     );
   }
+}
+
+const FileDelimiterPattern = /^--- FILE:\s*(.+?)\s*---$/;
+
+export async function writeAppFiles(
+  content: string,
+  outputDir: string
+): Promise<object> {
+  const lines = content.split('\n');
+  const files: { path: string; content: string }[] = [];
+  let currentPath: string | null = null;
+  let currentLines: string[] = [];
+
+  for (const line of lines) {
+    const match = line.match(FileDelimiterPattern);
+    if (match) {
+      if (currentPath !== null) {
+        files.push({ path: currentPath, content: currentLines.join('\n').trim() });
+      }
+      currentPath = match[1];
+      currentLines = [];
+    } else {
+      currentLines.push(line);
+    }
+  }
+  if (currentPath !== null) {
+    files.push({ path: currentPath, content: currentLines.join('\n').trim() });
+  }
+
+  if (files.length === 0) {
+    throw new Error('No file sections found. Expected format: --- FILE: <path> ---');
+  }
+
+  const fs = await getFileSystem();
+  const writtenFiles: string[] = [];
+  for (const file of files) {
+    const fullPath = outputDir.endsWith('/')
+      ? `${outputDir}${file.path}`
+      : `${outputDir}/${file.path}`;
+    const lastSlash = fullPath.lastIndexOf('/');
+    if (lastSlash > 0) {
+      await ensureDir(fullPath.substring(0, lastSlash));
+    }
+    await fs.writeFile(fullPath, file.content);
+    writtenFiles.push(fullPath);
+  }
+
+  return { status: 'ok', files: writtenFiles };
 }
 
 export async function internModuleHelper(
