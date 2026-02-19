@@ -604,7 +604,9 @@ export async function vectorStoreSearch(
         logger.warn(`[VECTOR] LanceDB store not found for ${tableName}`);
         return [];
       }
-      const results = await store.search(searchVec, tenantId, limit);
+      // Extract agentId from resourceFqName for agent-level filtering
+      const agentId = ctx.resourceFqName || undefined;
+      const results = await store.search(searchVec, tenantId, agentId, limit);
       return results.map(r => ({ id: r.id }));
     }
 

@@ -93,6 +93,7 @@ export class LanceDBVectorStore implements VectorStore {
   async search(
     embedding: number[],
     tenantId?: string,
+    agentId?: string,
     limit: number = 10
   ): Promise<SearchResult[]> {
     if (!this.table) {
@@ -102,8 +103,23 @@ export class LanceDBVectorStore implements VectorStore {
     try {
       let query = this.table.vectorSearch(embedding).limit(limit);
 
+      // Build filter conditions for agent-level isolation
+      const filters: string[] = [];
+
       if (tenantId) {
-        query = query.where(`tenantId = '${tenantId}'`);
+        // Use parameterized filtering to prevent SQL injection
+        const escapedTenantId = tenantId.replace(/'/g, "''");
+        filters.push(`tenantId = '${escapedTenantId}'`);
+      }
+
+      if (agentId) {
+        // Add agent-level filtering for strict agent isolation
+        const escapedAgentId = agentId.replace(/'/g, "''");
+        filters.push(`agentId = '${escapedAgentId}'`);
+      }
+
+      if (filters.length > 0) {
+        query = query.where(filters.join(' AND '));
       }
 
       const results = await query.toArray();
