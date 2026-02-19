@@ -266,23 +266,13 @@ export async function mountMcpServer(
         t => t.moduleName === moduleName && t.entityName === entityName
       );
       if (template) {
-        const sessionInfo = await verifyAuth(
-          moduleName,
-          entityName,
-          authHeaderFromExtra(extra)
-        );
+        const sessionInfo = await verifyAuth(moduleName, entityName, authHeaderFromExtra(extra));
         if (isNoSession(sessionInfo)) {
           throw new Error('Authorization required');
         }
         try {
           const path = `${moduleName}/${entityName}/${id}`;
-          const result = await queryEntity(
-            moduleName,
-            entityName,
-            undefined,
-            sessionInfo,
-            path
-          );
+          const result = await queryEntity(moduleName, entityName, undefined, sessionInfo, path);
           return {
             contents: [
               {
@@ -402,7 +392,10 @@ export async function mountMcpServer(
       } else {
         res.status(400).json({
           jsonrpc: '2.0',
-          error: { code: -32000, message: 'Bad Request: No transport found for the given session ID' },
+          error: {
+            code: -32000,
+            message: 'Bad Request: No transport found for the given session ID',
+          },
           id: null,
         });
       }
@@ -428,7 +421,10 @@ export async function mountMcpServer(
     } else {
       res.status(400).json({
         jsonrpc: '2.0',
-        error: { code: -32000, message: 'Bad Request: No transport found for the given session ID' },
+        error: {
+          code: -32000,
+          message: 'Bad Request: No transport found for the given session ID',
+        },
         id: null,
       });
     }
@@ -444,7 +440,10 @@ export async function mountMcpServer(
     } else {
       res.status(400).json({
         jsonrpc: '2.0',
-        error: { code: -32000, message: 'Bad Request: No transport found for the given session ID' },
+        error: {
+          code: -32000,
+          message: 'Bad Request: No transport found for the given session ID',
+        },
         id: null,
       });
     }

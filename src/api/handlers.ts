@@ -18,16 +18,8 @@ import {
 import { evaluate, parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
 import { ActiveSessionInfo, BypassSession, NoSession } from '../runtime/auth/defs.js';
 import { requireAuth, verifySession } from '../runtime/modules/auth.js';
-import {
-  isPathAttribute,
-  PathAttributeNameQuery,
-} from '../runtime/defs.js';
-import {
-  escapeSepInPath,
-  isString,
-  makeFqName,
-  walkDownInstancePath,
-} from '../runtime/util.js';
+import { isPathAttribute, PathAttributeNameQuery } from '../runtime/defs.js';
+import { escapeSepInPath, isString, makeFqName, walkDownInstancePath } from '../runtime/util.js';
 
 // ---- Normalized result ----
 
@@ -136,11 +128,7 @@ export async function createEntity(
   body: object,
   authContext: ActiveSessionInfo
 ): Promise<Result> {
-  const pattern = patternFromAttributes(
-    moduleName,
-    entityName,
-    objectAsInstanceAttributes(body)
-  );
+  const pattern = patternFromAttributes(moduleName, entityName, objectAsInstanceAttributes(body));
   const result = await parseAndEvaluateStatement(pattern, authContext.userId);
   return normalizedResult(result);
 }

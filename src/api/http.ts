@@ -461,7 +461,9 @@ async function handleEntityPost(
     if (req.params.path) {
       // Child creation uses the original pattern-based approach
       const pattern = createChildPattern(moduleName, entityName, req);
-      parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+      parseAndEvaluateStatement(pattern, sessionInfo.userId)
+        .then(ok(res))
+        .catch(internalError(res));
     } else {
       const result = await createEntity(moduleName, entityName, req.body, sessionInfo);
       res.contentType('application/json');
@@ -715,7 +717,6 @@ function createChildPattern(moduleName: string, entityName: string, req: Request
     throw new BadRequestError(err.message);
   }
 }
-
 
 function normalizedResult(r: Result): Result {
   return sharedNormalizedResult(r);
