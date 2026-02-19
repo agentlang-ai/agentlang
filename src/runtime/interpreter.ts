@@ -1901,8 +1901,10 @@ async function computeExprAttributes(
           if (connected && connected.length > 0) {
             connectedInst = connected[0];
           }
-        } catch (_) {
-          // Relationship query failed (e.g. not yet linked) - skip binding
+        } catch (reason: any) {
+          logger.debug(
+            `Relationship query failed (e.g. not yet linked) - skip binding - ${reason}`
+          );
         }
       }
       if (connectedInst) {
