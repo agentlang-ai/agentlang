@@ -2,12 +2,20 @@ module NewAgentCraft
 
 import "instructions.js" @as ins
 
+agent conversationSummarizer {
+    instruction "You produce concise summaries of conversations, capturing key decisions, requirements, and context.",
+    role "You are a conversation summarizer that distills multi-turn dialogues into concise, information-dense summaries.",
+    llm "sonnet_llm",
+    stateless true
+}
+
 agent captureAppIntent {
     instruction ins.CaptureAppIntentInstructions,
     role "You are a Senior Product Manager and Requirements Analyst. You engage in a structured conversation with users to deeply understand their application requirements. You ask clarifying questions, identify ambiguities, and produce a comprehensive requirements analysis.",
     llm "sonnet_llm",
     saveResponseAs "requirementsAnalysis.md",
     compact 20,
+    compactSummarizer "conversationSummarizer",
     stateless false
 }
 
@@ -27,6 +35,7 @@ agent identifyCoreObjects {
     llm "sonnet_llm",
     saveResponseAs "coreObjects.md",
     compact 20,
+    compactSummarizer "conversationSummarizer",
     stateless false
 }
 
@@ -46,6 +55,7 @@ agent generateUISpec {
     llm "sonnet_llm",
     saveResponseAs "uiSpec.md",
     compact 20,
+    compactSummarizer "conversationSummarizer",
     stateless false
 }
 
@@ -65,6 +75,7 @@ agent generateAPISpec {
     llm "sonnet_llm",
     saveResponseAs "apiSpec.md",
     compact 20,
+    compactSummarizer "conversationSummarizer",
     stateless false
 }
 
@@ -95,6 +106,7 @@ agent generateDataModel {
     validate agentlang/validateModule,
     retry NewAgentCraft/dataModelRetry,
     compact 20,
+    compactSummarizer "conversationSummarizer",
     stateless false
 }
 
@@ -116,6 +128,7 @@ agent generateWorkflows {
     validate agentlang/validateModule,
     retry NewAgentCraft/dataModelRetry,
     compact 20,
+    compactSummarizer "conversationSummarizer",
     stateless false
 }
 
@@ -137,6 +150,7 @@ agent generateAgents {
     validate agentlang/validateModule,
     retry NewAgentCraft/dataModelRetry,
     compact 20,
+    compactSummarizer "conversationSummarizer",
     stateless false
 }
 
@@ -156,6 +170,7 @@ agent assembleFinalApp {
     llm "sonnet_llm",
     saveResponseAs "finalApp.md",
     compact 20,
+    compactSummarizer "conversationSummarizer",
     stateless false
 }
 
