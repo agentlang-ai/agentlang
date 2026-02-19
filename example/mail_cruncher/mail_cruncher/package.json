@@ -1,0 +1,8 @@
+{
+  "name": "mail_cruncher",
+  "version": "0.0.1",
+  "dependencies": {
+    "agentlang": "file:../../../agentlang",
+    "gmail": "file:../gmail"
+  }
+}
