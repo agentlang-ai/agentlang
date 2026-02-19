@@ -130,6 +130,19 @@ export const ConfigSchema = z.object({
       })
     )
     .optional(),
+  mcp: z
+    .object({
+      enabled: z.boolean().default(false),
+      path: z.string().default('/mcp'),
+      name: z.string().optional(),
+      version: z.string().optional(),
+      instructions: z.string().optional(),
+      stateless: z.boolean().default(false),
+      enableJsonResponse: z.boolean().default(false),
+      sessionTtl: z.number().default(1800000),
+      uriScheme: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

@@ -5,10 +5,8 @@ import {
   getAllChildRelationships,
   getAllEntityNames,
   getAllEventNames,
-  Instance,
   InstanceAttributes,
   isBetweenRelationship,
-  makeInstance,
   objectAsInstanceAttributes,
   Relationship,
   fetchModule,
@@ -24,8 +22,7 @@ import { isNodeEnv } from '../utils/runtime.js';
 import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
-import { requireAuth, verifySession } from '../runtime/modules/auth.js';
-import { ActiveSessionInfo, BypassSession, isNoSession, NoSession } from '../runtime/auth/defs.js';
+import { isNoSession } from '../runtime/auth/defs.js';
 import {
   escapeFqName,
   forceAsEscapedName,
@@ -51,8 +48,15 @@ import {
   setRelationshipEndpointsUpdater,
   UnauthorisedError,
 } from '../runtime/defs.js';
-import { evaluate } from '../runtime/interpreter.js';
 import { Config } from '../runtime/state.js';
+import {
+  evaluateEvent,
+  createEntity,
+  updateEntity,
+  deleteEntity,
+  normalizedResult as sharedNormalizedResult,
+  verifyAuth,
+} from './handlers.js';
 import {
   findFileByFilename,
   createFileRecord,
@@ -295,6 +299,11 @@ export async function startServer(
     });
   });
 
+  if (config?.mcp?.enabled) {
+    const { mountMcpServer } = await import('./mcp.js');
+    await mountMcpServer(app, config, appSpec);
+  }
+
   const cb = () => {
     console.log(
       chalk.green(
@@ -428,15 +437,12 @@ async function handleEventPost(
       res.status(401).send('Authorization required');
       return;
     }
-    const inst: Instance = makeInstance(
-      moduleName,
-      eventName,
-      objectAsInstanceAttributes(req.body)
-    ).setAuthContext(sessionInfo);
-    evaluate(inst, ok(res)).catch(internalError(res));
+    const result = await evaluateEvent(moduleName, eventName, req.body, sessionInfo);
+    res.contentType('application/json');
+    res.send(JSON.stringify(result));
   } catch (err: any) {
     logger.error(err);
-    res.status(500).send(err.toString());
+    res.status(statusFromErrorType(err)).send(err.message || err.toString());
   }
 }
 
@@ -452,13 +458,20 @@ async function handleEntityPost(
       res.status(401).send('Authorization required');
       return;
     }
-    const pattern = req.params.path
-      ? createChildPattern(moduleName, entityName, req)
-      : patternFromAttributes(moduleName, entityName, objectAsInstanceAttributes(req.body));
-    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+    if (req.params.path) {
+      // Child creation uses the original pattern-based approach
+      const pattern = createChildPattern(moduleName, entityName, req);
+      parseAndEvaluateStatement(pattern, sessionInfo.userId)
+        .then(ok(res))
+        .catch(internalError(res));
+    } else {
+      const result = await createEntity(moduleName, entityName, req.body, sessionInfo);
+      res.contentType('application/json');
+      res.send(JSON.stringify(result));
+    }
   } catch (err: any) {
     logger.error(err);
-    res.status(500).send(err.toString());
+    res.status(statusFromErrorType(err)).send(err.message || err.toString());
   }
 }
 
@@ -484,7 +497,7 @@ async function handleEntityGet(
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
-    res.status(500).send(err.toString());
+    res.status(statusFromErrorType(err)).send(err.message || err.toString());
   }
 }
 
@@ -587,16 +600,12 @@ async function handleEntityPut(
       res.status(401).send('Authorization required');
       return;
     }
-    const attrs = objectAsInstanceAttributes(req.body);
-    attrs.set(PathAttributeNameQuery, path);
-    const r = walkDownInstancePath(path);
-    moduleName = r[0];
-    entityName = r[1];
-    const pattern = patternFromAttributes(moduleName, entityName, attrs);
-    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+    const result = await updateEntity(moduleName, entityName, path, req.body, sessionInfo);
+    res.contentType('application/json');
+    res.send(JSON.stringify(result));
   } catch (err: any) {
     logger.error(err);
-    res.status(500).send(err.toString());
+    res.status(statusFromErrorType(err)).send(err.message || err.toString());
   }
 }
 
@@ -613,12 +622,19 @@ async function handleEntityDelete(
       res.status(401).send('Authorization required');
       return;
     }
-    const cmd = req.query.purge == 'true' ? 'purge' : 'delete';
-    const pattern = `${cmd} ${queryPatternFromPath(path, req)}`;
-    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+    const result = await deleteEntity(
+      moduleName,
+      entityName,
+      path,
+      req.query.purge == 'true',
+      sessionInfo,
+      req.query as object
+    );
+    res.contentType('application/json');
+    res.send(JSON.stringify(result));
   } catch (err: any) {
     logger.error(err);
-    res.status(500).send(err.toString());
+    res.status(statusFromErrorType(err)).send(err.message || err.toString());
   }
 }
 
@@ -702,42 +718,8 @@ function createChildPattern(moduleName: string, entityName: string, req: Request
   }
 }
 
-async function verifyAuth(
-  moduleName: string,
-  eventName: string,
-  authValue: string | undefined
-): Promise<ActiveSessionInfo> {
-  if (requireAuth(moduleName, eventName)) {
-    if (authValue) {
-      const token = authValue.substring(authValue.indexOf(' ')).trim();
-      return await verifySession(token);
-    } else {
-      return NoSession;
-    }
-  }
-  return BypassSession;
-}
-
 function normalizedResult(r: Result): Result {
-  if (r instanceof Array) {
-    return r.map((x: Result) => {
-      return normalizedResult(x);
-    });
-  } else if (Instance.IsInstance(r)) {
-    r.mergeRelatedInstances();
-    Array.from(r.attributes.keys()).forEach(k => {
-      const v: Result = r.attributes.get(k);
-      if (v instanceof Array || Instance.IsInstance(v)) {
-        r.attributes.set(k, normalizedResult(v));
-      }
-    });
-    return r.asObject();
-  } else {
-    if (r instanceof Map) {
-      return Object.fromEntries(r.entries());
-    }
-    return r;
-  }
+  return sharedNormalizedResult(r);
 }
 
 /**
