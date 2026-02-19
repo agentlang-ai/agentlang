@@ -4,6 +4,10 @@ import {
 } from '../../../src/runtime/resolvers/interface.js';
 import { registerResolver, setResolver } from '../../../src/runtime/resolvers/registry.js';
 import { Instance, InstanceAttributes } from '../../../src/runtime/module.js';
+import {
+  SubscriptionEnvelope,
+  createSubscriptionEnvelope,
+} from '../../../src/runtime/resolvers/envelope.js';
 
 /**
  * Creates a GenericResolver backed by an in-memory Map with full CRUD support.
@@ -55,6 +59,20 @@ export function createInMemoryResolver(name: string): {
 
   const resolver = new GenericResolver(name, methods);
   return { resolver, store };
+}
+
+const defaultTestUserId = '11111111-1111-1111-1111-111111111111';
+const defaultTestTenantId = '22222222-2222-2222-2222-222222222222';
+
+/**
+ * Creates a SubscriptionEnvelope for testing.
+ */
+export function createTestEnvelope(
+  userId: string = defaultTestUserId,
+  tenantId: string = defaultTestTenantId,
+  data: any = { foo: 'bar' }
+): SubscriptionEnvelope {
+  return createSubscriptionEnvelope(tenantId, userId, data);
 }
 
 /**
