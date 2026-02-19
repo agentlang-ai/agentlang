@@ -151,6 +151,7 @@ entity ${AgentEntityName} {
     validate String @optional,
     retry String @optional,
     saveResponseAs String @optional,
+    compact Int @optional,
     llm String
 }
 
@@ -380,6 +381,7 @@ export class AgentInstance {
   validate: string | undefined;
   retry: string | undefined;
   saveResponseAs: string | undefined;
+  compact: number | undefined;
   stateless: boolean = false;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
@@ -390,6 +392,22 @@ export class AgentInstance {
   private addContext = false;
 
   private constructor() {}
+
+  private maybeCompactMessages(msgs: BaseMessage[]): BaseMessage[] {
+    if (!this.compact || this.compact <= 0) return msgs;
+
+    const windowSize = this.compact;
+    const messageCount = msgs.length - 1; // exclude system message
+    const pairCount = Math.floor(messageCount / 2);
+
+    if (pairCount <= windowSize) return msgs;
+
+    const keepCount = windowSize * 2; // human + assistant per pair
+    const systemMsg = msgs[0];
+    const recentMsgs = msgs.slice(msgs.length - keepCount);
+
+    return [systemMsg, ...recentMsgs];
+  }
 
   static FromInstance(agentInstance: Instance): AgentInstance {
     const agent: AgentInstance = instanceToObject<AgentInstance>(
@@ -914,6 +932,9 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     };
     if (sess) {
       msgs = sess.lookup('messages');
+      if (msgs) {
+        msgs = this.maybeCompactMessages(msgs);
+      }
     } else {
       extractedText = await this.getFullInstructions(env, activator);
       cachedMsg = extractedText.updatedText;

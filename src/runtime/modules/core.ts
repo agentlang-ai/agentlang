@@ -570,10 +570,7 @@ export async function validateModule(moduleDef: any): Promise<Instance> {
 
 const FileDelimiterPattern = /^--- FILE:\s*(.+?)\s*---$/;
 
-export async function writeAppFiles(
-  content: string,
-  outputDir: string
-): Promise<object> {
+export async function writeAppFiles(content: string, outputDir: string): Promise<object> {
   const lines = content.split('\n');
   const files: { path: string; content: string }[] = [];
   let currentPath: string | null = null;

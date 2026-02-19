@@ -7,6 +7,7 @@ agent captureAppIntent {
     role "You are a Senior Product Manager and Requirements Analyst. You engage in a structured conversation with users to deeply understand their application requirements. You ask clarifying questions, identify ambiguities, and produce a comprehensive requirements analysis.",
     llm "sonnet_llm",
     saveResponseAs "requirementsAnalysis.md",
+    compact 20,
     stateless false
 }
 
@@ -25,6 +26,7 @@ agent identifyCoreObjects {
     role "You are a Senior Domain Architect who identifies and models the core domain objects, their attributes, and relationships from application requirements.",
     llm "sonnet_llm",
     saveResponseAs "coreObjects.md",
+    compact 20,
     stateless false
 }
 
@@ -43,6 +45,7 @@ agent generateUISpec {
     role "You are a Senior UX Architect who designs comprehensive UI specifications from application requirements and domain models.",
     llm "sonnet_llm",
     saveResponseAs "uiSpec.md",
+    compact 20,
     stateless false
 }
 
@@ -61,6 +64,7 @@ agent generateAPISpec {
     role "You are a Senior API Architect who designs RESTful API specifications that serve a UI and map to a domain model.",
     llm "sonnet_llm",
     saveResponseAs "apiSpec.md",
+    compact 20,
     stateless false
 }
 
@@ -90,6 +94,7 @@ agent generateDataModel {
     saveResponseAs "dataModel.al",
     validate agentlang/validateModule,
     retry NewAgentCraft/dataModelRetry,
+    compact 20,
     stateless false
 }
 
@@ -110,6 +115,7 @@ agent generateWorkflows {
     saveResponseAs "workflows.al",
     validate agentlang/validateModule,
     retry NewAgentCraft/dataModelRetry,
+    compact 20,
     stateless false
 }
 
@@ -130,6 +136,7 @@ agent generateAgents {
     saveResponseAs "agents.al",
     validate agentlang/validateModule,
     retry NewAgentCraft/dataModelRetry,
+    compact 20,
     stateless false
 }
 
@@ -148,6 +155,7 @@ agent assembleFinalApp {
     role "You are a Senior Software Architect who assembles validated components into a complete, deployable agentlang application with all required configuration files.",
     llm "sonnet_llm",
     saveResponseAs "finalApp.md",
+    compact 20,
     stateless false
 }
 
