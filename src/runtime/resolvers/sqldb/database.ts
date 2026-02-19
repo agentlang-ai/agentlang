@@ -532,7 +532,7 @@ export async function addRowForFullTextSearch(
       await qb
         .insert()
         .into(vecTableName)
-        .values([{ id: id, embedding: pgvector.toSql(vect), __tenant__: tenantId }])
+        .values([{ id: id, embedding: pgvector.toSql(vect), agentId: tenantId }])
         .execute();
     }
     logger.info(`[VECTOR] Successfully saved embedding to ${vecTableName} for ${id}`);
@@ -872,7 +872,7 @@ async function createLimitedOwnership(
       r: perms.has(RbacPermissionFlag.READ),
       d: perms.has(RbacPermissionFlag.DELETE),
       u: perms.has(RbacPermissionFlag.UPDATE),
-      __tenant__: tenantId,
+      agentId: tenantId,
     });
   });
   const tname = ownersTable(tableName);

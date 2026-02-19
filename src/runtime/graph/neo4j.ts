@@ -73,7 +73,7 @@ export class Neo4jDatabase implements GraphDatabase {
           id: $id, name: $name, entityType: $entityType, description: $description,
           sourceType: $sourceType, sourceId: $sourceId, sourceChunk: $sourceChunk,
           instanceId: $instanceId, instanceType: $instanceType,
-          __tenant__: $containerTag, agentId: $agentId,
+          agentId: $agentId, agentId: $agentId,
           confidence: $confidence, isLatest: $isLatest,
           createdAt: datetime(), updatedAt: datetime()
         }) RETURN n.id AS id`,
@@ -87,7 +87,7 @@ export class Neo4jDatabase implements GraphDatabase {
           sourceChunk: node.sourceChunk || null,
           instanceId: node.instanceId || null,
           instanceType: node.instanceType || null,
-          containerTag: node.__tenant__,
+          agentId: node.agentId,
           agentId: node.agentId || null,
           confidence: node.confidence,
           isLatest: node.isLatest,
@@ -107,7 +107,7 @@ export class Neo4jDatabase implements GraphDatabase {
          SET n.name = $name, n.entityType = $entityType, n.description = $description,
              n.sourceType = $sourceType, n.sourceId = $sourceId, n.sourceChunk = $sourceChunk,
              n.instanceId = $instanceId, n.instanceType = $instanceType,
-             n.__tenant__ = $containerTag, n.agentId = $agentId,
+             n.agentId = $agentId, n.agentId = $agentId,
              n.confidence = $confidence, n.isLatest = $isLatest,
              n.updatedAt = datetime(),
              n.createdAt = coalesce(n.createdAt, datetime())
@@ -122,7 +122,7 @@ export class Neo4jDatabase implements GraphDatabase {
           sourceChunk: node.sourceChunk || null,
           instanceId: node.instanceId || null,
           instanceType: node.instanceType || null,
-          containerTag: node.__tenant__,
+          agentId: node.agentId,
           agentId: node.agentId || null,
           confidence: node.confidence,
           isLatest: node.isLatest,
@@ -145,11 +145,11 @@ export class Neo4jDatabase implements GraphDatabase {
     }
   }
 
-  async findNodesByContainer(__tenant__: string): Promise<GraphNode[]> {
+  async findNodesByContainer(agentId: string): Promise<GraphNode[]> {
     const session = this.driver.session();
     try {
-      const result = await session.run('MATCH (n:KnowledgeEntity {__tenant__: $tenant}) RETURN n', {
-        tenant: __tenant__,
+      const result = await session.run('MATCH (n:KnowledgeEntity {agentId: $tenant}) RETURN n', {
+        tenant: agentId,
       });
       return result.records.map((r: any) => this.recordToNode(r.get('n')));
     } finally {
@@ -287,20 +287,20 @@ export class Neo4jDatabase implements GraphDatabase {
   async expandGraph(
     seedIds: string[],
     maxDepth: number,
-    __tenant__: string
+    agentId: string
   ): Promise<GraphTraversalResult> {
     const session = this.driver.session();
     try {
       const result = await session.run(
         `MATCH (seed:KnowledgeEntity)
-         WHERE seed.id IN $seedIds AND seed.__tenant__ = $tenant
+         WHERE seed.id IN $seedIds AND seed.agentId = $tenant
          CALL apoc.path.subgraphAll(seed, {maxLevel: $maxDepth, labelFilter: 'KnowledgeEntity'})
          YIELD nodes, relationships
          UNWIND nodes AS n
          UNWIND relationships AS r
          RETURN DISTINCT n, startNode(r).id AS srcId, endNode(r).id AS tgtId,
                 type(r) AS relType, r.weight AS weight`,
-        { seedIds, maxDepth, tenant: __tenant__ }
+        { seedIds, maxDepth, tenant: agentId }
       );
 
       const nodeMap = new Map<string, GraphNode>();
@@ -327,7 +327,7 @@ export class Neo4jDatabase implements GraphDatabase {
       return { nodes: Array.from(nodeMap.values()), edges };
     } catch {
       // Fallback to manual BFS if APOC is not available
-      return await this.expandGraphBFS(seedIds, maxDepth, __tenant__, session);
+      return await this.expandGraphBFS(seedIds, maxDepth, agentId, session);
     } finally {
       await session.close();
     }
@@ -336,7 +336,7 @@ export class Neo4jDatabase implements GraphDatabase {
   private async expandGraphBFS(
     seedIds: string[],
     maxDepth: number,
-    __tenant__: string,
+    agentId: string,
     session: any
   ): Promise<GraphTraversalResult> {
     const visited = new Set<string>();
@@ -347,10 +347,10 @@ export class Neo4jDatabase implements GraphDatabase {
     for (let depth = 0; depth <= maxDepth && currentIds.length > 0; depth++) {
       const result = await session.run(
         `MATCH (n:KnowledgeEntity)
-         WHERE n.id IN $ids AND n.__tenant__ = $tenant
-         OPTIONAL MATCH (n)-[r]->(m:KnowledgeEntity {__tenant__: $tenant})
+         WHERE n.id IN $ids AND n.agentId = $tenant
+         OPTIONAL MATCH (n)-[r]->(m:KnowledgeEntity {agentId: $tenant})
          RETURN n, m, r, type(r) AS relType, r.weight AS weight`,
-        { ids: currentIds, tenant: __tenant__ }
+        { ids: currentIds, tenant: agentId }
       );
 
       const nextIds: string[] = [];
@@ -393,28 +393,28 @@ export class Neo4jDatabase implements GraphDatabase {
     }
   }
 
-  async clearContainer(__tenant__: string): Promise<void> {
+  async clearContainer(agentId: string): Promise<void> {
     const session = this.driver.session();
     try {
-      await session.run('MATCH (n:KnowledgeEntity {__tenant__: $tenant}) DETACH DELETE n', {
-        tenant: __tenant__,
+      await session.run('MATCH (n:KnowledgeEntity {agentId: $tenant}) DETACH DELETE n', {
+        tenant: agentId,
       });
     } finally {
       await session.close();
     }
   }
 
-  async getStats(__tenant__?: string): Promise<{ nodeCount: number; edgeCount: number }> {
+  async getStats(agentId?: string): Promise<{ nodeCount: number; edgeCount: number }> {
     const session = this.driver.session();
     try {
-      const whereClause = __tenant__ ? 'WHERE n.__tenant__ = $tenant' : '';
+      const whereClause = agentId ? 'WHERE n.agentId = $tenant' : '';
       const nodeResult = await session.run(
         `MATCH (n:KnowledgeEntity) ${whereClause} RETURN count(n) AS cnt`,
-        __tenant__ ? { tenant: __tenant__ } : {}
+        agentId ? { tenant: agentId } : {}
       );
       const edgeResult = await session.run(
         `MATCH (n:KnowledgeEntity)${whereClause ? ' ' + whereClause : ''}-[r]->() RETURN count(r) AS cnt`,
-        __tenant__ ? { tenant: __tenant__ } : {}
+        agentId ? { tenant: agentId } : {}
       );
       return {
         nodeCount: nodeResult.records[0]?.get('cnt')?.toNumber?.() ?? 0,
@@ -437,7 +437,7 @@ export class Neo4jDatabase implements GraphDatabase {
       sourceChunk: props.sourceChunk,
       instanceId: props.instanceId,
       instanceType: props.instanceType,
-      __tenant__: props.__tenant__,
+      agentId: props.agentId,
       agentId: props.agentId,
       confidence: props.confidence ?? 1.0,
       createdAt: props.createdAt ? new Date(props.createdAt) : new Date(),

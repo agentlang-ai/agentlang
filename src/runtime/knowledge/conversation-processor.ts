@@ -193,7 +193,7 @@ export class ConversationProcessor {
           `relType "${escapeString(edge.relationship)}", ` +
           `weight ${edge.weight}, ` +
           `sourceType "CONVERSATION", ` +
-          `__tenant__ "${escapeString(containerTag)}"` +
+          `agentId "${escapeString(containerTag)}"` +
           (agentId ? `, agentId "${escapeString(agentId)}"` : '') +
           `}}`,
         undefined
