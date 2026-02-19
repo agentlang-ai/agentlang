@@ -248,19 +248,21 @@ const INVALID_ENTITY_PATTERNS = [
   /^[a-zA-Z]\d?$/, // Single letter + optional digit (A1, B2, etc.)
   /^[\p{P}\s]+$/u, // Pure punctuation
   /^\d+$/, // Numbers only
-  /^chapter\s+[ivxlcdm]+$/i, // Chapter I, Chapter IV, etc.
 ];
 
 const INVALID_ENTITY_NAMES = new Set([
-  'chapter',
-  'chapters',
   'section',
   'sections',
   'page',
   'pages',
-  'volume',
-  'book',
   'part',
+  'paragraph',
+  'paragraphs',
+  'header',
+  'footer',
+  'appendix',
+  'introduction',
+  'conclusion',
 ]);
 
 // Common grammatical categories to skip
@@ -336,35 +338,50 @@ function normalizeEntityType(type: string): string {
   const normalized = type.trim().toLowerCase();
   switch (normalized) {
     case 'person':
-    case 'character':
-    case 'animal':
-    case 'creature':
+    case 'individual':
+    case 'contact':
       return 'Person';
     case 'organization':
     case 'org':
     case 'company':
     case 'institution':
+    case 'business':
       return 'Organization';
     case 'location':
     case 'place':
-    case 'setting':
+    case 'address':
+    case 'site':
       return 'Location';
     case 'event':
     case 'occasion':
+    case 'meeting':
       return 'Event';
     case 'role':
     case 'title':
+    case 'position':
       return 'Role';
     case 'product':
-    case 'artifact':
-    case 'object':
+    case 'item':
+    case 'sku':
       return 'Product';
+    case 'customer':
+    case 'client':
+    case 'account':
+      return 'Customer';
+    case 'contract':
+    case 'agreement':
+    case 'deal':
+      return 'Contract';
+    case 'policy':
+    case 'procedure':
+    case 'guideline':
+      return 'Policy';
     case 'concept':
     case 'idea':
     case 'topic':
       return 'Concept';
     default:
-      return 'Concept';
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
 }
 

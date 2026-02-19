@@ -2,12 +2,15 @@ import type { GraphNode, SourceType } from '../graph/types.js';
 import type { Instance } from '../module.js';
 
 export const TYPE_PRIORITY: Record<string, number> = {
-  Person: 6,
-  Organization: 5,
+  Customer: 10,
+  Contract: 9,
+  Person: 8,
+  Organization: 7,
+  Product: 6,
   Location: 5,
   Event: 4,
-  Role: 3,
-  Product: 2,
+  Policy: 3,
+  Role: 2,
   Concept: 1,
 };
 

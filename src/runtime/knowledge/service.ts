@@ -11,6 +11,9 @@ import { parseAndEvaluateStatement, Environment } from '../interpreter.js';
 import { escapeString } from './utils.js';
 import type { Instance } from '../module.js';
 import type { Document, KnowledgeContext, ProcessingResult, SourceType } from '../graph/types.js';
+import { insertRows, DbContext } from '../resolvers/sqldb/database.js';
+import { DefaultAuthInfo } from '../resolvers/authinfo.js';
+import crypto from 'crypto';
 
 // Maximum number of session messages to retain per session (prevents database bloat)
 const MAX_KNOWLEDGE_SESSION_MESSAGES = parseInt(
@@ -628,7 +631,7 @@ export class KnowledgeService {
 
   /**
    * Batch insert multiple knowledge entities in a single transaction.
-   * Significantly faster than individual inserts for large document processing.
+   * Uses database-level bulk insert for significantly better performance.
    */
   async batchCreateEntities(
     entities: Array<{
@@ -649,49 +652,68 @@ export class KnowledgeService {
     }
 
     const results: Array<{ id: string; name: string; entityType: string }> = [];
+    const tableName = 'agentlang_knowledge_KnowledgeEntity';
 
     try {
-      await (env || new Environment()).callInTransaction(async () => {
-        for (const entity of entities) {
-          const query =
-            `{${CoreKnowledgeModuleName}/KnowledgeEntity {` +
-            `name "${escapeString(entity.name)}", ` +
-            `entityType "${escapeString(entity.entityType)}", ` +
-            `sourceType "${entity.sourceType}", ` +
-            `__tenant__ "${escapeString(containerTag)}", ` +
-            `isLatest true, ` +
-            `confidence ${entity.confidence || 1.0}` +
-            (entity.description ? `, description "${escapeString(entity.description)}"` : '') +
-            (entity.sourceId ? `, sourceId "${escapeString(entity.sourceId)}"` : '') +
-            (entity.sourceChunk
-              ? `, sourceChunk "${escapeString(entity.sourceChunk.substring(0, 500))}"`
-              : '') +
-            (entity.agentId ? `, agentId "${escapeString(entity.agentId)}"` : '') +
-            `}}`;
+      const activeEnv = env || new Environment();
 
-          const result = await parseAndEvaluateStatement(query, undefined, env);
-          const inst = Array.isArray(result) ? result[0] : result;
-          if (inst) {
-            results.push({
-              id: inst.lookup('id') as string,
-              name: inst.lookup('name') as string,
-              entityType: inst.lookup('entityType') as string,
-            });
-          }
+      await activeEnv.callInTransaction(async () => {
+        // Build array of row objects for bulk insert
+        const rows = entities.map(entity => {
+          const id = crypto.randomUUID();
+          const path = `${CoreKnowledgeModuleName}$KnowledgeEntity/${id}`;
+
+          return {
+            id,
+            name: entity.name,
+            entityType: entity.entityType,
+            description: entity.description || null,
+            sourceType: entity.sourceType,
+            sourceId: entity.sourceId || null,
+            sourceChunk: entity.sourceChunk ? entity.sourceChunk.substring(0, 500) : null,
+            instanceId: null,
+            instanceType: null,
+            __tenant__: containerTag,
+            agentId: entity.agentId || null,
+            confidence: entity.confidence || 1.0,
+            isLatest: true,
+            embedding: null,
+            __path__: path,
+          };
+        });
+
+        // Create DbContext with current transaction
+        const ctx = new DbContext(
+          `${CoreKnowledgeModuleName}/KnowledgeEntity`,
+          DefaultAuthInfo,
+          activeEnv,
+          activeEnv.getActiveTransactions().get('sqldb')
+        );
+
+        // Perform bulk insert
+        await insertRows(tableName, rows, ctx, false);
+
+        // Build results from inserted rows
+        for (let i = 0; i < rows.length; i++) {
+          results.push({
+            id: rows[i].id,
+            name: rows[i].name,
+            entityType: rows[i].entityType,
+          });
         }
       });
 
-      logger.info(`[KNOWLEDGE] Batch created ${results.length} entities in single transaction`);
+      logger.info(`[KNOWLEDGE] Bulk inserted ${results.length} entities in single transaction`);
       return results;
     } catch (err) {
-      logger.error(`[KNOWLEDGE] Batch entity creation failed: ${err}`);
+      logger.error(`[KNOWLEDGE] Bulk entity creation failed: ${err}`);
       throw err;
     }
   }
 
   /**
    * Batch insert multiple knowledge edges in a single transaction.
-   * Significantly faster than individual inserts for large document processing.
+   * Uses database-level bulk insert for significantly better performance.
    */
   async batchCreateEdges(
     edges: Array<{
@@ -709,36 +731,56 @@ export class KnowledgeService {
     }
 
     const results: Array<{ id: string; sourceId: string; targetId: string }> = [];
+    const tableName = 'agentlang_knowledge_KnowledgeEdge';
 
     try {
-      await (env || new Environment()).callInTransaction(async () => {
-        for (const edge of edges) {
-          const query =
-            `{${CoreKnowledgeModuleName}/KnowledgeEdge {` +
-            `sourceId "${edge.sourceId}", ` +
-            `targetId "${edge.targetId}", ` +
-            `relType "${escapeString(edge.relType)}", ` +
-            `weight ${edge.weight || 1.0}, ` +
-            `sourceType "${edge.sourceType}", ` +
-            `__tenant__ "${escapeString(edge.containerTag)}"` +
-            `}}`;
+      const activeEnv = env || new Environment();
 
-          const result = await parseAndEvaluateStatement(query, undefined, env);
-          const inst = Array.isArray(result) ? result[0] : result;
-          if (inst) {
-            results.push({
-              id: inst.lookup('id') as string,
-              sourceId: inst.lookup('sourceId') as string,
-              targetId: inst.lookup('targetId') as string,
-            });
-          }
+      await activeEnv.callInTransaction(async () => {
+        // Build array of row objects for bulk insert
+        const rows = edges.map(edge => {
+          const id = crypto.randomUUID();
+          const path = `${CoreKnowledgeModuleName}$KnowledgeEdge/${id}`;
+
+          return {
+            id,
+            sourceId: edge.sourceId,
+            targetId: edge.targetId,
+            relType: edge.relType,
+            weight: edge.weight || 1.0,
+            sourceType: edge.sourceType,
+            __tenant__: edge.containerTag,
+            agentId: null,
+            createdAt: new Date().toISOString(),
+            __path__: path,
+          };
+        });
+
+        // Create DbContext with current transaction
+        const ctx = new DbContext(
+          `${CoreKnowledgeModuleName}/KnowledgeEdge`,
+          DefaultAuthInfo,
+          activeEnv,
+          activeEnv.getActiveTransactions().get('sqldb')
+        );
+
+        // Perform bulk insert
+        await insertRows(tableName, rows, ctx, false);
+
+        // Build results from inserted rows
+        for (let i = 0; i < rows.length; i++) {
+          results.push({
+            id: rows[i].id,
+            sourceId: rows[i].sourceId,
+            targetId: rows[i].targetId,
+          });
         }
       });
 
-      logger.info(`[KNOWLEDGE] Batch created ${results.length} edges in single transaction`);
+      logger.info(`[KNOWLEDGE] Bulk inserted ${results.length} edges in single transaction`);
       return results;
     } catch (err) {
-      logger.error(`[KNOWLEDGE] Batch edge creation failed: ${err}`);
+      logger.error(`[KNOWLEDGE] Bulk edge creation failed: ${err}`);
       throw err;
     }
   }

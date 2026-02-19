@@ -20,7 +20,12 @@ export interface VectorStore {
   init(): Promise<void>;
   addEmbedding(record: VectorRecord): Promise<void>;
   addEmbeddings(records: VectorRecord[]): Promise<void>;
-  search(embedding: number[], tenantId?: string, limit?: number): Promise<SearchResult[]>;
+  search(
+    embedding: number[],
+    tenantId?: string,
+    agentId?: string,
+    limit?: number
+  ): Promise<SearchResult[]>;
   delete(id: string): Promise<void>;
   exists(id: string): Promise<boolean>;
   close(): Promise<void>;
