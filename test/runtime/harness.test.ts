@@ -2,8 +2,7 @@ import { assert, describe, test } from 'vitest';
 import { testModule, is, runTests, runPatternTests } from '../../src/test-harness.js';
 import { doInternModule } from '../util.js';
 
-const bankingModule = `module banking.core
-entity BankAccount {
+const bankingModuleBody = `entity BankAccount {
   accountNo Int @id,
   balance Decimal,
   interestRate Decimal
@@ -18,28 +17,11 @@ workflow makeDeposit {
                  balance balance + (balance * interestRate) + makeDeposit.amount}
   }
 }`;
+const bankingModule = (name: string) => `module ${name}\n${bankingModuleBody}`;
 
 describe('Test harness - Banking module', () => {
   test('deposit increases balance with interest', async () => {
-    const m = await testModule(
-      'banking.core',
-      `entity BankAccount {
-        accountNo Int @id,
-        balance Decimal,
-        interestRate Decimal
-      }
-      @public event makeDeposit {
-        accountNo Int,
-        amount Decimal
-      }
-      workflow makeDeposit {
-        {
-          BankAccount {accountNo? makeDeposit.accountNo,
-                       balance balance + (balance * interestRate) + makeDeposit.amount}
-        }
-      }`,
-      doInternModule
-    );
+    const m = await testModule('banking.core1', bankingModuleBody, doInternModule);
 
     const account = await m.create_BankAccount({
       accountNo: 101992,
@@ -61,7 +43,7 @@ describe('Test harness - Banking module', () => {
 describe('Test harness - Relationships', () => {
   test('create and query with between relationship', async () => {
     const m = await testModule(
-      'Blogger',
+      'Blogger2',
       `entity User {
         email Email @id,
         name String
@@ -105,7 +87,7 @@ describe('Test harness - Relationships', () => {
 
   test('nested contains relationships', async () => {
     const m = await testModule(
-      'NestedRel',
+      'NestedRel2',
       `entity A {
         id Int @id,
         x Int
@@ -129,7 +111,7 @@ describe('Test harness - Relationships', () => {
     await m.get_A(
       { id: 1 },
       {
-        'NestedRel/AB': { entity: 'B', attrs: { id: 10, y: 100 } },
+        'NestedRel2/AB': { entity: 'B', attrs: { id: 10, y: 100 } },
       }
     );
 
@@ -137,12 +119,12 @@ describe('Test harness - Relationships', () => {
     await m.get_A(
       { id: 1 },
       {
-        'NestedRel/AB': {
+        'NestedRel2/AB': {
           entity: 'B',
           query: true,
           attrs: { id: 10 },
           rels: {
-            'NestedRel/BC': { entity: 'C', attrs: { id: 100, z: 1000 } },
+            'NestedRel2/BC': { entity: 'C', attrs: { id: 100, z: 1000 } },
           },
         },
       }
@@ -152,22 +134,22 @@ describe('Test harness - Relationships', () => {
     const results = await m.get_A(
       { id: 1 },
       {
-        'NestedRel/AB': {
+        'NestedRel2/AB': {
           entity: 'B',
           query: true,
           attrs: {},
           rels: {
-            'NestedRel/BC': { entity: 'C', query: true, attrs: {} },
+            'NestedRel2/BC': { entity: 'C', query: true, attrs: {} },
           },
         },
       }
     );
     is(results.length == 1);
     is(results[0].x == 10);
-    const bs = results[0]['NestedRel/AB'];
+    const bs = results[0]['NestedRel2/AB'];
     is(bs.length == 1);
     is(bs[0].y == 100);
-    const cs = bs[0]['NestedRel/BC'];
+    const cs = bs[0]['NestedRel2/BC'];
     is(cs.length == 1);
     is(cs[0].z == 1000);
   });
@@ -176,22 +158,7 @@ describe('Test harness - Relationships', () => {
 describe('runTests - string-based test runner', () => {
   test('passing tests', async () => {
     const result = await runTests(
-      `module banking.core
-      entity BankAccount {
-        accountNo Int @id,
-        balance Decimal,
-        interestRate Decimal
-      }
-      @public event makeDeposit {
-        accountNo Int,
-        amount Decimal
-      }
-      workflow makeDeposit {
-        {
-          BankAccount {accountNo? makeDeposit.accountNo,
-                       balance balance + (balance * interestRate) + makeDeposit.amount}
-        }
-      }`,
+      bankingModule('banking.core2'),
       `
       let account = await create_BankAccount({accountNo: 101992, balance: 100, interestRate: 0.5});
       is(account.accountNo == 101992);
@@ -272,15 +239,16 @@ describe('runTests - string-based test runner', () => {
 
 describe('runPatternTests - agentlang pattern array', () => {
   test('banking CRUD with patterns', async () => {
+    const mn = 'banking.core3';
     const result = await runPatternTests(
-      bankingModule,
+      bankingModule(mn),
       [
-        '{banking.core/BankAccount {accountNo 101992, balance 100, interestRate 0.5}}',
+        `{${mn}/BankAccount {accountNo 101992, balance 100, interestRate 0.5}}`,
         'is(result.accountNo == 101992)',
         'is(result.balance == 100)',
         'is(result.interestRate == 0.5)',
-        '{banking.core/makeDeposit {accountNo 101992, amount 50}}',
-        '{banking.core/BankAccount {accountNo? 101992}}',
+        `{${mn}/makeDeposit {accountNo 101992, amount 50}}`,
+        `{${mn}/BankAccount {accountNo? 101992}}`,
         'is(result.accountNo == 101992)',
         'is(result.balance == 200)',
       ],
@@ -314,10 +282,11 @@ describe('runPatternTests - agentlang pattern array', () => {
   });
 
   test('assertion failure reports correctly', async () => {
+    const mn = 'banking.core4';
     const result = await runPatternTests(
-      bankingModule,
+      bankingModule(mn),
       [
-        '{banking.core/BankAccount {accountNo 1, balance 100, interestRate 0.5}}',
+        `{${mn}/BankAccount {accountNo 1, balance 100, interestRate 0.5}}`,
         'is(result.balance == 100)',
         'is(result.balance == 999, "balance should not be 999")',
       ],

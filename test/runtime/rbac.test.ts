@@ -194,11 +194,11 @@ describe('Issue-350', () => {
   test('Permissions on between', async () => {
     await doInitRuntime();
     const managerRole = 'i2350manager';
-    const userId = 'user@i350.com';
-    const tempuser = 'temp@i350.com';
+    const userId = crypto.randomUUID();
+    const tempuser = crypto.randomUUID();
     let env = new Environment();
-    await createUser(userId, userId, 'User', '01', env);
-    await createUser(tempuser, tempuser, 'User', 'temp', env);
+    await createUser(userId, 'user@i350.com', 'User', '01', env);
+    await createUser(tempuser, 'temp@i350.com', 'User', 'temp', env);
     await ensureUserRoles(userId, [managerRole], env);
     await createPermission(
       'i350p1',
@@ -244,14 +244,14 @@ describe('Issue-350', () => {
     await callWithRbac(async () => {
       env = new Environment();
       let r: Instance[] = await parseAndEvaluateStatement(`{agentlang.auth/User? {}}`, userId, env);
-      assert(r.length == 2);
+      assert(r.length >= 2);
       const ids = new Set().add(userId).add(tempuser);
       r.forEach((inst: Instance) => {
         assert(isInstanceOfType(inst, 'agentlang.auth/User'));
         const id = inst.lookup('id');
-        assert(ids.has(id));
         ids.delete(id);
       });
+      assert(ids.size == 0, 'manager should see both created users');
       r = await parseAndEvaluateStatement(`{agentlang.auth/User? {}}`, tempuser, env);
       assert(r.length == 1);
       assert(r[0].lookup('id') == tempuser);
@@ -401,9 +401,9 @@ describe('VectorDB RBAC', () => {
         const id3 = crypto.randomUUID();
         const env: Environment = new Environment();
         async function f1() {
-          await createUser(id1, 'u1@acme.com', 'U', '1', env);
-          await createUser(id2, 'u2@acme.com', 'U', '2', env);
-          await createUser(id3, 'u3@acme.com', 'U', '3', env);
+          await createUser(id1, `${id1}@acme.com`, 'U', '1', env);
+          await createUser(id2, `${id2}@acme.com`, 'U', '2', env);
+          await createUser(id3, `${id3}@acme.com`, 'U', '3', env);
           assert(
             (await assignUserToRole(id1, 'manager', env)) == true,
             'Failed to assign manager role'
@@ -414,6 +414,7 @@ describe('VectorDB RBAC', () => {
           );
         }
         await env.callInTransaction(f1);
+        const idBase = Math.floor(Math.random() * 1000000);
         async function cre(id: number, x: string, userId: string, expectError: boolean = false) {
           const r = await parseAndEvaluateStatement(
             `{${mname}/E {id ${id}, x "${x}"}}`,
@@ -430,10 +431,10 @@ describe('VectorDB RBAC', () => {
             );
           }
         }
-        await cre(1, 'hello world', id1);
-        await cre(2, 'bye', id2, true);
-        await cre(3, 'ok', id3, true);
-        await cre(4, 'bye bye world', id1);
+        await cre(idBase + 1, 'hello world', id1);
+        await cre(idBase + 2, 'bye', id2, true);
+        await cre(idBase + 3, 'ok', id3, true);
+        await cre(idBase + 4, 'bye bye world', id1);
         async function srche(text: string, userId: string): Promise<any> {
           return await parseAndEvaluateStatement(`{${mname}/E? "${text}"}`, userId);
         }

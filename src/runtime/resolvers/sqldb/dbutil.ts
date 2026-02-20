@@ -99,6 +99,12 @@ export type OrmSchema = {
   fkSpecs: FkSpec[];
 };
 
+const SqlDefaultFunctions = new Set(['uuid()', 'autoincrement()', 'now()']);
+
+function isSqlDefault(d: any): boolean {
+  return typeof d !== 'string' || !d.endsWith('()') || SqlDefaultFunctions.has(d);
+}
+
 export function modulesAsOrmSchema(): OrmSchema {
   const ents: EntitySchema[] = [];
   const vects: EntitySchema[] = [];
@@ -147,6 +153,7 @@ function ormSchemaFromRecordSchema(
     const autoUuid: boolean = d && d == 'uuid()' ? true : false;
     const autoIncr: boolean = !autoUuid && d && d == 'autoincrement()' ? true : false;
     if (autoUuid || autoIncr) d = undefined;
+    else if (!isSqlDefault(d)) d = undefined;
     let genStrat: 'uuid' | 'increment' | undefined = undefined;
     if (autoIncr) genStrat = 'increment';
     else if (autoUuid) genStrat = 'uuid';
@@ -273,6 +280,7 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
     const autoUuid: boolean = d && d == 'uuid()' ? true : false;
     const autoIncr: boolean = !autoUuid && d && d == 'autoincrement()' ? true : false;
     if (autoUuid || autoIncr) d = undefined;
+    else if (!isSqlDefault(d)) d = undefined;
     let genStrat: 'uuid' | 'increment' | 'rowid' | 'identity' = 'identity';
     if (autoIncr) genStrat = 'increment';
     else if (autoUuid) genStrat = 'uuid';
