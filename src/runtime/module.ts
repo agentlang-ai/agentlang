@@ -135,6 +135,16 @@ function normalizePropertyNames(props: Map<string, any>) {
 const SystemAttributeProperty: string = 'system-attribute';
 const SystemDefinedEvent = 'system-event';
 const McpToolEvent = 'mcp-tool';
+const IsAgentEventMeta = 'is-agent-event';
+const EventAgentName = 'event-agent-name';
+const DocumentationMetaTag = 'documentation';
+
+const InternalMetaKeys = new Set<string>([
+  IsAgentEventMeta,
+  EventAgentName,
+  SystemDefinedEvent,
+  McpToolEvent,
+]);
 
 function asSystemAttribute(attrSpec: AttributeSpec): AttributeSpec {
   const props: Map<string, any> = attrSpec.properties ? attrSpec.properties : new Map();
@@ -236,6 +246,15 @@ type Meta = Map<string, any>;
 
 export function newMeta(): Meta {
   return new Map<string, any>();
+}
+
+export function getPublicMeta(record: Record): { [key: string]: any } {
+  if (!record.meta || record.meta.size === 0) return {};
+  const result: { [key: string]: any } = {};
+  record.meta.forEach((v: any, k: string) => {
+    if (!InternalMetaKeys.has(k)) result[k] = v;
+  });
+  return result;
 }
 
 export enum RecordType {
@@ -513,6 +532,10 @@ export class Record extends ModuleEntry {
     }
   }
 
+  getDocumentation(): string | undefined {
+    return this.getMeta(DocumentationMetaTag) as string | undefined;
+  }
+
   getFullTextSearchAttributes(): string[] | undefined {
     let fts: string[] | string | undefined = this.getMeta('fullTextSearchAttributes');
     if (!fts) {
@@ -701,8 +724,7 @@ export class Record extends ModuleEntry {
       if (isevent && isAgentEvent(this) && toolCall) {
         const m = new Map<string, any>();
         this.meta?.forEach((v: any, k: string) => {
-          if (!(k === IsAgentEventMeta || k === EventAgentName || k === DocumentationMetaTag))
-            m.set(k, v);
+          if (!InternalMetaKeys.has(k)) m.set(k, v);
         });
         if (m.size > 0) {
           metaObj = Object.fromEntries(m);
@@ -4400,10 +4422,6 @@ export function assertInstance(obj: any) {
   }
 }
 
-const IsAgentEventMeta = 'is-agent-event';
-const EventAgentName = 'event-agent-name';
-const DocumentationMetaTag = 'documentation';
-
 function markAsAgentEvent(event: Event): Event {
   event.addMeta(IsAgentEventMeta, 'y');
   return event;
@@ -4420,7 +4438,7 @@ export function defineAgentEvent(moduleName: string, agentName: string, instruct
       .addMeta(SystemDefinedEvent, 'true');
   }
   markAsAgentEvent(event as Event).addMeta(EventAgentName, agentName);
-  if (instruction) {
+  if (instruction && !event.getMeta(DocumentationMetaTag)) {
     event.addMeta(
       DocumentationMetaTag,
       `This event will trigger an agent which has the instruction - "${instruction}".
