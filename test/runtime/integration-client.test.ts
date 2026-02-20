@@ -25,7 +25,10 @@ describe('Integration Client', () => {
 
     const mockResponse = {
       ok: true,
-      json: async () => ({ integrationName: 'myApi', headers: { Authorization: 'Bearer test-token' } }),
+      json: async () => ({
+        integrationName: 'myApi',
+        headers: { Authorization: 'Bearer test-token' },
+      }),
     };
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockResponse as any);
 

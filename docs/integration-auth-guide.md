@@ -61,11 +61,11 @@ Add an `integrations` section to your app's config file. This tells the runtime 
 }
 ```
 
-| Field | Description |
-|---|---|
-| `host` | URL of the running Integration Manager service |
-| `connections` | A map of integration names to their configuration |
-| `connections.<name>.config` | Path to the credential config in Integration Manager (`<integrationId>/<configId>`) |
+| Field                          | Description                                                                                              |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `host`                         | URL of the running Integration Manager service                                                           |
+| `connections`                  | A map of integration names to their configuration                                                        |
+| `connections.<name>.config`    | Path to the credential config in Integration Manager (`<integrationId>/<configId>`)                      |
 | `connections.<name>.resolvers` | List of resolver names (as `module/resolverName`) that should receive auth headers from this integration |
 
 You can use `#js` expressions for the host (e.g. to read from an environment variable):
@@ -111,9 +111,9 @@ export const queryEmail = async (resolver, inst) => {
   // something like: { "Authorization": "Bearer eyJhbG..." }
   const authHeaders = await resolver.getAuthHeaders();
 
-  const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages", {
+  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...authHeaders,
     },
   });
@@ -132,7 +132,7 @@ const makeRequest = async (resolver, endpoint, options = {}) => {
   const response = await fetch(`https://api.example.com${endpoint}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...authHeaders,
       ...(options.headers || {}),
     },
@@ -147,14 +147,14 @@ const makeRequest = async (resolver, endpoint, options = {}) => {
 
 // Then use it in all your resolver functions:
 export const queryItems = async (resolver, inst) => {
-  const data = await makeRequest(resolver, "/v1/items", { method: "GET" });
+  const data = await makeRequest(resolver, '/v1/items', { method: 'GET' });
   // ...
 };
 
 export const createItem = async (resolver, inst) => {
-  const body = { name: inst.attributes.get("name") };
-  const data = await makeRequest(resolver, "/v1/items", {
-    method: "POST",
+  const body = { name: inst.attributes.get('name') };
+  const data = await makeRequest(resolver, '/v1/items', {
+    method: 'POST',
     body: JSON.stringify(body),
   });
   // ...
@@ -170,7 +170,7 @@ Two convenience functions are also available globally on the `agentlang` object.
 Returns the auth headers for a named integration:
 
 ```js
-const headers = await agentlang.getAuthHeaders("gmail");
+const headers = await agentlang.getAuthHeaders('gmail');
 // { "Authorization": "Bearer eyJhbG..." }
 ```
 
@@ -180,8 +180,8 @@ A drop-in replacement for `fetch()` that automatically injects the integration's
 
 ```js
 const response = await agentlang.authFetch(
-  "gmail",
-  "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10"
+  'gmail',
+  'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10'
 );
 
 const data = await response.json();
@@ -190,20 +190,20 @@ const data = await response.json();
 You can pass additional headers -- they are merged on top of the auth headers:
 
 ```js
-const response = await agentlang.authFetch("slack", "https://slack.com/api/chat.postMessage", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ channel: "#general", text: "Hello!" }),
+const response = await agentlang.authFetch('slack', 'https://slack.com/api/chat.postMessage', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ channel: '#general', text: 'Hello!' }),
 });
 ```
 
 ### Which approach should I use?
 
-| Approach | When to use |
-|---|---|
-| `resolver.getAuthHeaders()` | Default choice. Works inside any resolver function. Uses the integration bound to the resolver in config. |
-| `agentlang.getAuthHeaders(name)` | When you need headers for a specific integration by name, or outside a resolver context. |
-| `agentlang.authFetch(name, url)` | When you want a one-liner that combines header injection + fetch. |
+| Approach                         | When to use                                                                                               |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `resolver.getAuthHeaders()`      | Default choice. Works inside any resolver function. Uses the integration bound to the resolver in config. |
+| `agentlang.getAuthHeaders(name)` | When you need headers for a specific integration by name, or outside a resolver context.                  |
+| `agentlang.authFetch(name, url)` | When you want a one-liner that combines header injection + fetch.                                         |
 
 ## Complete Example: Gmail Integration
 
@@ -271,7 +271,7 @@ resolver gmail2 [gmail/Label] {
 ### `src/resolver.js`
 
 ```js
-import { makeInstance } from "agentlang/out/runtime/module.js";
+import { makeInstance } from 'agentlang/out/runtime/module.js';
 
 // Helper: make authenticated requests using the resolver's bound integration
 const makeRequest = async (resolver, endpoint, options = {}) => {
@@ -281,7 +281,7 @@ const makeRequest = async (resolver, endpoint, options = {}) => {
   const response = await fetch(url, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...authHeaders,
       ...(options.headers || {}),
     },
@@ -295,28 +295,32 @@ const makeRequest = async (resolver, endpoint, options = {}) => {
 };
 
 export const queryEmail = async (resolver, inst) => {
-  const data = await makeRequest(resolver, "/gmail/v1/users/me/messages?maxResults=10", {
-    method: "GET",
+  const data = await makeRequest(resolver, '/gmail/v1/users/me/messages?maxResults=10', {
+    method: 'GET',
   });
 
   const emails = [];
   for (const msg of data.messages || []) {
     const detail = await makeRequest(resolver, `/gmail/v1/users/me/messages/${msg.id}`, {
-      method: "GET",
+      method: 'GET',
     });
 
-    const headers = detail.payload?.headers?.reduce(
-      (acc, h) => ({ ...acc, [h.name]: h.value }),
-      {}
-    ) || {};
+    const headers =
+      detail.payload?.headers?.reduce((acc, h) => ({ ...acc, [h.name]: h.value }), {}) || {};
 
     emails.push(
-      makeInstance("gmail", "Email", new Map(Object.entries({
-        id: detail.id,
-        sender: headers["From"],
-        subject: headers["Subject"],
-        body: detail.snippet,
-      })))
+      makeInstance(
+        'gmail',
+        'Email',
+        new Map(
+          Object.entries({
+            id: detail.id,
+            sender: headers['From'],
+            subject: headers['Subject'],
+            body: detail.snippet,
+          })
+        )
+      )
     );
   }
 
@@ -324,14 +328,14 @@ export const queryEmail = async (resolver, inst) => {
 };
 
 export const createEmail = async (resolver, inst) => {
-  const to = inst.attributes.get("sender");
-  const subject = inst.attributes.get("subject");
-  const body = inst.attributes.get("body");
+  const to = inst.attributes.get('sender');
+  const subject = inst.attributes.get('subject');
+  const body = inst.attributes.get('body');
 
-  const raw = Buffer.from(`To: ${to}\nSubject: ${subject}\n\n${body}`).toString("base64");
+  const raw = Buffer.from(`To: ${to}\nSubject: ${subject}\n\n${body}`).toString('base64');
 
-  const result = await makeRequest(resolver, "/gmail/v1/users/me/messages/send", {
-    method: "POST",
+  const result = await makeRequest(resolver, '/gmail/v1/users/me/messages/send', {
+    method: 'POST',
     body: JSON.stringify({ raw }),
   });
 
@@ -339,20 +343,26 @@ export const createEmail = async (resolver, inst) => {
 };
 
 export const deleteEmail = async (resolver, inst) => {
-  const id = inst.attributes.get("id");
-  await makeRequest(resolver, `/gmail/v1/users/me/messages/${id}`, { method: "DELETE" });
-  return { result: "success" };
+  const id = inst.attributes.get('id');
+  await makeRequest(resolver, `/gmail/v1/users/me/messages/${id}`, { method: 'DELETE' });
+  return { result: 'success' };
 };
 
 export const queryLabel = async (resolver, inst) => {
-  const data = await makeRequest(resolver, "/gmail/v1/users/me/labels", { method: "GET" });
+  const data = await makeRequest(resolver, '/gmail/v1/users/me/labels', { method: 'GET' });
 
-  return (data.labels || []).map((label) =>
-    makeInstance("gmail", "Label", new Map(Object.entries({
-      id: label.id,
-      name: label.name,
-      type: label.type,
-    })))
+  return (data.labels || []).map(label =>
+    makeInstance(
+      'gmail',
+      'Label',
+      new Map(
+        Object.entries({
+          id: label.id,
+          name: label.name,
+          type: label.type,
+        })
+      )
+    )
   );
 };
 ```
@@ -361,13 +371,13 @@ export const queryLabel = async (resolver, inst) => {
 
 For reference, the resolver functions are called with the following arguments:
 
-| Method | Signature |
-|---|---|
-| `create` | `async (resolver, instance) => ...` |
-| `query` | `async (resolver, instance, queryAll) => ...` |
-| `update` | `async (resolver, instance, newAttributes) => ...` |
-| `delete` | `async (resolver, instance, purge) => ...` |
-| `subscribe` | `async (resolver) => ...` |
+| Method      | Signature                                          |
+| ----------- | -------------------------------------------------- |
+| `create`    | `async (resolver, instance) => ...`                |
+| `query`     | `async (resolver, instance, queryAll) => ...`      |
+| `update`    | `async (resolver, instance, newAttributes) => ...` |
+| `delete`    | `async (resolver, instance, purge) => ...`         |
+| `subscribe` | `async (resolver) => ...`                          |
 
 The `resolver` is always the first argument. Call `resolver.getAuthHeaders()` on it to get tokens.
 
