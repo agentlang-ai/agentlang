@@ -131,7 +131,9 @@ export class Resolver {
     inst: Instance,
     connectedAlias?: string
   ): Promise<any> {
-    return this.notImpl(`queryConnectedInstances(${relationship}, ${connectedInstance}, ${inst})`);
+    return this.notImpl(
+      `queryConnectedInstances(${relationship}, ${connectedInstance}, ${inst}, ${connectedAlias})`
+    );
   }
 
   public async queryByJoin(
