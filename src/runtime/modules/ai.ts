@@ -151,6 +151,8 @@ entity ${AgentEntityName} {
     validate String @optional,
     retry String @optional,
     saveResponseAs String @optional,
+    compact Int @optional,
+    compactSummarizer String @optional,
     llm String
 }
 
@@ -380,6 +382,8 @@ export class AgentInstance {
   validate: string | undefined;
   retry: string | undefined;
   saveResponseAs: string | undefined;
+  compact: number | undefined;
+  compactSummarizer: string | undefined;
   stateless: boolean = false;
   private toolsArray: string[] | undefined = undefined;
   private hasModuleTools = false;
@@ -390,6 +394,76 @@ export class AgentInstance {
   private addContext = false;
 
   private constructor() {}
+
+  private static readonly SUMMARY_PREFIX = '[CONVERSATION SUMMARY]\n';
+
+  private async maybeCompactMessages(
+    msgs: BaseMessage[],
+    env: Environment
+  ): Promise<BaseMessage[]> {
+    if (!this.compact || this.compact <= 0) return msgs;
+
+    const windowSize = this.compact;
+    const systemMsg = msgs[0];
+
+    // Separate existing summary message (always last if present)
+    let existingSummary: string | undefined;
+    let conversationMsgs: BaseMessage[];
+    const lastMsg = msgs[msgs.length - 1];
+    if (
+      typeof lastMsg.content === 'string' &&
+      lastMsg.content.startsWith(AgentInstance.SUMMARY_PREFIX)
+    ) {
+      existingSummary = lastMsg.content.slice(AgentInstance.SUMMARY_PREFIX.length);
+      conversationMsgs = msgs.slice(1, -1);
+    } else {
+      conversationMsgs = msgs.slice(1);
+    }
+
+    const pairCount = Math.floor(conversationMsgs.length / 2);
+    if (pairCount <= windowSize) return msgs;
+
+    const keepCount = windowSize * 2;
+    const discardedMsgs = conversationMsgs.slice(0, conversationMsgs.length - keepCount);
+    const recentMsgs = conversationMsgs.slice(conversationMsgs.length - keepCount);
+
+    if (this.compactSummarizer && discardedMsgs.length > 0) {
+      const summary = await this.summarizeDiscardedMessages(discardedMsgs, existingSummary, env);
+      const summaryMsg = systemMessage(`${AgentInstance.SUMMARY_PREFIX}${summary}`);
+      return [systemMsg, ...recentMsgs, summaryMsg];
+    }
+
+    return [systemMsg, ...recentMsgs];
+  }
+
+  private async summarizeDiscardedMessages(
+    discardedMsgs: BaseMessage[],
+    existingSummary: string | undefined,
+    env: Environment
+  ): Promise<string> {
+    const conversationText = discardedMsgs
+      .map((m: BaseMessage) => {
+        const role = m._getType() === 'human' ? 'User' : 'Assistant';
+        return `${role}: ${m.content}`;
+      })
+      .join('\n');
+
+    let prompt: string;
+    if (existingSummary) {
+      prompt = `Previous summary:\n${existingSummary}\n\nNew messages to incorporate:\n${conversationText}`;
+    } else {
+      prompt = conversationText;
+    }
+
+    const summarizerAgent = await findAgentByName(this.compactSummarizer!, env);
+    const summarizerProvider = await findProviderForLLM(summarizerAgent.llm, env);
+    const sysMsg = systemMessage(
+      'Summarize the following conversation concisely. Capture key decisions, requirements, context, and any important details that would be needed to continue the conversation effectively.'
+    );
+    const humanMsg = humanMessage(prompt);
+    const response: AIResponse = await summarizerProvider.invoke([sysMsg, humanMsg], undefined);
+    return response.content;
+  }
 
   static FromInstance(agentInstance: Instance): AgentInstance {
     const agent: AgentInstance = instanceToObject<AgentInstance>(
@@ -914,6 +988,9 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     };
     if (sess) {
       msgs = sess.lookup('messages');
+      if (msgs) {
+        msgs = await this.maybeCompactMessages(msgs, env);
+      }
     } else {
       extractedText = await this.getFullInstructions(env, activator);
       cachedMsg = extractedText.updatedText;
