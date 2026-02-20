@@ -991,8 +991,8 @@ describe('between-relationship-delete-bug', () => {
     await crr(2, 101, 202);
     await crr(2, 101, 201, true); // one_many should fail
     // recreate rel
-    await delr(2, 101, 201)
-    await crr(2, 101, 201)
+    await delr(2, 101, 201);
+    await crr(2, 101, 201);
     await crr(3, 101, 201);
     await crr(3, 101, 202, true); // one_one should fail
     await crr(3, 102, 202);

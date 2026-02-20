@@ -288,13 +288,13 @@ describe('enum toString test', () => {
     const e = m.getEntry('E') as Entity;
     let attrSpec = enumAttributeSpec(new Set(['a', 'b', 'c']));
     e.addAttribute('s', attrSpec);
-    let userAttrs = e.getUserAttributeNames()
-    assert(userAttrs.has('s'))
+    let userAttrs = e.getUserAttributeNames();
+    assert(userAttrs.has('s'));
     attrSpec = oneOfAttributeSpec('Acme/F.name');
     e.addAttribute('t', attrSpec);
-    userAttrs = e.getUserAttributeNames()
-    assert(userAttrs.has('s'))
-    assert(userAttrs.has('t'))
+    userAttrs = e.getUserAttributeNames();
+    assert(userAttrs.has('s'));
+    assert(userAttrs.has('t'));
     let str = m.toString();
     const idx = str.indexOf('entity');
     await doInternModule('EnumOutTest2', str.substring(idx));

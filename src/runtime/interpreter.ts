@@ -47,6 +47,7 @@ import {
   isEntityInstance,
   isEventInstance,
   isInstanceOfType,
+  getAllBetweenRelationshipsForEntity,
   isOneToOneBetweenRelationship,
   isTimer,
   makeInstance,
@@ -77,6 +78,7 @@ import {
   preprocessRawConfig,
   QuerySuffix,
   restoreSpecialChars,
+  splitFqName,
   splitRefs,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
@@ -1574,6 +1576,12 @@ function maybeSetQueryClauses(inst: Instance, qopts: ExtractedQueryOptions) {
   if (qopts.orderByClause) {
     inst.setOrderBy(qopts.orderByClause.colNames, qopts.orderByClause.order === '@desc');
   }
+  if (qopts.limitClause) {
+    inst.setLimit(qopts.limitClause.value);
+  }
+  if (qopts.offsetClause) {
+    inst.setOffset(qopts.offsetClause.value);
+  }
 }
 
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
@@ -1627,7 +1635,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
       }
       const res: Resolver = await getResolverForPath(entryName, moduleName, env);
       let r: Instance | undefined;
-      await computeExprAttributes(inst, undefined, undefined, env);
+      await computeExprAttributes(inst, crud.body?.attributes, inst.attributes, env);
       await setMetaAttributes(inst.attributes, env);
       if (env.isInUpsertMode()) {
         await runPreUpdateEvents(inst, env);
@@ -1916,24 +1924,98 @@ async function computeExprAttributes(
     updatedAttrs?.forEach((v: any, k: string) => {
       if (v !== undefined) newEnv.bind(k, v);
     });
+    // Bind related instances from between-relationships so that @expr references
+    // like DeptEmployee.Department.BudgetMultiplier can be resolved via followReference.
+    const entityFqName = inst.getFqName();
+    const fqParts = splitFqName(entityFqName);
+    const rels = getAllBetweenRelationshipsForEntity(fqParts[0], fqParts[1]);
+    for (const rel of rels) {
+      const isFirst = rel.isFirstNodeName(entityFqName);
+      // Only bind if this entity is on a valid side for single-entity resolution
+      if (rel.isManyToMany()) continue;
+      if (rel.isOneToMany() && isFirst) continue;
+      // Determine the target entity on the other side
+      const targetNode = isFirst ? rel.node2 : rel.node1;
+      const targetAlias = targetNode.alias;
+      let connectedInst: Instance | undefined;
+      // Fast path: check if the environment carries between-rel info for this relationship
+      const betRelInfo = env.getBetweenRelInfo();
+      if (betRelInfo && betRelInfo.relationship.name === rel.name) {
+        connectedInst = betRelInfo.connectedInstance;
+      } else if (inst.lookup(PathAttributeName)) {
+        // Slow path: query the connected instance through the resolver.
+        // Only possible if the current instance has been persisted (has a __path__).
+        try {
+          const targetFqName = targetNode.path.asFqName();
+          const targetParts = splitFqName(targetFqName);
+          const res: Resolver = await getResolverForPath(targetParts[1], targetParts[0], env);
+          const queryInst = Instance.EmptyInstance(targetParts[1], targetParts[0]);
+          const connected: Instance[] = await res.queryConnectedInstances(rel, inst, queryInst);
+          if (connected && connected.length > 0) {
+            connectedInst = connected[0];
+          }
+        } catch (reason: any) {
+          logger.debug(
+            `Relationship query failed (e.g. not yet linked) - skip binding - ${reason}`
+          );
+        }
+      }
+      if (connectedInst) {
+        const relMap = new Map<string, Instance>();
+        relMap.set(targetAlias, connectedInst);
+        newEnv.bind(rel.name, relMap);
+      }
+    }
+    // Build a map of user-provided values for @expr attributes so that
+    // overrides are applied inline during expression evaluation, allowing
+    // dependent expressions to see the user's value immediately.
+    let userExprOverrides: Map<string, Expr> | undefined;
+    if (exprAttrs && origAttrs) {
+      for (let i = 0; i < origAttrs.length; ++i) {
+        const a: SetAttribute = origAttrs[i];
+        const n = a.name;
+        if (exprAttrs.has(n) && !n.endsWith(QuerySuffix) && a.value !== undefined) {
+          if (userExprOverrides === undefined) {
+            userExprOverrides = new Map();
+          }
+          userExprOverrides.set(n, a.value);
+        }
+      }
+    }
     if (exprAttrs) {
       const ks = [...exprAttrs.keys()];
       for (let i = 0; i < ks.length; ++i) {
         const n = ks[i];
-        const expr: Expr | undefined = exprAttrs.get(n);
-        if (expr) {
-          await evaluateExpression(expr, newEnv);
-          const v: Result = newEnv.getLastResult();
-          newEnv.bind(n, v);
-          inst.attributes.set(n, v);
-          updatedAttrs?.set(n, v);
+        const userValue = userExprOverrides?.get(n);
+        if (userValue !== undefined) {
+          // User explicitly provided a value for this @expr attribute - use it
+          await evaluateExpression(userValue, newEnv);
+        } else {
+          // No user override - evaluate the @expr expression
+          const expr: Expr | undefined = exprAttrs.get(n);
+          if (expr) {
+            await evaluateExpression(expr, newEnv);
+          } else {
+            continue;
+          }
         }
+        const v: Result = newEnv.getLastResult();
+        newEnv.bind(n, v);
+        inst.attributes.set(n, v);
+        updatedAttrs?.set(n, v);
       }
     }
-    if (origAttrs && updatedAttrs) {
+    // Re-evaluate non-@expr attribute expressions from origAttrs in the context
+    // of the queried instance. This handles workflow update expressions like
+    // `balance balance + (balance * interestRate) + makeDeposit.amount` where
+    // the local attribute references must resolve from the existing instance.
+    // Only runs on the update path (where updatedAttrs is a separate map from
+    // inst.attributes) to avoid double-evaluating expressions on create.
+    if (origAttrs && updatedAttrs && updatedAttrs !== inst.attributes) {
       for (let i = 0; i < origAttrs.length; ++i) {
         const a: SetAttribute = origAttrs[i];
         const n = a.name;
+        if (exprAttrs?.has(n)) continue;
         if (!n.endsWith(QuerySuffix) && updatedAttrs.has(n) && a.value !== undefined) {
           await evaluateExpression(a.value, newEnv);
           const v: Result = newEnv.getLastResult();
@@ -2609,6 +2691,32 @@ export async function evaluateExpression(expr: Expr, env: Environment): Promise<
     result = !env.getLastResult();
   }
   env.setLastResult(result);
+}
+
+export function extractRefsFromExpr(expr: Expr): string[] {
+  const refs: string[] = [];
+  function walk(e: Expr) {
+    if (isBinExpr(e)) {
+      walk(e.e1);
+      walk(e.e2);
+    } else if (isLiteral(e)) {
+      if (e.ref) refs.push(e.ref);
+      if (e.fnCall) {
+        for (const arg of e.fnCall.args) walk(arg);
+      }
+      if (e.asyncFnCall) {
+        for (const arg of e.asyncFnCall.fnCall.args) walk(arg);
+      }
+    } else if (isGroup(e)) {
+      walk(e.ge);
+    } else if (isNegExpr(e)) {
+      walk(e.ne);
+    } else if (isNotExpr(e)) {
+      walk(e.ne);
+    }
+  }
+  walk(expr);
+  return refs;
 }
 
 async function getRef(r: string, src: any, env: Environment): Promise<Result> {

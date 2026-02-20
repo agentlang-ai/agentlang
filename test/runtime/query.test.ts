@@ -4,6 +4,106 @@ import { Instance, isInstanceOfType } from '../../src/runtime/module.js';
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import { objectToQueryPattern } from '../../src/language/parser.js';
 
+describe('limit-offset-queries', () => {
+  test('Limit and offset on entity queries', async () => {
+    const moduleName = 'loq';
+    await doInternModule(
+      moduleName,
+      `entity Item {
+            id Int @id,
+            name String,
+            price Decimal
+        }
+        `
+    );
+    const entName = `${moduleName}/Item`;
+    const isp = (inst: any) => {
+      return isInstanceOfType(inst, entName);
+    };
+    const cri = async (id: number, name: string, price: number): Promise<Instance> => {
+      const inst: Instance = await parseAndEvaluateStatement(`{${entName} {
+                id ${id},
+                name "${name}",
+                price ${price}
+      }}`);
+      assert(isp(inst));
+      return inst;
+    };
+    await cri(1, 'alpha', 100.0);
+    await cri(2, 'beta', 200.0);
+    await cri(3, 'gamma', 300.0);
+    await cri(4, 'delta', 400.0);
+    await cri(5, 'epsilon', 500.0);
+
+    // Query all - should return 5
+    let insts: Instance[] = await parseAndEvaluateStatement(`{${entName}? {}, @orderBy(id)}`);
+    assert(insts.length === 5);
+
+    // @limit(3) - should return first 3
+    insts = await parseAndEvaluateStatement(`{${entName}? {}, @orderBy(id), @limit(3)}`);
+    assert(insts.length === 3, `Expected 3, got ${insts.length}`);
+    assert(insts[0].lookup('id') == 1);
+    assert(insts[2].lookup('id') == 3);
+
+    // @offset(2) - should skip first 2, return 3
+    insts = await parseAndEvaluateStatement(`{${entName}? {}, @orderBy(id), @offset(2)}`);
+    assert(insts.length === 3, `Expected 3, got ${insts.length}`);
+    assert(insts[0].lookup('id') == 3);
+
+    // @limit(2), @offset(2) - page 2, should return items 3 and 4
+    insts = await parseAndEvaluateStatement(
+      `{${entName}? {}, @orderBy(id), @limit(2), @offset(2)}`
+    );
+    assert(insts.length === 2, `Expected 2, got ${insts.length}`);
+    assert(insts[0].lookup('id') == 3);
+    assert(insts[1].lookup('id') == 4);
+
+    // @limit(2), @offset(4) - last page, should return only item 5
+    insts = await parseAndEvaluateStatement(
+      `{${entName}? {}, @orderBy(id), @limit(2), @offset(4)}`
+    );
+    assert(insts.length === 1, `Expected 1, got ${insts.length}`);
+    assert(insts[0].lookup('id') == 5);
+
+    // @offset beyond total - should return empty
+    insts = await parseAndEvaluateStatement(`{${entName}? {}, @orderBy(id), @offset(10)}`);
+    assert(insts.length === 0, `Expected 0, got ${insts.length}`);
+
+    // @limit(0) - should return empty
+    insts = await parseAndEvaluateStatement(`{${entName}? {}, @orderBy(id), @limit(0)}`);
+    assert(insts.length === 0, `Expected 0, got ${insts.length}`);
+
+    // @limit larger than total - should return all
+    insts = await parseAndEvaluateStatement(`{${entName}? {}, @orderBy(id), @limit(100)}`);
+    assert(insts.length === 5, `Expected 5, got ${insts.length}`);
+
+    // @limit with filter attributes
+    insts = await parseAndEvaluateStatement(`{${entName} {price?>= 300}, @orderBy(id), @limit(2)}`);
+    assert(insts.length === 2, `Expected 2, got ${insts.length}`);
+    assert(insts[0].lookup('id') == 3);
+    assert(insts[1].lookup('id') == 4);
+
+    // @limit with @desc ordering
+    insts = await parseAndEvaluateStatement(`{${entName}? {}, @orderBy(id) @desc, @limit(2)}`);
+    assert(insts.length === 2, `Expected 2, got ${insts.length}`);
+    assert(insts[0].lookup('id') == 5);
+    assert(insts[1].lookup('id') == 4);
+
+    // JSON-encoded query with @limit and @offset
+    const qobj = {
+      [`${entName}?`]: {},
+      '@orderBy': ['id'],
+      '@limit': 2,
+      '@offset': 1,
+    };
+    const qs = objectToQueryPattern(qobj);
+    insts = await parseAndEvaluateStatement(qs);
+    assert(insts.length === 2, `Expected 2, got ${insts.length}`);
+    assert(insts[0].lookup('id') == 2);
+    assert(insts[1].lookup('id') == 3);
+  });
+});
+
 describe('basic-aggregate-queries', () => {
   test('Aggegates like count, min and max', async () => {
     const moduleName = 'agq';
@@ -395,7 +495,7 @@ describe('aggregates-for-relationships', () => {
       assert(r.length === 1);
       assert(Number(r[0].n) === n);
     };
-     const ce = `${moduleName}/countEmployees`;
+    const ce = `${moduleName}/countEmployees`;
     const cne = async (n: number) => {
       const r: any[] = await parseAndEvaluateStatement(`{${ce} {}}`);
       assert(r.length === 1);
@@ -404,11 +504,11 @@ describe('aggregates-for-relationships', () => {
     await cnt(345, 1);
     await crt(345, 102, 'test02');
     await cnt(345, 2);
-    await cne(1)
+    await cne(1);
     await cre(290, 'mat');
     await crt(290, 103, 'test03');
     await cnt(290, 1);
     await cnt(345, 2);
-    await cne(2)
+    await cne(2);
   });
 });
