@@ -21,15 +21,15 @@ export class OpenAIEmbeddingProvider extends EmbeddingProvider {
       apiKey: this.resolveApiKey(),
     };
 
-    if (this.openaiConfig.model) {
+    if (this.openaiConfig?.model) {
       config.model = this.openaiConfig.model;
     }
 
-    if (this.openaiConfig.dimensions) {
+    if (this.openaiConfig?.dimensions) {
       config.dimensions = this.openaiConfig.dimensions;
     }
 
-    if (this.openaiConfig.maxRetries !== undefined) {
+    if (this.openaiConfig?.maxRetries !== undefined) {
       config.maxRetries = this.openaiConfig.maxRetries;
     }
 
@@ -37,7 +37,7 @@ export class OpenAIEmbeddingProvider extends EmbeddingProvider {
   }
 
   protected resolveApiKey(): string {
-    if (this.openaiConfig.apiKey) {
+    if (this.openaiConfig?.apiKey) {
       return this.openaiConfig.apiKey;
     }
     return process.env.AGENTLANG_OPENAI_KEY || getLocalEnv('AGENTLANG_OPENAI_KEY') || '';
