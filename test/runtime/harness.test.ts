@@ -78,21 +78,27 @@ describe('Test harness - Relationships', () => {
     await m.create_User({ email: 't@b.com', name: 'Tom' });
 
     // Create posts related to user via relationship
-    let results = await m.get_User({ email: 'j@b.com' }, {
-      UserPost: [
-        { entity: 'Post', attrs: { id: 1, title: 'Post One' } },
-        { entity: 'Post', attrs: { id: 2, title: 'Post Two' } },
-      ],
-    });
+    let results = await m.get_User(
+      { email: 'j@b.com' },
+      {
+        UserPost: [
+          { entity: 'Post', attrs: { id: 1, title: 'Post One' } },
+          { entity: 'Post', attrs: { id: 2, title: 'Post Two' } },
+        ],
+      }
+    );
     is(results.length == 1);
     is(results[0].email == 'j@b.com');
     const posts = results[0].UserPost;
     is(posts.length == 2);
 
     // Query user with all related posts
-    results = await m.get_User({ email: 'j@b.com' }, {
-      UserPost: { entity: 'Post', query: true, attrs: {} },
-    });
+    results = await m.get_User(
+      { email: 'j@b.com' },
+      {
+        UserPost: { entity: 'Post', query: true, attrs: {} },
+      }
+    );
     is(results.length == 1);
     is(results[0].UserPost.length == 2);
   });
@@ -120,29 +126,42 @@ describe('Test harness - Relationships', () => {
     await m.create_A({ id: 1, x: 10 });
 
     // Create B related to A
-    await m.get_A({ id: 1 }, {
-      'NestedRel/AB': { entity: 'B', attrs: { id: 10, y: 100 } },
-    });
+    await m.get_A(
+      { id: 1 },
+      {
+        'NestedRel/AB': { entity: 'B', attrs: { id: 10, y: 100 } },
+      }
+    );
 
     // Create C nested under A -> B
-    await m.get_A({ id: 1 }, {
-      'NestedRel/AB': {
-        entity: 'B', query: true, attrs: { id: 10 },
-        rels: {
-          'NestedRel/BC': { entity: 'C', attrs: { id: 100, z: 1000 } },
+    await m.get_A(
+      { id: 1 },
+      {
+        'NestedRel/AB': {
+          entity: 'B',
+          query: true,
+          attrs: { id: 10 },
+          rels: {
+            'NestedRel/BC': { entity: 'C', attrs: { id: 100, z: 1000 } },
+          },
         },
-      },
-    });
+      }
+    );
 
     // Query full tree
-    const results = await m.get_A({ id: 1 }, {
-      'NestedRel/AB': {
-        entity: 'B', query: true, attrs: {},
-        rels: {
-          'NestedRel/BC': { entity: 'C', query: true, attrs: {} },
+    const results = await m.get_A(
+      { id: 1 },
+      {
+        'NestedRel/AB': {
+          entity: 'B',
+          query: true,
+          attrs: {},
+          rels: {
+            'NestedRel/BC': { entity: 'C', query: true, attrs: {} },
+          },
         },
-      },
-    });
+      }
+    );
     is(results.length == 1);
     is(results[0].x == 10);
     const bs = results[0]['NestedRel/AB'];
@@ -244,11 +263,7 @@ describe('runTests - string-based test runner', () => {
   });
 
   test('missing module declaration', async () => {
-    const result = await runTests(
-      `entity E { id Int @id }`,
-      `is(true);`,
-      doInternModule
-    );
+    const result = await runTests(`entity E { id Int @id }`, `is(true);`, doInternModule);
 
     assert(!result.passed);
     assert(result.error?.message.includes('missing "module <name>"'));
