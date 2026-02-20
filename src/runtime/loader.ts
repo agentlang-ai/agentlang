@@ -72,6 +72,9 @@ import {
   Retry,
   addGlobalRetry,
   AgentEvaluator,
+  getAllBetweenRelationshipsForEntity,
+  getAttributeExpr,
+  AttributeSpec,
 } from './module.js';
 import {
   asStringLiteralsMap,
@@ -85,6 +88,7 @@ import {
   registerInitFunction,
   rootRef,
   ScratchModuleName,
+  splitRefs,
 } from './util.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
@@ -102,7 +106,12 @@ import {
   parseWorkflow,
 } from '../language/parser.js';
 import { logger } from './logger.js';
-import { Environment, evaluateStatements, GlobalEnvironment } from './interpreter.js';
+import {
+  Environment,
+  evaluateStatements,
+  extractRefsFromExpr,
+  GlobalEnvironment,
+} from './interpreter.js';
 import { createPermission, createRole } from './modules/auth.js';
 import {
   AgentEntityName,
@@ -1226,6 +1235,60 @@ export async function refreshModuleDefinition(moduleName: string, moduleDefiniti
   await internModule(r.parseResult.value);
 }
 
+function validateExprRelationshipRefs(moduleName: string, mod: Module) {
+  const entities = mod.getEntityEntries();
+  for (const entity of entities) {
+    const schema = entity.schema;
+    schema.forEach((attrSpec: AttributeSpec, attrName: string) => {
+      const expr = getAttributeExpr(attrSpec);
+      if (!expr) return;
+      const refs = extractRefsFromExpr(expr);
+      const entityFqName = makeFqName(moduleName, entity.name);
+      const rels = getAllBetweenRelationshipsForEntity(moduleName, entity.name);
+      if (rels.length === 0) return;
+      for (const ref of refs) {
+        const parts = splitRefs(ref);
+        if (parts.length < 3) continue;
+        const relName = parts[0];
+        const targetEntityAlias = parts[1];
+        const rel = rels.find((r: Relationship) => r.name === relName);
+        if (!rel) continue;
+        // Matched a relationship name - validate
+        if (targetEntityAlias !== rel.node1.alias && targetEntityAlias !== rel.node2.alias) {
+          throw new Error(
+            `Invalid @expr reference "${ref}" on ${entityFqName}.${attrName}: ` +
+              `"${targetEntityAlias}" does not match any entity alias in relationship ${relName} ` +
+              `(expected "${rel.node1.alias}" or "${rel.node2.alias}")`
+          );
+        }
+        // The target entity must be on the OTHER side from the current entity
+        const isFirstNode = rel.isFirstNodeName(entityFqName);
+        const targetIsFirst = targetEntityAlias === rel.node1.alias;
+        if ((isFirstNode && targetIsFirst) || (!isFirstNode && !targetIsFirst)) {
+          throw new Error(
+            `Invalid @expr reference "${ref}" on ${entityFqName}.${attrName}: ` +
+              `the referenced entity "${targetEntityAlias}" must be on the other side of relationship ${relName}`
+          );
+        }
+        // Cardinality check
+        if (rel.isManyToMany()) {
+          throw new Error(
+            `Invalid @expr reference "${ref}" on ${entityFqName}.${attrName}: ` +
+              `cannot reference through many-to-many relationship ${relName}`
+          );
+        }
+        if (rel.isOneToMany() && isFirstNode) {
+          throw new Error(
+            `Invalid @expr reference "${ref}" on ${entityFqName}.${attrName}: ` +
+              `cannot reference from the "one" side of one-to-many relationship ${relName} ` +
+              `(would resolve to multiple entities)`
+          );
+        }
+      }
+    });
+  }
+}
+
 export async function internModule(
   module: ModuleDefinition,
   moduleFileName?: string
@@ -1241,6 +1304,7 @@ export async function internModule(
     const def = module.defs[i];
     await addFromDef(def, mn);
   }
+  validateExprRelationshipRefs(mn, r);
   return r;
 }
 
