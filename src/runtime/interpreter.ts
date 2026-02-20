@@ -1576,6 +1576,12 @@ function maybeSetQueryClauses(inst: Instance, qopts: ExtractedQueryOptions) {
   if (qopts.orderByClause) {
     inst.setOrderBy(qopts.orderByClause.colNames, qopts.orderByClause.order === '@desc');
   }
+  if (qopts.limitClause) {
+    inst.setLimit(qopts.limitClause.value);
+  }
+  if (qopts.offsetClause) {
+    inst.setOffset(qopts.offsetClause.value);
+  }
 }
 
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {

@@ -72,8 +72,11 @@ describe('Basic RBAC checks', () => {
       let ee = expectError();
       await parseAndEvaluateStatement(`{Acme/Department {no 102}}`, id2).catch(ee.f());
       assert(ee.isFailed, 'Auth check on create-department failed');
-      const deptnew = await parseAndEvaluateStatement(`{Acme/CreateDepartmentAsAdmin {no 234}}`, id2)
-      assert(isInstanceOfType(deptnew, 'Acme/Department'))
+      const deptnew = await parseAndEvaluateStatement(
+        `{Acme/CreateDepartmentAsAdmin {no 234}}`,
+        id2
+      );
+      assert(isInstanceOfType(deptnew, 'Acme/Department'));
       async function createEmployee(
         userId: string,
         deptNo: number,
@@ -435,7 +438,7 @@ describe('VectorDB RBAC', () => {
         async function srche(text: string, userId: string): Promise<any> {
           return await parseAndEvaluateStatement(`{${mname}/E? "${text}"}`, userId);
         }
-        const s = 'world'
+        const s = 'world';
         const r1 = await srche(s, id1);
         assert(r1.length == 2);
         const r2 = await srche(s, id2);
