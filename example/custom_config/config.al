@@ -7,6 +7,18 @@
       "type": "sqlite",
       "dbname": "cc.db"
     },
+    "vectorStore": {
+      "type": "lancedb",
+      "dbname": "./data/vector-store/cc-vectors.lance"
+    },
+    "knowledgeGraph": {
+      "enabled": true,
+      "neo4j": {
+        "uri": "#js process.env.GRAPH_DB_URI || 'bolt://localhost:7687'",
+        "user": "#js process.env.GRAPH_DB_USER || 'neo4j'",
+        "password": "#js process.env.GRAPH_DB_PASSWORD || 'password'"
+      }
+    },
     "retry": [
       {
         "name": "classifyRetry",
@@ -26,8 +38,8 @@
         "name": "llm01",
         "service": "openai",
         "config": {
-          "model": "gpt-4.1",
-          "maxTokens": 200,
+          "model": "gpt-5.2",
+          "maxTokens": 100000,
           "temperature": 0.7
         }
       }
@@ -37,7 +49,7 @@
         "name": "llm02",
         "service": "openai",
         "config": {
-          "model": "gpt-4.0"
+          "model": "gpt-4o"
         }
       }
     },

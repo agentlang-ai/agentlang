@@ -153,3 +153,5 @@ db*
 .idea
 
 .DS_Store
+
+data
