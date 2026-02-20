@@ -1338,6 +1338,8 @@ describe('introspect-limit-offset', () => {
     const cp = pats[0] as CrudPattern;
     assert(cp.limit === 0);
     assert(cp.toString() === '{User? {},\n@limit(0)}');
+  });
+});
 
 describe('Handler syntax - @catch and @empty', () => {
   test('programmatic @catch handler roundtrip', () => {
