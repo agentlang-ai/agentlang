@@ -604,7 +604,11 @@ function objectAsAttributesPattern(entityFqName: string, obj: object): [string, 
       '',
     ];
   } else {
-    return [pat, hasQueryAttrs, paginationParts.length > 0 ? `,\n${paginationParts.join(',\n')}` : ''];
+    return [
+      pat,
+      hasQueryAttrs,
+      paginationParts.length > 0 ? `,\n${paginationParts.join(',\n')}` : '',
+    ];
   }
 }
 

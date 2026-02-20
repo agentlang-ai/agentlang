@@ -66,9 +66,7 @@ describe('limit-offset-queries', () => {
     assert(insts[0].lookup('id') == 5);
 
     // @offset beyond total - should return empty
-    insts = await parseAndEvaluateStatement(
-      `{${entName}? {}, @orderBy(id), @offset(10)}`
-    );
+    insts = await parseAndEvaluateStatement(`{${entName}? {}, @orderBy(id), @offset(10)}`);
     assert(insts.length === 0, `Expected 0, got ${insts.length}`);
 
     // @limit(0) - should return empty
@@ -80,17 +78,13 @@ describe('limit-offset-queries', () => {
     assert(insts.length === 5, `Expected 5, got ${insts.length}`);
 
     // @limit with filter attributes
-    insts = await parseAndEvaluateStatement(
-      `{${entName} {price?>= 300}, @orderBy(id), @limit(2)}`
-    );
+    insts = await parseAndEvaluateStatement(`{${entName} {price?>= 300}, @orderBy(id), @limit(2)}`);
     assert(insts.length === 2, `Expected 2, got ${insts.length}`);
     assert(insts[0].lookup('id') == 3);
     assert(insts[1].lookup('id') == 4);
 
     // @limit with @desc ordering
-    insts = await parseAndEvaluateStatement(
-      `{${entName}? {}, @orderBy(id) @desc, @limit(2)}`
-    );
+    insts = await parseAndEvaluateStatement(`{${entName}? {}, @orderBy(id) @desc, @limit(2)}`);
     assert(insts.length === 2, `Expected 2, got ${insts.length}`);
     assert(insts[0].lookup('id') == 5);
     assert(insts[1].lookup('id') == 4);
@@ -501,7 +495,7 @@ describe('aggregates-for-relationships', () => {
       assert(r.length === 1);
       assert(Number(r[0].n) === n);
     };
-     const ce = `${moduleName}/countEmployees`;
+    const ce = `${moduleName}/countEmployees`;
     const cne = async (n: number) => {
       const r: any[] = await parseAndEvaluateStatement(`{${ce} {}}`);
       assert(r.length === 1);
@@ -510,11 +504,11 @@ describe('aggregates-for-relationships', () => {
     await cnt(345, 1);
     await crt(345, 102, 'test02');
     await cnt(345, 2);
-    await cne(1)
+    await cne(1);
     await cre(290, 'mat');
     await crt(290, 103, 'test03');
     await cnt(290, 1);
     await cnt(345, 2);
-    await cne(2)
+    await cne(2);
   });
 });

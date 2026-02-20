@@ -1,6 +1,11 @@
 import { assert, beforeEach, describe, test } from 'vitest';
 import { provider } from '../../src/runtime/agents/registry.js';
-import { AgentServiceProvider, AIResponse, humanMessage, systemMessage, } from '../../src/runtime/agents/provider.js';
+import {
+  AgentServiceProvider,
+  AIResponse,
+  humanMessage,
+  systemMessage,
+} from '../../src/runtime/agents/provider.js';
 import { doInitRuntime, doInternModule } from '../util.js';
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import {
@@ -16,7 +21,13 @@ import {
 import { WorkflowDefinition } from '../../src/language/generated/ast.js';
 import { parseWorkflow } from '../../src/language/parser.js';
 import { addWorkflowFromDef } from '../../src/runtime/loader.js';
-import { AgentCancelledException, cancelAgent, checkCancelled, clearCancellation, CoreAIModuleName } from '../../src/runtime/modules/ai.js';
+import {
+  AgentCancelledException,
+  cancelAgent,
+  checkCancelled,
+  clearCancellation,
+  CoreAIModuleName,
+} from '../../src/runtime/modules/ai.js';
 import { enableInternalMonitoring } from '../../src/runtime/state.js';
 import { getMonitorsForEvent, Monitor } from '../../src/runtime/monitor.js';
 import { executeEvent } from '../../src/runtime/exec-graph.js';
