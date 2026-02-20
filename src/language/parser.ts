@@ -41,7 +41,13 @@ import {
   WhereSpecClause,
   WorkflowDefinition,
 } from './generated/ast.js';
-import { firstAliasSpec, firstCatchSpec, isString, QuerySuffix } from '../runtime/util.js';
+import {
+  firstAliasSpec,
+  firstCatchSpec,
+  firstEmptySpec,
+  isString,
+  QuerySuffix,
+} from '../runtime/util.js';
 import {
   BasePattern,
   CrudPattern,
@@ -265,6 +271,10 @@ function introspectStatement(stmt: Statement): BasePattern {
     catchSpec.handlers.forEach((h: Handler) => {
       r.addHandler(h.except, introspectStatement(h.stmt));
     });
+  }
+  const emptySpec = firstEmptySpec(stmt);
+  if (emptySpec) {
+    r.setEmptyHandler(introspectStatement(emptySpec.stmt));
   }
   return r;
 }

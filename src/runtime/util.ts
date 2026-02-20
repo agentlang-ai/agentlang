@@ -2,6 +2,7 @@ import { isNodeEnv, path } from '../utils/runtime.js';
 import {
   AliasSpec,
   CatchSpec,
+  EmptySpec,
   ExtendsClause,
   isLiteral,
   MapEntry,
@@ -435,6 +436,18 @@ export function firstCatchSpec(stmt: Statement): CatchSpec | undefined {
       const rh = stmt.hints[i];
       if (rh.catchSpec) {
         return rh.catchSpec;
+      }
+    }
+  }
+  return undefined;
+}
+
+export function firstEmptySpec(stmt: Statement): EmptySpec | undefined {
+  if (stmt.hints) {
+    for (let i = 0; i < stmt.hints.length; ++i) {
+      const rh = stmt.hints[i];
+      if (rh.emptySpec) {
+        return rh.emptySpec;
       }
     }
   }
