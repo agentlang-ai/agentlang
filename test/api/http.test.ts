@@ -419,6 +419,124 @@ describe('Entity Create with Inline Relationships', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────
+// GET Pagination (@limit / @offset)
+// ──────────────────────────────────────────────────────────────────
+
+describe('GET Pagination - @limit and @offset', () => {
+  // Seed extra posts so we have a known set to paginate over.
+  // Posts already created: 100 (First Post), 101 (Second Post), 300 (Inline Post),
+  // 301 (Array Post 1), 302 (Array Post 2)  — 5 posts total from earlier tests.
+
+  test('@limit returns at most N results', async () => {
+    const res = await get('/HRT/Post', { '@limit': '2' });
+    assert(res.ok, `Expected 200, got ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), 'Response should be an array');
+    assert(body.length === 2, `Expected 2 posts, got ${body.length}`);
+  });
+
+  test('@limit larger than total returns all results', async () => {
+    const res = await get('/HRT/Post', { '@limit': '100' });
+    assert(res.ok, `Expected 200, got ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), 'Response should be an array');
+    assert(body.length === 5, `Expected 5 posts, got ${body.length}`);
+  });
+
+  test('@limit=0 returns empty array', async () => {
+    const res = await get('/HRT/Post', { '@limit': '0' });
+    assert(res.ok, `Expected 200, got ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), 'Response should be an array');
+    assert(body.length === 0, `Expected 0 posts, got ${body.length}`);
+  });
+
+  test('@offset skips rows', async () => {
+    // There are 5 posts; skipping 3 should return 2
+    const res = await get('/HRT/Post', { '@offset': '3' });
+    assert(res.ok, `Expected 200, got ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), 'Response should be an array');
+    assert(body.length === 2, `Expected 2 posts, got ${body.length}`);
+  });
+
+  test('@offset beyond total returns empty array', async () => {
+    const res = await get('/HRT/Post', { '@offset': '100' });
+    assert(res.ok, `Expected 200, got ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), 'Response should be an array');
+    assert(body.length === 0, `Expected 0 posts, got ${body.length}`);
+  });
+
+  test('@limit and @offset together paginate correctly', async () => {
+    // Page 1: first 2
+    const res1 = await get('/HRT/Post', { '@limit': '2', '@offset': '0' });
+    assert(res1.ok);
+    const page1 = await res1.json();
+    assert(page1.length === 2, `Page 1: expected 2, got ${page1.length}`);
+
+    // Page 2: next 2
+    const res2 = await get('/HRT/Post', { '@limit': '2', '@offset': '2' });
+    assert(res2.ok);
+    const page2 = await res2.json();
+    assert(page2.length === 2, `Page 2: expected 2, got ${page2.length}`);
+
+    // Page 3: remaining 1
+    const res3 = await get('/HRT/Post', { '@limit': '2', '@offset': '4' });
+    assert(res3.ok);
+    const page3 = await res3.json();
+    assert(page3.length === 1, `Page 3: expected 1, got ${page3.length}`);
+
+    // All three pages together should cover all 5 posts
+    const allIds = [...page1, ...page2, ...page3].map((p: any) => p.Post.id);
+    assert(allIds.length === 5, `Total across pages: expected 5, got ${allIds.length}`);
+    // No duplicates
+    const uniqueIds = new Set(allIds);
+    assert(uniqueIds.size === 5, `Expected 5 unique ids, got ${uniqueIds.size}`);
+  });
+
+  test('@limit with filter attributes', async () => {
+    // Filter by title, then limit
+    // Posts: "First Post" (100), "Second Post" (101) both start with known titles
+    // Create extra posts with a shared prefix for this test
+    await post('/HRT/Post', { id: 900, title: 'Paginated A' });
+    await post('/HRT/Post', { id: 901, title: 'Paginated B' });
+    await post('/HRT/Post', { id: 902, title: 'Paginated C' });
+
+    // Query with a filter + limit
+    const res = await get('/HRT/Post', { title: 'Paginated A', '@limit': '1' });
+    assert(res.ok);
+    const body = await res.json();
+    assert(body.length === 1, `Expected 1 post, got ${body.length}`);
+    assert(body[0].Post.title === 'Paginated A');
+  });
+
+  test('negative @limit value is ignored (returns all)', async () => {
+    // Negative values should fail parseInt validation and be ignored
+    const allRes = await get('/HRT/Post');
+    const allBody = await allRes.json();
+    const totalPosts = allBody.length;
+
+    const res = await get('/HRT/Post', { '@limit': '-1' });
+    assert(res.ok, `Expected 200, got ${res.status}`);
+    const body = await res.json();
+    // Negative is rejected by validation, so @limit is ignored — returns all
+    assert(body.length === totalPosts, `Expected ${totalPosts} posts, got ${body.length}`);
+  });
+
+  test('non-numeric @limit value is ignored (returns all)', async () => {
+    const allRes = await get('/HRT/Post');
+    const allBody = await allRes.json();
+    const totalPosts = allBody.length;
+
+    const res = await get('/HRT/Post', { '@limit': 'abc' });
+    assert(res.ok, `Expected 200, got ${res.status}`);
+    const body = await res.json();
+    assert(body.length === totalPosts, `Expected ${totalPosts} posts, got ${body.length}`);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
 // Edge Cases and Error Handling
 // ──────────────────────────────────────────────────────────────────
 

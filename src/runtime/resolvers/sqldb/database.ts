@@ -1055,6 +1055,8 @@ export type QuerySpec = {
   intoSpec: Map<string, string> | undefined;
   whereClauses: WhereClause[] | undefined;
   distinct: boolean;
+  limit: number | undefined;
+  offset: number | undefined;
 };
 
 export function makeSimpleQuerySpec(queryObj: object, queryVals: object): QuerySpec {
@@ -1069,6 +1071,8 @@ export function makeSimpleQuerySpec(queryObj: object, queryVals: object): QueryS
     intoSpec: undefined,
     whereClauses: undefined,
     distinct: false,
+    limit: undefined,
+    offset: undefined,
   };
 }
 
@@ -1143,6 +1147,12 @@ export async function getMany(
   }
   if (querySpec.distinct) {
     qb.distinct(true);
+  }
+  if (querySpec.limit !== undefined) {
+    qb.take(querySpec.limit);
+  }
+  if (querySpec.offset !== undefined) {
+    qb.skip(querySpec.offset);
   }
   qb.where(queryStr, querySpec.queryVals);
   if (hasAggregates) return await qb.getRawMany();
@@ -1232,6 +1242,12 @@ export async function getManyByJoin(
   }
   if (querySpec.orderBy !== undefined) {
     sql = `${sql} ORDER BY ${querySpec.orderBy.join(', ')} ${querySpec.orderByDesc}`;
+  }
+  if (querySpec.limit !== undefined) {
+    sql = `${sql} LIMIT ${querySpec.limit}`;
+  }
+  if (querySpec.offset !== undefined) {
+    sql = `${sql} OFFSET ${querySpec.offset}`;
   }
   logger.debug(`Join Query: ${sql}`);
   const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;

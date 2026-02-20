@@ -10,7 +10,7 @@
     },
     {
       "name": "keyword.control.agentlang",
-      "match": "\\b(agent|agentlang/retry|allow|and|attempts|await|backoff|between|case|commitTransaction|contains|create|decision|delete|directive|else|entity|error|eval|event|extends|false|flow|for|glossaryEntry|if|import|in|like|module|not|not_found|onSubscription|or|purge|query|read|record|relationship|resolver|return|roles|rollbackTransaction|scenario|startTransaction|subscribe|throw|true|update|upsert|where|workflow)\\b|\\B(@actions|@after|@as|@asc|@async|@before|@catch|@desc|@distinct|@empty|@enum|@expr|@from|@full_join|@groupBy|@inner_join|@into|@join|@left_join|@meta|@oneof|@orderBy|@public|@rbac|@ref|@right_join|@then|@upsert|@where|@withRole|@with_unique)\\b"
+      "match": "\\b(agent|agentlang/retry|allow|and|attempts|await|backoff|between|case|commitTransaction|contains|create|decision|delete|directive|else|entity|error|eval|event|extends|false|flow|for|glossaryEntry|if|import|in|like|module|not|not_found|onSubscription|or|purge|query|read|record|relationship|resolver|return|roles|rollbackTransaction|scenario|startTransaction|subscribe|throw|true|update|upsert|where|workflow)\\b|\\B(@actions|@after|@as|@asc|@async|@before|@catch|@desc|@distinct|@empty|@enum|@expr|@from|@full_join|@groupBy|@inner_join|@into|@join|@left_join|@limit|@meta|@offset|@oneof|@orderBy|@public|@rbac|@ref|@right_join|@then|@upsert|@where|@withRole|@with_unique)\\b"
     }
   ],
   "repository": {
