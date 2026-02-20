@@ -115,7 +115,9 @@ Statement: pattern=Pattern hints+=RuntimeHint*;
 
 IfWithAlias: '(' if=If ')';
 
-RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec | thenSpec=ThenSpec;
+RuntimeHint: aliasSpec=AliasSpec | catchSpec=CatchSpec | emptySpec=EmptySpec | thenSpec=ThenSpec;
+
+EmptySpec: '@empty' stmt=Statement;
 
 AliasSpec: ('@as' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']'));
 

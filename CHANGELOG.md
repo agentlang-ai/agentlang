@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.10.2](https://github.com/agentlang-ai/agentlang/compare/0.10.1...0.10.2) (2026-02-18)
+
+### Changes
+
+* Fix latency calculation (#614) ([e39fd38](https://github.com/agentlang-ai/agentlang/commit/e39fd38c8105aeae43cf5fc723e9fc218ecd0a58)) - @ranga
+* Upgrade qs to 6.15.0 to fix DoS vulnerability (#608) ([16ca6a0](https://github.com/agentlang-ai/agentlang/commit/16ca6a000467ea8919816e5928fd22eecef1683e)) - @ranga
+* Fix self-referencing between relationship support (#606) ([a56fa48](https://github.com/agentlang-ai/agentlang/commit/a56fa485e11058786d8735b54102d1d0a4c7d750)) - @ranga
+* Simplify Node.js setup in CI workflow ([1500822](https://github.com/agentlang-ai/agentlang/commit/150082255a64c8007974198bc11e4a5078083b3b)) - @ranga
+* Normalize query operations to always return Instance[] (#598) ([99806dc](https://github.com/agentlang-ai/agentlang/commit/99806dcde0b83f5bd33cc97c04563b976f8c04a6)) - @ranga
+* Add built-in dateFns.* date helper functions (#596) ([fb34c56](https://github.com/agentlang-ai/agentlang/commit/fb34c568a92c3a69e66184bbde3640ef566792d3)) - @ranga
+* Add tests for inline function calls as CRUD attribute values (#594) ([7eb003f](https://github.com/agentlang-ai/agentlang/commit/7eb003ffca5804ed049afe1e4bde831dd333ba14)) - @ranga
+* Add @empty runtime hint for handling empty query results (#592) (#593) ([2783b37](https://github.com/agentlang-ai/agentlang/commit/2783b37a342c77f3fe99c1fede6b3191b9a7db25)) - @ranga
+* Test-harness customized for agentlang (#613) ([3539d06](https://github.com/agentlang-ai/agentlang/commit/3539d06ff327304885189ccc352bbbbd825d6601)) - @vijayfractl
+* export query result as xlsx/csv (#609) ([797b44f](https://github.com/agentlang-ai/agentlang/commit/797b44f1e4676d6e0a1351e0fc8922559f841c39)) - @muazzam0x48
+* return patterns with tools and fix query endpoint (#607) ([17a5eac](https://github.com/agentlang-ai/agentlang/commit/17a5eac64eb95f31456b2a44d4a272386aab6661)) - @muazzam0x48
+* LLM token usage info in monitoring traces (#588) ([38acd06](https://github.com/agentlang-ai/agentlang/commit/38acd0630f113811d6ab1ce2570e368d6103f5e0)) - @ranga
+* Enhance aggregate query-introspection (#590) ([e7841b9](https://github.com/agentlang-ai/agentlang/commit/e7841b90a19f0ef5a9a1e5a96eea6ee79ffaa59f)) - @vijayfractl
+* Revert "Support for tracking LLM tokens" ([255631d](https://github.com/agentlang-ai/agentlang/commit/255631d9c12db649c8013fa8813dc01395ba007a)) - @ranga
+* Support for tracking LLM tokens ([2c1f47b](https://github.com/agentlang-ai/agentlang/commit/2c1f47bce51e8841243e7441db0de92b11d1cdb8)) - @ranga
+* The query-endpoint to return the generated query along with the result (#586) ([8e9b700](https://github.com/agentlang-ai/agentlang/commit/8e9b70073efa99b9d2cd8f61881fe057eeb95ce7)) - @vijayfractl
+* Attach output-files to agents (#585) ([bc120bd](https://github.com/agentlang-ai/agentlang/commit/bc120bd080c9f8ea998a718686f0c38007a861da)) - @vijayfractl
+
+---
 ## [0.10.1](https://github.com/agentlang-ai/agentlang/compare/0.10.0...0.10.1) (2026-02-12)
 
 ### Changes

@@ -3,7 +3,7 @@
  * DO NOT EDIT MANUALLY!
  ******************************************************************************/
 
- 
+/* eslint-disable */
 import * as langium from 'langium';
 
 export const AgentlangTerminals = {
@@ -49,6 +49,7 @@ export type AgentlangKeywordNames =
     | "@catch"
     | "@desc"
     | "@distinct"
+    | "@empty"
     | "@enum"
     | "@expr"
     | "@from"
@@ -584,6 +585,21 @@ export const Else = {
 
 export function isElse(item: unknown): item is Else {
     return reflection.isInstance(item, Else.$type);
+}
+
+export interface EmptySpec extends langium.AstNode {
+    readonly $container: RuntimeHint;
+    readonly $type: 'EmptySpec';
+    stmt: Statement;
+}
+
+export const EmptySpec = {
+    $type: 'EmptySpec',
+    stmt: 'stmt'
+} as const;
+
+export function isEmptySpec(item: unknown): item is EmptySpec {
+    return reflection.isInstance(item, EmptySpec.$type);
 }
 
 export interface EntityActionsDefinitions extends langium.AstNode {
@@ -1744,6 +1760,7 @@ export interface RuntimeHint extends langium.AstNode {
     readonly $type: 'RuntimeHint';
     aliasSpec?: AliasSpec;
     catchSpec?: CatchSpec;
+    emptySpec?: EmptySpec;
     thenSpec?: ThenSpec;
 }
 
@@ -1751,6 +1768,7 @@ export const RuntimeHint = {
     $type: 'RuntimeHint',
     aliasSpec: 'aliasSpec',
     catchSpec: 'catchSpec',
+    emptySpec: 'emptySpec',
     thenSpec: 'thenSpec'
 } as const;
 
@@ -1864,7 +1882,7 @@ export function isStandaloneStatement(item: unknown): item is StandaloneStatemen
 }
 
 export interface Statement extends langium.AstNode {
-    readonly $container: ArrayLiteral | CaseEntry | ConditionalFlowStep | Else | FlowEntry | ForEach | Handler | If | StandaloneStatement | ThenSpec | WorkflowDefinition;
+    readonly $container: ArrayLiteral | CaseEntry | ConditionalFlowStep | Else | EmptySpec | FlowEntry | ForEach | Handler | If | StandaloneStatement | ThenSpec | WorkflowDefinition;
     readonly $type: 'Statement';
     hints: Array<RuntimeHint>;
     pattern: Pattern;
@@ -2102,6 +2120,7 @@ export type AgentlangAstType = {
     Delete: Delete
     DirectiveDefinition: DirectiveDefinition
     Else: Else
+    EmptySpec: EmptySpec
     EntityActionsDefinitions: EntityActionsDefinitions
     EntityDefinition: EntityDefinition
     EnumSpec: EnumSpec
@@ -2513,6 +2532,15 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 statements: {
                     name: Else.statements,
                     defaultValue: []
+                }
+            },
+            superTypes: []
+        },
+        EmptySpec: {
+            name: EmptySpec.$type,
+            properties: {
+                stmt: {
+                    name: EmptySpec.stmt
                 }
             },
             superTypes: []
@@ -3360,6 +3388,9 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 },
                 catchSpec: {
                     name: RuntimeHint.catchSpec
+                },
+                emptySpec: {
+                    name: RuntimeHint.emptySpec
                 },
                 thenSpec: {
                     name: RuntimeHint.thenSpec
