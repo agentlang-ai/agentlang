@@ -15,6 +15,7 @@ export class BasePattern {
   alias: string | undefined;
   aliases: string[] | undefined;
   handlers: Map<string, BasePattern> | undefined;
+  emptyHandler: BasePattern | undefined;
 
   setAlias(alias: string) {
     this.alias = alias;
@@ -44,6 +45,11 @@ export class BasePattern {
     this.handlers.set(k, handler);
   }
 
+  setEmptyHandler(handler: BasePattern) {
+    this.emptyHandler = handler;
+    return this;
+  }
+
   private aliasesAsString(): string | undefined {
     if (this.alias) {
       return ` @as ${this.alias}`;
@@ -54,24 +60,30 @@ export class BasePattern {
     }
   }
 
-  private handlersAsString(): string | undefined {
-    if (this.handlers) {
-      let s = '{';
-      this.handlers.forEach((handler: BasePattern, k: string) => {
-        s = `${s} ${k} ${handler.toString()}\n`;
-      });
-      return s + '}';
-    } else {
-      return undefined;
+  private emptyHandlerAsString(): string | undefined {
+    if (this.emptyHandler) {
+      return ` @empty ${this.emptyHandler.toString()}`;
     }
+    return undefined;
   }
+
+  private handlersAsString(): string | undefined {
+    if (this.handlers && this.handlers.size > 0) {
+      let s = ' @catch {';
+      this.handlers.forEach((handler: BasePattern, k: string) => {
+        s = `${s}${k} ${handler.toString()} `;
+      });
+      return s.trimEnd() + '}';
+    }
+    return undefined;
+  }
+
   hintsAsString(): string {
-    const a = this.aliasesAsString();
-    const h = this.handlersAsString();
-    if (!a && !h) return '';
-    if (a && !h) return a;
-    if (!a && h) return h;
-    return `${a}\n${h}`;
+    // Order matters: @as, then @catch, then @empty (must be last because it's greedy in the grammar)
+    const a = this.aliasesAsString() ?? '';
+    const h = this.handlersAsString() ?? '';
+    const e = this.emptyHandlerAsString() ?? '';
+    return `${a}${h}${e}`;
   }
 
   toString(): string {
@@ -401,6 +413,8 @@ export class CrudPattern extends BasePattern {
   where: WhereSpecClausePattern[] | undefined;
   groupBy: string[] | undefined;
   orderBy: string[] | undefined;
+  limit: number | undefined;
+  offset: number | undefined;
   isQuery: boolean = false;
   isQueryUpdate: boolean = false;
   isCreate: boolean = false;
@@ -579,6 +593,12 @@ export class CrudPattern extends BasePattern {
     }
     if (this.orderBy) {
       s = s.concat(`,\n${this.orderByAsString()}`);
+    }
+    if (this.limit !== undefined) {
+      s = s.concat(`,\n@limit(${this.limit})`);
+    }
+    if (this.offset !== undefined) {
+      s = s.concat(`,\n@offset(${this.offset})`);
     }
 
     return s.concat('}', this.hintsAsString());

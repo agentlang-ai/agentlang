@@ -28,6 +28,10 @@ export class MonitorEntry {
     return this.input;
   }
 
+  getTimestamp(): number {
+    return this.timestamp;
+  }
+
   setResult(result: any): MonitorEntry {
     if (this.result === undefined) {
       this.result = result;
@@ -293,7 +297,7 @@ export class Monitor {
 
   private finalizeLastEntry(): void {
     if (this.lastEntry) {
-      const ms = Date.now() - this.lastEntrySetAtMs;
+      const ms = Date.now() - this.lastEntry.getTimestamp();
       this.lastEntry.setLatencyMs(ms);
       if (MonitoringCallback !== undefined) {
         MonitoringCallback(this.lastEntry);

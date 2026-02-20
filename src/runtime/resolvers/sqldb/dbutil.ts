@@ -99,6 +99,12 @@ export type OrmSchema = {
   fkSpecs: FkSpec[];
 };
 
+const SqlDefaultFunctions = new Set(['uuid()', 'autoincrement()', 'now()']);
+
+function isSqlDefault(d: any): boolean {
+  return typeof d !== 'string' || !d.endsWith('()') || SqlDefaultFunctions.has(d);
+}
+
 export function modulesAsOrmSchema(): OrmSchema {
   const ents: EntitySchema[] = [];
   const vects: EntitySchema[] = [];
@@ -147,6 +153,7 @@ function ormSchemaFromRecordSchema(
     const autoUuid: boolean = d && d == 'uuid()' ? true : false;
     const autoIncr: boolean = !autoUuid && d && d == 'autoincrement()' ? true : false;
     if (autoUuid || autoIncr) d = undefined;
+    else if (!isSqlDefault(d)) d = undefined;
     let genStrat: 'uuid' | 'increment' | undefined = undefined;
     if (autoIncr) genStrat = 'increment';
     else if (autoUuid) genStrat = 'uuid';
@@ -188,13 +195,27 @@ function ormSchemaFromRecordSchema(
   const fqName = makeFqName(moduleName, entityName);
   getAllOneToOneRelationshipsForEntity(moduleName, entityName, allBetRels).forEach(
     (re: Relationship) => {
-      const colName = re.getInverseAliasForName(fqName);
-      if (cols.has(colName)) {
-        throw new Error(
-          `Cannot establish relationship ${re.name}, ${entityName}.${colName} already exists`
-        );
+      if (re.isSelfReferencing()) {
+        // Self-referencing one-to-one: add columns for both aliases
+        // so each side of the relationship can be stored on the entity.
+        // Both must be nullable since they're set after entity creation.
+        [re.node1.alias, re.node2.alias].forEach((colName: string) => {
+          if (cols.has(colName)) {
+            throw new Error(
+              `Cannot establish relationship ${re.name}, ${entityName}.${colName} already exists`
+            );
+          }
+          cols.set(colName, { type: 'varchar', unique: true });
+        });
+      } else {
+        const colName = re.getInverseAliasForName(fqName);
+        if (cols.has(colName)) {
+          throw new Error(
+            `Cannot establish relationship ${re.name}, ${entityName}.${colName} already exists`
+          );
+        }
+        cols.set(colName, { type: 'varchar', unique: true });
       }
-      cols.set(colName, { type: 'varchar', unique: true });
     }
   );
   if (relsSpec.size > 0) {
@@ -259,6 +280,7 @@ function entitySchemaToTable(scm: RecordSchema): TableSpec {
     const autoUuid: boolean = d && d == 'uuid()' ? true : false;
     const autoIncr: boolean = !autoUuid && d && d == 'autoincrement()' ? true : false;
     if (autoUuid || autoIncr) d = undefined;
+    else if (!isSqlDefault(d)) d = undefined;
     let genStrat: 'uuid' | 'increment' | 'rowid' | 'identity' = 'identity';
     if (autoIncr) genStrat = 'increment';
     else if (autoUuid) genStrat = 'uuid';

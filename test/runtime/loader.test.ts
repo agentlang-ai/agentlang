@@ -31,7 +31,7 @@ describe('loadAppConfig', () => {
 
   test('should load config from agentlang string', async () => {
     const configContent =
-      "{\n  \"agentlang\": {\n    \"service\": {\n      \"port\": 8080\n    }\n  },\n  \"agentlang.ai\": [\n    {\n      \"agentlang.ai/LLM\": {\n        \"name\": \"test_llm\",\n        \"service\": \"anthropic\",\n        \"config\": {\n          \"model\": \"claude-sonnet-4-5\",\n          \"maxTokens\": 1000,\n          \"temperature\": 0.7\n        }\n      }\n    }\n  ]\n}"
+      '{\n  "agentlang": {\n    "service": {\n      "port": 8080\n    }\n  },\n  "agentlang.ai": [\n    {\n      "agentlang.ai/LLM": {\n        "name": "test_llm",\n        "service": "anthropic",\n        "config": {\n          "model": "claude-sonnet-4-5",\n          "maxTokens": 1000,\n          "temperature": 0.7\n        }\n      }\n    }\n  ]\n}';
 
     const config = await loadAppConfig(configContent);
     assert(config !== undefined, 'Config should be defined');
@@ -61,7 +61,7 @@ describe('loadAppConfig', () => {
 
   test('should load multiple entity instances from JSON content', async () => {
     const configContent =
-      "{\n  \"agentlang\": {\n    \"service\": {\n      \"port\": 8080\n    }\n  },\n  \"agentlang.ai\": [\n    {\n      \"agentlang.ai/LLM\": {\n        \"name\": \"llm_one\",\n        \"service\": \"anthropic\",\n        \"config\": {\n          \"model\": \"claude-sonnet-4-5\"\n        }\n      }\n    },\n    {\n      \"agentlang.ai/LLM\": {\n        \"name\": \"llm_two\",\n        \"service\": \"openai\",\n        \"config\": {\n          \"model\": \"gpt-4o\"\n        }\n      }\n    }\n  ]\n}"
+      '{\n  "agentlang": {\n    "service": {\n      "port": 8080\n    }\n  },\n  "agentlang.ai": [\n    {\n      "agentlang.ai/LLM": {\n        "name": "llm_one",\n        "service": "anthropic",\n        "config": {\n          "model": "claude-sonnet-4-5"\n        }\n      }\n    },\n    {\n      "agentlang.ai/LLM": {\n        "name": "llm_two",\n        "service": "openai",\n        "config": {\n          "model": "gpt-4o"\n        }\n      }\n    }\n  ]\n}';
 
     await loadAppConfig(configContent);
     await runInitFunctions();
@@ -83,7 +83,7 @@ describe('loadAppConfig', () => {
   test('should load config from file path', async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentlang-test-'));
     const configContent =
-      "{\n \"agentlang\": {\n    \"service\": {\n      \"port\": 8080\n    }\n  },\n  \"agentlang.ai\": [\n    {\n      \"agentlang.ai/LLM\": {\n        \"name\": \"file_llm\",\n        \"service\": \"anthropic\",\n        \"config\": {\n          \"model\": \"claude-sonnet-4-5\",\n          \"maxTokens\": 2000\n        }\n      }\n    }\n  ]\n}";
+      '{\n "agentlang": {\n    "service": {\n      "port": 8080\n    }\n  },\n  "agentlang.ai": [\n    {\n      "agentlang.ai/LLM": {\n        "name": "file_llm",\n        "service": "anthropic",\n        "config": {\n          "model": "claude-sonnet-4-5",\n          "maxTokens": 2000\n        }\n      }\n    }\n  ]\n}';
     const configFile = path.join(tempDir, 'config.al');
     fs.writeFileSync(configFile, configContent);
 
@@ -108,7 +108,7 @@ describe('loadAppConfig', () => {
 
   test('can be empty agentlang config section', async () => {
     const configContent =
-      "{\n  \"agentlang.ai\": [\n    {\n      \"agentlang.ai/LLM\": {\n        \"name\": \"minimal_llm\",\n        \"service\": \"anthropic\",\n        \"config\": {\n          \"model\": \"claude-sonnet-4-5\",\n          \"maxTokens\": 1000,\n          \"temperature\": 0.7\n        }\n      }\n    }\n  ]\n}"
+      '{\n  "agentlang.ai": [\n    {\n      "agentlang.ai/LLM": {\n        "name": "minimal_llm",\n        "service": "anthropic",\n        "config": {\n          "model": "claude-sonnet-4-5",\n          "maxTokens": 1000,\n          "temperature": 0.7\n        }\n      }\n    }\n  ]\n}';
 
     const config = await loadAppConfig(configContent);
     assert(config !== undefined, 'Config with empty agentlang section should work');

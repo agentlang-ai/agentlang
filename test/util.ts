@@ -9,7 +9,7 @@ import { setRuntimeMode_test } from '../src/runtime/defs.js';
 let CoreModulesInited = false;
 
 export async function doPreInit() {
-  setRuntimeMode_test()
+  setRuntimeMode_test();
   if (!CoreModulesInited) {
     await runPreInitTasks();
     CoreModulesInited = true;

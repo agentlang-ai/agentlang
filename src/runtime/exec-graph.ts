@@ -304,8 +304,8 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
         throw reason;
       } finally {
         if (monitoringEnabled) {
-          if (monitorIncr) env.decrementMonitor();
           env.setMonitorEntryResult(env.getLastResult());
+          if (monitorIncr) env.decrementMonitor();
         }
       }
     }
@@ -425,10 +425,28 @@ export async function executeEvent(
       env.setActiveEvent(eventInstance);
       await executeEventHelper(eventInstance, env);
     } else if (isAgentEventInstance(eventInstance)) {
+      env.setActiveEvent(eventInstance);
+      if (isMonitoringEnabled()) {
+        env.appendEntryToMonitor(
+          `{${eventInstance.getFqName()} {message "${eventInstance.lookup('message')}"}}`
+        );
+      }
       await handleAgentInvocation(eventInstance, env);
+      if (isMonitoringEnabled()) {
+        env.setMonitorEntryResult(env.getLastResult());
+      }
     }
     const r = env.getLastResult();
-    if (continuation) continuation(r);
+    if (continuation) {
+      if (env.getLastPattern() && isAgentEventInstance(eventInstance)) {
+        continuation({
+          result: r.map((res: any) => (res.attributes ? Object.fromEntries(res.attributes) : res)),
+          pattern: env.getLastPattern(),
+        });
+      } else {
+        continuation(r);
+      }
+    }
     return r;
   } catch (err) {
     if (env && env.hasHandlers()) {
@@ -490,6 +508,9 @@ export async function executeEventHelper(eventInstance: Instance, env?: Environm
         );
       }
       await handleAgentInvocation(eventInstance, env);
+      if (isMonitoringEnabled()) {
+        env.setMonitorEntryResult(env.getLastResult());
+      }
     }
     if (isLocalEnv) {
       await env.commitAllTransactions();

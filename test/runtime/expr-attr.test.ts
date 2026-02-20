@@ -1,7 +1,10 @@
 import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import { Instance, isInstanceOfType } from '../../src/runtime/module.js';
+import { PathAttributeName } from '../../src/runtime/defs.js';
 import { assert, describe, test } from 'vitest';
 import { doInternModule } from '../util.js';
+
+declare const agentlang: any;
 
 // ─── CREATION TESTS ────────────────────────────────────────────────────────────
 
@@ -927,6 +930,304 @@ describe('User-provided value for @expr attribute on update', () => {
     assert(
       upserted.lookup('y') === 777,
       `Expected y=777 on upsert-update (user wins), got y=${upserted.lookup('y')}`
+    );
+  });
+});
+
+// ─── HELPER FUNCTION WITH SIBLING PARAMS ─────────────────────────────────────
+
+describe('Expression attributes with helper functions - sibling params', () => {
+  test('sibling attributes as function params', async () => {
+    await doInternModule(
+      'ExprFnSib',
+      `entity Resource {
+        id Int @id,
+        FirstName String,
+        PreferredFirstName String @optional,
+        LastName String,
+        FullName String @expr(agentlang.calculateFullName__test(FirstName, LastName, PreferredFirstName))
+      }`
+    );
+    agentlang.calculateFullName__test = (first: string, last: string, preferred: string | null) => {
+      const displayFirst = preferred || first;
+      return `${displayFirst} ${last}`;
+    };
+    const fqn = 'ExprFnSib/Resource';
+    const isRes = (r: any) => isInstanceOfType(r, fqn);
+    // With preferred first name
+    const r1: any = await parseAndEvaluateStatement(
+      `{${fqn} {id 1, FirstName "Robert", PreferredFirstName "Bob", LastName "Smith"}}`
+    );
+    assert(isRes(r1));
+    assert(r1.lookup('FullName') === 'Bob Smith');
+    // Without preferred first name (optional, falls back to FirstName)
+    const r2: any = await parseAndEvaluateStatement(
+      `{${fqn} {id 2, FirstName "Alice", LastName "Jones"}}`
+    );
+    assert(isRes(r2));
+    assert(r2.lookup('FullName') === 'Alice Jones');
+    // Query and verify persisted values
+    const results: Instance[] = await parseAndEvaluateStatement(`{${fqn}? {}}`);
+    assert(results.length === 2);
+    assert(results.every(isRes));
+    const bob = results.find((r: Instance) => r.lookup('id') === 1);
+    const alice = results.find((r: Instance) => r.lookup('id') === 2);
+    assert(bob?.lookup('FullName') === 'Bob Smith');
+    assert(alice?.lookup('FullName') === 'Alice Jones');
+  });
+});
+
+// ─── HELPER FUNCTION WITH RELATED ENTITY PARAM ──────────────────────────────
+
+describe('Expression attributes with helper functions - related entity param', () => {
+  test('related entity attribute as function param', async () => {
+    await doInternModule(
+      'ExprFnRel',
+      `entity Department {
+        id Int @id,
+        Name String,
+        BudgetMultiplier Int
+      }
+      entity Employee {
+        id Int @id,
+        dept Path,
+        Name String,
+        BaseSalary Int,
+        AdjustedSalary Int @expr(agentlang.adjustSalary__test(BaseSalary, dept.BudgetMultiplier))
+      }`
+    );
+    agentlang.adjustSalary__test = (baseSalary: number, multiplier: number) => {
+      return baseSalary * multiplier;
+    };
+    // Create departments
+    const dept1: any = await parseAndEvaluateStatement(
+      `{ExprFnRel/Department {id 1, Name "Engineering", BudgetMultiplier 3}}`
+    );
+    assert(isInstanceOfType(dept1, 'ExprFnRel/Department'));
+    const dept1Path = dept1.lookup(PathAttributeName);
+    const dept2: any = await parseAndEvaluateStatement(
+      `{ExprFnRel/Department {id 2, Name "Sales", BudgetMultiplier 2}}`
+    );
+    assert(isInstanceOfType(dept2, 'ExprFnRel/Department'));
+    const dept2Path = dept2.lookup(PathAttributeName);
+    // Create employees referencing departments
+    const emp1: any = await parseAndEvaluateStatement(
+      `{ExprFnRel/Employee {id 1, dept "${dept1Path}", Name "Alice", BaseSalary 1000}}`
+    );
+    assert(isInstanceOfType(emp1, 'ExprFnRel/Employee'));
+    assert(emp1.lookup('AdjustedSalary') === 3000);
+    const emp2: any = await parseAndEvaluateStatement(
+      `{ExprFnRel/Employee {id 2, dept "${dept2Path}", Name "Bob", BaseSalary 2000}}`
+    );
+    assert(isInstanceOfType(emp2, 'ExprFnRel/Employee'));
+    assert(emp2.lookup('AdjustedSalary') === 4000);
+    // Query and verify
+    const results: Instance[] = await parseAndEvaluateStatement(`{ExprFnRel/Employee? {}}`);
+    assert(results.length === 2);
+    const alice = results.find((r: Instance) => r.lookup('id') === 1);
+    const bob = results.find((r: Instance) => r.lookup('id') === 2);
+    assert(alice?.lookup('AdjustedSalary') === 3000);
+    assert(bob?.lookup('AdjustedSalary') === 4000);
+  });
+});
+
+// ─── HELPER FUNCTION WITH RELATIONSHIP-CONNECTED ENTITY PARAM ────────────────
+
+describe('Expression attributes with helper functions - relationship param', () => {
+  test('related entity attribute accessed through relationship as function param', async () => {
+    await doInternModule(
+      'ExprFnBtwn',
+      `entity Department {
+        id Int @id,
+        Name String,
+        BudgetMultiplier Int
+      }
+      entity Employee {
+        id Int @id,
+        Name String,
+        BaseSalary Int,
+        AdjustedSalary Int @expr(agentlang.adjustSalary__test(BaseSalary, DeptEmployee.Department.BudgetMultiplier))
+      }
+      relationship DeptEmployee between(Department, Employee) @one_many`
+    );
+    // Create a department
+    const dept: any = await parseAndEvaluateStatement(
+      `{ExprFnBtwn/Department {id 1, Name "Engineering", BudgetMultiplier 3}}`
+    );
+    assert(isInstanceOfType(dept, 'ExprFnBtwn/Department'));
+    // Create an employee linked to the department through the relationship
+    const pat = `{ExprFnBtwn/Department {id? 1},
+                  DeptEmployee [{ExprFnBtwn/Employee {id 1, Name "Alice", BaseSalary 1000}}]}`;
+    const results: Instance[] = await parseAndEvaluateStatement(pat);
+    assert(results.length === 1);
+    const deptInst = results[0];
+    assert(isInstanceOfType(deptInst, 'ExprFnBtwn/Department'));
+    const employees = deptInst.getRelatedInstances('DeptEmployee');
+    assert(employees !== undefined);
+    assert(employees!.length === 1);
+    const alice = employees![0];
+    assert(isInstanceOfType(alice, 'ExprFnBtwn/Employee'));
+    assert(alice.lookup('BaseSalary') === 1000);
+    // The @expr should resolve DeptEmployee.Department.BudgetMultiplier from the related Department
+    assert(
+      alice.lookup('AdjustedSalary') === 3000,
+      `Expected AdjustedSalary=3000 (1000*3), got ${alice.lookup('AdjustedSalary')}`
+    );
+  });
+
+  test('one-to-one: @expr accessing related entity attribute', async () => {
+    await doInternModule(
+      'ExprRel11',
+      `entity Profile {
+        id Int @id,
+        Bio String
+      }
+      entity User {
+        id Int @id,
+        Name String,
+        DisplayInfo String @expr(agentlang.makeDisplay__test(Name, UserProfile.Profile.Bio))
+      }
+      relationship UserProfile between(Profile, User) @one_one`
+    );
+    agentlang.makeDisplay__test = (name: string, bio: string) => (bio ? `${name}: ${bio}` : name);
+    // Create a profile first
+    const profile: any = await parseAndEvaluateStatement(
+      `{ExprRel11/Profile {id 1, Bio "Hello world"}}`
+    );
+    assert(isInstanceOfType(profile, 'ExprRel11/Profile'));
+    // Create a user linked to the profile via the relationship pattern (fast path).
+    // Query the profile (node1), then create the user (node2) through the relationship.
+    const pat = `{ExprRel11/Profile {id? 1},
+                  UserProfile [{ExprRel11/User {id 1, Name "Alice"}}]}`;
+    const results: Instance[] = await parseAndEvaluateStatement(pat);
+    assert(results.length === 1);
+    const profileInst = results[0];
+    assert(isInstanceOfType(profileInst, 'ExprRel11/Profile'));
+    const users = profileInst.getRelatedInstances('UserProfile');
+    assert(users !== undefined);
+    assert(users!.length === 1);
+    const alice = users![0];
+    assert(isInstanceOfType(alice, 'ExprRel11/User'));
+    assert(
+      alice.lookup('DisplayInfo') === 'Alice: Hello world',
+      `Expected "Alice: Hello world", got "${alice.lookup('DisplayInfo')}"`
+    );
+  });
+
+  test('update recomputes @expr that references through relationship', async () => {
+    await doInternModule(
+      'ExprRelUpd',
+      `entity Department {
+        id Int @id,
+        Name String,
+        BudgetMultiplier Int
+      }
+      entity Employee {
+        id Int @id,
+        Name String,
+        BaseSalary Int,
+        AdjustedSalary Int @expr(agentlang.adjustSalary__test(BaseSalary, DeptEmployee.Department.BudgetMultiplier))
+      }
+      relationship DeptEmployee between(Department, Employee) @one_many`
+    );
+    // Create department
+    await parseAndEvaluateStatement(
+      `{ExprRelUpd/Department {id 1, Name "Engineering", BudgetMultiplier 3}}`
+    );
+    // Create employee via relationship
+    const pat = `{ExprRelUpd/Department {id? 1},
+                  DeptEmployee [{ExprRelUpd/Employee {id 1, Name "Alice", BaseSalary 1000}}]}`;
+    await parseAndEvaluateStatement(pat);
+    // Update the employee's BaseSalary
+    const updated: Instance[] = await parseAndEvaluateStatement(
+      `{ExprRelUpd/Employee {id? 1, BaseSalary 2000}}`
+    );
+    assert(updated.length === 1);
+    assert(
+      updated[0].lookup('AdjustedSalary') === 6000,
+      `Expected AdjustedSalary=6000 (2000*3), got ${updated[0].lookup('AdjustedSalary')}`
+    );
+  });
+});
+
+// ─── VALIDATION ERROR TESTS FOR @EXPR THROUGH RELATIONSHIPS ──────────────────
+
+describe('Expression attributes - relationship validation errors', () => {
+  test('one-to-many from "one" side should fail validation', async () => {
+    agentlang.identity__test = (x: any) => x;
+    let errorMsg = '';
+    try {
+      await doInternModule(
+        'ExprRelErr1',
+        `entity Department {
+          id Int @id,
+          Name String,
+          EmpCount Int @expr(agentlang.identity__test(DeptEmployee.Employee.Name))
+        }
+        entity Employee {
+          id Int @id,
+          Name String
+        }
+        relationship DeptEmployee between(Department, Employee) @one_many`
+      );
+    } catch (e: any) {
+      errorMsg = e.message;
+    }
+    assert(
+      errorMsg.includes('one-to-many') || errorMsg.includes('multiple entities'),
+      `Expected error about one-to-many from "one" side, got: "${errorMsg}"`
+    );
+  });
+
+  test('many-to-many relationship should fail validation', async () => {
+    let errorMsg = '';
+    try {
+      await doInternModule(
+        'ExprRelErr2',
+        `entity Student {
+          id Int @id,
+          Name String,
+          CourseName String @expr(agentlang.identity__test(Enrollment.Course.Name))
+        }
+        entity Course {
+          id Int @id,
+          Name String
+        }
+        relationship Enrollment between(Student, Course)`
+      );
+    } catch (e: any) {
+      errorMsg = e.message;
+    }
+    assert(
+      errorMsg.includes('many-to-many'),
+      `Expected error about many-to-many relationship, got: "${errorMsg}"`
+    );
+  });
+
+  test('invalid entity alias in relationship reference should fail validation', async () => {
+    let errorMsg = '';
+    try {
+      await doInternModule(
+        'ExprRelErr3',
+        `entity Department {
+          id Int @id,
+          Name String,
+          BudgetMultiplier Int
+        }
+        entity Employee {
+          id Int @id,
+          Name String,
+          BaseSalary Int,
+          AdjustedSalary Int @expr(agentlang.adjustSalary__test(BaseSalary, DeptEmployee.WrongEntity.BudgetMultiplier))
+        }
+        relationship DeptEmployee between(Department, Employee) @one_many`
+      );
+    } catch (e: any) {
+      errorMsg = e.message;
+    }
+    assert(
+      errorMsg.includes('WrongEntity') && errorMsg.includes('does not match'),
+      `Expected error about invalid entity alias "WrongEntity", got: "${errorMsg}"`
     );
   });
 });

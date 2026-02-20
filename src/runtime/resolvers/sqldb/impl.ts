@@ -402,6 +402,8 @@ export class SqlDbResolver extends Resolver {
       joinClauses: undefined,
       intoSpec: undefined,
       whereClauses: undefined,
+      limit: inst.limit,
+      offset: inst.offset,
     };
     const readOnlyAttrs = inst.record.getWriteOnlyAttributes();
     const rslt: any =
@@ -480,16 +482,17 @@ export class SqlDbResolver extends Resolver {
   public override async queryConnectedInstances(
     relationship: Relationship,
     connectedInstance: Instance,
-    inst: Instance
+    inst: Instance,
+    connectedAlias?: string
   ): Promise<Instance[]> {
     let result = SqlDbResolver.EmptyResultSet;
     if (relationship.isOneToOne()) {
-      const col = relationship.getAliasFor(connectedInstance);
+      const col = relationship.getAliasForConnected(connectedInstance, connectedAlias);
       inst.addQuery(col, '=', connectedInstance.lookup(PathAttributeName));
       return await this.queryInstances(inst, false);
     } else {
-      const from = relationship.getAliasFor(connectedInstance);
-      const to = relationship.getInverseAliasFor(connectedInstance);
+      const from = relationship.getAliasForConnected(connectedInstance, connectedAlias);
+      const to = relationship.getInverseAliasForConnected(connectedInstance, connectedAlias);
       await getAllConnected(
         asTableReference(inst.moduleName, inst.name),
         inst.queryAttributesAsObject(),
@@ -566,6 +569,8 @@ export class SqlDbResolver extends Resolver {
       joinClauses,
       whereClauses,
       intoSpec,
+      limit: inst.limit,
+      offset: inst.offset,
     };
     const rslt: any = await getManyByJoin(tableName, qspec, this.getDbContext(inst.getFqName()));
     return rslt;
@@ -797,9 +802,18 @@ function ensureOneToOneAttributes(inst: Instance) {
   const betRels = getAllBetweenRelationships();
   getAllOneToOneRelationshipsForEntity(inst.moduleName, inst.name, betRels).forEach(
     (re: Relationship) => {
-      const n = re.getInverseAliasFor(inst);
-      if (!inst.attributes.has(n)) {
-        inst.attributes.set(n, crypto.randomUUID());
+      if (re.isSelfReferencing()) {
+        // Self-referencing one-to-one: ensure both alias columns have placeholder values
+        [re.node1.alias, re.node2.alias].forEach((n: string) => {
+          if (!inst.attributes.has(n)) {
+            inst.attributes.set(n, crypto.randomUUID());
+          }
+        });
+      } else {
+        const n = re.getInverseAliasFor(inst);
+        if (!inst.attributes.has(n)) {
+          inst.attributes.set(n, crypto.randomUUID());
+        }
       }
     }
   );

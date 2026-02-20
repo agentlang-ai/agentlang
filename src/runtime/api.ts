@@ -5,9 +5,11 @@ import {
 } from './module.js';
 import { getLocalEnv as al_getLocalEnv, setLocalEnv as al_setLocalEnv } from './auth/defs.js';
 import { now } from './util.js';
+import { initDateFns } from './datefns.js';
 
 declare global {
   var agentlang: any | undefined;
+  var dateFns: ReturnType<typeof initDateFns> | undefined;
   function getLocalEnv(k: string, defaultValue?: string): string | undefined;
   function setLocalEnv(k: string, v: string): string;
   function uuid(): string;
@@ -31,6 +33,9 @@ export function initGlobalApi() {
     // Expose environment variable functions globally (like readSecret pattern)
     globalThis.getLocalEnv = al_getLocalEnv;
     globalThis.setLocalEnv = al_setLocalEnv;
+
+    // Expose date-fns functions globally as dateFns.*
+    globalThis.dateFns = initDateFns();
 
     ApiInited = true;
   }

@@ -47,6 +47,7 @@ import {
   isEntityInstance,
   isEventInstance,
   isInstanceOfType,
+  getAllBetweenRelationshipsForEntity,
   isOneToOneBetweenRelationship,
   isTimer,
   makeInstance,
@@ -77,6 +78,7 @@ import {
   preprocessRawConfig,
   QuerySuffix,
   restoreSpecialChars,
+  splitFqName,
   splitRefs,
 } from './util.js';
 import { getResolver, getResolverNameForPath } from './resolvers/registry.js';
@@ -88,9 +90,12 @@ import {
 } from '../language/parser.js';
 import { ActiveSessionInfo, AdminSession, AdminUserId } from './auth/defs.js';
 import {
+  AgentCancelledException,
   AgentEntityName,
   AgentFqName,
   AgentInstance,
+  checkCancelled,
+  clearCancellation,
   findAgentByName,
   normalizeGeneratedCode,
   saveFlowStepResult,
@@ -132,6 +137,7 @@ export function isEmptyResult(r: Result): boolean {
 type BetweenRelInfo = {
   relationship: Relationship;
   connectedInstance: Instance;
+  connectedAlias?: string;
 };
 
 function mkEnvName(name: string | undefined, parent: Environment | undefined): string {
@@ -156,6 +162,7 @@ export class Environment extends Instance {
   private activeUserSet: boolean = false;
   private lastResult: Result;
   private trashedResult: Result = undefined;
+  private lastPattern: string | undefined;
   private returnFlag: boolean = false;
   private parentPath: string | undefined;
   private normalizedParentPath: string | undefined;
@@ -571,6 +578,15 @@ export class Environment extends Instance {
     return this.lastResult;
   }
 
+  setLastPattern(pattern: string | undefined): Environment {
+    this.lastPattern = pattern;
+    return this;
+  }
+
+  getLastPattern(): string | undefined {
+    return this.lastPattern;
+  }
+
   getActiveModuleName(): string {
     return this.activeModule;
   }
@@ -963,7 +979,13 @@ export let evaluate = async function (
       } else if (isAgentEventInstance(eventInstance)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
         await handleAgentInvocation(eventInstance, env);
-        if (continuation) continuation(env.getLastResult());
+        if (continuation) {
+          if (env.getLastPattern()) {
+            continuation({ result: env.getLastResult(), pattern: env.getLastPattern() });
+          } else {
+            continuation(env.getLastResult());
+          }
+        }
       } else if (isOpenApiEventInstance(eventInstance)) {
         env = new Environment(eventInstance.name + '.env', activeEnv);
         await handleOpenApiEvent(eventInstance, env);
@@ -1117,6 +1139,9 @@ export async function evaluateStatement(stmt: Statement, env: Environment): Prom
     }
     await evaluatePattern(stmt.pattern, env);
     if (hasHints) {
+      await maybeHandleEmpty(hints, env);
+    }
+    if (hasHints) {
       maybeBindStatementResultToAlias(hints, env);
     }
     await maybeHandleNotFound(handlers, env);
@@ -1141,6 +1166,24 @@ async function maybeHandleNotFound(handlers: CatchHandlers | undefined, env: Env
       const newEnv = new Environment('not-found-env', env).unsetEventExecutor();
       await evaluateStatement(onNotFound, newEnv);
       env.setLastResult(newEnv.getLastResult());
+    }
+  }
+}
+
+async function maybeHandleEmpty(hints: RuntimeHint[], env: Environment) {
+  const lastResult: Result = env.getLastResult();
+  if (
+    lastResult === null ||
+    lastResult === undefined ||
+    (lastResult instanceof Array && lastResult.length == 0)
+  ) {
+    for (const rh of hints) {
+      if (rh.emptySpec) {
+        const newEnv = new Environment('empty-env', env).unsetEventExecutor();
+        await evaluateStatement(rh.emptySpec.stmt, newEnv);
+        env.setLastResult(newEnv.getLastResult());
+        break;
+      }
     }
   }
 }
@@ -1533,6 +1576,12 @@ function maybeSetQueryClauses(inst: Instance, qopts: ExtractedQueryOptions) {
   if (qopts.orderByClause) {
     inst.setOrderBy(qopts.orderByClause.colNames, qopts.orderByClause.order === '@desc');
   }
+  if (qopts.limitClause) {
+    inst.setLimit(qopts.limitClause.value);
+  }
+  if (qopts.offsetClause) {
+    inst.setOffset(qopts.offsetClause.value);
+  }
 }
 
 async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
@@ -1670,7 +1719,8 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         const insts: Instance[] = await res.queryConnectedInstances(
           betRelInfo.relationship,
           betRelInfo.connectedInstance,
-          inst
+          inst,
+          betRelInfo.connectedAlias
         );
         env.setLastResult(insts);
       } else {
@@ -1695,7 +1745,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             false,
             true
           );
-          env.setLastResult(inst);
+          env.setLastResult([inst]);
         } else {
           const insts: Instance[] = await res.queryInstances(inst, isQueryAll, distinct);
           env.setLastResult(insts);
@@ -1722,7 +1772,12 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             } else if (isBetweenRelationship(rel.name, moduleName)) {
-              newEnv.setBetweenRelInfo({ relationship: relEntry, connectedInstance: lastRes[j] });
+              const connAlias = relEntry.isSelfReferencing() ? relEntry.node1.alias : undefined;
+              newEnv.setBetweenRelInfo({
+                relationship: relEntry,
+                connectedInstance: lastRes[j],
+                connectedAlias: connAlias,
+              });
               await evaluatePattern(rel.pattern, newEnv);
               lastRes[j].attachRelatedInstances(rel.name, newEnv.getLastResult());
             }
@@ -1758,7 +1813,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
           await runPreUpdateEvents(lastRes, env);
           const finalInst: Instance = await res.updateInstance(lastRes, attrs);
           await runPostUpdateEvents(finalInst, lastRes, env);
-          env.setLastResult(finalInst);
+          env.setLastResult([finalInst]);
         }
       }
     }
@@ -1869,6 +1924,48 @@ async function computeExprAttributes(
     updatedAttrs?.forEach((v: any, k: string) => {
       if (v !== undefined) newEnv.bind(k, v);
     });
+    // Bind related instances from between-relationships so that @expr references
+    // like DeptEmployee.Department.BudgetMultiplier can be resolved via followReference.
+    const entityFqName = inst.getFqName();
+    const fqParts = splitFqName(entityFqName);
+    const rels = getAllBetweenRelationshipsForEntity(fqParts[0], fqParts[1]);
+    for (const rel of rels) {
+      const isFirst = rel.isFirstNodeName(entityFqName);
+      // Only bind if this entity is on a valid side for single-entity resolution
+      if (rel.isManyToMany()) continue;
+      if (rel.isOneToMany() && isFirst) continue;
+      // Determine the target entity on the other side
+      const targetNode = isFirst ? rel.node2 : rel.node1;
+      const targetAlias = targetNode.alias;
+      let connectedInst: Instance | undefined;
+      // Fast path: check if the environment carries between-rel info for this relationship
+      const betRelInfo = env.getBetweenRelInfo();
+      if (betRelInfo && betRelInfo.relationship.name === rel.name) {
+        connectedInst = betRelInfo.connectedInstance;
+      } else if (inst.lookup(PathAttributeName)) {
+        // Slow path: query the connected instance through the resolver.
+        // Only possible if the current instance has been persisted (has a __path__).
+        try {
+          const targetFqName = targetNode.path.asFqName();
+          const targetParts = splitFqName(targetFqName);
+          const res: Resolver = await getResolverForPath(targetParts[1], targetParts[0], env);
+          const queryInst = Instance.EmptyInstance(targetParts[1], targetParts[0]);
+          const connected: Instance[] = await res.queryConnectedInstances(rel, inst, queryInst);
+          if (connected && connected.length > 0) {
+            connectedInst = connected[0];
+          }
+        } catch (reason: any) {
+          logger.debug(
+            `Relationship query failed (e.g. not yet linked) - skip binding - ${reason}`
+          );
+        }
+      }
+      if (connectedInst) {
+        const relMap = new Map<string, Instance>();
+        relMap.set(targetAlias, connectedInst);
+        newEnv.bind(rel.name, relMap);
+      }
+    }
     // Build a map of user-provided values for @expr attributes so that
     // overrides are applied inline during expression evaluation, allowing
     // dependent expressions to see the user's value immediately.
@@ -1906,6 +2003,25 @@ async function computeExprAttributes(
         newEnv.bind(n, v);
         inst.attributes.set(n, v);
         updatedAttrs?.set(n, v);
+      }
+    }
+    // Re-evaluate non-@expr attribute expressions from origAttrs in the context
+    // of the queried instance. This handles workflow update expressions like
+    // `balance balance + (balance * interestRate) + makeDeposit.amount` where
+    // the local attribute references must resolve from the existing instance.
+    // Only runs on the update path (where updatedAttrs is a separate map from
+    // inst.attributes) to avoid double-evaluating expressions on create.
+    if (origAttrs && updatedAttrs && updatedAttrs !== inst.attributes) {
+      for (let i = 0; i < origAttrs.length; ++i) {
+        const a: SetAttribute = origAttrs[i];
+        const n = a.name;
+        if (exprAttrs?.has(n)) continue;
+        if (!n.endsWith(QuerySuffix) && updatedAttrs.has(n) && a.value !== undefined) {
+          await evaluateExpression(a.value, newEnv);
+          const v: Result = newEnv.getLastResult();
+          updatedAttrs.set(n, v);
+          newEnv.bind(n, v);
+        }
       }
     }
   }
@@ -2054,6 +2170,8 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
   console.debug(invokeDebugMsg);
   //
 
+  const agentChatId = env.getAgentChatId() || env.getActiveChatId() || '';
+  await clearCancellation(agentChatId);
   const monitoringEnabled = isMonitoringEnabled();
 
   await agent.invoke(msg, env);
@@ -2070,8 +2188,14 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       }
       let retries = 0;
       while (true) {
+        await checkCancelled(agentChatId);
         try {
           let rs: string = result ? normalizeGeneratedCode(result) : '';
+          if (agent.tools) {
+            env.setLastPattern(rs);
+          } else {
+            env.setLastPattern(undefined);
+          }
           let isWf = rs.startsWith('workflow');
           if (isWf && !agent.runWorkflows) {
             await parseWorkflow(rs);
@@ -2126,6 +2250,7 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
     } else {
       let retries = 0;
       while (true) {
+        await checkCancelled(agentChatId);
         try {
           result = normalizeGeneratedCode(result);
           const obj = agent.maybeValidateJsonResponse(result);
@@ -2251,9 +2376,11 @@ async function iterateOnFlow(
   rootAgent.disableSession();
   const chatId = env.getActiveEventInstance()?.lookup('chatId');
   const iterId = chatId || crypto.randomUUID();
+  await clearCancellation(iterId);
   let step = '';
   let fullFlowRetries = 0;
   while (true) {
+    await checkCancelled(iterId);
     try {
       const initContext = msg;
       const s = `Now consider the following flowchart and return the next step:\n${flow}\n
@@ -2276,6 +2403,7 @@ async function iterateOnFlow(
         env.flagMonitorEntryAsFlow().incrementMonitor();
       }
       while (step != 'DONE' && !executedSteps.has(step)) {
+        await checkCancelled(iterId);
         if (stepc > MaxFlowSteps) {
           throw new Error(`Flow execution exceeded maximum steps limit`);
         }
@@ -2330,6 +2458,9 @@ async function iterateOnFlow(
         needAgentProcessing = preprocResult.needAgentProcessing;
       }
     } catch (reason: any) {
+      if (reason instanceof AgentCancelledException) {
+        throw reason;
+      }
       if (fullFlowRetries < MaxFlowRetries) {
         msg = `The previous attempt failed at step ${step} with the error ${reason}. Restart the flow the appropriate step
 (maybe even from the first step) and try to fix the issue.`;
@@ -2560,6 +2691,32 @@ export async function evaluateExpression(expr: Expr, env: Environment): Promise<
     result = !env.getLastResult();
   }
   env.setLastResult(result);
+}
+
+export function extractRefsFromExpr(expr: Expr): string[] {
+  const refs: string[] = [];
+  function walk(e: Expr) {
+    if (isBinExpr(e)) {
+      walk(e.e1);
+      walk(e.e2);
+    } else if (isLiteral(e)) {
+      if (e.ref) refs.push(e.ref);
+      if (e.fnCall) {
+        for (const arg of e.fnCall.args) walk(arg);
+      }
+      if (e.asyncFnCall) {
+        for (const arg of e.asyncFnCall.fnCall.args) walk(arg);
+      }
+    } else if (isGroup(e)) {
+      walk(e.ge);
+    } else if (isNegExpr(e)) {
+      walk(e.ne);
+    } else if (isNotExpr(e)) {
+      walk(e.ne);
+    }
+  }
+  walk(expr);
+  return refs;
 }
 
 async function getRef(r: string, src: any, env: Environment): Promise<Result> {

@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import express, { Request, Response } from 'express';
+import express, { Express, Request, Response } from 'express';
 import * as path from 'path';
 import {
   getAllChildRelationships,
@@ -8,6 +8,7 @@ import {
   Instance,
   InstanceAttributes,
   isBetweenRelationship,
+  getRelationship,
   makeInstance,
   objectAsInstanceAttributes,
   Relationship,
@@ -58,13 +59,10 @@ import {
   createFileRecord,
   deleteFileRecord,
 } from '../runtime/modules/files.js';
+import * as XLSX from 'xlsx';
+import { objectToQueryPattern } from '../language/parser.js';
 
-export async function startServer(
-  appSpec: ApplicationSpec,
-  port: number,
-  host?: string,
-  config?: Config
-) {
+export async function createApp(appSpec: ApplicationSpec, config?: Config): Promise<Express> {
   const app = express();
   app.use(express.json());
 
@@ -197,6 +195,14 @@ export async function startServer(
     handleMetaGet(req, res);
   });
 
+  app.post('/agentlang/QueryAsCsv', (req: Request, res: Response) => {
+    handleQueryAsCsvPost(req, res);
+  });
+
+  app.post('/agentlang/QueryAsXlsx', (req: Request, res: Response) => {
+    handleQueryAsXlsxPost(req, res);
+  });
+
   if (isNodeEnv && upload && uploadDir) {
     app.post('/uploadFile', upload.single('file'), (req: Request, res: Response) => {
       handleFileUpload(req, res, config);
@@ -285,19 +291,6 @@ export async function startServer(
     });
   });
 
-  const cb = () => {
-    console.log(
-      chalk.green(
-        `Application ${chalk.bold(appName + ' version ' + appVersion)} started on port ${chalk.bold(port)}`
-      )
-    );
-  };
-  if (host) {
-    app.listen(port, host, cb);
-  } else {
-    app.listen(port, cb);
-  }
-
   setEventEndpointsUpdater((moduleName: string) => {
     const m = fetchModule(moduleName);
     const eventNames = m.getEventNames();
@@ -319,6 +312,31 @@ export async function startServer(
       addBetweenHandlers(moduleName, n);
     });
   });
+
+  return app;
+}
+
+export async function startServer(
+  appSpec: ApplicationSpec,
+  port: number,
+  host?: string,
+  config?: Config
+) {
+  const app = await createApp(appSpec, config);
+  const appName: string = appSpec.name;
+  const appVersion: string = appSpec.version;
+  const cb = () => {
+    console.log(
+      chalk.green(
+        `Application ${chalk.bold(appName + ' version ' + appVersion)} started on port ${chalk.bold(port)}`
+      )
+    );
+  };
+  if (host) {
+    app.listen(port, host, cb);
+  } else {
+    app.listen(port, cb);
+  }
 }
 
 function ok(res: Response) {
@@ -346,23 +364,69 @@ function internalError(res: Response) {
   };
 }
 
-function patternFromAttributes(
+function formatAttrValue(v: any, n: string): string {
+  let av = isString(v) ? `"${v}"` : v;
+  if (av instanceof Object) {
+    av = JSON.stringify(av);
+  }
+  if (isPathAttribute(n)) {
+    av = escapeSepInPath(av);
+  }
+  return `${n} ${av}`;
+}
+
+function buildChildPattern(otherFqName: string, childObj: { [key: string]: any }): string {
+  const childAttrs = Object.entries(childObj)
+    .map(([k, v]: [string, any]) => {
+      let av: any;
+      if (isString(v)) {
+        av = `"${v}"`;
+      } else if (v instanceof Object) {
+        av = JSON.stringify(v);
+      } else {
+        av = v;
+      }
+      return `${k} ${av}`;
+    })
+    .join(', ');
+  return `{${otherFqName} {${childAttrs}}, @upsert}`;
+}
+
+export function patternFromAttributes(
   moduleName: string,
   recName: string,
-  attrs: InstanceAttributes
+  attrs: InstanceAttributes,
+  entityFqName?: string
 ): string {
   const attrsStrs = new Array<string>();
+  const relPatterns = new Array<string>();
+
   attrs.forEach((v: any, n: string) => {
-    let av = isString(v) ? `"${v}"` : v;
-    if (av instanceof Object) {
-      av = JSON.stringify(av);
+    if (entityFqName) {
+      try {
+        if (isBetweenRelationship(n, moduleName)) {
+          const rel = getRelationship(n, moduleName);
+          const otherFqName =
+            rel.getParentFqName() === entityFqName ? rel.getChildFqName() : rel.getParentFqName();
+          const children = Array.isArray(v) ? v : [v];
+          const childPatterns = children
+            .map((child: any) => buildChildPattern(otherFqName, child))
+            .join(', ');
+          relPatterns.push(`${n} [${childPatterns}]`);
+          return;
+        }
+      } catch {
+        // Not a relationship — fall through to normal attribute handling
+      }
     }
-    if (isPathAttribute(n)) {
-      av = escapeSepInPath(av);
-    }
-    attrsStrs.push(`${n} ${av}`);
+    attrsStrs.push(formatAttrValue(v, n));
   });
-  return `{${moduleName}/${recName} { ${attrsStrs.join(',\n')} }}`;
+
+  const entityPat = `{${moduleName}/${recName} {${attrsStrs.join(',\n')}}`;
+  if (relPatterns.length > 0) {
+    return `${entityPat}, ${relPatterns.join(', ')}}`;
+  }
+  return `${entityPat}}`;
 }
 
 function normalizeRequestPath(path: string[], moduleName: string): string[] {
@@ -423,7 +487,7 @@ async function handleEventPost(
       eventName,
       objectAsInstanceAttributes(req.body)
     ).setAuthContext(sessionInfo);
-    evaluate(inst, ok(res)).catch(internalError(res));
+    evaluate(inst).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
     res.status(500).send(err.toString());
@@ -442,9 +506,15 @@ async function handleEntityPost(
       res.status(401).send('Authorization required');
       return;
     }
+    const entityFqName = makeFqName(moduleName, entityName);
     const pattern = req.params.path
       ? createChildPattern(moduleName, entityName, req)
-      : patternFromAttributes(moduleName, entityName, objectAsInstanceAttributes(req.body));
+      : patternFromAttributes(
+          moduleName,
+          entityName,
+          objectAsInstanceAttributes(req.body),
+          entityFqName
+        );
     parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
@@ -483,15 +553,23 @@ const joinTags = new Map()
   .set('@leftJoinOn', '@left_join')
   .set('@rightJoinOn', '@right_join');
 
-function objectAsAttributesPattern(entityFqName: string, obj: object): [string, boolean] {
+const paginationTags = new Set(['@limit', '@offset']);
+
+function objectAsAttributesPattern(entityFqName: string, obj: object): [string, boolean, string] {
   const attrs = new Array<string>();
   let joinType: string | undefined;
   let joinOnAttr: string | undefined;
+  const paginationParts = new Array<string>();
   Object.keys(obj).forEach(key => {
     const s: string = obj[key as keyof object];
     if (joinTags.has(key)) {
       joinType = joinTags.get(key);
       joinOnAttr = s;
+    } else if (paginationTags.has(key)) {
+      const n = parseInt(s, 10);
+      if (!Number.isNaN(n) && Number.isInteger(n) && n >= 0) {
+        paginationParts.push(`${key}(${n})`);
+      }
     } else {
       let v = s;
       if (!s.startsWith('"')) {
@@ -519,12 +597,18 @@ function objectAsAttributesPattern(entityFqName: string, obj: object): [string, 
     });
     const intoPat = `@into {${intoSpec.join(', ')}}`;
     joinOnAttr = reverseJoin ? splitRefs(joinOnAttr)[1] : joinOnAttr;
+    const paginationStr = paginationParts.length > 0 ? `,\n${paginationParts.join(',\n')}` : '';
     return [
-      `${pat},\n${joinType} ${targetEntity} {${targetAttr}? ${entityFqName}.${joinOnAttr}}, \n${intoPat}`,
+      `${pat},\n${joinType} ${targetEntity} {${targetAttr}? ${entityFqName}.${joinOnAttr}}, \n${intoPat}${paginationStr}`,
       hasQueryAttrs,
+      '',
     ];
   } else {
-    return [pat, hasQueryAttrs];
+    return [
+      pat,
+      hasQueryAttrs,
+      paginationParts.length > 0 ? `,\n${paginationParts.join(',\n')}` : '',
+    ];
   }
 }
 
@@ -537,9 +621,9 @@ function queryPatternFromPath(path: string, req: Request): string {
   const fqName = `${moduleName}/${entityName}`;
   if (parts.length == 2 && id === undefined) {
     if (req.query && Object.keys(req.query).length > 0) {
-      const [pat, hasQueryAttrs] = objectAsAttributesPattern(fqName, req.query);
+      const [pat, hasQueryAttrs, paginationPat] = objectAsAttributesPattern(fqName, req.query);
       const n = hasQueryAttrs ? fqName : `${fqName}?`;
-      return `{${n} ${pat}}`;
+      return `{${n} ${pat}${paginationPat}}`;
     } else {
       return `{${fqName}? {}}`;
     }
@@ -728,6 +812,69 @@ function normalizedResult(r: Result): Result {
     }
     return r;
   }
+}
+
+/**
+ * Converts eval result to an array of flat row objects for CSV/XLSX.
+ * Handles:
+ * - [{ "EntityName": { "attr": "attrval" } }, ...] -> one row per item, columns = Entity + attrs
+ * - [{ "attr": "attrval" }, ...] -> one row per item, columns = attrs
+ * - [[ { "EntityName": { ... } }, ... ]] -> unwrap single outer array, then one row per inner item
+ */
+function evalResultToRows(data: Result): { [key: string]: unknown }[] {
+  let items: Result[];
+  if (Array.isArray(data) && data.length === 1 && Array.isArray(data[0])) {
+    items = data[0] as Result[];
+  } else {
+    items = Array.isArray(data) ? (data as Result[]) : [data];
+  }
+  return items.map((item: Result) => {
+    if (item === null || typeof item !== 'object') {
+      return { value: item };
+    }
+    if (Array.isArray(item)) {
+      return { value: item };
+    }
+    const obj = item as { [key: string]: unknown };
+    const keys = Object.keys(obj);
+    if (keys.length === 1) {
+      const [k] = keys;
+      const v = obj[k];
+      if (
+        v !== null &&
+        typeof v === 'object' &&
+        !Array.isArray(v) &&
+        Object.prototype.toString.call(v) === '[object Object]'
+      ) {
+        return { ...(v as { [key: string]: unknown }) };
+      }
+    }
+    return { ...obj };
+  });
+}
+
+/**
+ * Ensures cell value is stringifiable for CSV/XLSX (nested objects/arrays become JSON string).
+ */
+function cellValue(val: unknown): string | number | boolean | null {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'object') return JSON.stringify(val);
+  return val as string | number | boolean;
+}
+
+/**
+ * Parses column names from the first instance and returns an array-of-arrays
+ * for the sheet: first row = column names, following rows = data. This ensures
+ * CSV/XLSX output has proper headers (col1, col2, ...) not 0, 1, 2, ...
+ */
+function rowsToSheetAoa(
+  rows: { [key: string]: unknown }[]
+): (string | number | boolean | null)[][] {
+  if (rows.length === 0) return [];
+  const columns = Object.keys(rows[0] as object);
+  const headerRow = columns;
+  const dataRows = rows.map(row => columns.map(col => cellValue(row[col])));
+  return [headerRow, ...dataRows];
 }
 
 async function handleMetaGet(req: Request, res: Response): Promise<void> {
@@ -957,6 +1104,71 @@ async function handleMetaGet(req: Request, res: Response): Promise<void> {
   }
 }
 
+async function handleQueryAsCsvPost(req: Request, res: Response): Promise<void> {
+  try {
+    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const q = req.body?.q;
+    if (q === undefined) {
+      res.status(400).send('Missing or invalid pattern');
+      return;
+    }
+    const qs = objectToQueryPattern(q);
+    const result = await parseAndEvaluateStatement(qs, sessionInfo.userId);
+    const normalized = normalizedResult(result);
+    const rows = evalResultToRows(normalized);
+    const aoa = rowsToSheetAoa(rows);
+    const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'csv' });
+    const filename = `eval-${Date.now()}.csv`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.contentType('text/csv');
+    res.send(buffer);
+  } catch (err: any) {
+    logger.error(err);
+    if (!res.headersSent) {
+      res.status(statusFromErrorType(err)).send(err?.message ?? err?.toString());
+    }
+  }
+}
+
+async function handleQueryAsXlsxPost(req: Request, res: Response): Promise<void> {
+  try {
+    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send('Authorization required');
+      return;
+    }
+    const q = req.body?.q;
+    if (q === undefined) {
+      res.status(400).send('Missing or invalid pattern');
+      return;
+    }
+    const qs = objectToQueryPattern(q);
+    const result = await parseAndEvaluateStatement(qs, sessionInfo.userId);
+    const normalized = normalizedResult(result);
+    const rows = evalResultToRows(normalized);
+    const aoa = rowsToSheetAoa(rows);
+    const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const filename = `eval-${Date.now()}.xlsx`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.contentType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (err: any) {
+    logger.error(err);
+    if (!res.headersSent) {
+      res.status(statusFromErrorType(err)).send(err?.message ?? err?.toString());
+    }
+  }
+}
 async function handleFileUpload(
   req: Request & { file?: Express.Multer.File },
   res: Response,

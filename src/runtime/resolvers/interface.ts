@@ -121,15 +121,19 @@ export class Resolver {
   /**
    * Return all instances connected to connectedInstance via the given between-relationship
    * @param relationship Between relationship
-   * @param connectedInstance The instance to traveres the relationship from
+   * @param connectedInstance The instance to traverse the relationship from
    * @param inst Target instance with query attributes
+   * @param connectedAlias For self-referencing relationships, the alias of the connected instance's role
    */
   public async queryConnectedInstances(
     relationship: Relationship,
     connectedInstance: Instance,
-    inst: Instance
+    inst: Instance,
+    connectedAlias?: string
   ): Promise<any> {
-    return this.notImpl(`queryConnectedInstances(${relationship}, ${connectedInstance}, ${inst})`);
+    return this.notImpl(
+      `queryConnectedInstances(${relationship}, ${connectedInstance}, ${inst}, ${connectedAlias})`
+    );
   }
 
   public async queryByJoin(

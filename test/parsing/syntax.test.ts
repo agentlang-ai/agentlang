@@ -17,7 +17,7 @@ import {
   LiteralPattern,
   ReferencePattern,
 } from '../../src/language/syntax.js';
-import { introspect, introspectCase } from '../../src/language/parser.js';
+import { introspect, introspectCase, objectToQueryPattern } from '../../src/language/parser.js';
 import { doInternModule } from '../util.js';
 import {
   addBeforeDeleteWorkflow,
@@ -1251,5 +1251,164 @@ DateDim.year? categoryRevenueForYear.year},
     assert(cp.into?.get('revenue') === '@sum(SalesFact.revenue)');
     assert(cp.groupBy?.length === 2);
     assert(cp.orderBy?.length === 1);
+  });
+});
+
+describe('introspect-limit-offset', () => {
+  test('CrudPattern toString emits limit and offset', () => {
+    const cp = new CrudPattern('User?');
+    cp.limit = 10;
+    assert(cp.toString() === '{User? {},\n@limit(10)}');
+
+    cp.offset = 20;
+    assert(cp.toString() === '{User? {},\n@limit(10),\n@offset(20)}');
+
+    const cp2 = new CrudPattern('User?');
+    cp2.offset = 5;
+    assert(cp2.toString() === '{User? {},\n@offset(5)}');
+  });
+
+  test('introspect pattern with @limit', async () => {
+    const pats = await introspect('{User? {}, @limit(5)}');
+    const cp = pats[0] as CrudPattern;
+    assert(cp.isQuery);
+    assert(cp.limit === 5);
+    assert(cp.offset === undefined);
+    assert(cp.toString() === '{User? {},\n@limit(5)}');
+  });
+
+  test('introspect pattern with @offset', async () => {
+    const pats = await introspect('{User? {}, @offset(10)}');
+    const cp = pats[0] as CrudPattern;
+    assert(cp.isQuery);
+    assert(cp.offset === 10);
+    assert(cp.limit === undefined);
+    assert(cp.toString() === '{User? {},\n@offset(10)}');
+  });
+
+  test('introspect pattern with both @limit and @offset', async () => {
+    const pats = await introspect('{User? {}, @limit(5), @offset(10)}');
+    const cp = pats[0] as CrudPattern;
+    assert(cp.isQuery);
+    assert(cp.limit === 5);
+    assert(cp.offset === 10);
+    assert(cp.toString() === '{User? {},\n@limit(5),\n@offset(10)}');
+  });
+
+  test('introspect pattern with query attrs, orderBy, limit, offset', async () => {
+    const pats = await introspect('{User {name? "Alice"}, @orderBy(name), @limit(3), @offset(6)}');
+    const cp = pats[0] as CrudPattern;
+    assert(cp.isQuery);
+    assert(cp.orderBy?.length === 1);
+    assert(cp.orderBy?.[0] === 'name');
+    assert(cp.limit === 3);
+    assert(cp.offset === 6);
+  });
+
+  test('introspect round-trip preserves limit and offset', async () => {
+    const original = '{Blog/Post? {}, @orderBy(title), @limit(10), @offset(20)}';
+    const pats = await introspect(original);
+    const cp = pats[0] as CrudPattern;
+    const regenerated = cp.toString();
+    const pats2 = await introspect(regenerated);
+    const cp2 = pats2[0] as CrudPattern;
+    assert(cp2.limit === 10);
+    assert(cp2.offset === 20);
+    assert(cp2.orderBy?.length === 1);
+  });
+
+  test('objectToQueryPattern emits @limit and @offset', async () => {
+    const qobj = {
+      'Test/Item?': {},
+      '@limit': 5,
+      '@offset': 10,
+    };
+    const qs = objectToQueryPattern(qobj);
+    assert(qs.includes('@limit(5)'), `Pattern should contain @limit(5): ${qs}`);
+    assert(qs.includes('@offset(10)'), `Pattern should contain @offset(10): ${qs}`);
+    // Verify the generated pattern can be parsed
+    const pats = await introspect(qs);
+    const cp = pats[0] as CrudPattern;
+    assert(cp.limit === 5);
+    assert(cp.offset === 10);
+  });
+
+  test('@limit(0) is preserved', async () => {
+    const pats = await introspect('{User? {}, @limit(0)}');
+    const cp = pats[0] as CrudPattern;
+    assert(cp.limit === 0);
+    assert(cp.toString() === '{User? {},\n@limit(0)}');
+  });
+});
+
+describe('Handler syntax - @catch and @empty', () => {
+  test('programmatic @catch handler roundtrip', () => {
+    const crud = new CrudPattern('Blog/User')
+      .addAttribute('email?', LiteralPattern.String('joe@acme.com'))
+      .setAlias('users');
+    crud.addHandler(
+      'not_found',
+      new CrudPattern('Blog/User').addAttribute('email', LiteralPattern.String('default@acme.com'))
+    );
+    crud.addHandler(
+      'error',
+      new CrudPattern('Blog/Error').addAttribute('code', LiteralPattern.Number(500))
+    );
+    const s = crud.toString();
+    assert(
+      s ===
+        '{Blog/User {email? "joe@acme.com"}} @as users @catch {not_found {Blog/User {email "default@acme.com"}} error {Blog/Error {code 500}}}',
+      `Unexpected @catch output: ${s}`
+    );
+  });
+
+  test('programmatic @empty handler roundtrip', () => {
+    const crud = new CrudPattern('Blog/User')
+      .addAttribute('id?', LiteralPattern.Number(1))
+      .setAlias('users');
+    crud.setEmptyHandler(
+      new CrudPattern('Blog/User').addAttribute('id?', LiteralPattern.Number(99))
+    );
+    const s = crud.toString();
+    assert(
+      s === '{Blog/User {id? 1}} @as users @empty {Blog/User {id? 99}}',
+      `Unexpected @empty output: ${s}`
+    );
+  });
+
+  test('introspect @empty roundtrip', async () => {
+    const input = '{Blog/User {id? 1}} @as [U] @empty {Blog/User {id? 99}}';
+    const pats = await introspect(input);
+    assert(pats.length === 1);
+    const cp = pats[0] as CrudPattern;
+    assert(cp.emptyHandler !== undefined, 'emptyHandler should be set');
+    assert(cp.handlers === undefined, 'catch handlers should not be set');
+    assert(cp.aliases && cp.aliases[0] === 'U', 'alias should be U');
+    const s = cp.toString();
+    assert(s === input, `Roundtrip failed: ${s}`);
+  });
+
+  test('introspect @catch not_found roundtrip', async () => {
+    const input =
+      '{Blog/User {id? 1}} @as users @catch {not_found {Blog/User {id 99, name "default"}} error {Blog/Error {code 500}}}';
+    const pats = await introspect(input);
+    assert(pats.length === 1);
+    const cp = pats[0] as CrudPattern;
+    assert(cp.handlers !== undefined, 'catch handlers should be set');
+    assert(cp.handlers!.has('not_found'), 'should have not_found handler');
+    assert(cp.handlers!.has('error'), 'should have error handler');
+    assert(cp.emptyHandler === undefined, '@empty handler should not be set');
+  });
+
+  test('@empty combined with @catch error', async () => {
+    // @as and @catch must come before @empty (which is greedy in the grammar)
+    const input =
+      '{Blog/User {id? 1}} @as result @catch {error {Blog/Error {code 500}}} @empty {Blog/User {id? 99}}';
+    const pats = await introspect(input);
+    assert(pats.length === 1);
+    const cp = pats[0] as CrudPattern;
+    assert(cp.emptyHandler !== undefined, '@empty handler should be set');
+    assert(cp.handlers !== undefined, 'catch error handler should be set');
+    assert(cp.handlers!.has('error'), 'should have error handler');
   });
 });
