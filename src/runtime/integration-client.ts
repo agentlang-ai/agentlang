@@ -10,7 +10,9 @@ export function isIntegrationClientConfigured(): boolean {
   return host !== undefined;
 }
 
-export async function getIntegrationAuthHeaders(integrationName: string): Promise<Record<string, string>> {
+export async function getIntegrationAuthHeaders(
+  integrationName: string
+): Promise<Record<string, string>> {
   if (!host) {
     throw new Error('Integration client not configured — call configureIntegrationClient() first');
   }
@@ -58,6 +60,6 @@ export async function integrationAuthFetch(
   options: RequestInit = {}
 ): Promise<Response> {
   const authHeaders = await getIntegrationAuthHeaders(integrationName);
-  const mergedHeaders = { ...authHeaders, ...(options.headers as Record<string, string> || {}) };
+  const mergedHeaders = { ...authHeaders, ...((options.headers as Record<string, string>) || {}) };
   return fetch(url, { ...options, headers: mergedHeaders });
 }

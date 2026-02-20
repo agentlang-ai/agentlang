@@ -6,7 +6,10 @@ import {
 import { getLocalEnv as al_getLocalEnv, setLocalEnv as al_setLocalEnv } from './auth/defs.js';
 import { now } from './util.js';
 import { initDateFns } from './datefns.js';
-import { integrationAuthFetch as al_authFetch, getIntegrationAuthHeaders as al_getAuthHeaders } from './integration-client.js';
+import {
+  integrationAuthFetch as al_authFetch,
+  getIntegrationAuthHeaders as al_getAuthHeaders,
+} from './integration-client.js';
 
 declare global {
   var agentlang: any | undefined;
