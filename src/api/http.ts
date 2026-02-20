@@ -487,7 +487,7 @@ async function handleEventPost(
       eventName,
       objectAsInstanceAttributes(req.body)
     ).setAuthContext(sessionInfo);
-    evaluate(inst, ok(res)).catch(internalError(res));
+    evaluate(inst).then(ok(res)).catch(internalError(res));
   } catch (err: any) {
     logger.error(err);
     res.status(500).send(err.toString());
