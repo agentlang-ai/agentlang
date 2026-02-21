@@ -1411,4 +1411,20 @@ describe('Handler syntax - @catch and @empty', () => {
     assert(cp.handlers !== undefined, 'catch error handler should be set');
     assert(cp.handlers!.has('error'), 'should have error handler');
   });
+
+  test('new syntax: outer @as [U] + inner @empty @as U roundtrip', async () => {
+    const input = '{Blog/User {id? 1}} @as [U] @empty {Blog/User {id 1, name "default"}} @as U';
+    const pats = await introspect(input);
+    assert(pats.length === 1);
+    const cp = pats[0] as CrudPattern;
+    // Outer aliases should be ['U'] (list destructuring)
+    assert(cp.aliases !== undefined, 'outer aliases should be set');
+    assert(cp.aliases![0] === 'U', 'outer alias should be U');
+    // Inner @empty handler should exist with its own alias
+    assert(cp.emptyHandler !== undefined, '@empty handler should be set');
+    assert(cp.emptyHandler!.alias === 'U', 'inner @empty alias should be U');
+    // Roundtrip serialization
+    const s = cp.toString();
+    assert(s === input, `Roundtrip failed: ${s}`);
+  });
 });
