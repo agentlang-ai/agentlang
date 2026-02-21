@@ -187,12 +187,14 @@ export async function extractDocument(
     validation: true,
   });
 
+  // Handle parser/lexer errors (with human-friendly messages)
+  maybeRaiseParserErrors(document);
+
   // Handle validation errors
   const errs = maybeGetValidationErrors(document);
 
   if (errs) {
-    const errorMsg = `${errs.join('\n')}`;
-    throw new Error(errorMsg);
+    throw new Error('\n' + errs);
   }
 
   return document;
