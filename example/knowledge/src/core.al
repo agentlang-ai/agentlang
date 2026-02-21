@@ -214,7 +214,7 @@ relationship TopicDocumentLink between(Topic, KnowledgeDocument)
 workflow syncTick {
     // Step 1: For each connection, prune stale in_progress jobs using
     // that connection's syncTimeoutMin. Bump syncErrorCount on prune.
-    for conn in {Connection {}} {
+    for conn in {Connection? {}} {
         now() - conn.syncTimeoutMin * 60000 @as cutoff;
         for staleJob in {SyncJob {connectionId? conn.id,
                                   status? "in_progress",
