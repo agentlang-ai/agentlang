@@ -1,4 +1,4 @@
-import { parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
+import { Environment, parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import { ApplicationSpec, flushAllAndLoad, load } from '../../src/runtime/loader.js';
 import {
   addBetweenRelationship,
@@ -703,6 +703,85 @@ describe('Empty hint test', () => {
     const check: Instance[] = await parseAndEvaluateStatement(`{EmptyCr/E {id? 1}}`);
     assert(check.length == 1);
     assert(check[0].lookup('x') == 500);
+  });
+
+  test('new syntax: @empty fires, inner @as binds alias', async () => {
+    await doInternModule('EmptyNew1', `entity E { id Int @id, x Int }`);
+    // Query for non-existent record with new syntax:
+    // outer @as [E] for query, inner @as E for create
+    const env = new Environment();
+    const result = await parseAndEvaluateStatement(
+      `{EmptyNew1/E {id? 1}} @as [E] @empty {EmptyNew1/E {id 1, x 500}} @as E`,
+      undefined,
+      env
+    );
+    // @empty fires, inner @as E should bind the created instance
+    assert(isInstanceOfType(result, 'EmptyNew1/E'));
+    assert(result.lookup('x') == 500);
+    const bound = env.lookup('E');
+    assert(bound !== undefined, 'alias E should be bound');
+    assert(isInstanceOfType(bound, 'EmptyNew1/E'));
+    assert(bound.lookup('x') == 500);
+  });
+
+  test('new syntax: query succeeds, outer @as [E] destructures', async () => {
+    await doInternModule('EmptyNew2', `entity E { id Int @id, x Int }`);
+    // Pre-create record so query succeeds
+    await parseAndEvaluateStatement(`{EmptyNew2/E {id 1, x 100}}`);
+    const env = new Environment();
+    const result = await parseAndEvaluateStatement(
+      `{EmptyNew2/E {id? 1}} @as [E] @empty {EmptyNew2/E {id 1, x 500}} @as E`,
+      undefined,
+      env
+    );
+    // Query succeeds, @empty does NOT fire, outer @as [E] destructures
+    assert(result instanceof Array);
+    assert(result.length == 1);
+    assert(result[0].lookup('x') == 100);
+    const bound = env.lookup('E');
+    assert(bound !== undefined, 'alias E should be bound via destructuring');
+    assert(isInstanceOfType(bound, 'EmptyNew2/E'));
+    assert(bound.lookup('x') == 100);
+    // Verify @empty's create did not fire — record still has original x value
+    const check: Instance[] = await parseAndEvaluateStatement(`{EmptyNew2/E {id? 1}}`);
+    assert(check.length == 1);
+    assert(check[0].lookup('x') == 100, '@empty should not have mutated the record');
+  });
+
+  test('backward compat: inner @as propagates to parent env', async () => {
+    await doInternModule('EmptyBC', `entity E { id Int @id, x Int }`);
+    // Old syntax: @as after @empty, consumed by inner statement
+    const env = new Environment();
+    const result = await parseAndEvaluateStatement(
+      `{EmptyBC/E {id? 1}} @empty {EmptyBC/E {id 1, x 300}} @as E`,
+      undefined,
+      env
+    );
+    assert(isInstanceOfType(result, 'EmptyBC/E'));
+    assert(result.lookup('x') == 300);
+    const bound = env.lookup('E');
+    assert(bound !== undefined, 'alias E should be propagated from inner @as');
+    assert(isInstanceOfType(bound, 'EmptyBC/E'));
+    assert(bound.lookup('x') == 300);
+  });
+
+  test('no inner @as: outer @as applies normally', async () => {
+    await doInternModule('EmptyOuter', `entity E { id Int @id, x Int }`);
+    // Create a default record for fallback
+    await parseAndEvaluateStatement(`{EmptyOuter/E {id 99, x 200}}`);
+    const env = new Environment();
+    // Query non-existent, @empty falls back to query for id 99 (no inner @as)
+    const result = await parseAndEvaluateStatement(
+      `{EmptyOuter/E {id? 1}} @as [E] @empty {EmptyOuter/E {id? 99}}`,
+      undefined,
+      env
+    );
+    // @empty fires with query, returns array; outer @as [E] should apply
+    assert(result instanceof Array);
+    const bound = env.lookup('E');
+    assert(bound !== undefined, 'alias E should be bound by outer @as');
+    assert(isInstanceOfType(bound, 'EmptyOuter/E'));
+    assert(bound.lookup('x') == 200);
   });
 });
 
