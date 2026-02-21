@@ -24,9 +24,18 @@
 } @as auditTrail
 
 {
+    "host": "#js process.env.INTEGRATION_MANAGER_HOST || 'http://localhost:8085'",
+    "connections": {
+        "google_drive": { "config": "google-drive/oauth-config", "resolvers": [] },
+        "onedrive": { "config": "onedrive/oauth-config", "resolvers": [] }
+    }
+} @as integrations
+
+{
     "store": store,
     "service": service,
     "auth": auth,
     "rbac": rbac,
-    "auditTrail": auditTrail
+    "auditTrail": auditTrail,
+    "integrations": integrations
 }

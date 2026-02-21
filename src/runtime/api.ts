@@ -9,6 +9,9 @@ import { initDateFns } from './datefns.js';
 import {
   integrationAuthFetch as al_authFetch,
   getIntegrationAuthHeaders as al_getAuthHeaders,
+  getOAuthAuthorizeUrl as al_getOAuthAuthorizeUrl,
+  exchangeOAuthCode as al_exchangeOAuthCode,
+  getIntegrationAccessToken as al_getAccessToken,
 } from './integration-client.js';
 
 declare global {
@@ -44,6 +47,11 @@ export function initGlobalApi() {
     // Expose credential auth helpers globally
     globalThis.agentlang.authFetch = al_authFetch;
     globalThis.agentlang.getAuthHeaders = al_getAuthHeaders;
+
+    // Expose OAuth consent flow helpers globally
+    globalThis.agentlang.getOAuthAuthorizeUrl = al_getOAuthAuthorizeUrl;
+    globalThis.agentlang.exchangeOAuthCode = al_exchangeOAuthCode;
+    globalThis.agentlang.getAccessToken = al_getAccessToken;
 
     ApiInited = true;
   }
