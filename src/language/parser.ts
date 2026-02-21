@@ -1,5 +1,6 @@
 import { createAgentlangServices } from '../language/agentlang-module.js';
 import { AstNode, EmptyFileSystem, LangiumCoreServices, LangiumDocument, URI } from 'langium';
+import { getFormattedErrors, collectErrors, formatErrors } from './error-reporter.js';
 import {
   CrudMap,
   Delete,
@@ -126,113 +127,25 @@ export async function parseWorkflow(workflowDef: string): Promise<WorkflowDefini
   }
 }
 
-const ErrorIndicator = '<-- ERROR';
-
 export function maybeGetValidationErrors(
   document: LangiumDocument,
-  lines?: string[]
-): string[] | undefined {
-  if (lines === undefined) {
-    lines = document.textDocument.getText().split('\n');
-  }
+  _lines?: string[]
+): string | undefined {
   const validationErrors = (document.diagnostics ?? []).filter(e => e.severity === 1);
+  if (validationErrors.length === 0) return undefined;
 
-  const sls = new Set<number>();
-  const scs = new Set<number>();
-  if (validationErrors.length > 0) {
-    for (const validationError of validationErrors) {
-      if (
-        !sls.has(validationError.range.start.line) &&
-        !scs.has(validationError.range.start.character)
-      ) {
-        const t = document.textDocument.getText(validationError.range);
-        const s = `(${validationError.range.start.line + 1}:${validationError.range.start.character + 1}) unexpected token(s) '${t}'`;
-        const ln = lines[validationError.range.start.line];
-        if (ln.indexOf(ErrorIndicator) > 0) {
-          lines[validationError.range.start.line] = `${ln}, ${s}`;
-        } else {
-          lines[validationError.range.start.line] = `${ln}    ${ErrorIndicator} ${s}`;
-        }
-        sls.add(validationError.range.start.line);
-        scs.add(validationError.range.start.character);
-      }
-    }
-    return trimErrorLines(lines);
-  } else {
-    return undefined;
-  }
-}
+  // Collect only validation errors (not lexer/parser)
+  const errors = collectErrors(document).filter(e => e.category === 'VALIDATION ERROR');
+  if (errors.length === 0) return undefined;
 
-function trimErrorLines(lines: string[]): string[] {
-  let startidx = 0;
-  for (let i = 0; i < lines.length; ++i) {
-    if (lines[i].indexOf(ErrorIndicator) > 0) {
-      startidx = i;
-      break;
-    }
-  }
-  let endidx = startidx;
-  for (let i = startidx + 1; i < lines.length; ++i) {
-    if (lines[i].indexOf(ErrorIndicator) > 0) {
-      endidx = i;
-      break;
-    }
-  }
-  if (startidx > 0) {
-    --startidx;
-  }
-  if (endidx != lines.length) {
-    ++endidx;
-  }
-  return lines.slice(startidx, endidx);
-}
-
-function trimErrorMessage(s: string): string {
-  const start = s.indexOf('Expecting:');
-  if (start >= 0) {
-    const end = s.indexOf('but found:');
-    if (end > 0) {
-      return `Expecting a valid token sequence, ${s.substring(end)}`;
-    }
-  }
-  return s;
+  const source = document.textDocument.getText();
+  return formatErrors(errors, source);
 }
 
 export function maybeRaiseParserErrors(document: LangiumDocument) {
-  const code = document.textDocument.getText();
-  const lines = code.split('\n');
-  let hasErrors = false;
-  const errLines = new Set<number>();
-  if (document.parseResult.lexerErrors.length > 0) {
-    document.parseResult.lexerErrors.forEach((err: any) => {
-      if (!errLines.has(err.line)) {
-        const errMsg = trimErrorMessage(err.message);
-        const s = `${ErrorIndicator} (${err.line}:${err.column}) ${errMsg}`;
-        lines[err.line - 1] = `${lines[err.line - 1]}    ${s}`;
-        errLines.add(err.line);
-      }
-    });
-    hasErrors = true;
-  }
-  if (document.parseResult.parserErrors.length > 0) {
-    document.parseResult.parserErrors.forEach((err: any) => {
-      const errMsg = trimErrorMessage(err.message);
-      if (err.token.startLine && err.token.endLine) {
-        if (!errLines.has(err.token.startLine)) {
-          const s = `${ErrorIndicator} (${err.token.startLine}:${err.token.startColumn}) ${errMsg}`;
-          lines[err.token.endLine - 1] = `${lines[err.token.endLine - 1]}    ${s}`;
-          lines.join('\n');
-          errLines.add(err.token.startLine);
-        }
-      } else {
-        lines.push(`ERROR: ${errMsg}`);
-      }
-    });
-    hasErrors = true;
-  }
-  const errs = maybeGetValidationErrors(document, lines);
-  if (hasErrors || errs !== undefined) {
-    throw new Error(lines.join('\n'));
+  const formatted = getFormattedErrors(document);
+  if (formatted) {
+    throw new Error('\n' + formatted);
   }
 }
 
@@ -612,7 +525,7 @@ export async function introspectCase(caseStr: string): Promise<CasePattern> {
 
 export function canParse(s: string): boolean {
   const ts = s.trim();
-  if (ts) {
+  if (ts && ts.includes('{')) {
     const contents = ts.substring(1, ts.length - 1).trim();
     return contents.length > 0;
   }
