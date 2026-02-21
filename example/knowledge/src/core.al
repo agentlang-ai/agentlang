@@ -210,23 +210,11 @@ relationship TopicDocumentLink between(Topic, KnowledgeDocument)
 
 // --- Sync scheduler ---
 
-// Timer callback. Prune stale jobs per-connection, then trigger syncs.
-workflow syncTick {
-    // Step 1: For each connection, prune stale in_progress jobs using
-    // that connection's syncTimeoutMin. Bump syncErrorCount on prune.
-    for conn in {Connection? {}} {
-        now() - conn.syncTimeoutMin * 60000 @as cutoff;
-        for staleJob in {SyncJob {connectionId? conn.id,
-                                  status? "in_progress",
-                                  startedAt?< cutoff}} {
-            {SyncJob {id? staleJob.id, status "failed",
-                      errorMessage "timed out", completedAt now()}};
-            {Connection {id? conn.id, syncErrorCount syncErrorCount + 1}}
-        }
-    };
-
-    // Step 2: For each ready connection with no in_progress job, trigger sync.
-    for conn in {Connection {syncEnabled? true, status? "ready"}} {
+// Timer callback. Trigger syncs for ready connections.
+// TODO: Re-enable stale job pruning once DSL syntax is confirmed.
+@public workflow syncTick {
+    {Connection {syncEnabled? true, status? "ready"}} @as readyConns;
+    for conn in readyConns {
         {SyncJob {connectionId? conn.id, status? "in_progress"}}
             @empty {syncConnection {connectionId conn.id,
                                     tenantId conn.tenantId,
@@ -257,7 +245,8 @@ workflow syncConnection {
                      remotePath syncConnection.remotePath}} @as [result];
 
     // Detect added files: in staging but no matching KnowledgeDocument.
-    for file in {StagingFile {remoteName? syncConnection.remoteName}} {
+    {StagingFile {remoteName? syncConnection.remoteName}} @as addedStagingFiles;
+    for file in addedStagingFiles {
         {KnowledgeDocument {connectionId? syncConnection.connectionId,
                             remotePath? file.filePath,
                             isDeleted? false}}
@@ -273,11 +262,13 @@ workflow syncConnection {
     };
 
     // Detect modified files: in staging with different remoteModifiedAt.
-    for file in {StagingFile {remoteName? syncConnection.remoteName}} {
-        for doc in {KnowledgeDocument {connectionId? syncConnection.connectionId,
-                                       remotePath? file.filePath,
-                                       isDeleted? false,
-                                       remoteModifiedAt?<> file.remoteModifiedAt}} {
+    {StagingFile {remoteName? syncConnection.remoteName}} @as modStagingFiles;
+    for file in modStagingFiles {
+        {KnowledgeDocument {connectionId? syncConnection.connectionId,
+                            remotePath? file.filePath,
+                            isDeleted? false,
+                            remoteModifiedAt?<> file.remoteModifiedAt}} @as modDocs;
+        for doc in modDocs {
             {SyncChangelog {syncJobId job.id,
                             connectionId syncConnection.connectionId,
                             tenantId syncConnection.tenantId,
@@ -291,8 +282,9 @@ workflow syncConnection {
     };
 
     // Detect deleted files: KnowledgeDocument exists but not in staging.
-    for doc in {KnowledgeDocument {connectionId? syncConnection.connectionId,
-                                    isDeleted? false}} {
+    {KnowledgeDocument {connectionId? syncConnection.connectionId,
+                        isDeleted? false}} @as existingDocs;
+    for doc in existingDocs {
         {StagingFile {remoteName? syncConnection.remoteName,
                       filePath? doc.remotePath}}
             @empty {SyncChangelog {syncJobId job.id,
@@ -324,9 +316,10 @@ workflow syncConnection {
 // records, copying files from staging into the versioned store.
 workflow processChangelog {
     // --- Added files ---
-    for entry in {SyncChangelog {syncJobId? processChangelog.syncJobId,
-                                 changeType? "added",
-                                 status? "pending"}} {
+    {SyncChangelog {syncJobId? processChangelog.syncJobId,
+                    changeType? "added",
+                    status? "pending"}} @as addedEntries;
+    for entry in addedEntries {
         // Copy staging file to versioned store and get content hash.
         {VersionStore {remoteName processChangelog.remoteName,
                        filePath entry.filePath,
@@ -363,18 +356,20 @@ workflow processChangelog {
     };
 
     // --- Modified files ---
-    for entry in {SyncChangelog {syncJobId? processChangelog.syncJobId,
-                                 changeType? "modified",
-                                 status? "pending"}} {
+    {SyncChangelog {syncJobId? processChangelog.syncJobId,
+                    changeType? "modified",
+                    status? "pending"}} @as modifiedEntries;
+    for entry in modifiedEntries {
         // Copy staging file to versioned store and get content hash.
         {VersionStore {remoteName processChangelog.remoteName,
                        filePath entry.filePath,
                        remoteModifiedAt entry.remoteModifiedAt}} @as [stored];
 
         // Find the existing KnowledgeDocument and bump its version.
-        for doc in {KnowledgeDocument {connectionId? processChangelog.connectionId,
-                                       remotePath? entry.filePath,
-                                       isDeleted? false}} {
+        {KnowledgeDocument {connectionId? processChangelog.connectionId,
+                            remotePath? entry.filePath,
+                            isDeleted? false}} @as matchingDocs;
+        for doc in matchingDocs {
             {KnowledgeDocument {id? doc.id,
                                 currentVersion currentVersion + 1,
                                 sizeBytes entry.sizeBytes,
@@ -402,13 +397,15 @@ workflow processChangelog {
     };
 
     // --- Deleted files ---
-    for entry in {SyncChangelog {syncJobId? processChangelog.syncJobId,
-                                 changeType? "deleted",
-                                 status? "pending"}} {
+    {SyncChangelog {syncJobId? processChangelog.syncJobId,
+                    changeType? "deleted",
+                    status? "pending"}} @as deletedEntries;
+    for entry in deletedEntries {
         // Soft-delete the KnowledgeDocument.
-        for doc in {KnowledgeDocument {connectionId? processChangelog.connectionId,
-                                       remotePath? entry.filePath,
-                                       isDeleted? false}} {
+        {KnowledgeDocument {connectionId? processChangelog.connectionId,
+                            remotePath? entry.filePath,
+                            isDeleted? false}} @as deleteDocs;
+        for doc in deleteDocs {
             {KnowledgeDocument {id? doc.id,
                                 isDeleted true,
                                 lastSyncedAt now()}}
@@ -426,7 +423,7 @@ workflow processChangelog {
 // Public workflows to start/stop the sync scheduler timer.
 
 @public workflow startSyncScheduler {
-    {Config {}} @empty {Config {}} @as [config];
+    {Config? {}} @as [config] @empty {Config {}};
     {agentlang/timer {
      name "sync-scheduler",
      duration config.syncSchedulerIntervalSec,

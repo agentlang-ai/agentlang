@@ -1,9 +1,9 @@
 {
-    "type": "postgres",
+    "type": "#js process.env.STORE_TYPE || 'sqlite'",
     "host": "#js process.env.POSTGRES_HOST || 'localhost'",
-    "username": "#js process.env.POSTGRES_USER || 'postgres'",
-    "password": "#js process.env.POSTGRES_PASSWORD || 'postgres'",
-    "dbname": "#js process.env.POSTGRES_DB || 'testdb'",
+    "username": "#js process.env.POSTGRES_USER || 'rangarao'",
+    "password": "#js process.env.POSTGRES_PASSWORD || ''",
+    "dbname": "#js process.env.POSTGRES_DB || 'knowledge_service'",
     "port": "#js parseInt(process.env.POSTGRES_PORT || '5432')"
 } @as store
 
@@ -12,7 +12,7 @@
 } @as service
 
 {
-      "enabled": "#js process.env.AUTH_ENABLED === 'true'"
+    "enabled": "#js process.env.AUTH_ENABLED === 'true'"
 } @as auth
 
 {
@@ -20,18 +20,13 @@
 } @as rbac
 
 {
-    "enabled": "#js process.env.GRAPHQL_ENABLED === 'true'"
-} @as graphql
-
-{
-    "enabled": "#js process.env.AUDIT_TRAIL_ENABLED === 'true'"
+    "enabled": true
 } @as auditTrail
 
 {
-	"store": store,
-	"service": service,
-	"auth": auth,
-	"rbac": rbac,
-	"graphql": graphql,
-	"auditTrail": auditTrail
+    "store": store,
+    "service": service,
+    "auth": auth,
+    "rbac": rbac,
+    "auditTrail": auditTrail
 }

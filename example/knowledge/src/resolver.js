@@ -12,18 +12,22 @@ import { dirname, join, relative } from 'node:path';
 const RCLONE_RC_USER = process.env.RCLONE_RC_USER || '';
 const RCLONE_RC_PASS = process.env.RCLONE_RC_PASS || '';
 
+function expandTilde(p) {
+  return p.startsWith('~') ? p.replace('~', homedir()) : p;
+}
+
 async function getConfig() {
   const config = await agentlang.fetchConfig('knowledge.core/Config');
   return {
     rcloneRcUrl: config?.rcloneRcUrl || process.env.RCLONE_RC_URL || 'http://localhost:5572',
-    stagingDir:
+    stagingDir: expandTilde(
       config?.stagingDir ||
-      process.env.STAGING_DIR ||
-      `${homedir()}/.agentlang/studio/.knowledge_staging`,
-    storeDir:
-      config?.storeDir ||
-      process.env.STORE_DIR ||
-      `${homedir()}/.agentlang/studio/.knowledge_store`,
+        process.env.STAGING_DIR ||
+        `${homedir()}/.agentlang/studio/.knowledge_staging`
+    ),
+    storeDir: expandTilde(
+      config?.storeDir || process.env.STORE_DIR || `${homedir()}/.agentlang/studio/.knowledge_store`
+    ),
   };
 }
 
@@ -113,14 +117,15 @@ export async function createCloudFileOp(ctx, inst) {
       });
 
     case 'sync': {
-      // sync/copy — incremental sync from remote directory to a stable staging directory.
+      // sync/sync — mirror remote directory to a stable staging directory.
+      // Uses sync (not copy) so files deleted on the remote are also removed from staging.
       // The staging path is per-remote so rclone can detect unchanged files and skip them.
       // Returns stagingPath, syncStatus, and errorIncrement on the instance so the
       // workflow can update SyncJob and Connection without needing error branching.
       const stagingPath = `${cfg.stagingDir}/${remoteName}`;
       mkdirSync(stagingPath, { recursive: true });
       try {
-        await rc(cfg.rcloneRcUrl, 'sync/copy', {
+        await rc(cfg.rcloneRcUrl, 'sync/sync', {
           srcFs: `${remoteName}:${remotePath}`,
           dstFs: stagingPath,
         });
