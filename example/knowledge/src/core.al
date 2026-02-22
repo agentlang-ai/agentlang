@@ -436,29 +436,6 @@ workflow processChangelog {
             name? "sync-scheduler"}}
 }
 
-// --- OAuth proxy ---
-// Resolver-backed entity for OAuth consent flow operations.
-// The "action" field selects the operation: auth-url, access-token, connect.
-// Proxies OAuth calls to the integration-manager service.
-
-entity OAuthProxy {
-    action String,
-    provider String,
-    remoteName String @optional,
-    redirectUri String @optional,
-    code String @optional,
-    state String @optional,
-    authUrl String @optional,
-    accessToken String @optional,
-    expiresIn Int @optional,
-    tokenType String @optional
-}
-
-resolver oauthResolver [knowledge.core/OAuthProxy] {
-    query r.queryOAuth,
-    create r.createOAuthOp
-}
-
 // --- rclone RC API proxy ---
 // Resolver-backed entity for cloud file operations via rclone's RC API.
 // The "action" field selects the operation: list, stat, sync, copyfile, health.

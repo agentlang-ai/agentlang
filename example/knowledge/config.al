@@ -25,10 +25,8 @@
 
 {
     "host": "#js process.env.INTEGRATION_MANAGER_HOST || 'http://localhost:8085'",
-    "connections": {
-        "google_drive": { "config": "google-drive/oauth-config", "resolvers": [] },
-        "onedrive": { "config": "onedrive/oauth-config", "resolvers": [] }
-    }
+    "connections": "#js ({google_drive: 'google-drive/oauth-config', onedrive: 'onedrive/oauth-config'})",
+    "oauth": true
 } @as integrations
 
 {

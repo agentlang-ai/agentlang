@@ -15,7 +15,8 @@ export async function prepareIntegrations(
   const keys = [...integConfig.keys()];
   for (let i = 0; i < keys.length; ++i) {
     const configName = keys[i];
-    const configPath = integConfig.get(configName)?.config;
+    const entry = integConfig.get(configName);
+    const configPath = typeof entry === 'string' ? entry : entry?.config;
     if (configPath) {
       const apiUrl = mkApiUrl(integManagerHost, configPath);
       try {

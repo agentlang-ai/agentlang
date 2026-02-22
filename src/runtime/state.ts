@@ -44,11 +44,15 @@ export const ConfigSchema = z.object({
       password: z.string().optional(),
       connections: z.record(
         z.string(),
-        z.object({
-          config: z.string(),
-          resolvers: z.array(z.string()),
-        })
+        z.union([
+          z.string(),
+          z.object({
+            config: z.string(),
+            resolvers: z.array(z.string()),
+          }),
+        ])
       ),
+      oauth: z.boolean().default(false),
     })
     .optional(),
   graphql: z

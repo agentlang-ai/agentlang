@@ -12,12 +12,6 @@ import { dirname, join, relative } from 'node:path';
 const RCLONE_RC_USER = process.env.RCLONE_RC_USER || '';
 const RCLONE_RC_PASS = process.env.RCLONE_RC_PASS || '';
 
-// OAuth provider → integration-manager mapping
-const OAUTH_PROVIDERS = {
-  google_drive: { integrationName: 'google_drive', rcloneType: 'drive' },
-  onedrive: { integrationName: 'onedrive', rcloneType: 'onedrive' },
-};
-
 function expandTilde(p) {
   return p.startsWith('~') ? p.replace('~', homedir()) : p;
 }
@@ -58,19 +52,6 @@ async function rc(rcloneRcUrl, endpoint, params = {}) {
   return response.json();
 }
 
-// --- OAuth proxy resolvers ---
-// Proxies OAuth consent flow calls to the integration-manager service.
-
-function getProviderConfig(provider) {
-  const config = OAUTH_PROVIDERS[provider];
-  if (!config) {
-    throw new Error(
-      `Unknown OAuth provider: ${provider}. Supported: ${Object.keys(OAUTH_PROVIDERS).join(', ')}`
-    );
-  }
-  return config;
-}
-
 // Build an rclone-compatible token JSON from an access token response.
 function rcloneTokenFromAccessToken(tokenData) {
   return {
@@ -78,83 +59,6 @@ function rcloneTokenFromAccessToken(tokenData) {
     token_type: tokenData.tokenType || 'Bearer',
     expiry: new Date(Date.now() + tokenData.expiresIn * 1000).toISOString(),
   };
-}
-
-export async function queryOAuth(ctx, inst) {
-  const action = inst.getQueryValue('action');
-  const provider = inst.getQueryValue('provider');
-
-  switch (action) {
-    case 'auth-url': {
-      const { integrationName } = getProviderConfig(provider);
-      const redirectUri = inst.getQueryValue('redirectUri');
-      if (!redirectUri) throw new Error('redirectUri is required for auth-url action');
-
-      const result = await agentlang.getOAuthAuthorizeUrl(integrationName, redirectUri);
-      return {
-        action,
-        provider,
-        authUrl: result.authorizationUrl,
-        state: result.state,
-      };
-    }
-
-    case 'access-token': {
-      const { integrationName } = getProviderConfig(provider);
-      const token = await agentlang.getAccessToken(integrationName);
-      return {
-        action,
-        provider,
-        accessToken: token.accessToken,
-        expiresIn: token.expiresIn,
-        tokenType: token.tokenType,
-      };
-    }
-
-    default:
-      throw new Error(`Unknown OAuth query action: ${action}`);
-  }
-}
-
-export async function createOAuthOp(ctx, inst) {
-  const action = inst.lookup('action');
-  const provider = inst.lookup('provider');
-
-  switch (action) {
-    case 'connect': {
-      const { integrationName, rcloneType } = getProviderConfig(provider);
-      const code = inst.lookup('code');
-      const state = inst.lookup('state');
-      const redirectUri = inst.lookup('redirectUri');
-      if (!code || !state) throw new Error('code and state are required for connect action');
-
-      // Exchange the authorization code for tokens via integration-manager.
-      const tokenResult = await agentlang.exchangeOAuthCode(integrationName, code, state);
-
-      // Create an rclone remote with the obtained token.
-      const cfg = await getConfig();
-      const remoteName = `${provider}_${crypto.randomUUID().slice(0, 8)}`;
-      const rcloneToken = rcloneTokenFromAccessToken(tokenResult);
-
-      await rc(cfg.rcloneRcUrl, 'config/create', {
-        name: remoteName,
-        type: rcloneType,
-        parameters: { token: JSON.stringify(rcloneToken) },
-      });
-
-      return {
-        action,
-        provider,
-        remoteName,
-        accessToken: tokenResult.accessToken,
-        expiresIn: tokenResult.expiresIn,
-        tokenType: tokenResult.tokenType,
-      };
-    }
-
-    default:
-      throw new Error(`Unknown OAuth create action: ${action}`);
-  }
 }
 
 // Refresh an rclone remote's token from integration-manager before sync.
@@ -244,8 +148,12 @@ export async function createCloudFileOp(ctx, inst) {
       // workflow can update SyncJob and Connection without needing error branching.
 
       // Refresh rclone token from integration-manager for OAuth remotes.
-      for (const [provider, { integrationName }] of Object.entries(OAUTH_PROVIDERS)) {
-        if (remoteName.startsWith(`${provider}_`)) {
+      const oauthProviderPrefixes = {
+        google_drive_: 'google_drive',
+        onedrive_: 'onedrive',
+      };
+      for (const [prefix, integrationName] of Object.entries(oauthProviderPrefixes)) {
+        if (remoteName.startsWith(prefix)) {
           await refreshRcloneToken(cfg, remoteName, integrationName);
           break;
         }

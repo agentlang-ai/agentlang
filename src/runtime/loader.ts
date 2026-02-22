@@ -1166,7 +1166,8 @@ function addResolverDefinition(def: ResolverDefinition, moduleName: string) {
     const connections = AppConfig?.integrations?.connections;
     if (connections) {
       for (const [integName, conn] of Object.entries(connections)) {
-        if (conn.resolvers.includes(resolverName)) {
+        const resolvers = typeof conn === 'string' ? [] : conn.resolvers;
+        if (resolvers.includes(resolverName)) {
           resolver.setIntegrationName(integName);
           break;
         }
