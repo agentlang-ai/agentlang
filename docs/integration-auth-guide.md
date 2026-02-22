@@ -32,46 +32,60 @@ By default it listens on `http://localhost:8085`.
 
 ### 2. Configure your app's `config.al`
 
-Add an `integrations` section to your app's config file. This tells the runtime where the Integration Manager is and which resolvers are bound to which integrations.
+Add an `integrations` section to your app's config file. This tells the runtime where the Integration Manager is and which integrations are available.
+
+**String shorthand** (recommended when you don't need resolver bindings):
 
 ```json
 {
-  "agentlang": {
-    "service": {
-      "port": 8080
-    },
-    "store": {
-      "type": "sqlite",
-      "dbname": "myapp.db"
-    },
-    "integrations": {
-      "host": "http://localhost:8085",
-      "connections": {
-        "gmail": {
-          "config": "gmail/gmail-oauth",
-          "resolvers": ["mymodule/gmailResolver1", "mymodule/gmailResolver2"]
-        },
-        "slack": {
-          "config": "slack/slack-bot-token",
-          "resolvers": ["mymodule/slackResolver"]
-        }
-      }
-    }
-  }
-}
+  "host": "http://localhost:8085",
+  "connections": {
+    "gmail": "gmail/gmail-oauth",
+    "google_drive": "google-drive/oauth-config"
+  },
+  "oauth": true
+} @as integrations
 ```
 
-| Field                          | Description                                                                                              |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `host`                         | URL of the running Integration Manager service                                                           |
-| `connections`                  | A map of integration names to their configuration                                                        |
-| `connections.<name>.config`    | Path to the credential config in Integration Manager (`<integrationId>/<configId>`)                      |
-| `connections.<name>.resolvers` | List of resolver names (as `module/resolverName`) that should receive auth headers from this integration |
+Each connection value is a config path in the format `<integrationId>/<configId>`, which tells the runtime where to find the credentials in Integration Manager.
 
-You can use `#js` expressions for the host (e.g. to read from an environment variable):
+**Object format** (when you need to bind resolvers to integrations):
 
 ```json
-"host": "#js (process.env.INTEGRATION_MANAGER_HOST || 'http://localhost:8085')"
+{
+  "host": "http://localhost:8085",
+  "connections": {
+    "gmail": {
+      "config": "gmail/gmail-oauth",
+      "resolvers": ["mymodule/gmailResolver1", "mymodule/gmailResolver2"]
+    },
+    "slack": {
+      "config": "slack/slack-bot-token",
+      "resolvers": ["mymodule/slackResolver"]
+    }
+  }
+} @as integrations
+```
+
+You can mix both formats in the same config.
+
+| Field                          | Description                                                                                                      |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `host`                         | URL of the running Integration Manager service                                                                   |
+| `connections`                  | A map of provider keys to their configuration (string or object)                                                 |
+| `connections.<name>` (string)  | Config path in Integration Manager (`<integrationId>/<configId>`)                                                |
+| `connections.<name>.config`    | Config path when using object format                                                                             |
+| `connections.<name>.resolvers` | List of resolver names (as `module/resolverName`) that should receive auth headers from this integration         |
+| `oauth`                        | Set to `true` to enable the built-in OAuth proxy routes (see [OAuth Proxy Routes](#built-in-oauth-proxy-routes)) |
+
+You can use `#js` expressions for dynamic values:
+
+```json
+{
+  "host": "#js process.env.INTEGRATION_MANAGER_HOST || 'http://localhost:8085'",
+  "connections": "#js ({google_drive: 'google-drive/oauth-config', onedrive: 'onedrive/oauth-config'})",
+  "oauth": true
+} @as integrations
 ```
 
 ### 3. Define your resolvers in `.al`
@@ -103,7 +117,7 @@ At startup, the runtime reads the `connections` config and automatically calls `
 
 ### Getting auth headers via the resolver object
 
-Every resolver function receives the `resolver` object as its first argument. If the resolver is bound to an integration (via the config), you can call `resolver.getAuthHeaders()` to get the current auth headers:
+Every resolver function receives the `resolver` object as its first argument. If the resolver is bound to an integration (via the `resolvers` array in the config), you can call `resolver.getAuthHeaders()` to get the current auth headers:
 
 ```js
 export const queryEmail = async (resolver, inst) => {
@@ -163,7 +177,7 @@ export const createItem = async (resolver, inst) => {
 
 ### Using the global API helpers
 
-Two convenience functions are also available globally on the `agentlang` object. These are useful when you need auth outside of a resolver function, or when calling a different integration than the one bound to the current resolver.
+Several convenience functions are available globally on the `agentlang` object. These are useful when you need auth outside of a resolver function, or when calling a different integration than the one bound to the current resolver.
 
 #### `agentlang.getAuthHeaders(integrationName)`
 
@@ -197,13 +211,102 @@ const response = await agentlang.authFetch('slack', 'https://slack.com/api/chat.
 });
 ```
 
+#### `agentlang.getAccessToken(integrationName)`
+
+Returns the current OAuth access token (with automatic refresh) for an integration. Useful when you need the raw token rather than pre-built headers -- for example, to pass to a third-party SDK or tool like rclone:
+
+```js
+const { accessToken, expiresIn, tokenType } = await agentlang.getAccessToken('google-drive');
+
+// Use the token with a third-party tool
+await configureExternalTool({ token: accessToken });
+```
+
+#### `agentlang.getOAuthAuthorizeUrl(integrationName, redirectUri)`
+
+Initiates an OAuth consent flow by returning the authorization URL and state parameter:
+
+```js
+const { authorizationUrl, state } = await agentlang.getOAuthAuthorizeUrl(
+  'google-drive',
+  'http://localhost:3000/callback'
+);
+// Redirect the user to authorizationUrl
+```
+
+#### `agentlang.exchangeOAuthCode(integrationName, code, state)`
+
+Exchanges an OAuth authorization code for tokens after the user completes consent:
+
+```js
+const { accessToken, refreshToken, expiresIn, tokenType } = await agentlang.exchangeOAuthCode(
+  'google-drive',
+  code,
+  state
+);
+```
+
 ### Which approach should I use?
 
-| Approach                         | When to use                                                                                               |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `resolver.getAuthHeaders()`      | Default choice. Works inside any resolver function. Uses the integration bound to the resolver in config. |
-| `agentlang.getAuthHeaders(name)` | When you need headers for a specific integration by name, or outside a resolver context.                  |
-| `agentlang.authFetch(name, url)` | When you want a one-liner that combines header injection + fetch.                                         |
+| Approach                                  | When to use                                                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `resolver.getAuthHeaders()`               | Default choice. Works inside any resolver function. Uses the integration bound to the resolver in config. |
+| `agentlang.getAuthHeaders(name)`          | When you need headers for a specific integration by name, or outside a resolver context.                  |
+| `agentlang.authFetch(name, url)`          | When you want a one-liner that combines header injection + fetch.                                         |
+| `agentlang.getAccessToken(name)`          | When you need the raw OAuth token (e.g. for third-party SDKs, rclone, etc.).                              |
+| `agentlang.getOAuthAuthorizeUrl(name, …)` | When implementing a custom OAuth consent flow in your app.                                                |
+| `agentlang.exchangeOAuthCode(name, …)`    | When completing a custom OAuth consent flow after user authorization.                                     |
+
+## Built-in OAuth Proxy Routes
+
+When `oauth: true` is set in the integrations config, the Agentlang HTTP server exposes three proxy routes. These let a frontend (or any HTTP client) drive the OAuth consent flow without directly calling the Integration Manager.
+
+The routes use the **provider key** from your `connections` config (e.g. `google_drive`). The runtime automatically resolves this to the Integration Manager's entity name by extracting it from the config path (e.g. `google-drive/oauth-config` → `google-drive`).
+
+### GET `/agentlang/oauth/authorize-url`
+
+Starts the OAuth consent flow. Returns the authorization URL to redirect the user to.
+
+| Query param   | Description                                          |
+| ------------- | ---------------------------------------------------- |
+| `provider`    | Provider key from your connections config            |
+| `redirectUri` | URL to redirect the user back to after authorization |
+
+**Response:**
+
+```json
+{ "authorizationUrl": "https://accounts.google.com/o/oauth2/v2/auth?...", "state": "abc123" }
+```
+
+### POST `/agentlang/oauth/exchange`
+
+Exchanges an authorization code for tokens after the user completes consent.
+
+**Request body:**
+
+```json
+{ "provider": "google_drive", "code": "4/0AX4X...", "state": "abc123" }
+```
+
+**Response:**
+
+```json
+{ "accessToken": "ya29...", "refreshToken": "1//0e...", "expiresIn": 3599, "tokenType": "Bearer" }
+```
+
+### GET `/agentlang/oauth/access-token`
+
+Returns the current access token for a provider (handles refresh automatically).
+
+| Query param | Description                               |
+| ----------- | ----------------------------------------- |
+| `provider`  | Provider key from your connections config |
+
+**Response:**
+
+```json
+{ "accessToken": "ya29...", "expiresIn": 3599, "tokenType": "Bearer" }
+```
 
 ## Complete Example: Gmail Integration
 
@@ -385,8 +488,12 @@ The `resolver` is always the first argument. Call `resolver.getAuthHeaders()` on
 
 **"Integration client not configured"** -- The `integrations` section is missing from your `config.al`, or the Integration Manager host is not set.
 
-**"Failed to get auth headers for integration: 404"** -- The integration name in your config doesn't match what's registered in Integration Manager. Check that the `config` path (`<integrationId>/<configId>`) is correct.
+**"Failed to get auth headers for integration: 404"** -- The integration name in your config doesn't match what's registered in Integration Manager. Check that the config path (`<integrationId>/<configId>`) is correct.
 
 **`resolver.getAuthHeaders()` returns `{}`** -- The resolver is not listed in any connection's `resolvers` array in the config. Verify the resolver name matches exactly (format: `module/resolverName`).
 
 **Token expired errors from the external API** -- The Integration Manager handles token refresh automatically. If you're still getting 401s, check that the Integration Manager's refresh logic is working by querying its `/integmanager.auth/authRefresh` endpoint directly.
+
+**"Unknown provider" from OAuth proxy routes** -- The `provider` parameter doesn't match any key in your `connections` config. Use the exact key name (e.g. `google_drive`, not `google-drive`).
+
+**OAuth routes return 404** -- Make sure `"oauth": true` is set in your integrations config. The proxy routes are only registered when this flag is enabled.
