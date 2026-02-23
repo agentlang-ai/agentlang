@@ -66,6 +66,7 @@ import {
   DefaultModuleName,
   escapeFqName,
   escapeQueryName,
+  firstAliasSpec,
   fqNameFromPath,
   isCoreModule,
   isFqName,
@@ -1138,10 +1139,11 @@ export async function evaluateStatement(stmt: Statement, env: Environment): Prom
       handlersPushed = env.pushHandlers(handlers);
     }
     await evaluatePattern(stmt.pattern, env);
+    let skipOuterAlias = false;
     if (hasHints) {
-      await maybeHandleEmpty(hints, env);
+      skipOuterAlias = await maybeHandleEmpty(hints, env);
     }
-    if (hasHints) {
+    if (hasHints && !skipOuterAlias) {
       maybeBindStatementResultToAlias(hints, env);
     }
     await maybeHandleNotFound(handlers, env);
@@ -1170,7 +1172,7 @@ async function maybeHandleNotFound(handlers: CatchHandlers | undefined, env: Env
   }
 }
 
-async function maybeHandleEmpty(hints: RuntimeHint[], env: Environment) {
+async function maybeHandleEmpty(hints: RuntimeHint[], env: Environment): Promise<boolean> {
   const lastResult: Result = env.getLastResult();
   if (
     lastResult === null ||
@@ -1182,10 +1184,17 @@ async function maybeHandleEmpty(hints: RuntimeHint[], env: Environment) {
         const newEnv = new Environment('empty-env', env).unsetEventExecutor();
         await evaluateStatement(rh.emptySpec.stmt, newEnv);
         env.setLastResult(newEnv.getLastResult());
+        // If inner statement has its own @as, propagate binding to parent env
+        const innerAlias = firstAliasSpec(rh.emptySpec.stmt);
+        if (innerAlias) {
+          maybeBindStatementResultToAlias(rh.emptySpec.stmt.hints, env);
+          return true; // signal: skip outer @as
+        }
         break;
       }
     }
   }
+  return false;
 }
 
 async function maybeHandleError(
