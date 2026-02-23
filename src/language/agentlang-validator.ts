@@ -25,6 +25,9 @@ export class AgentlangValidator {
     if (def.$type === 'PublicEventDefinition') {
       def = def.def;
     }
+    if (!def?.schema?.attributes) {
+      return;
+    }
     def.schema.attributes.forEach((a: AttributeDefinition) => {
       if (reported.has(a.name)) {
         accept('error', `'${def.name} " - attribute has non-unique name '${a.name}'.`, {
