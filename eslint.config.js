@@ -17,6 +17,8 @@ export default [
       'vitest.config.ts',
       // Ignore all config.ts files (configuration files)
       '**/*.config.ts',
+      // Example projects have their own tsconfig
+      'example/**/test/**',
     ],
   },
   // Apply typescript-eslint recommended configs
