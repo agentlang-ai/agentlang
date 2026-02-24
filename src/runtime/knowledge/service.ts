@@ -1,20 +1,9 @@
 import { logger } from '../logger.js';
-import type { GraphDatabase } from '../graph/database.js';
-import { Neo4jDatabase } from '../graph/neo4j.js';
-import { SemanticDeduplicator } from './deduplicator.js';
-import { DocumentProcessor } from './document-processor.js';
-import { ConversationProcessor } from './conversation-processor.js';
-import { ContextBuilder } from './context-builder.js';
-import { EntityExtractor, type ExtractedFact } from './extractor.js';
 import { CoreKnowledgeModuleName } from '../modules/knowledge.js';
 import { parseAndEvaluateStatement, Environment } from '../interpreter.js';
 import { escapeString } from './utils.js';
-import type { Instance } from '../module.js';
-import type { Document, KnowledgeContext, ProcessingResult, SourceType } from '../graph/types.js';
-import { insertRows, DbContext } from '../resolvers/sqldb/database.js';
-import { DefaultAuthInfo } from '../resolvers/authinfo.js';
+import type { KnowledgeContext, ProcessingResult, SourceType } from '../graph/types.js';
 import { isKnowledgeGraphEnabled, getKnowledgeGraphConfig } from '../state.js';
-import crypto from 'crypto';
 
 // Maximum number of session messages to retain per session (prevents database bloat)
 const MAX_KNOWLEDGE_SESSION_MESSAGES = parseInt(
@@ -37,20 +26,18 @@ function normalizeKnowledgeQueryPayload(payload: any): any {
   return first;
 }
 
+/**
+ * KnowledgeService — thin client that delegates all knowledge operations
+ * to a remote knowledge-service instance.
+ *
+ * When knowledgeGraph.enabled is true and knowledgeGraph.serviceUrl is set,
+ * all embedding, chunking, graph storage, and retrieval is handled remotely.
+ */
 export class KnowledgeService {
-  private graphDb: GraphDatabase | null;
-  private deduplicator: SemanticDeduplicator | null;
-  private documentProcessor: DocumentProcessor | null;
-  private conversationProcessor: ConversationProcessor | null;
-  private contextBuilder: ContextBuilder | null;
-  private extractor: EntityExtractor | null;
-  private processingDocuments: Set<string> = new Set();
-  private processedAgents: Set<string> = new Set();
   private readonly enabled: boolean;
   private readonly remoteKnowledgeServiceUrl: string | null;
 
-  constructor(graphDb?: GraphDatabase, embeddingConfig?: any) {
-    // Check if knowledge graph is enabled via config
+  constructor() {
     const configEnabled = isKnowledgeGraphEnabled();
     const kgConfig = getKnowledgeGraphConfig();
 
@@ -65,100 +52,42 @@ export class KnowledgeService {
       this.enabled = false;
     } else if (!this.remoteKnowledgeServiceUrl) {
       logger.warn(
-        '[KNOWLEDGE] Knowledge graph enabled but no backend configured. ' +
-          'Set knowledgeGraph.serviceUrl (or KNOWLEDGE_SERVICE_URL) to use knowledge-service.'
+        '[KNOWLEDGE] Knowledge graph enabled but no serviceUrl configured. ' +
+          'Set knowledgeGraph.serviceUrl or KNOWLEDGE_SERVICE_URL env var.'
       );
       this.enabled = false;
     } else {
+      logger.info(
+        `[KNOWLEDGE] Remote knowledge-service configured: ${this.remoteKnowledgeServiceUrl}`
+      );
       this.enabled = true;
     }
-
-    // When remote knowledge-service is configured, agentlang acts as a thin client.
-    // All embedding, chunking, graph storage, and retrieval is handled by knowledge-service.
-    // Skip initializing local Neo4j, embedding pipelines, and document processors.
-    if (this.remoteKnowledgeServiceUrl) {
-      logger.info(
-        `[KNOWLEDGE] Remote knowledge-service mode: ${this.remoteKnowledgeServiceUrl}. ` +
-          'Local Neo4j/embedding pipelines will NOT be initialized.'
-      );
-      this.graphDb = null;
-      this.deduplicator = null;
-      this.documentProcessor = null;
-      this.conversationProcessor = null;
-      this.contextBuilder = null;
-      this.extractor = null;
-      return;
-    }
-
-    // --- Local mode: initialize all local processing dependencies ---
-
-    // Create Neo4jDatabase with config values if available
-    if (graphDb) {
-      this.graphDb = graphDb;
-    } else {
-      const neo4jConfig = kgConfig?.neo4j;
-      const uri = neo4jConfig?.uri || process.env.GRAPH_DB_URI || 'bolt://localhost:7687';
-      const user = neo4jConfig?.user || process.env.GRAPH_DB_USER || 'neo4j';
-      const password = neo4jConfig?.password || process.env.GRAPH_DB_PASSWORD || 'password';
-      this.graphDb = new Neo4jDatabase(uri, user, password);
-    }
-
-    // Ensure embedding config has API key from environment
-    const resolvedEmbeddingConfig = embeddingConfig || {
-      provider: process.env.AGENTLANG_EMBEDDING_PROVIDER || 'openai',
-      model: process.env.AGENTLANG_EMBEDDING_MODEL || 'text-embedding-3-small',
-      apiKey: process.env.AGENTLANG_OPENAI_KEY || process.env.OPENAI_API_KEY,
-      chunkSize: process.env.AGENTLANG_EMBEDDING_CHUNKSIZE
-        ? parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKSIZE, 10)
-        : 1000,
-      chunkOverlap: process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP
-        ? parseInt(process.env.AGENTLANG_EMBEDDING_CHUNKOVERLAP, 10)
-        : 200,
-    };
-
-    this.deduplicator = new SemanticDeduplicator(resolvedEmbeddingConfig);
-    this.documentProcessor = new DocumentProcessor(this.graphDb, this.deduplicator);
-    this.conversationProcessor = new ConversationProcessor(this.deduplicator);
-    this.contextBuilder = new ContextBuilder(this.graphDb, resolvedEmbeddingConfig);
-    this.extractor = new EntityExtractor();
   }
 
   isEnabled(): boolean {
     return this.enabled;
   }
 
-  async init(): Promise<void> {
-    if (this.remoteKnowledgeServiceUrl) {
-      logger.info('[KNOWLEDGE] Remote knowledge-service mode enabled; local Neo4j init skipped');
-      return;
-    }
-    if (!this.graphDb) return;
-    try {
-      await this.graphDb.connect();
-      logger.info('[KNOWLEDGE] Graph database connected');
+  getServiceUrl(): string | null {
+    return this.remoteKnowledgeServiceUrl;
+  }
 
-      // On startup, always sync existing entity data into Neo4j so the graph
-      // stays consistent even after a restart or Neo4j container recreation.
-      await this.syncAllContainersToNeo4j();
-    } catch (err) {
-      logger.warn(`[KNOWLEDGE] Graph database not available, running without graph DB: ${err}`);
-    }
+  async init(): Promise<void> {
+    if (!this.enabled) return;
+    logger.info(
+      `[KNOWLEDGE] Knowledge service initialized (remote: ${this.remoteKnowledgeServiceUrl})`
+    );
   }
 
   async shutdown(): Promise<void> {
-    if (!this.graphDb) return;
-    try {
-      await this.graphDb.disconnect();
-    } catch (err) {
-      logger.warn(`[KNOWLEDGE] Error disconnecting graph DB: ${err}`);
-    }
+    // No local resources to clean up in remote-only mode
   }
 
   // --- Session Management ---
 
   async getOrCreateSession(agentFqName: string): Promise<KnowledgeSessionContext> {
     if (!this.enabled) {
-      throw new Error('Knowledge base is disabled: no embedding API key configured');
+      throw new Error('Knowledge service is disabled');
     }
 
     const agentId = agentFqName;
@@ -223,7 +152,7 @@ export class KnowledgeService {
     }
   }
 
-  // --- Document Processing ---
+  // --- Document Processing (delegated to knowledge-service) ---
 
   private static readonly EMPTY_RESULT: ProcessingResult = {
     nodes: [],
@@ -233,88 +162,63 @@ export class KnowledgeService {
     edgesCreated: 0,
   };
 
-  async processDocument(
-    document: Document,
-    containerTag: string,
-    agentId?: string,
-    env?: Environment,
-    llmName?: string
-  ): Promise<ProcessingResult> {
-    if (!this.enabled || this.remoteKnowledgeServiceUrl) {
-      // In remote mode, all document processing is handled by knowledge-service.
-      return KnowledgeService.EMPTY_RESULT;
-    }
-    if (!this.documentProcessor) return KnowledgeService.EMPTY_RESULT;
-    return this.documentProcessor.processDocument(document, containerTag, env, llmName);
-  }
-
   async processDocuments(
-    documents: Document[],
-    containerTag: string,
-    agentId?: string,
-    env?: Environment,
-    llmName?: string
+    _documents: any[],
+    _containerTag: string,
+    _agentId?: string,
+    _env?: Environment,
+    _llmName?: string
   ): Promise<ProcessingResult> {
-    if (!this.enabled) return KnowledgeService.EMPTY_RESULT;
-    logger.info(`[KNOWLEDGE] processDocuments called with ${documents.length} documents`);
-    const combined: ProcessingResult = {
-      nodes: [],
-      edges: [],
-      nodesCreated: 0,
-      nodesMerged: 0,
-      edgesCreated: 0,
-    };
-
-    for (const doc of documents) {
-      logger.info(`[KNOWLEDGE] Processing document: ${doc.name} (${doc.content.length} chars)`);
-      const result = await this.processDocument(doc, containerTag, agentId, env, llmName);
-      logger.info(
-        `[KNOWLEDGE] Document ${doc.name} processed: ${result.nodesCreated} nodes, ${result.edgesCreated} edges`
+    // All document processing is handled by knowledge-service.
+    if (this.enabled) {
+      logger.debug(
+        '[KNOWLEDGE] Document processing is handled by remote knowledge-service. ' +
+          'Upload documents via the knowledge-service upload API.'
       );
-      combined.nodes.push(...result.nodes);
-      combined.edges.push(...result.edges);
-      combined.nodesCreated += result.nodesCreated;
-      combined.nodesMerged += result.nodesMerged;
-      combined.edgesCreated += result.edgesCreated;
     }
-
-    logger.info(
-      `[KNOWLEDGE] All documents processed: ${combined.nodesCreated} nodes, ${combined.edgesCreated} edges total`
-    );
-    return combined;
+    return KnowledgeService.EMPTY_RESULT;
   }
 
-  // --- Context Retrieval ---
+  // --- Context Retrieval (queries knowledge-service) ---
 
   async buildContext(
     query: string,
     containerTag: string,
     _agentId?: string
   ): Promise<KnowledgeContext> {
-    if (!this.enabled) {
-      return { entities: [], relationships: [], instanceData: [], contextString: '' };
-    }
-    if (this.remoteKnowledgeServiceUrl) {
-      try {
-        let response = await fetch(`${this.remoteKnowledgeServiceUrl}/api/knowledge/query`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query,
-            containerTags: [containerTag],
-          }),
-        });
+    const emptyContext: KnowledgeContext = {
+      entities: [],
+      relationships: [],
+      instanceData: [],
+      contextString: '',
+    };
 
-        let data: any;
-        if (response.ok) {
-          data = await response.json();
-        } else {
-          // Fallback to Agentlang-native endpoint when /api adapter is unavailable.
-          response = await fetch(`${this.remoteKnowledgeServiceUrl}/knowledge.core/ApiKnowledgeQuery`, {
+    if (!this.enabled || !this.remoteKnowledgeServiceUrl) {
+      return emptyContext;
+    }
+
+    try {
+      let response = await fetch(`${this.remoteKnowledgeServiceUrl}/api/knowledge/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          containerTags: [containerTag],
+        }),
+      });
+
+      let data: any;
+      if (response.ok) {
+        data = await response.json();
+      } else {
+        // Fallback to Agentlang-native endpoint when /api adapter is unavailable.
+        response = await fetch(
+          `${this.remoteKnowledgeServiceUrl}/knowledge.core/ApiKnowledgeQuery`,
+          {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              query,
+              queryText: query,
               containerTagsJson: JSON.stringify([containerTag]),
               optionsJson: JSON.stringify({
                 includeChunks: true,
@@ -322,83 +226,76 @@ export class KnowledgeService {
                 includeEdges: true,
               }),
             }),
-          });
-          if (!response.ok) {
-            throw new Error(`knowledge-service query failed (${response.status})`);
           }
-          data = normalizeKnowledgeQueryPayload(await response.json());
-          data = {
-            chunks: JSON.parse(data?.chunks || '[]'),
-            entities: JSON.parse(data?.entities || '[]'),
-            edges: JSON.parse(data?.edges || '[]'),
-            contextString: data?.contextString || '',
-          };
+        );
+        if (!response.ok) {
+          throw new Error(`knowledge-service query failed (${response.status})`);
         }
-
-        const entities = Array.isArray(data.entities)
-          ? data.entities.map((entity: any) => ({
-              id: entity.id,
-              name: entity.name,
-              entityType: entity.entityType || 'UNKNOWN',
-              description: entity.description,
-              sourceType: 'DOCUMENT' as SourceType,
-              sourceId: undefined,
-              sourceChunk: undefined,
-              instanceId: undefined,
-              instanceType: undefined,
-              agentId: containerTag,
-              confidence: Number(entity.confidence ?? 1),
-              createdAt: new Date(),
-              updatedAt: new Date(),
-              isLatest: true,
-            }))
-          : [];
-        const relationships = Array.isArray(data.edges)
-          ? data.edges.map((edge: any) => ({
-              sourceId: edge.sourceId,
-              targetId: edge.targetId,
-              relationship: edge.relType || edge.relationship || 'RELATED_TO',
-              weight: Number(edge.weight ?? 1),
-            }))
-          : [];
-        return {
-          entities,
-          relationships,
-          instanceData: [],
-          contextString: data.contextString || '',
+        data = normalizeKnowledgeQueryPayload(await response.json());
+        data = {
+          chunks: JSON.parse(data?.chunks || '[]'),
+          entities: JSON.parse(data?.entities || '[]'),
+          edges: JSON.parse(data?.edges || '[]'),
+          contextString: data?.contextString || '',
         };
-      } catch (err) {
-        logger.error(`[KNOWLEDGE] Remote knowledge-service query failed: ${err}`);
-        return { entities: [], relationships: [], instanceData: [], contextString: '' };
       }
+
+      const entities = Array.isArray(data.entities)
+        ? data.entities.map((entity: any) => ({
+            id: entity.id,
+            name: entity.name,
+            entityType: entity.entityType || 'UNKNOWN',
+            description: entity.description,
+            sourceType: 'DOCUMENT' as SourceType,
+            sourceId: undefined,
+            sourceChunk: undefined,
+            instanceId: undefined,
+            instanceType: undefined,
+            agentId: containerTag,
+            confidence: Number(entity.confidence ?? 1),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            isLatest: true,
+          }))
+        : [];
+      const relationships = Array.isArray(data.edges)
+        ? data.edges.map((edge: any) => ({
+            sourceId: edge.sourceId,
+            targetId: edge.targetId,
+            relationship: edge.relType || edge.relationship || 'RELATED_TO',
+            weight: Number(edge.weight ?? 1),
+          }))
+        : [];
+      return {
+        entities,
+        relationships,
+        instanceData: [],
+        contextString: data.contextString || '',
+      };
+    } catch (err) {
+      logger.error(`[KNOWLEDGE] Remote knowledge-service query failed: ${err}`);
+      return emptyContext;
     }
-    if (!this.contextBuilder) {
-      return { entities: [], relationships: [], instanceData: [], contextString: '' };
-    }
-    return this.contextBuilder.buildContext(query, containerTag, containerTag, []);
   }
 
   buildContextString(context: KnowledgeContext): string {
     return context.contextString;
   }
 
-  // --- Conversation Processing ---
+  // --- Conversation Processing (delegated to knowledge-service) ---
 
   async processConversationTurn(
-    userMessage: string,
-    assistantResponse: string,
+    _userMessage: string,
+    _assistantResponse: string,
     session: KnowledgeSessionContext,
-    env?: Environment,
-    llmName?: string
+    _env?: Environment,
+    _llmName?: string
   ): Promise<void> {
-    if (!this.enabled || this.remoteKnowledgeServiceUrl) {
-      // In remote mode, conversation processing is handled by knowledge-service.
-      return;
-    }
+    if (!this.enabled) return;
 
-    // Store conversation as session messages
-    await this.storeSessionMessage(session.sessionId, 'user', userMessage);
-    await this.storeSessionMessage(session.sessionId, 'assistant', assistantResponse);
+    // Store conversation locally for session continuity
+    await this.storeSessionMessage(session.sessionId, 'user', _userMessage);
+    await this.storeSessionMessage(session.sessionId, 'assistant', _assistantResponse);
 
     // Update session activity
     try {
@@ -412,523 +309,23 @@ export class KnowledgeService {
       logger.debug(`[KNOWLEDGE] Failed to update session activity: ${err}`);
     }
 
-    // Process conversation: entity extraction includes turn_type classification
-    try {
-      const entityResult = await this.conversationProcessor!.processMessage(
-        userMessage,
-        assistantResponse,
-        session.agentId,
-        session.sessionId,
-        session.agentId,
-        env,
-        llmName
-      );
-
-      // Only extract facts when graph was actually updated (non-query turns)
-      let factsCount = 0;
-      if (entityResult.nodesCreated > 0 || entityResult.nodesMerged > 0) {
-        try {
-          const facts = await this.extractor!.extractFacts(
-            userMessage,
-            assistantResponse,
-            env,
-            llmName
-          );
-          if (facts.length > 0) {
-            await this.storeFacts(facts, session);
-            factsCount = facts.length;
-          }
-        } catch (err) {
-          logger.debug(`[KNOWLEDGE] Fact extraction failed: ${err}`);
-        }
-      }
-
-      logger.debug(
-        `[KNOWLEDGE] Conversation turn: ${entityResult.nodesCreated} created, ${entityResult.nodesMerged} merged, ${factsCount} facts`
-      );
-    } catch (err) {
-      logger.warn(`[KNOWLEDGE] Failed to process conversation turn: ${err}`);
-    }
+    // Entity extraction and graph updates are handled by knowledge-service
+    // when documents are ingested through its pipeline.
   }
 
-  // --- Agent Document Processing ---
+  // --- Agent Document Processing (delegated to knowledge-service) ---
 
   async maybeProcessAgentDocuments(
-    session: KnowledgeSessionContext,
-    documentTitles: string[],
-    env?: Environment,
-    llmName?: string
+    _session: KnowledgeSessionContext,
+    _documentTitles: string[],
+    _env?: Environment,
+    _llmName?: string
   ): Promise<void> {
-    if (!this.enabled || this.remoteKnowledgeServiceUrl) {
-      // In remote mode, document ingestion is handled by knowledge-service.
-      return;
-    }
-    logger.info(
-      `[KNOWLEDGE] maybeProcessAgentDocuments called for session ${session.sessionId} with documents: ${documentTitles.join(', ')}`
-    );
-    if (documentTitles.length === 0) {
-      logger.info('[KNOWLEDGE] No document titles provided, skipping');
-      return;
-    }
-
-    // Check if documents are already being processed first (fast check, no DB query)
-    // This prevents race conditions between concurrent requests
-    const processingKey = `${session.agentId}:${documentTitles.join(',')}`;
-    if (this.processingDocuments.has(processingKey)) {
-      logger.info(`[KNOWLEDGE] Documents already being processed: ${documentTitles.join(', ')}`);
-      return;
-    }
-
-    // Check if documents are already processed for this agent
-    // We verify by checking if any DOCUMENT nodes exist for this agent
-    try {
-      // First check if any knowledge nodes exist for this agent's documents
-      const nodeResult = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeEntity {agentId? "${session.agentId}", sourceType? "DOCUMENT"}} @limit 1`,
-        undefined
+    // All document ingestion is handled by knowledge-service.
+    if (this.enabled) {
+      logger.debug(
+        '[KNOWLEDGE] Agent document processing is handled by remote knowledge-service.'
       );
-      if (nodeResult && nodeResult.length > 0) {
-        logger.info(
-          `[KNOWLEDGE] Knowledge nodes already exist for agent ${session.agentId}, skipping document processing`
-        );
-        this.processedAgents.add(session.agentId);
-        // Mark current session as processed
-        await parseAndEvaluateStatement(
-          `{${CoreKnowledgeModuleName}/KnowledgeSession {
-            id "${session.sessionId}",
-            documentsProcessed true}, @upsert}`,
-          undefined
-        );
-        return; // Already processed
-      }
-
-      // Also check the documentsProcessed flag on any session for this agent
-      const sessionResult = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeSession {agentId? "${session.agentId}", documentsProcessed true}} @limit 1`,
-        undefined
-      );
-      if (sessionResult && sessionResult.length > 0) {
-        logger.info(
-          `[KNOWLEDGE] Session marked as processed for agent ${session.agentId}, skipping`
-        );
-        this.processedAgents.add(session.agentId);
-        return;
-      }
-    } catch (err) {
-      logger.debug(`[KNOWLEDGE] Error checking document processing status: ${err}`);
-    }
-
-    // Only after DB checks fail, check in-memory cache
-    if (this.processedAgents.has(session.agentId)) {
-      logger.info(
-        `[KNOWLEDGE] Documents already processed in this process for agent ${session.agentId}, skipping`
-      );
-      return;
-    }
-
-    // Mark as processing BEFORE any async work to prevent race conditions
-    this.processingDocuments.add(processingKey);
-
-    logger.info(
-      `[KNOWLEDGE] Processing ${documentTitles.length} agent documents into knowledge graph`
-    );
-
-    try {
-      // Fetch documents from agentlang.ai/Document entity
-      const aiModuleName = 'agentlang.ai';
-      const allDocs = await parseAndEvaluateStatement(`{${aiModuleName}/Document? {}}`, undefined);
-
-      if (!allDocs || allDocs.length === 0) {
-        logger.debug('[KNOWLEDGE] No documents found in Document store');
-        return;
-      }
-
-      const matchingDocs: Document[] = [];
-      for (const doc of allDocs) {
-        const title = doc.lookup('title') as string;
-        if (title && documentTitles.some(t => t.trim() === title.trim())) {
-          const content = doc.lookup('content') as string;
-          if (content) {
-            matchingDocs.push({ name: title, content });
-          }
-        }
-      }
-
-      if (matchingDocs.length === 0) {
-        logger.debug('[KNOWLEDGE] No matching documents found for knowledge graph processing');
-        return;
-      }
-
-      // All knowledge is agent-level (shared across users)
-      const result = await this.processDocuments(
-        matchingDocs,
-        session.agentId,
-        session.agentId,
-        env,
-        llmName
-      );
-
-      logger.info(
-        `[KNOWLEDGE] Documents processed: ${result.nodesCreated} nodes created, ` +
-          `${result.nodesMerged} merged, ${result.edgesCreated} edges`
-      );
-
-      // Sync to Neo4j after document processing
-      await this.syncToNeo4j(session.agentId);
-
-      this.processedAgents.add(session.agentId);
-
-      // Mark documents as processed
-      await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeSession {
-          id "${session.sessionId}",
-          documentsProcessed true}, @upsert}`,
-        undefined
-      );
-    } catch (err) {
-      logger.warn(`[KNOWLEDGE] Failed to process agent documents: ${err}`);
-    } finally {
-      // Always remove processing flag when done
-      this.processingDocuments.delete(processingKey);
-    }
-  }
-
-  // --- Neo4j Sync ---
-
-  /**
-   * Sync knowledge data from Agentlang store to Neo4j graph database.
-   * Uses MERGE (upsert) so it is safe to call on every startup without
-   * clearing existing data — nodes/edges are created or updated in place.
-   */
-  async syncToNeo4j(containerTag: string): Promise<void> {
-    if (this.remoteKnowledgeServiceUrl || !this.graphDb) {
-      return;
-    }
-    if (!this.graphDb.isConnected()) {
-      logger.debug('[KNOWLEDGE] Neo4j not connected, skipping sync');
-      return;
-    }
-
-    try {
-      // Clear existing data for this container to ensure sync is idempotent
-      logger.debug(`[KNOWLEDGE] Clearing existing Neo4j data for container: ${containerTag}`);
-      await this.graphDb.clearContainer(containerTag);
-
-      const nodeResults: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeEntity {          agentId? "${escapeString(containerTag)}", isLatest? true}}`,
-        undefined
-      );
-
-      if (!nodeResults || nodeResults.length === 0) {
-        logger.info('[KNOWLEDGE] No nodes to sync to Neo4j');
-        return;
-      }
-
-      let nodesSynced = 0;
-      for (const inst of nodeResults) {
-        try {
-          const node = {
-            id: inst.lookup('id') as string,
-            name: inst.lookup('name') as string,
-            entityType: inst.lookup('entityType') as string,
-            description: inst.lookup('description') as string | undefined,
-            sourceType: (inst.lookup('sourceType') as any) || 'DERIVED',
-            sourceId: inst.lookup('sourceId') as string | undefined,
-            sourceChunk: inst.lookup('sourceChunk') as string | undefined,
-            instanceId: inst.lookup('instanceId') as string | undefined,
-            instanceType: inst.lookup('instanceType') as string | undefined,
-            agentId: inst.lookup('agentId') as string,
-            confidence: (inst.lookup('confidence') as number) || 1.0,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            isLatest: true,
-          };
-          await this.graphDb.upsertNode(node);
-          nodesSynced++;
-        } catch (err) {
-          logger.error(`[KNOWLEDGE] Failed to sync node to Neo4j: ${err}`);
-        }
-      }
-
-      const edgeResults: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeEdge {agentId? "${escapeString(containerTag)}"}}`,
-        undefined
-      );
-
-      let edgesSynced = 0;
-      if (edgeResults && edgeResults.length > 0) {
-        for (const inst of edgeResults) {
-          try {
-            const edge = {
-              id: inst.lookup('id') as string,
-              sourceId: inst.lookup('sourceId') as string,
-              targetId: inst.lookup('targetId') as string,
-              relationship: inst.lookup('relType') as string,
-              weight: (inst.lookup('weight') as number) || 1.0,
-              sourceType: inst.lookup('sourceType') as SourceType | undefined,
-            };
-            await this.graphDb.upsertEdge(edge);
-            edgesSynced++;
-          } catch (err) {
-            logger.debug(`[KNOWLEDGE] Failed to sync edge to Neo4j: ${err}`);
-          }
-        }
-      }
-
-      logger.info(`[KNOWLEDGE] Neo4j sync complete: ${nodesSynced} nodes, ${edgesSynced} edges`);
-    } catch (err) {
-      logger.warn(`[KNOWLEDGE] Neo4j sync failed: ${err}`);
-    }
-  }
-
-  /**
-   * Full rebuild of Neo4j from SQLite/LanceDB on startup.
-   * Clears all Neo4j data first, then syncs each agent container.
-   * SQLite/LanceDB is the source of truth; Neo4j is a derived view.
-   */
-  private async syncAllContainersToNeo4j(): Promise<void> {
-    if (!this.graphDb || !this.graphDb.isConnected()) return;
-
-    try {
-      // Clear all existing Neo4j data — full rebuild from source of truth
-      await this.graphDb.clearAll();
-      logger.info('[KNOWLEDGE] Cleared all Neo4j data for full rebuild');
-
-      const allNodes: Instance[] = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeEntity {isLatest? true}}`,
-        undefined
-      );
-
-      if (!allNodes || allNodes.length === 0) {
-        logger.info('[KNOWLEDGE] No existing knowledge data to sync to Neo4j');
-        return;
-      }
-
-      const containerTags = new Set<string>();
-      for (const inst of allNodes) {
-        const tag = inst.lookup('agentId') as string;
-        if (tag) containerTags.add(tag);
-      }
-
-      logger.info(
-        `[KNOWLEDGE] Rebuilding Neo4j: ${allNodes.length} nodes across ${containerTags.size} agent container(s)`
-      );
-
-      for (const tag of containerTags) {
-        await this.syncToNeo4j(tag);
-      }
-    } catch (err) {
-      logger.warn(`[KNOWLEDGE] Startup Neo4j sync failed: ${err}`);
-    }
-  }
-
-  // --- Node Management ---
-
-  /**
-   * Supersede a node with new information. Marks the old node
-   * as isLatest=false and creates a replacement.
-   * Use when user provides contradictory/updated information.
-   */
-  async supersedeNode(
-    existingNodeId: string,
-    replacement: { name: string; entityType: string; description?: string },
-    session: KnowledgeSessionContext
-  ): Promise<void> {
-    if (!this.deduplicator) return;
-    await this.deduplicator.supersedeNode(
-      existingNodeId,
-      replacement,
-      session.agentId,
-      'CONVERSATION',
-      session.sessionId
-    );
-  }
-
-  /**
-   * Remove a node entirely from the knowledge graph.
-   */
-  async removeNode(nodeId: string): Promise<void> {
-    if (!this.deduplicator) return;
-    await this.deduplicator.removeNode(nodeId);
-  }
-
-  // --- Batch Operations ---
-
-  /**
-   * Batch insert multiple knowledge entities in a single transaction.
-   * Uses database-level bulk insert for significantly better performance.
-   */
-  async batchCreateEntities(
-    entities: Array<{
-      name: string;
-      entityType: string;
-      description?: string;
-      sourceType: SourceType;
-      sourceId?: string;
-      sourceChunk?: string;
-      agentId?: string;
-      confidence?: number;
-    }>,
-    containerTag: string,
-    env?: Environment
-  ): Promise<Array<{ id: string; name: string; entityType: string }>> {
-    if (!this.enabled || entities.length === 0) {
-      return [];
-    }
-
-    const results: Array<{ id: string; name: string; entityType: string }> = [];
-    const tableName = 'agentlang_knowledge_KnowledgeEntity';
-
-    try {
-      const activeEnv = env || new Environment();
-
-      await activeEnv.callInTransaction(async () => {
-        // Build array of row objects for bulk insert
-        const rows = entities.map(entity => {
-          const id = crypto.randomUUID();
-          const path = `${CoreKnowledgeModuleName}$KnowledgeEntity/${id}`;
-
-          return {
-            id,
-            name: entity.name,
-            entityType: entity.entityType,
-            description: entity.description || null,
-            sourceType: entity.sourceType,
-            sourceId: entity.sourceId || null,
-            sourceChunk: entity.sourceChunk ? entity.sourceChunk.substring(0, 500) : null,
-            instanceId: null,
-            instanceType: null,
-            agentId: entity.agentId || null,
-            confidence: entity.confidence || 1.0,
-            isLatest: true,
-            embedding: null,
-            __path__: path,
-          };
-        });
-
-        // Create DbContext with current transaction
-        const ctx = new DbContext(
-          `${CoreKnowledgeModuleName}/KnowledgeEntity`,
-          DefaultAuthInfo,
-          activeEnv,
-          activeEnv.getActiveTransactions().get('sqldb')
-        );
-
-        // Perform bulk insert
-        await insertRows(tableName, rows, ctx, false);
-
-        // Build results from inserted rows
-        for (let i = 0; i < rows.length; i++) {
-          results.push({
-            id: rows[i].id,
-            name: rows[i].name,
-            entityType: rows[i].entityType,
-          });
-        }
-      });
-
-      logger.info(`[KNOWLEDGE] Bulk inserted ${results.length} entities in single transaction`);
-      return results;
-    } catch (err) {
-      logger.error(`[KNOWLEDGE] Bulk entity creation failed: ${err}`);
-      throw err;
-    }
-  }
-
-  /**
-   * Batch insert multiple knowledge edges in a single transaction.
-   * Uses database-level bulk insert for significantly better performance.
-   */
-  async batchCreateEdges(
-    edges: Array<{
-      sourceId: string;
-      targetId: string;
-      relType: string;
-      weight?: number;
-      sourceType: SourceType;
-      agentId: string;
-    }>,
-    env?: Environment
-  ): Promise<Array<{ id: string; sourceId: string; targetId: string }>> {
-    if (!this.enabled || edges.length === 0) {
-      return [];
-    }
-
-    const results: Array<{ id: string; sourceId: string; targetId: string }> = [];
-    const tableName = 'agentlang_knowledge_KnowledgeEdge';
-
-    try {
-      const activeEnv = env || new Environment();
-
-      await activeEnv.callInTransaction(async () => {
-        // Build array of row objects for bulk insert
-        const rows = edges.map(edge => {
-          const id = crypto.randomUUID();
-          const path = `${CoreKnowledgeModuleName}$KnowledgeEdge/${id}`;
-
-          return {
-            id,
-            sourceId: edge.sourceId,
-            targetId: edge.targetId,
-            relType: edge.relType,
-            weight: edge.weight || 1.0,
-            sourceType: edge.sourceType,
-            agentId: edge.agentId,
-            createdAt: new Date().toISOString(),
-            __path__: path,
-          };
-        });
-
-        // Create DbContext with current transaction
-        const ctx = new DbContext(
-          `${CoreKnowledgeModuleName}/KnowledgeEdge`,
-          DefaultAuthInfo,
-          activeEnv,
-          activeEnv.getActiveTransactions().get('sqldb')
-        );
-
-        // Perform bulk insert
-        await insertRows(tableName, rows, ctx, false);
-
-        // Build results from inserted rows
-        for (let i = 0; i < rows.length; i++) {
-          results.push({
-            id: rows[i].id,
-            sourceId: rows[i].sourceId,
-            targetId: rows[i].targetId,
-          });
-        }
-      });
-
-      logger.info(`[KNOWLEDGE] Bulk inserted ${results.length} edges in single transaction`);
-      return results;
-    } catch (err) {
-      logger.error(`[KNOWLEDGE] Bulk edge creation failed: ${err}`);
-      throw err;
-    }
-  }
-
-  // --- Instance Linking ---
-
-  async linkNodeToInstance(
-    nodeId: string,
-    instanceId: string,
-    instanceType: string
-  ): Promise<void> {
-    try {
-      await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeEntity {
-          id "${nodeId}",
-          instanceId "${instanceId}",
-          instanceType "${instanceType}"}, @upsert}`,
-        undefined
-      );
-
-      if (this.graphDb && this.graphDb.isConnected()) {
-        await this.graphDb.updateNode(nodeId, { instanceId, instanceType });
-      }
-    } catch (err) {
-      logger.warn(`[KNOWLEDGE] Failed to link node to instance: ${err}`);
     }
   }
 
@@ -947,7 +344,6 @@ export class KnowledgeService {
           sessionId "${sessionId}"}}`,
         undefined
       );
-      // Clean up old messages to prevent database bloat
       await this.cleanupOldSessionMessages(sessionId);
     } catch (err) {
       logger.debug(`[KNOWLEDGE] Failed to store session message: ${err}`);
@@ -956,7 +352,6 @@ export class KnowledgeService {
 
   private async cleanupOldSessionMessages(sessionId: string): Promise<void> {
     try {
-      // Delete old messages keeping only the most recent MAX_KNOWLEDGE_SESSION_MESSAGES
       await parseAndEvaluateStatement(
         `{${CoreKnowledgeModuleName}/SessionMessage {
           sessionId "${sessionId}"},
@@ -969,25 +364,6 @@ export class KnowledgeService {
       );
     } catch (err) {
       logger.debug(`[KNOWLEDGE] Failed to cleanup old session messages: ${err}`);
-    }
-  }
-
-  private async storeFacts(
-    facts: ExtractedFact[],
-    session: KnowledgeSessionContext
-  ): Promise<void> {
-    for (const fact of facts) {
-      try {
-        await this.deduplicator!.findOrCreateNode(
-          { name: fact.content, entityType: 'Fact', description: fact.category },
-          session.agentId,
-          'CONVERSATION',
-          session.sessionId,
-          undefined
-        );
-      } catch (err) {
-        logger.debug(`[KNOWLEDGE] Failed to store fact: ${err}`);
-      }
     }
   }
 }

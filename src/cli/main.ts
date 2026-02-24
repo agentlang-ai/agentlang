@@ -136,71 +136,6 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
 
 let LastActiveConfig: Config | undefined;
 
-import { parseAndEvaluateStatement } from '../runtime/interpreter.js';
-
-/**
- * Pre-process agent documents before starting the HTTP server.
- * This ensures the knowledge base is fully populated before handling requests.
- */
-async function preProcessAgentDocuments(knowledgeService: any): Promise<void> {
-  const startTime = Date.now();
-  logger.info('[CLI] Pre-processing agent documents...');
-
-  try {
-    // Find all agents with documents
-    const aiModuleName = 'agentlang.ai';
-    const agentsResult = await parseAndEvaluateStatement(`{${aiModuleName}/Agent? {}}`, undefined);
-
-    if (!agentsResult || agentsResult.length === 0) {
-      logger.info('[CLI] No agents found, skipping document pre-processing');
-      return;
-    }
-
-    logger.info(`[CLI] Found ${agentsResult.length} agent(s)`);
-
-    // Process documents for each agent
-    for (const agent of agentsResult) {
-      const agentName = agent.lookup('name') as string;
-      const documents = agent.lookup('documents') as string;
-
-      if (!documents || documents.length === 0) {
-        logger.info(`[CLI] Agent ${agentName} has no documents, skipping`);
-        continue;
-      }
-
-      const docTitles = documents.split(',').map((d: string) => d.trim());
-      const llmName = agent.lookup('llm') as string;
-      logger.info(
-        `[CLI] Pre-processing ${docTitles.length} document(s) for agent ${agentName} using LLM ${llmName}: ${docTitles.join(', ')}`
-      );
-
-      try {
-        // Get or create session for this agent
-        const userId = 'system'; // Pre-processing uses system user
-        const agentFqName = `${agent.lookup('moduleName')}/${agentName}`;
-        const session = await knowledgeService.getOrCreateSession(agentName, userId, agentFqName);
-
-        // Process documents synchronously (blocking) with the agent's LLM
-        await knowledgeService.maybeProcessAgentDocuments(session, docTitles, undefined, llmName);
-
-        // Mark this agent's documents as processed globally
-        // This prevents re-processing for each user session
-        logger.info(`[CLI] Marking documents as processed for agent ${agentName}`);
-
-        logger.info(`[CLI] Successfully pre-processed documents for agent ${agentName}`);
-      } catch (err) {
-        logger.warn(`[CLI] Failed to pre-process documents for agent ${agentName}: ${err}`);
-        // Continue with other agents even if one fails
-      }
-    }
-
-    const duration = Date.now() - startTime;
-    logger.info(`[CLI] Document pre-processing completed in ${duration}ms`);
-  } catch (err) {
-    logger.error(`[CLI] Error during document pre-processing: ${err}`);
-    throw err;
-  }
-}
 
 export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
   await initDatabase(config?.store);
@@ -217,15 +152,8 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
     logger.warn(`[CLI] Knowledge service initialization failed: ${err}`);
   }
 
-  // Pre-process agent documents before starting server
-  // This ensures knowledge base is ready before handling requests
-  if (knowledgeService) {
-    try {
-      await preProcessAgentDocuments(knowledgeService);
-    } catch (err) {
-      logger.warn(`[CLI] Pre-processing agent documents failed: ${err}`);
-    }
-  }
+  // Document ingestion is handled by knowledge-service.
+  // No local pre-processing needed.
 
   await runPersistedTimers();
   logger.info(

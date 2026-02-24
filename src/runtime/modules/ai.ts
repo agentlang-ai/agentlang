@@ -71,7 +71,7 @@ import {
 import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
 import { Statement } from '../../language/generated/ast.js';
-import { isMonitoringEnabled, TtlCache } from '../state.js';
+import { isMonitoringEnabled, TtlCache, getKnowledgeGraphConfig } from '../state.js';
 import { isNodeEnv } from '../../utils/runtime.js';
 import { getFileSystem } from '../../utils/fs-utils.js';
 
@@ -1137,146 +1137,73 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     return result;
   }
 
-  private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
-    const remoteKnowledgeServiceUrl = process.env.KNOWLEDGE_SERVICE_URL;
-    if (remoteKnowledgeServiceUrl && this.documents && this.documents.length > 0) {
-      try {
-        const documentEntries = this.documents
-          .split(',')
-          .map(d => d.trim())
-          .filter(Boolean);
-        const documentTitles = resolveDocumentAliases(documentEntries);
-        const documentRefs = documentEntries.filter(d => d.startsWith('document-service://'));
+  private async maybeAddRelevantDocuments(message: string, _env: Environment): Promise<string> {
+    if (!this.documents || this.documents.length === 0) {
+      return message;
+    }
 
-        let response = await fetch(`${remoteKnowledgeServiceUrl}/api/knowledge/query`, {
+    const kgConfig = getKnowledgeGraphConfig();
+    const serviceUrl =
+      kgConfig?.serviceUrl?.trim() || process.env.KNOWLEDGE_SERVICE_URL || null;
+
+    if (!serviceUrl) {
+      logger.debug(
+        '[KNOWLEDGE] No knowledge-service URL configured; skipping document retrieval.'
+      );
+      return message;
+    }
+
+    try {
+      const documentEntries = this.documents
+        .split(',')
+        .map(d => d.trim())
+        .filter(Boolean);
+      const documentTitles = resolveDocumentAliases(documentEntries);
+      const documentRefs = documentEntries.filter(d => d.startsWith('document-service://'));
+
+      let response = await fetch(`${serviceUrl}/api/knowledge/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: message,
+          containerTags: [this.getFqName()],
+          documentTitles,
+          documentRefs,
+        }),
+      });
+
+      if (!response.ok) {
+        // Fallback to Agentlang-native endpoint when /api adapter is unavailable.
+        response = await fetch(`${serviceUrl}/knowledge.core/ApiKnowledgeQuery`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            query: message,
-            containerTags: [this.getFqName()],
-            documentTitles,
-            documentRefs,
+            queryText: message,
+            containerTagsJson: JSON.stringify([this.getFqName()]),
+            documentTitlesJson: JSON.stringify(documentTitles),
+            documentRefsJson: JSON.stringify(documentRefs),
+            optionsJson: JSON.stringify({
+              includeChunks: true,
+              includeEntities: true,
+              includeEdges: true,
+            }),
           }),
         });
-
-        if (!response.ok) {
-          // Fallback to Agentlang-native endpoint when /api adapter is unavailable.
-          response = await fetch(`${remoteKnowledgeServiceUrl}/knowledge.core/ApiKnowledgeQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query: message,
-              containerTagsJson: JSON.stringify([this.getFqName()]),
-              documentTitlesJson: JSON.stringify(documentTitles),
-              documentRefsJson: JSON.stringify(documentRefs),
-              optionsJson: JSON.stringify({
-                includeChunks: true,
-                includeEntities: true,
-                includeEdges: true,
-              }),
-            }),
-          });
-        }
-
-        if (response.ok) {
-          const rawPayload: any = await response.json();
-          const payload = normalizeKnowledgeQueryPayload(rawPayload);
-          const contextString = payload?.contextString;
-          if (typeof contextString === 'string' && contextString.trim().length > 0) {
-            return message.concat('\n\nRelevant context from documents:\n').concat(contextString);
-          }
-        }
-      } catch (err) {
-        logger.debug(`Remote knowledge-service retrieval failed, falling back to local docs: ${err}`);
       }
+
+      if (response.ok) {
+        const rawPayload: any = await response.json();
+        const payload = normalizeKnowledgeQueryPayload(rawPayload);
+        const contextString = payload?.contextString;
+        if (typeof contextString === 'string' && contextString.trim().length > 0) {
+          return message.concat('\n\nRelevant context from documents:\n').concat(contextString);
+        }
+      }
+    } catch (err) {
+      logger.debug(`[KNOWLEDGE] Remote knowledge-service retrieval failed: ${err}`);
     }
 
-    if (this.documents && this.documents.length > 0) {
-      try {
-        const docNames = this.documents.split(',').map(d => d.trim());
-        const docTitles = resolveDocumentAliases(docNames);
-
-        const searchQuery = message;
-
-        try {
-          const semanticResult: any[] = await parseHelper(
-            `{${CoreAIModuleName}/Document {content? "${searchQuery.replace(/"/g, '\\"')}"}}`,
-            env
-          );
-
-          if (semanticResult && semanticResult.length > 0) {
-            const docs: Instance[] = [];
-            for (const doc of semanticResult) {
-              const docTitle = doc.lookup ? doc.lookup('title') : doc.title;
-              if (AgentInstance.docTitlesMatch(docTitle, docTitles)) {
-                docs.push(
-                  doc instanceof Instance
-                    ? doc
-                    : Instance.newWithAttributes(doc, new Map(Object.entries(doc)))
-                );
-              }
-            }
-
-            if (docs.length > 0) {
-              return message.concat('\n\nRelevant context from documents:\n').concat(
-                docs
-                  .map((v: Instance) => {
-                    return `Document: ${v.lookup('title')}\n${v.lookup('content') as string}`;
-                  })
-                  .join('\n\n---\n\n')
-              );
-            }
-          }
-        } catch (semanticErr) {
-          logger.debug(
-            `Semantic search is not available, falling back to title-based filtering: ${semanticErr}`
-          );
-        }
-
-        const result: any[] = await parseHelper(`{${CoreAIModuleName}/Document? {}}`, env);
-        if (result && result.length > 0) {
-          const docs: Instance[] = [];
-          for (let i = 0; i < result.length; ++i) {
-            const v: any = result[i];
-            const docTitle: string | undefined = AgentInstance.getDocumentTitle(v);
-
-            if (docTitle && docTitles.includes(docTitle)) {
-              if (v instanceof Instance) {
-                docs.push(v);
-              }
-            }
-          }
-
-          if (docs.length > 0) {
-            return message.concat('\n\nRelevant context from documents:\n').concat(
-              docs
-                .map((v: Instance) => {
-                  return v.lookup('content') as string;
-                })
-                .join('\n\n')
-            );
-          }
-        }
-      } catch (err) {
-        logger.debug(`Error retrieving documents: ${err}`);
-      }
-    }
     return message;
-  }
-
-  private static docTitlesMatch(title: string | undefined, docNames: string[]): boolean {
-    return title !== undefined && docNames.includes(title);
-  }
-
-  private static getDocumentTitle(doc: any): string | undefined {
-    if (typeof doc.lookup === 'function') {
-      return doc.lookup('title') as string | undefined;
-    } else if (doc.attributes) {
-      return doc.attributes.get('title') as string | undefined;
-    } else if (doc.title) {
-      return doc.title;
-    }
-    return undefined;
   }
 
   private static ToolsCache = new Map<string, string>();
