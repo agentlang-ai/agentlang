@@ -38,12 +38,12 @@ function normalizeKnowledgeQueryPayload(payload: any): any {
 }
 
 export class KnowledgeService {
-  private graphDb: GraphDatabase;
-  private deduplicator: SemanticDeduplicator;
-  private documentProcessor: DocumentProcessor;
-  private conversationProcessor: ConversationProcessor;
-  private contextBuilder: ContextBuilder;
-  private extractor: EntityExtractor;
+  private graphDb: GraphDatabase | null;
+  private deduplicator: SemanticDeduplicator | null;
+  private documentProcessor: DocumentProcessor | null;
+  private conversationProcessor: ConversationProcessor | null;
+  private contextBuilder: ContextBuilder | null;
+  private extractor: EntityExtractor | null;
   private processingDocuments: Set<string> = new Set();
   private processedAgents: Set<string> = new Set();
   private readonly enabled: boolean;
@@ -54,8 +54,45 @@ export class KnowledgeService {
     const configEnabled = isKnowledgeGraphEnabled();
     const kgConfig = getKnowledgeGraphConfig();
 
+    const configuredServiceUrl = kgConfig?.serviceUrl?.trim();
+    this.remoteKnowledgeServiceUrl =
+      configuredServiceUrl || process.env.KNOWLEDGE_SERVICE_URL || null;
+
+    if (!configEnabled) {
+      logger.info(
+        '[KNOWLEDGE] Knowledge graph is disabled in config. Set knowledgeGraph.enabled to true to enable.'
+      );
+      this.enabled = false;
+    } else if (!this.remoteKnowledgeServiceUrl) {
+      logger.warn(
+        '[KNOWLEDGE] Knowledge graph enabled but no backend configured. ' +
+          'Set knowledgeGraph.serviceUrl (or KNOWLEDGE_SERVICE_URL) to use knowledge-service.'
+      );
+      this.enabled = false;
+    } else {
+      this.enabled = true;
+    }
+
+    // When remote knowledge-service is configured, agentlang acts as a thin client.
+    // All embedding, chunking, graph storage, and retrieval is handled by knowledge-service.
+    // Skip initializing local Neo4j, embedding pipelines, and document processors.
+    if (this.remoteKnowledgeServiceUrl) {
+      logger.info(
+        `[KNOWLEDGE] Remote knowledge-service mode: ${this.remoteKnowledgeServiceUrl}. ` +
+          'Local Neo4j/embedding pipelines will NOT be initialized.'
+      );
+      this.graphDb = null;
+      this.deduplicator = null;
+      this.documentProcessor = null;
+      this.conversationProcessor = null;
+      this.contextBuilder = null;
+      this.extractor = null;
+      return;
+    }
+
+    // --- Local mode: initialize all local processing dependencies ---
+
     // Create Neo4jDatabase with config values if available
-    // Config values fall back to environment variables, then to defaults
     if (graphDb) {
       this.graphDb = graphDb;
     } else {
@@ -79,26 +116,6 @@ export class KnowledgeService {
         : 200,
     };
 
-    const configuredServiceUrl = kgConfig?.serviceUrl?.trim();
-    this.remoteKnowledgeServiceUrl =
-      configuredServiceUrl || process.env.KNOWLEDGE_SERVICE_URL || null;
-
-    // Backend retrieval mode only: agentlang runtime does not manage Neo4j/embedding pipelines.
-    if (!configEnabled) {
-      logger.info(
-        '[KNOWLEDGE] Knowledge graph is disabled in config. Set knowledgeGraph.enabled to true to enable.'
-      );
-      this.enabled = false;
-    } else if (!this.remoteKnowledgeServiceUrl) {
-      logger.warn(
-        '[KNOWLEDGE] Knowledge graph enabled but no backend configured. ' +
-          'Set knowledgeGraph.serviceUrl (or KNOWLEDGE_SERVICE_URL) to use knowledge-service.'
-      );
-      this.enabled = false;
-    } else {
-      this.enabled = true;
-    }
-
     this.deduplicator = new SemanticDeduplicator(resolvedEmbeddingConfig);
     this.documentProcessor = new DocumentProcessor(this.graphDb, this.deduplicator);
     this.conversationProcessor = new ConversationProcessor(this.deduplicator);
@@ -115,6 +132,7 @@ export class KnowledgeService {
       logger.info('[KNOWLEDGE] Remote knowledge-service mode enabled; local Neo4j init skipped');
       return;
     }
+    if (!this.graphDb) return;
     try {
       await this.graphDb.connect();
       logger.info('[KNOWLEDGE] Graph database connected');
@@ -128,6 +146,7 @@ export class KnowledgeService {
   }
 
   async shutdown(): Promise<void> {
+    if (!this.graphDb) return;
     try {
       await this.graphDb.disconnect();
     } catch (err) {
@@ -221,11 +240,11 @@ export class KnowledgeService {
     env?: Environment,
     llmName?: string
   ): Promise<ProcessingResult> {
-    if (!this.enabled) return KnowledgeService.EMPTY_RESULT;
-    if (this.remoteKnowledgeServiceUrl) {
-      logger.info('[KNOWLEDGE] Remote knowledge-service configured, skipping local document processing');
+    if (!this.enabled || this.remoteKnowledgeServiceUrl) {
+      // In remote mode, all document processing is handled by knowledge-service.
       return KnowledgeService.EMPTY_RESULT;
     }
+    if (!this.documentProcessor) return KnowledgeService.EMPTY_RESULT;
     return this.documentProcessor.processDocument(document, containerTag, env, llmName);
   }
 
@@ -349,8 +368,12 @@ export class KnowledgeService {
           contextString: data.contextString || '',
         };
       } catch (err) {
-        logger.warn(`[KNOWLEDGE] Remote context query failed, falling back to local context builder: ${err}`);
+        logger.error(`[KNOWLEDGE] Remote knowledge-service query failed: ${err}`);
+        return { entities: [], relationships: [], instanceData: [], contextString: '' };
       }
+    }
+    if (!this.contextBuilder) {
+      return { entities: [], relationships: [], instanceData: [], contextString: '' };
     }
     return this.contextBuilder.buildContext(query, containerTag, containerTag, []);
   }
@@ -368,9 +391,8 @@ export class KnowledgeService {
     env?: Environment,
     llmName?: string
   ): Promise<void> {
-    if (!this.enabled) return;
-    if (this.remoteKnowledgeServiceUrl) {
-      // Backend knowledge graph is read-only at runtime; do not mutate from conversation turns.
+    if (!this.enabled || this.remoteKnowledgeServiceUrl) {
+      // In remote mode, conversation processing is handled by knowledge-service.
       return;
     }
 
@@ -392,7 +414,7 @@ export class KnowledgeService {
 
     // Process conversation: entity extraction includes turn_type classification
     try {
-      const entityResult = await this.conversationProcessor.processMessage(
+      const entityResult = await this.conversationProcessor!.processMessage(
         userMessage,
         assistantResponse,
         session.agentId,
@@ -406,7 +428,7 @@ export class KnowledgeService {
       let factsCount = 0;
       if (entityResult.nodesCreated > 0 || entityResult.nodesMerged > 0) {
         try {
-          const facts = await this.extractor.extractFacts(
+          const facts = await this.extractor!.extractFacts(
             userMessage,
             assistantResponse,
             env,
@@ -437,11 +459,8 @@ export class KnowledgeService {
     env?: Environment,
     llmName?: string
   ): Promise<void> {
-    if (!this.enabled) return;
-    if (this.remoteKnowledgeServiceUrl) {
-      logger.info(
-        '[KNOWLEDGE] Remote knowledge-service configured; skipping local agent document ingestion'
-      );
+    if (!this.enabled || this.remoteKnowledgeServiceUrl) {
+      // In remote mode, document ingestion is handled by knowledge-service.
       return;
     }
     logger.info(
@@ -582,8 +601,7 @@ export class KnowledgeService {
    * clearing existing data — nodes/edges are created or updated in place.
    */
   async syncToNeo4j(containerTag: string): Promise<void> {
-    if (this.remoteKnowledgeServiceUrl) {
-      logger.info('[KNOWLEDGE] Remote knowledge-service configured; skipping local Neo4j sync');
+    if (this.remoteKnowledgeServiceUrl || !this.graphDb) {
       return;
     }
     if (!this.graphDb.isConnected()) {
@@ -669,7 +687,7 @@ export class KnowledgeService {
    * SQLite/LanceDB is the source of truth; Neo4j is a derived view.
    */
   private async syncAllContainersToNeo4j(): Promise<void> {
-    if (!this.graphDb.isConnected()) return;
+    if (!this.graphDb || !this.graphDb.isConnected()) return;
 
     try {
       // Clear all existing Neo4j data — full rebuild from source of truth
@@ -716,6 +734,7 @@ export class KnowledgeService {
     replacement: { name: string; entityType: string; description?: string },
     session: KnowledgeSessionContext
   ): Promise<void> {
+    if (!this.deduplicator) return;
     await this.deduplicator.supersedeNode(
       existingNodeId,
       replacement,
@@ -729,6 +748,7 @@ export class KnowledgeService {
    * Remove a node entirely from the knowledge graph.
    */
   async removeNode(nodeId: string): Promise<void> {
+    if (!this.deduplicator) return;
     await this.deduplicator.removeNode(nodeId);
   }
 
@@ -904,7 +924,7 @@ export class KnowledgeService {
         undefined
       );
 
-      if (this.graphDb.isConnected()) {
+      if (this.graphDb && this.graphDb.isConnected()) {
         await this.graphDb.updateNode(nodeId, { instanceId, instanceType });
       }
     } catch (err) {
@@ -958,7 +978,7 @@ export class KnowledgeService {
   ): Promise<void> {
     for (const fact of facts) {
       try {
-        await this.deduplicator.findOrCreateNode(
+        await this.deduplicator!.findOrCreateNode(
           { name: fact.content, entityType: 'Fact', description: fact.category },
           session.agentId,
           'CONVERSATION',
