@@ -136,7 +136,6 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
 
 let LastActiveConfig: Config | undefined;
 
-
 export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
   await initDatabase(config?.store);
   await importModule('../runtime/api.js', 'agentlang');

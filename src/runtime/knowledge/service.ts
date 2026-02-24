@@ -232,9 +232,23 @@ export class KnowledgeService {
         const rawPayload: any = await response.json();
         const payload = normalizeKnowledgeQueryPayload(rawPayload);
         return {
-          entities: (payload?.entities || []).map((e: any) => ({ id: e.id || "", name: e.name || "", type: e.entityType || e.type || "", properties: e })),
-          relationships: (payload?.edges || []).map((e: any) => ({ source: e.sourceId || "", target: e.targetId || "", type: e.relationType || e.type || "", weight: e.weight || 1 })),
-          instanceData: (payload?.chunks || []).map((c: any) => ({ instanceId: c.id || "", entityType: "KnowledgeChunk", data: c })),
+          entities: (payload?.entities || []).map((e: any) => ({
+            id: e.id || '',
+            name: e.name || '',
+            type: e.entityType || e.type || '',
+            properties: e,
+          })),
+          relationships: (payload?.edges || []).map((e: any) => ({
+            source: e.sourceId || '',
+            target: e.targetId || '',
+            type: e.relationType || e.type || '',
+            weight: e.weight || 1,
+          })),
+          instanceData: (payload?.chunks || []).map((c: any) => ({
+            instanceId: c.id || '',
+            entityType: 'KnowledgeChunk',
+            data: c,
+          })),
           contextString: payload?.contextString || '',
         };
       }
