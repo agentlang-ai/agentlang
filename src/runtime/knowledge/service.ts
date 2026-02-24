@@ -2,8 +2,10 @@ import { logger } from '../logger.js';
 import { CoreKnowledgeModuleName } from '../modules/knowledge.js';
 import { parseAndEvaluateStatement, Environment } from '../interpreter.js';
 import { escapeString } from './utils.js';
-import type { KnowledgeContext, ProcessingResult, SourceType } from '../graph/types.js';
+import type { Instance } from '../module.js';
+import type { KnowledgeContext } from '../graph/types.js';
 import { isKnowledgeGraphEnabled, getKnowledgeGraphConfig } from '../state.js';
+import crypto from 'crypto';
 
 // Maximum number of session messages to retain per session (prevents database bloat)
 const MAX_KNOWLEDGE_SESSION_MESSAGES = parseInt(
@@ -27,11 +29,11 @@ function normalizeKnowledgeQueryPayload(payload: any): any {
 }
 
 /**
- * KnowledgeService — thin client that delegates all knowledge operations
- * to a remote knowledge-service instance.
+ * KnowledgeService — thin remote client.
  *
- * When knowledgeGraph.enabled is true and knowledgeGraph.serviceUrl is set,
- * all embedding, chunking, graph storage, and retrieval is handled remotely.
+ * All embedding, chunking, graph storage, and retrieval is handled by the
+ * remote knowledge-service (deployed) or agentlang-cli's LocalKnowledgeService
+ * (local dev). This class only manages session context and delegates queries.
  */
 export class KnowledgeService {
   private readonly enabled: boolean;
@@ -53,14 +55,15 @@ export class KnowledgeService {
     } else if (!this.remoteKnowledgeServiceUrl) {
       logger.warn(
         '[KNOWLEDGE] Knowledge graph enabled but no serviceUrl configured. ' +
-          'Set knowledgeGraph.serviceUrl or KNOWLEDGE_SERVICE_URL env var.'
+          'Set knowledgeGraph.serviceUrl or KNOWLEDGE_SERVICE_URL.'
       );
       this.enabled = false;
     } else {
-      logger.info(
-        `[KNOWLEDGE] Remote knowledge-service configured: ${this.remoteKnowledgeServiceUrl}`
-      );
       this.enabled = true;
+      logger.info(
+        `[KNOWLEDGE] Remote knowledge-service mode: ${this.remoteKnowledgeServiceUrl}. ` +
+          'All processing delegated to remote service.'
+      );
     }
   }
 
@@ -68,133 +71,126 @@ export class KnowledgeService {
     return this.enabled;
   }
 
-  getServiceUrl(): string | null {
-    return this.remoteKnowledgeServiceUrl;
-  }
+  // ─── Session management ────────────────────────────────────────────
 
-  async init(): Promise<void> {
-    if (!this.enabled) return;
-    logger.info(
-      `[KNOWLEDGE] Knowledge service initialized (remote: ${this.remoteKnowledgeServiceUrl})`
-    );
-  }
-
-  async shutdown(): Promise<void> {
-    // No local resources to clean up in remote-only mode
-  }
-
-  // --- Session Management ---
-
-  async getOrCreateSession(agentFqName: string): Promise<KnowledgeSessionContext> {
-    if (!this.enabled) {
-      throw new Error('Knowledge service is disabled');
-    }
-
-    const agentId = agentFqName;
+  async createSession(
+    sessionId: string,
+    agentId: string,
+    env: Environment
+  ): Promise<KnowledgeSessionContext> {
+    const ctx: KnowledgeSessionContext = { sessionId, agentId };
 
     try {
-      const result = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeSession {
-          agentId? "${escapeString(agentId)}",
-          
-          agentId? "${escapeString(agentId)}"}}`,
-        undefined
+      const existingResult: any[] = await parseAndEvaluateStatement(
+        `{${CoreKnowledgeModuleName}/KnowledgeSession? {sessionId "${escapeString(sessionId)}" agentId "${escapeString(agentId)}"}}`,
+        undefined,
+        env
+      );
+
+      if (!existingResult || existingResult.length === 0) {
+        await parseAndEvaluateStatement(
+          `{${CoreKnowledgeModuleName}/KnowledgeSession {sessionId "${escapeString(sessionId)}" agentId "${escapeString(agentId)}"}}`,
+          undefined,
+          env
+        );
+      }
+    } catch (err) {
+      logger.debug(`[KNOWLEDGE] Error creating session: ${err}`);
+    }
+
+    return ctx;
+  }
+
+  async addSessionMessage(
+    ctx: KnowledgeSessionContext,
+    role: string,
+    content: string,
+    env: Environment
+  ): Promise<void> {
+    if (!this.enabled) return;
+
+    try {
+      const countResult: any[] = await parseAndEvaluateStatement(
+        `{${CoreKnowledgeModuleName}/KnowledgeSessionMessage? {sessionId "${escapeString(ctx.sessionId)}"}}`,
+        undefined,
+        env
+      );
+
+      if (countResult && countResult.length >= MAX_KNOWLEDGE_SESSION_MESSAGES) {
+        const oldest = countResult[0];
+        const oldestId =
+          oldest instanceof Object && 'lookup' in oldest
+            ? (oldest as Instance).lookup('id')
+            : (oldest as any).id;
+        if (oldestId) {
+          await parseAndEvaluateStatement(
+            `{:delete ${CoreKnowledgeModuleName}/KnowledgeSessionMessage "${oldestId}"}`,
+            undefined,
+            env
+          );
+        }
+      }
+
+      const messageId = crypto.randomUUID();
+      await parseAndEvaluateStatement(
+        `{${CoreKnowledgeModuleName}/KnowledgeSessionMessage {id "${messageId}" sessionId "${escapeString(ctx.sessionId)}" role "${escapeString(role)}" content "${escapeString(content)}"}}`,
+        undefined,
+        env
+      );
+    } catch (err) {
+      logger.debug(`[KNOWLEDGE] Error adding session message: ${err}`);
+    }
+  }
+
+  async getSessionMessages(
+    ctx: KnowledgeSessionContext,
+    env: Environment
+  ): Promise<Array<{ role: string; content: string }>> {
+    if (!this.enabled) return [];
+
+    try {
+      const result: any[] = await parseAndEvaluateStatement(
+        `{${CoreKnowledgeModuleName}/KnowledgeSessionMessage? {sessionId "${escapeString(ctx.sessionId)}"}}`,
+        undefined,
+        env
       );
 
       if (result && result.length > 0) {
-        const session = result[0];
-        return {
-          sessionId: session.lookup('id'),
-          agentId: session.lookup('agentId'),
-        };
+        return result.map((msg: any) => {
+          if (msg instanceof Object && 'lookup' in msg) {
+            const inst = msg as Instance;
+            return {
+              role: inst.lookup('role') as string,
+              content: inst.lookup('content') as string,
+            };
+          }
+          return { role: msg.role, content: msg.content };
+        });
       }
-
-      logger.info(`[KNOWLEDGE] Creating new session for agentId=${agentId}`);
-      const sessionStatement = `{${CoreKnowledgeModuleName}/KnowledgeSession {
-          agentId "${escapeString(agentId)}",
-          
-          agentId "${escapeString(agentId)}",
-          messages "[]",
-          createdAt now(),
-          lastActivity now()}}`;
-      logger.info(`[KNOWLEDGE] Executing: ${sessionStatement}`);
-
-      try {
-        await parseAndEvaluateStatement(sessionStatement, undefined);
-        logger.info(`[KNOWLEDGE] Session creation executed, now querying...`);
-      } catch (parseErr) {
-        logger.error(`[KNOWLEDGE] Failed to parse/create session: ${parseErr}`);
-        throw parseErr;
-      }
-
-      // Query for the created session
-      const queryResult = await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeSession {
-          agentId? "${escapeString(agentId)}",
-          
-          agentId? "${escapeString(agentId)}"}}`,
-        undefined
-      );
-
-      if (queryResult && queryResult.length > 0) {
-        const session = queryResult[0];
-        logger.info(`[KNOWLEDGE] Session found after creation: ${session.lookup('id')}`);
-        return {
-          sessionId: session.lookup('id'),
-          agentId: session.lookup('agentId'),
-        };
-      }
-
-      throw new Error('Failed to create knowledge session - session not found after creation');
     } catch (err) {
-      logger.error(`[KNOWLEDGE] Failed to get or create session: ${err}`);
-      throw err;
+      logger.debug(`[KNOWLEDGE] Error getting session messages: ${err}`);
     }
+
+    return [];
   }
 
-  // --- Document Processing (delegated to knowledge-service) ---
+  // ─── Knowledge query (remote) ──────────────────────────────────────
 
-  private static readonly EMPTY_RESULT: ProcessingResult = {
-    nodes: [],
-    edges: [],
-    nodesCreated: 0,
-    nodesMerged: 0,
-    edgesCreated: 0,
-  };
-
-  async processDocuments(
-    _documents: any[],
-    _containerTag: string,
-    _agentId?: string,
-    _env?: Environment,
-    _llmName?: string
-  ): Promise<ProcessingResult> {
-    // All document processing is handled by knowledge-service.
-    if (this.enabled) {
-      logger.debug(
-        '[KNOWLEDGE] Document processing is handled by remote knowledge-service. ' +
-          'Upload documents via the knowledge-service upload API.'
-      );
-    }
-    return KnowledgeService.EMPTY_RESULT;
-  }
-
-  // --- Context Retrieval (queries knowledge-service) ---
-
-  async buildContext(
+  async queryKnowledge(
     query: string,
-    containerTag: string,
-    _agentId?: string
-  ): Promise<KnowledgeContext> {
-    const emptyContext: KnowledgeContext = {
-      entities: [],
-      relationships: [],
-      instanceData: [],
-      contextString: '',
-    };
-
+    containerTags: string[],
+    options?: {
+      chunkLimit?: number;
+      entityLimit?: number;
+      includeChunks?: boolean;
+      includeEntities?: boolean;
+      includeEdges?: boolean;
+      documentTitles?: string[];
+      documentRefs?: string[];
+    }
+  ): Promise<KnowledgeContext | null> {
     if (!this.enabled || !this.remoteKnowledgeServiceUrl) {
-      return emptyContext;
+      return null;
     }
 
     try {
@@ -203,14 +199,12 @@ export class KnowledgeService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
-          containerTags: [containerTag],
+          containerTags,
+          ...options,
         }),
       });
 
-      let data: any;
-      if (response.ok) {
-        data = await response.json();
-      } else {
+      if (!response.ok) {
         // Fallback to Agentlang-native endpoint when /api adapter is unavailable.
         response = await fetch(
           `${this.remoteKnowledgeServiceUrl}/knowledge.core/ApiKnowledgeQuery`,
@@ -219,154 +213,61 @@ export class KnowledgeService {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               queryText: query,
-              containerTagsJson: JSON.stringify([containerTag]),
+              containerTagsJson: JSON.stringify(containerTags),
+              documentTitlesJson: JSON.stringify(options?.documentTitles || []),
+              documentRefsJson: JSON.stringify(options?.documentRefs || []),
               optionsJson: JSON.stringify({
-                includeChunks: true,
-                includeEntities: true,
-                includeEdges: true,
+                includeChunks: options?.includeChunks ?? true,
+                includeEntities: options?.includeEntities ?? true,
+                includeEdges: options?.includeEdges ?? true,
+                chunkLimit: options?.chunkLimit,
+                entityLimit: options?.entityLimit,
               }),
             }),
           }
         );
-        if (!response.ok) {
-          throw new Error(`knowledge-service query failed (${response.status})`);
-        }
-        data = normalizeKnowledgeQueryPayload(await response.json());
-        data = {
-          chunks: JSON.parse(data?.chunks || '[]'),
-          entities: JSON.parse(data?.entities || '[]'),
-          edges: JSON.parse(data?.edges || '[]'),
-          contextString: data?.contextString || '',
+      }
+
+      if (response.ok) {
+        const rawPayload: any = await response.json();
+        const payload = normalizeKnowledgeQueryPayload(rawPayload);
+        return {
+          entities: (payload?.entities || []).map((e: any) => ({ id: e.id || "", name: e.name || "", type: e.entityType || e.type || "", properties: e })),
+          relationships: (payload?.edges || []).map((e: any) => ({ source: e.sourceId || "", target: e.targetId || "", type: e.relationType || e.type || "", weight: e.weight || 1 })),
+          instanceData: (payload?.chunks || []).map((c: any) => ({ instanceId: c.id || "", entityType: "KnowledgeChunk", data: c })),
+          contextString: payload?.contextString || '',
         };
       }
 
-      const entities = Array.isArray(data.entities)
-        ? data.entities.map((entity: any) => ({
-            id: entity.id,
-            name: entity.name,
-            entityType: entity.entityType || 'UNKNOWN',
-            description: entity.description,
-            sourceType: 'DOCUMENT' as SourceType,
-            sourceId: undefined,
-            sourceChunk: undefined,
-            instanceId: undefined,
-            instanceType: undefined,
-            agentId: containerTag,
-            confidence: Number(entity.confidence ?? 1),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            isLatest: true,
-          }))
-        : [];
-      const relationships = Array.isArray(data.edges)
-        ? data.edges.map((edge: any) => ({
-            sourceId: edge.sourceId,
-            targetId: edge.targetId,
-            relationship: edge.relType || edge.relationship || 'RELATED_TO',
-            weight: Number(edge.weight ?? 1),
-          }))
-        : [];
-      return {
-        entities,
-        relationships,
-        instanceData: [],
-        contextString: data.contextString || '',
-      };
-    } catch (err) {
-      logger.error(`[KNOWLEDGE] Remote knowledge-service query failed: ${err}`);
-      return emptyContext;
-    }
-  }
-
-  buildContextString(context: KnowledgeContext): string {
-    return context.contextString;
-  }
-
-  // --- Conversation Processing (delegated to knowledge-service) ---
-
-  async processConversationTurn(
-    _userMessage: string,
-    _assistantResponse: string,
-    session: KnowledgeSessionContext,
-    _env?: Environment,
-    _llmName?: string
-  ): Promise<void> {
-    if (!this.enabled) return;
-
-    // Store conversation locally for session continuity
-    await this.storeSessionMessage(session.sessionId, 'user', _userMessage);
-    await this.storeSessionMessage(session.sessionId, 'assistant', _assistantResponse);
-
-    // Update session activity
-    try {
-      await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/KnowledgeSession {
-          id "${session.sessionId}",
-          lastActivity now()}, @upsert}`,
-        undefined
-      );
-    } catch (err) {
-      logger.debug(`[KNOWLEDGE] Failed to update session activity: ${err}`);
-    }
-
-    // Entity extraction and graph updates are handled by knowledge-service
-    // when documents are ingested through its pipeline.
-  }
-
-  // --- Agent Document Processing (delegated to knowledge-service) ---
-
-  async maybeProcessAgentDocuments(
-    _session: KnowledgeSessionContext,
-    _documentTitles: string[],
-    _env?: Environment,
-    _llmName?: string
-  ): Promise<void> {
-    // All document ingestion is handled by knowledge-service.
-    if (this.enabled) {
       logger.debug(
-        '[KNOWLEDGE] Agent document processing is handled by remote knowledge-service.'
-      );
-    }
-  }
-
-  // --- Private Helpers ---
-
-  private async storeSessionMessage(
-    sessionId: string,
-    role: 'user' | 'assistant' | 'system',
-    content: string
-  ): Promise<void> {
-    try {
-      await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/SessionMessage {
-          role "${role}",
-          content "${escapeString(content)}",
-          sessionId "${sessionId}"}}`,
-        undefined
-      );
-      await this.cleanupOldSessionMessages(sessionId);
-    } catch (err) {
-      logger.debug(`[KNOWLEDGE] Failed to store session message: ${err}`);
-    }
-  }
-
-  private async cleanupOldSessionMessages(sessionId: string): Promise<void> {
-    try {
-      await parseAndEvaluateStatement(
-        `{${CoreKnowledgeModuleName}/SessionMessage {
-          sessionId "${sessionId}"},
-          @delete {
-            @sort {"createdAt": "asc"},
-            @offset ${MAX_KNOWLEDGE_SESSION_MESSAGES},
-            @limit 1000
-          }}`,
-        undefined
+        `[KNOWLEDGE] Remote query failed with status ${response.status}: ${response.statusText}`
       );
     } catch (err) {
-      logger.debug(`[KNOWLEDGE] Failed to cleanup old session messages: ${err}`);
+      logger.debug(`[KNOWLEDGE] Remote knowledge-service query error: ${err}`);
     }
+
+    return null;
+  }
+
+  // ─── Document processing (no-op — delegated to remote service) ─────
+
+  async processDocuments(
+    _agentId: string,
+    _documents: string,
+    _env: Environment
+  ): Promise<{ processed: number; errors: string[] }> {
+    // Document ingestion is handled by knowledge-service's uploadDocumentVersion workflow.
+    return { processed: 0, errors: [] };
+  }
+
+  // ─── Lifecycle ─────────────────────────────────────────────────────
+
+  async close(): Promise<void> {
+    logger.info('[KNOWLEDGE] KnowledgeService closed.');
   }
 }
+
+// ─── Singleton access ──────────────────────────────────────────────
 
 export function getKnowledgeService(): KnowledgeService {
   if (!knowledgeServiceInstance) {
@@ -377,7 +278,7 @@ export function getKnowledgeService(): KnowledgeService {
 
 export function resetKnowledgeService(): void {
   if (knowledgeServiceInstance) {
-    knowledgeServiceInstance.shutdown().catch(() => {});
+    knowledgeServiceInstance.close().catch(() => {});
     knowledgeServiceInstance = null;
   }
 }
