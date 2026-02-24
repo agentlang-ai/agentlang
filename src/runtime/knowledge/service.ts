@@ -39,6 +39,7 @@ export class KnowledgeService {
   private processingDocuments: Set<string> = new Set();
   private processedAgents: Set<string> = new Set();
   private readonly enabled: boolean;
+  private readonly remoteKnowledgeServiceUrl: string | null;
 
   constructor(graphDb?: GraphDatabase, embeddingConfig?: any) {
     // Check if knowledge graph is enabled via config
@@ -70,23 +71,20 @@ export class KnowledgeService {
         : 200,
     };
 
-    const hasApiKey = !!(
-      resolvedEmbeddingConfig.apiKey ||
-      process.env.AGENTLANG_OPENAI_KEY ||
-      process.env.OPENAI_API_KEY
-    );
+    const configuredServiceUrl = kgConfig?.serviceUrl?.trim();
+    this.remoteKnowledgeServiceUrl =
+      configuredServiceUrl || process.env.KNOWLEDGE_SERVICE_URL || null;
 
-    // Knowledge graph is enabled only if config says so AND we have an API key
+    // Backend retrieval mode only: agentlang runtime does not manage Neo4j/embedding pipelines.
     if (!configEnabled) {
       logger.info(
         '[KNOWLEDGE] Knowledge graph is disabled in config. Set knowledgeGraph.enabled to true to enable.'
       );
       this.enabled = false;
-    } else if (!hasApiKey) {
+    } else if (!this.remoteKnowledgeServiceUrl) {
       logger.warn(
-        '[KNOWLEDGE] No embedding API key configured (AGENTLANG_OPENAI_KEY or OPENAI_API_KEY). ' +
-          'Knowledge base features are disabled. Set an API key to enable knowledge graph extraction, ' +
-          'deduplication, and context retrieval.'
+        '[KNOWLEDGE] Knowledge graph enabled but no backend configured. ' +
+          'Set knowledgeGraph.serviceUrl (or KNOWLEDGE_SERVICE_URL) to use knowledge-service.'
       );
       this.enabled = false;
     } else {
@@ -105,6 +103,10 @@ export class KnowledgeService {
   }
 
   async init(): Promise<void> {
+    if (this.remoteKnowledgeServiceUrl) {
+      logger.info('[KNOWLEDGE] Remote knowledge-service mode enabled; local Neo4j init skipped');
+      return;
+    }
     try {
       await this.graphDb.connect();
       logger.info('[KNOWLEDGE] Graph database connected');
@@ -212,6 +214,10 @@ export class KnowledgeService {
     llmName?: string
   ): Promise<ProcessingResult> {
     if (!this.enabled) return KnowledgeService.EMPTY_RESULT;
+    if (this.remoteKnowledgeServiceUrl) {
+      logger.info('[KNOWLEDGE] Remote knowledge-service configured, skipping local document processing');
+      return KnowledgeService.EMPTY_RESULT;
+    }
     return this.documentProcessor.processDocument(document, containerTag, env, llmName);
   }
 
@@ -261,6 +267,56 @@ export class KnowledgeService {
     if (!this.enabled) {
       return { entities: [], relationships: [], instanceData: [], contextString: '' };
     }
+    if (this.remoteKnowledgeServiceUrl) {
+      try {
+        const response = await fetch(`${this.remoteKnowledgeServiceUrl}/api/knowledge/query`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            containerTags: [containerTag],
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(`knowledge-service query failed (${response.status})`);
+        }
+        const data: any = await response.json();
+        const entities = Array.isArray(data.entities)
+          ? data.entities.map((entity: any) => ({
+              id: entity.id,
+              name: entity.name,
+              entityType: entity.entityType || 'UNKNOWN',
+              description: entity.description,
+              sourceType: 'DOCUMENT' as SourceType,
+              sourceId: undefined,
+              sourceChunk: undefined,
+              instanceId: undefined,
+              instanceType: undefined,
+              agentId: containerTag,
+              confidence: Number(entity.confidence ?? 1),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              isLatest: true,
+            }))
+          : [];
+        const relationships = Array.isArray(data.edges)
+          ? data.edges.map((edge: any) => ({
+              sourceId: edge.sourceId,
+              targetId: edge.targetId,
+              relationship: edge.relType || edge.relationship || 'RELATED_TO',
+              weight: Number(edge.weight ?? 1),
+            }))
+          : [];
+        return {
+          entities,
+          relationships,
+          instanceData: [],
+          contextString: data.contextString || '',
+        };
+      } catch (err) {
+        logger.warn(`[KNOWLEDGE] Remote context query failed, falling back to local context builder: ${err}`);
+      }
+    }
     return this.contextBuilder.buildContext(query, containerTag, containerTag, []);
   }
 
@@ -278,6 +334,10 @@ export class KnowledgeService {
     llmName?: string
   ): Promise<void> {
     if (!this.enabled) return;
+    if (this.remoteKnowledgeServiceUrl) {
+      // Backend knowledge graph is read-only at runtime; do not mutate from conversation turns.
+      return;
+    }
 
     // Store conversation as session messages
     await this.storeSessionMessage(session.sessionId, 'user', userMessage);
@@ -343,6 +403,12 @@ export class KnowledgeService {
     llmName?: string
   ): Promise<void> {
     if (!this.enabled) return;
+    if (this.remoteKnowledgeServiceUrl) {
+      logger.info(
+        '[KNOWLEDGE] Remote knowledge-service configured; skipping local agent document ingestion'
+      );
+      return;
+    }
     logger.info(
       `[KNOWLEDGE] maybeProcessAgentDocuments called for session ${session.sessionId} with documents: ${documentTitles.join(', ')}`
     );
@@ -481,6 +547,10 @@ export class KnowledgeService {
    * clearing existing data — nodes/edges are created or updated in place.
    */
   async syncToNeo4j(containerTag: string): Promise<void> {
+    if (this.remoteKnowledgeServiceUrl) {
+      logger.info('[KNOWLEDGE] Remote knowledge-service configured; skipping local Neo4j sync');
+      return;
+    }
     if (!this.graphDb.isConnected()) {
       logger.debug('[KNOWLEDGE] Neo4j not connected, skipping sync');
       return;
