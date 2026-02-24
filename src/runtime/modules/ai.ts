@@ -1130,6 +1130,37 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   }
 
   private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
+    const remoteKnowledgeServiceUrl = process.env.KNOWLEDGE_SERVICE_URL;
+    if (remoteKnowledgeServiceUrl && this.documents && this.documents.length > 0) {
+      try {
+        const documentEntries = this.documents
+          .split(',')
+          .map(d => d.trim())
+          .filter(Boolean);
+        const documentTitles = resolveDocumentAliases(documentEntries);
+        const documentRefs = documentEntries.filter(d => d.startsWith('document-service://'));
+        const response = await fetch(`${remoteKnowledgeServiceUrl}/api/knowledge/query`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: message,
+            containerTags: [this.getFqName()],
+            documentTitles,
+            documentRefs,
+          }),
+        });
+        if (response.ok) {
+          const payload: any = await response.json();
+          const contextString = payload?.contextString;
+          if (typeof contextString === 'string' && contextString.trim().length > 0) {
+            return message.concat('\n\nRelevant context from documents:\n').concat(contextString);
+          }
+        }
+      } catch (err) {
+        logger.debug(`Remote knowledge-service retrieval failed, falling back to local docs: ${err}`);
+      }
+    }
+
     if (this.documents && this.documents.length > 0) {
       try {
         const docNames = this.documents.split(',').map(d => d.trim());

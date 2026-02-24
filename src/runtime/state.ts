@@ -99,6 +99,9 @@ export const ConfigSchema = z.object({
   knowledgeGraph: z
     .object({
       enabled: z.boolean().default(false),
+      serviceUrl: z
+        .string()
+        .default('#js process.env.KNOWLEDGE_SERVICE_URL || ""'),
       neo4j: z
         .object({
           uri: z.string().default('#js process.env.GRAPH_DB_URI || "bolt://localhost:7687"'),
