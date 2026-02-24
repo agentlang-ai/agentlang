@@ -1135,7 +1135,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     return result;
   }
 
-  private async maybeAddRelevantDocuments(message: string, _env: Environment): Promise<string> {
+  private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
     if (!this.documents || this.documents.length === 0) {
       return message;
     }
@@ -1145,9 +1145,6 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       kgConfig?.serviceUrl?.trim() || process.env.KNOWLEDGE_SERVICE_URL || null;
 
     if (!serviceUrl) {
-      logger.debug(
-        '[KNOWLEDGE] No knowledge-service URL configured; skipping document retrieval.'
-      );
       return message;
     }
 

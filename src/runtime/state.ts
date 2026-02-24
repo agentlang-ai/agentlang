@@ -102,13 +102,6 @@ export const ConfigSchema = z.object({
       serviceUrl: z
         .string()
         .default('#js process.env.KNOWLEDGE_SERVICE_URL || ""'),
-      neo4j: z
-        .object({
-          uri: z.string().default('#js process.env.GRAPH_DB_URI || "bolt://localhost:7687"'),
-          user: z.string().default('#js process.env.GRAPH_DB_USER || "neo4j"'),
-          password: z.string().default('#js process.env.GRAPH_DB_PASSWORD || "password"'),
-        })
-        .optional(),
     })
     .optional(),
   authentication: z
