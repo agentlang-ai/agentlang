@@ -365,6 +365,14 @@ export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
 const ProviderDb = new Map<string, AgentServiceProvider>();
 
+function normalizeKnowledgeQueryPayload(payload: any): any {
+  const first = Array.isArray(payload) ? payload[0] : payload;
+  if (first && typeof first === 'object' && first.KnowledgeQuery) {
+    return first.KnowledgeQuery;
+  }
+  return first;
+}
+
 export class AgentInstance {
   llm: string = '';
   name: string = '';
@@ -1137,7 +1145,8 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           .filter(Boolean);
         const documentTitles = resolveDocumentAliases(documentEntries);
         const documentRefs = documentEntries.filter(d => d.startsWith('document-service://'));
-        const response = await fetch(`${remoteKnowledgeServiceUrl}/api/knowledge/query`, {
+
+        let response = await fetch(`${remoteKnowledgeServiceUrl}/api/knowledge/query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1147,8 +1156,29 @@ Only return a pure JSON object with no extra text, annotations etc.`;
             documentRefs,
           }),
         });
+
+        if (!response.ok) {
+          // Fallback to Agentlang-native endpoint when /api adapter is unavailable.
+          response = await fetch(`${remoteKnowledgeServiceUrl}/knowledge.core/ApiKnowledgeQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: message,
+              containerTagsJson: JSON.stringify([this.getFqName()]),
+              documentTitlesJson: JSON.stringify(documentTitles),
+              documentRefsJson: JSON.stringify(documentRefs),
+              optionsJson: JSON.stringify({
+                includeChunks: true,
+                includeEntities: true,
+                includeEdges: true,
+              }),
+            }),
+          });
+        }
+
         if (response.ok) {
-          const payload: any = await response.json();
+          const rawPayload: any = await response.json();
+          const payload = normalizeKnowledgeQueryPayload(rawPayload);
           const contextString = payload?.contextString;
           if (typeof contextString === 'string' && contextString.trim().length > 0) {
             return message.concat('\n\nRelevant context from documents:\n').concat(contextString);

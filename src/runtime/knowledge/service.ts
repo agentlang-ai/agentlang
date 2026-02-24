@@ -29,6 +29,14 @@ export interface KnowledgeSessionContext {
 
 let knowledgeServiceInstance: KnowledgeService | null = null;
 
+function normalizeKnowledgeQueryPayload(payload: any): any {
+  const first = Array.isArray(payload) ? payload[0] : payload;
+  if (first && typeof first === 'object' && first.KnowledgeQuery) {
+    return first.KnowledgeQuery;
+  }
+  return first;
+}
+
 export class KnowledgeService {
   private graphDb: GraphDatabase;
   private deduplicator: SemanticDeduplicator;
@@ -269,7 +277,7 @@ export class KnowledgeService {
     }
     if (this.remoteKnowledgeServiceUrl) {
       try {
-        const response = await fetch(`${this.remoteKnowledgeServiceUrl}/api/knowledge/query`, {
+        let response = await fetch(`${this.remoteKnowledgeServiceUrl}/api/knowledge/query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -277,10 +285,37 @@ export class KnowledgeService {
             containerTags: [containerTag],
           }),
         });
-        if (!response.ok) {
-          throw new Error(`knowledge-service query failed (${response.status})`);
+
+        let data: any;
+        if (response.ok) {
+          data = await response.json();
+        } else {
+          // Fallback to Agentlang-native endpoint when /api adapter is unavailable.
+          response = await fetch(`${this.remoteKnowledgeServiceUrl}/knowledge.core/ApiKnowledgeQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query,
+              containerTagsJson: JSON.stringify([containerTag]),
+              optionsJson: JSON.stringify({
+                includeChunks: true,
+                includeEntities: true,
+                includeEdges: true,
+              }),
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(`knowledge-service query failed (${response.status})`);
+          }
+          data = normalizeKnowledgeQueryPayload(await response.json());
+          data = {
+            chunks: JSON.parse(data?.chunks || '[]'),
+            entities: JSON.parse(data?.entities || '[]'),
+            edges: JSON.parse(data?.edges || '[]'),
+            contextString: data?.contextString || '',
+          };
         }
-        const data: any = await response.json();
+
         const entities = Array.isArray(data.entities)
           ? data.entities.map((entity: any) => ({
               id: entity.id,
