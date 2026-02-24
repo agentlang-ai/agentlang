@@ -99,9 +99,7 @@ export const ConfigSchema = z.object({
   knowledgeGraph: z
     .object({
       enabled: z.boolean().default(false),
-      serviceUrl: z
-        .string()
-        .default('#js process.env.KNOWLEDGE_SERVICE_URL || ""'),
+      serviceUrl: z.string().default('#js process.env.KNOWLEDGE_SERVICE_URL || ""'),
     })
     .optional(),
   authentication: z
