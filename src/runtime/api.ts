@@ -1,4 +1,5 @@
 import { fetchConfig as al_fetchConfig } from './interpreter.js';
+import { defaultDataSource } from './resolvers/sqldb/database.js';
 import {
   makeInstance as al_makeInstance,
   isInstanceOfType as al_isInstanceOfType,
@@ -52,6 +53,20 @@ export function initGlobalApi() {
     globalThis.agentlang.getOAuthAuthorizeUrl = al_getOAuthAuthorizeUrl;
     globalThis.agentlang.exchangeOAuthCode = al_exchangeOAuthCode;
     globalThis.agentlang.getAccessToken = al_getAccessToken;
+
+    // Expose raw SQL query for resolvers that need direct database access (e.g. pgvector)
+    globalThis.agentlang.rawQuery = async (sql: string, params?: any[]) => {
+      if (!defaultDataSource || !defaultDataSource.isInitialized) {
+        throw new Error('Database not initialized');
+      }
+      return defaultDataSource.query(sql, params);
+    };
+
+    // Expose database type detection for resolvers
+    globalThis.agentlang.getDbType = () => {
+      if (!defaultDataSource || !defaultDataSource.isInitialized) return 'unknown';
+      return defaultDataSource.options.type;
+    };
 
     ApiInited = true;
   }
