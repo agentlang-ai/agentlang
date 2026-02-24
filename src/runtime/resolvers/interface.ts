@@ -16,6 +16,7 @@ import {
 } from '../module.js';
 import { CrudType, nameToPath, generateLoggerCallId } from '../util.js';
 import { DefaultAuthInfo, ResolverAuthInfo } from './authinfo.js';
+import { getIntegrationAuthHeaders } from '../integration-client.js';
 
 export type JoinInfo = {
   relationship: Relationship;
@@ -43,11 +44,26 @@ export class Resolver {
   protected authInfo: ResolverAuthInfo = DefaultAuthInfo;
   protected env: Environment | undefined;
   protected name: string = 'default';
+  protected integrationName: string | undefined;
 
   static Default = new Resolver();
 
   constructor(name?: string) {
     if (name) this.name = name;
+  }
+
+  public setIntegrationName(name: string): Resolver {
+    this.integrationName = name;
+    return this;
+  }
+
+  public getIntegrationName(): string | undefined {
+    return this.integrationName;
+  }
+
+  public async getAuthHeaders(): Promise<Record<string, string>> {
+    if (!this.integrationName) return {};
+    return getIntegrationAuthHeaders(this.integrationName);
   }
 
   public setAuthInfo(authInfo: ResolverAuthInfo): Resolver {

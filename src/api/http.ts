@@ -59,6 +59,11 @@ import {
   createFileRecord,
   deleteFileRecord,
 } from '../runtime/modules/files.js';
+import {
+  getOAuthAuthorizeUrl,
+  exchangeOAuthCode,
+  getIntegrationAccessToken,
+} from '../runtime/integration-client.js';
 import * as XLSX from 'xlsx';
 import { objectToQueryPattern } from '../language/parser.js';
 
@@ -203,6 +208,79 @@ export async function createApp(appSpec: ApplicationSpec, config?: Config): Prom
     handleQueryAsXlsxPost(req, res);
   });
 
+  // --- Built-in OAuth proxy ---
+  if (config?.integrations?.oauth) {
+    const connections = config.integrations.connections;
+
+    // Resolve provider key (e.g. 'google_drive') to integration entity name
+    // (e.g. 'google-drive') by extracting from the config path.
+    function resolveIntegrationName(provider: string): string {
+      const entry = connections[provider];
+      if (!entry) return provider;
+      const configPath = typeof entry === 'string' ? entry : entry.config;
+      if (!configPath) return provider;
+      return configPath.split('/')[0];
+    }
+
+    app.get('/agentlang/oauth/authorize-url', async (req: Request, res: Response) => {
+      try {
+        const provider = req.query.provider as string;
+        const redirectUri = req.query.redirectUri as string;
+        if (!provider || !redirectUri) {
+          res.status(400).json({ error: 'provider and redirectUri query params are required' });
+          return;
+        }
+        if (!connections[provider]) {
+          res.status(400).json({ error: `Unknown provider: ${provider}` });
+          return;
+        }
+        const result = await getOAuthAuthorizeUrl(resolveIntegrationName(provider), redirectUri);
+        res.json(result);
+      } catch (err: any) {
+        logger.error(`OAuth authorize-url error: ${err}`);
+        res.status(500).json({ error: err.message || 'Failed to get authorization URL' });
+      }
+    });
+
+    app.post('/agentlang/oauth/exchange', async (req: Request, res: Response) => {
+      try {
+        const { provider, code, state } = req.body;
+        if (!provider || !code || !state) {
+          res.status(400).json({ error: 'provider, code, and state are required in request body' });
+          return;
+        }
+        if (!connections[provider]) {
+          res.status(400).json({ error: `Unknown provider: ${provider}` });
+          return;
+        }
+        const result = await exchangeOAuthCode(resolveIntegrationName(provider), code, state);
+        res.json(result);
+      } catch (err: any) {
+        logger.error(`OAuth exchange error: ${err}`);
+        res.status(500).json({ error: err.message || 'Failed to exchange authorization code' });
+      }
+    });
+
+    app.get('/agentlang/oauth/access-token', async (req: Request, res: Response) => {
+      try {
+        const provider = req.query.provider as string;
+        if (!provider) {
+          res.status(400).json({ error: 'provider query param is required' });
+          return;
+        }
+        if (!connections[provider]) {
+          res.status(400).json({ error: `Unknown provider: ${provider}` });
+          return;
+        }
+        const result = await getIntegrationAccessToken(resolveIntegrationName(provider));
+        res.json(result);
+      } catch (err: any) {
+        logger.error(`OAuth access-token error: ${err}`);
+        res.status(500).json({ error: err.message || 'Failed to get access token' });
+      }
+    });
+  }
+
   if (isNodeEnv && upload && uploadDir) {
     app.post('/uploadFile', upload.single('file'), (req: Request, res: Response) => {
       handleFileUpload(req, res, config);
@@ -325,6 +403,14 @@ export async function startServer(
   const app = await createApp(appSpec, config);
   const appName: string = appSpec.name;
   const appVersion: string = appSpec.version;
+
+  // Expose port and host on globalThis so resolver code (e.g. integration-manager's
+  // auth-resolver) can make self-referencing HTTP calls to the correct address.
+  (globalThis as any).__agentlang_port = port;
+  if (host) {
+    (globalThis as any).__agentlang_host = host;
+  }
+
   const cb = () => {
     console.log(
       chalk.green(
