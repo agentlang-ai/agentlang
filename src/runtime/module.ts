@@ -2995,6 +2995,19 @@ export function fetchModuleEntry(entryName: string, moduleName: string): ModuleE
   const module: Module = fetchModule(moduleName);
   return module.getEntry(entryName);
 }
+// UUID regex pattern
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// containerTag format: alphanumeric with dashes/underscores, no spaces
+const CONTAINER_TAG_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
+
+export function isTopicReference(value: any): boolean {
+  if (!isString(value)) {
+    return false;
+  }
+  // Topic can be a UUID or a containerTag format
+  return UUID_REGEX.test(value) || CONTAINER_TAG_REGEX.test(value);
+}
 
 const builtInChecks = new Map([
   ['String', isString],
@@ -3023,6 +3036,7 @@ const builtInChecks = new Map([
       return true;
     },
   ],
+  ['Topic', isTopicReference],
 ]);
 
 export const builtInTypes = new Set(Array.from(builtInChecks.keys()));
@@ -3046,7 +3060,16 @@ export const propertyNames = new Set([
   '@comment',
 ]);
 
-const TextualTypes = new Set(['String', 'Email', 'UUID', 'DateTime', 'Date', 'Time', 'Path']);
+const TextualTypes = new Set([
+  'String',
+  'Email',
+  'UUID',
+  'DateTime',
+  'Date',
+  'Time',
+  'Path',
+  'Topic',
+]);
 
 function isTextualType(type: string): boolean {
   return TextualTypes.has(type);
