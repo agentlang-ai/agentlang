@@ -51,6 +51,7 @@ import {
   setEventEndpointsUpdater,
   setRelationshipEndpointsUpdater,
   UnauthorisedError,
+  updateEndpoints,
 } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
 import { Config } from '../runtime/state.js';
@@ -286,6 +287,10 @@ export async function createApp(appSpec: ApplicationSpec, config?: Config): Prom
       handleFileUpload(req, res, config);
     });
 
+    app.post('/excelUpload', upload.single('file'), (req: Request, res: Response) => {
+      handleExcelUpload(req, res, uploadDir!, config);
+    });
+
     app.get('/downloadFile/:filename', (req: Request, res: Response) => {
       handleFileDownload(req, res, uploadDir!, config);
     });
@@ -296,6 +301,10 @@ export async function createApp(appSpec: ApplicationSpec, config?: Config): Prom
   } else {
     app.post('/uploadFile', (req: Request, res: Response) => {
       res.status(501).send({ error: 'File upload is only supported in Node.js environment' });
+    });
+
+    app.post('/excelUpload', (req: Request, res: Response) => {
+      res.status(501).send({ error: 'Excel upload is only supported in Node.js environment' });
     });
 
     app.get('/downloadFile/:filename', (req: Request, res: Response) => {
@@ -1321,6 +1330,73 @@ async function handleFileUpload(
   } catch (err: any) {
     logger.error(`File upload error: ${err}`);
     res.status(500).send({ error: err.message || 'File upload failed' });
+  }
+}
+
+async function handleExcelUpload(
+  req: Request & { file?: Express.Multer.File },
+  res: Response,
+  uploadDir: string,
+  config?: Config
+): Promise<void> {
+  try {
+    if (!isNodeEnv) {
+      res.status(501).send({ error: 'Excel upload is only supported in Node.js environment' });
+      return;
+    }
+
+    if (!config?.service?.httpFileHandling) {
+      res
+        .status(403)
+        .send({ error: 'File handling is not enabled. Set httpFileHandling: true in config.' });
+      return;
+    }
+
+    const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+
+    if (isNoSession(sessionInfo)) {
+      res.status(401).send({ error: 'Authorization required' });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).send({ error: 'No file uploaded' });
+      return;
+    }
+
+    const file = req.file;
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!['.xlsx', '.xls'].includes(ext)) {
+      res.status(400).send({ error: 'Only Excel files (.xlsx, .xls) are supported' });
+      return;
+    }
+
+    const entityName = req.body?.entityName as string | undefined;
+    const sheetName = req.body?.sheetName as string | undefined;
+
+    const filePath = path.join(uploadDir, file.filename);
+    const { createEntityFromExcelFile } = await import('../runtime/excel.js');
+    const result = await createEntityFromExcelFile(filePath, {
+      entityName: entityName || undefined,
+      sheetName: sheetName || undefined,
+    });
+
+    updateEndpoints(result.moduleName);
+
+    logger.info(
+      `Excel entity created: ${result.fqName} from ${file.originalname} (uploaded by ${sessionInfo.userId})`
+    );
+
+    res.contentType('application/json');
+    res.send({
+      success: true,
+      ...result,
+      originalFilename: file.originalname,
+      uploadedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    logger.error(`Excel upload error: ${err}`);
+    res.status(500).send({ error: err.message || 'Excel upload failed' });
   }
 }
 
