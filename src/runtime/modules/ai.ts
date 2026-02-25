@@ -74,10 +74,10 @@ import {
 import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
 import { Statement } from '../../language/generated/ast.js';
-import { isMonitoringEnabled, TtlCache } from '../state.js';
-import { getKnowledgeService } from '../knowledge/service.js';
+import { getKnowledgeGraphConfig, isMonitoringEnabled, TtlCache } from '../state.js';
 import { isNodeEnv } from '../../utils/runtime.js';
 import { getFileSystem } from '../../utils/fs-utils.js';
+import { getDocumentRetriever } from '../document-retriever.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -1148,15 +1148,11 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const hasDocuments = this.documents && this.documents.length > 0;
     const hasTopics = this.topics && this.topics.length > 0;
 
-    // When topics are provided, documents are optional — topics link to their documents
     if (!hasDocuments && !hasTopics) {
       return message;
     }
 
-    const knowledgeService = getKnowledgeService();
-
     try {
-      // Resolve topics → container tags and their associated document titles
       let containerTags: string[] = [];
       let topicDocumentTitles: string[] = [];
 
@@ -1166,12 +1162,10 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         topicDocumentTitles = getAllDocumentsForTopics(topicNames);
       }
 
-      // If no topics specified, fall back to agent FQ name as container tag
       if (containerTags.length === 0) {
         containerTags = [this.getFqName()];
       }
 
-      // Resolve direct document references (optional when topics are provided)
       let documentTitles: string[] = [];
       let documentRefs: string[] = [];
 
@@ -1183,42 +1177,103 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         documentRefs = documentEntries.filter(d => d.startsWith('document-service://'));
       }
 
-      // Merge topic-derived document titles with direct document titles
       const allDocumentTitles = [...new Set([...topicDocumentTitles, ...documentTitles])];
 
-      // In local mode, process documents lazily before querying
-      if (!knowledgeService.isRemote()) {
-        const aiModule = isModule(DefaultModuleName + '.ai')
-          ? fetchModule(DefaultModuleName + '.ai')
-          : null;
-        if (aiModule) {
-          for (const title of allDocumentTitles) {
-            const url = aiModule.getDocument(title);
-            if (url) {
-              await knowledgeService.processLocalDocument(title, url);
-            }
+      const kgConfig = getKnowledgeGraphConfig();
+      const serviceUrl = kgConfig?.serviceUrl?.trim() || process.env.KNOWLEDGE_SERVICE_URL || null;
+
+      if (serviceUrl) {
+        return await this.queryRemoteKnowledgeService(
+          message,
+          serviceUrl,
+          containerTags,
+          allDocumentTitles,
+          documentRefs
+        );
+      }
+
+      // Local mode: embed documents into pgvector/lancedb and query
+      const retriever = getDocumentRetriever();
+      const aiModule = isModule(DefaultModuleName + '.ai')
+        ? fetchModule(DefaultModuleName + '.ai')
+        : null;
+      if (aiModule) {
+        for (const title of allDocumentTitles) {
+          const url = aiModule.getDocument(title);
+          if (url) {
+            await retriever.processDocument(title, url);
           }
         }
       }
 
-      // Query knowledge — works for both local and remote modes
-      const result = await knowledgeService.queryKnowledge(message, containerTags, {
-        chunkLimit: 10,
-        entityLimit: 20,
-        includeChunks: true,
-        includeEntities: true,
-        includeEdges: true,
-        documentTitles: allDocumentTitles.length > 0 ? allDocumentTitles : undefined,
-        documentRefs: documentRefs.length > 0 ? documentRefs : undefined,
-      });
+      const contextString = await retriever.query(
+        message,
+        allDocumentTitles.length > 0 ? allDocumentTitles : undefined,
+        10
+      );
 
-      if (result?.contextString && result.contextString.trim().length > 0) {
-        return message
-          .concat('\n\nRelevant context from documents:\n')
-          .concat(result.contextString);
+      if (contextString.trim().length > 0) {
+        return message.concat('\n\nRelevant context from documents:\n').concat(contextString);
       }
     } catch (err) {
       logger.debug(`[KNOWLEDGE] Knowledge retrieval failed: ${err}`);
+    }
+
+    return message;
+  }
+
+  private async queryRemoteKnowledgeService(
+    message: string,
+    serviceUrl: string,
+    containerTags: string[],
+    documentTitles: string[],
+    documentRefs: string[]
+  ): Promise<string> {
+    const options = {
+      chunkLimit: 10,
+      entityLimit: 20,
+      includeChunks: true,
+      includeEntities: true,
+      includeEdges: true,
+      documentTitles: documentTitles.length > 0 ? documentTitles : undefined,
+      documentRefs: documentRefs.length > 0 ? documentRefs : undefined,
+    };
+
+    let response = await fetch(`${serviceUrl}/api/knowledge/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: message, containerTags, ...options }),
+    });
+
+    if (!response.ok) {
+      response = await fetch(`${serviceUrl}/knowledge.core/ApiKnowledgeQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          queryText: message,
+          containerTagsJson: JSON.stringify(containerTags),
+          documentTitlesJson: JSON.stringify(options.documentTitles || []),
+          documentRefsJson: JSON.stringify(options.documentRefs || []),
+          optionsJson: JSON.stringify({
+            includeChunks: options.includeChunks,
+            includeEntities: options.includeEntities,
+            includeEdges: options.includeEdges,
+            chunkLimit: options.chunkLimit,
+            entityLimit: options.entityLimit,
+          }),
+        }),
+      });
+    }
+
+    if (response.ok) {
+      const rawPayload: any = await response.json();
+      const first = Array.isArray(rawPayload) ? rawPayload[0] : rawPayload;
+      const payload =
+        first && typeof first === 'object' && first.KnowledgeQuery ? first.KnowledgeQuery : first;
+      const contextString = payload?.contextString || '';
+      if (contextString.trim().length > 0) {
+        return message.concat('\n\nRelevant context from documents:\n').concat(contextString);
+      }
     }
 
     return message;
