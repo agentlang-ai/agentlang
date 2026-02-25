@@ -147,8 +147,8 @@ entity ${AgentEntityName} {
     stateless Boolean @default(false),
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
-    documents String @optional, // comma-separated list of document names
-    topics String @optional, // comma-separated list of topic names
+    documents String @optional, // list of document names
+    topics String @optional, // list of topic names
     channels String @optional, // comma-separated list of channel names
     goal String @optional,
     role String,
@@ -198,7 +198,7 @@ workflow processDoc {
 
 event topic {
   name String,
-  documents String @optional
+  documents String @optional // comma-separated or array of document titles
 }
 
 workflow processTopic {
@@ -1155,6 +1155,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     const hasDocuments = this.documents && this.documents.length > 0;
     const hasTopics = this.topics && this.topics.length > 0;
 
+    // When topics are provided, documents are optional — topics link to their documents
     if (!hasDocuments && !hasTopics) {
       return message;
     }
@@ -1182,7 +1183,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
         containerTags = [this.getFqName()];
       }
 
-      // Resolve direct document references
+      // Resolve direct document references (optional when topics are provided)
       let documentTitles: string[] = [];
       let documentRefs: string[] = [];
 

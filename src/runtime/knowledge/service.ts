@@ -4,7 +4,7 @@ import { parseAndEvaluateStatement, Environment } from '../interpreter.js';
 import { escapeString } from './utils.js';
 import type { Instance } from '../module.js';
 import type { KnowledgeContext } from '../graph/types.js';
-import { isKnowledgeGraphEnabled, getKnowledgeGraphConfig } from '../state.js';
+import { getKnowledgeGraphConfig } from '../state.js';
 import crypto from 'crypto';
 
 // Maximum number of session messages to retain per session (prevents database bloat)
@@ -40,22 +40,16 @@ export class KnowledgeService {
   private readonly remoteKnowledgeServiceUrl: string | null;
 
   constructor() {
-    const configEnabled = isKnowledgeGraphEnabled();
     const kgConfig = getKnowledgeGraphConfig();
 
     const configuredServiceUrl = kgConfig?.serviceUrl?.trim();
     this.remoteKnowledgeServiceUrl =
       configuredServiceUrl || process.env.KNOWLEDGE_SERVICE_URL || null;
 
-    if (!configEnabled) {
-      logger.info(
-        '[KNOWLEDGE] Knowledge graph is disabled in config. Set knowledgeGraph.enabled to true to enable.'
-      );
-      this.enabled = false;
-    } else if (!this.remoteKnowledgeServiceUrl) {
-      logger.warn(
-        '[KNOWLEDGE] Knowledge graph enabled but no serviceUrl configured. ' +
-          'Set knowledgeGraph.serviceUrl or KNOWLEDGE_SERVICE_URL.'
+    if (!this.remoteKnowledgeServiceUrl) {
+      logger.debug(
+        '[KNOWLEDGE] No knowledgeGraph.serviceUrl configured. ' +
+          'Set knowledgeGraph.serviceUrl or KNOWLEDGE_SERVICE_URL to enable.'
       );
       this.enabled = false;
     } else {
