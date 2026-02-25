@@ -2865,7 +2865,10 @@ const TopicRegistry: Map<string, string[]> = new Map();
 export function registerTopic(name: string, documents?: string): void {
   if (!name) return;
   const docs = documents
-    ? documents.split(',').map(d => d.trim()).filter(Boolean)
+    ? documents
+        .split(',')
+        .map(d => d.trim())
+        .filter(Boolean)
     : [];
   TopicRegistry.set(name, docs);
 }
