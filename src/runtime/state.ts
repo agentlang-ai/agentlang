@@ -98,7 +98,6 @@ export const ConfigSchema = z.object({
     .optional(),
   knowledgeGraph: z
     .object({
-      enabled: z.boolean().default(false),
       serviceUrl: z.string().default('#js process.env.KNOWLEDGE_SERVICE_URL || ""'),
     })
     .optional(),
@@ -187,7 +186,8 @@ export function isMonitoringEnabled(): boolean {
 }
 
 export function isKnowledgeGraphEnabled(): boolean {
-  return AppConfig?.knowledgeGraph?.enabled === true;
+  const url = AppConfig?.knowledgeGraph?.serviceUrl?.trim();
+  return !!(url && url.length > 0) || !!process.env.KNOWLEDGE_SERVICE_URL;
 }
 
 export function getKnowledgeGraphConfig(): Config['knowledgeGraph'] | undefined {

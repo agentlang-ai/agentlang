@@ -12,12 +12,7 @@
       "dbname": "./data/vector-store/cc-vectors.lance"
     },
     "knowledgeGraph": {
-      "enabled": true,
-      "neo4j": {
-        "uri": "#js process.env.GRAPH_DB_URI || 'bolt://localhost:7687'",
-        "user": "#js process.env.GRAPH_DB_USER || 'neo4j'",
-        "password": "#js process.env.GRAPH_DB_PASSWORD || 'password'"
-      }
+      "serviceUrl": "#js process.env.KNOWLEDGE_SERVICE_URL || 'http://localhost:3000'"
     },
     "retry": [
       {
@@ -64,11 +59,9 @@
         "title": "company handbook",
         "url": "s3://my-bucket/docs/handbook.pdf",
         "retrievalConfig": {
-          "provider": "s3",
+          "provider": "knowledge-service",
           "config": {
-            "region": "#js process.env.AWS_REGION",
-            "accessKeyId": "#js process.env.AWS_ACCESS_KEY_ID",
-            "secretAccessKey": "#js process.env.AWS_SECRET_ACCESS_KEY"
+            "baseUrl": "#js process.env.KNOWLEDGE_SERVICE_URL || 'http://localhost:3000'"
           }
         },
         "embeddingConfig": {
@@ -88,12 +81,11 @@
     {
       "agentlang.ai/doc": {
         "title": "product manual",
-        "url": "document-service://f47ac10b-58cc-4372-a567-0e02b2c3d479/a1b2c3d4-e5f6-7890-abcd-ef1234567890/550e8400-e29b-41d4-a716-446655440000.pdf",
+        "url": "./docs/product-manual.pdf",
         "retrievalConfig": {
-          "provider": "document-service",
+          "provider": "knowledge-service",
           "config": {
-            "baseUrl": "#js process.env.DOCUMENT_SERVICE_URL",
-            "authToken": "#js process.env.DOCUMENT_SERVICE_AUTH_TOKEN"
+            "baseUrl": "#js process.env.KNOWLEDGE_SERVICE_URL || 'http://localhost:3000'"
           }
         },
         "embeddingConfig": {
@@ -106,21 +98,20 @@
     },
     {
       "agentlang.ai/doc": {
-        "title": "company policies",
-        "retrievalConfig": {
-          "provider": "document-service",
-          "config": {
-            "baseUrl": "#js process.env.DOCUMENT_SERVICE_URL",
-            "appName": "my-app",
-            "authToken": "#js process.env.DOCUMENT_SERVICE_AUTH_TOKEN"
-          }
-        },
-        "embeddingConfig": {
-          "provider": "openai",
-          "model": "text-embedding-3-small",
-          "chunkSize": 1000,
-          "chunkOverlap": 200
-        }
+        "title": "FAQ",
+        "url": "./docs/faq.md"
+      }
+    },
+    {
+      "agentlang.ai/topic": {
+        "name": "product-knowledge",
+        "documents": ["price list", "product manual", "company handbook"]
+      }
+    },
+    {
+      "agentlang.ai/topic": {
+        "name": "support-knowledge",
+        "documents": ["FAQ", "api documentation"]
       }
     }
   ],
