@@ -1,55 +1,28 @@
-# Dracula - Knowledge Graph Example
+# Dracula - Knowledge Document Example
 
-This example demonstrates Agentlang's knowledge graph memory system by building a knowledge graph from "Dracula" by Bram Stoker (1897, public domain via [Project Gutenberg](https://www.gutenberg.org/ebooks/345)).
+This example demonstrates Agentlang's knowledge retrieval system by processing "Dracula" by Bram Stoker (1897, public domain via [Project Gutenberg](https://www.gutenberg.org/ebooks/345)).
 
-When you first send a message, the system:
+The system supports two modes:
 
-1. Processes the document into chunks
-2. Extracts entities (characters, locations, events) and relationships using LLM
-3. Deduplicates entities using exact + semantic similarity (when embeddings enabled)
-4. Stores everything in Neo4j (graph database) + Agentlang entities (vector search)
-5. On subsequent queries, retrieves relevant context via vector search + graph traversal
+- **Local mode** (via `agentlang-cli`): Chunks, embeds, and stores documents locally using LanceDB or pgvector, then retrieves relevant context via vector similarity search.
+- **Remote mode** (via knowledge-service): Delegates all document processing and retrieval to a deployed knowledge-service instance.
 
 ## Prerequisites
 
 - Node.js >= 20
-- An OpenAI API key (for entity extraction and chat). You can switch to Anthropic in `src/core.al`.
-- Docker (for Neo4j - optional but recommended)
+- An OpenAI API key (for embeddings and chat)
 
-## Setup
+## Option A: Running with agentlang-cli (Local Mode)
 
-### 1. Start Neo4j (Optional)
+This is the default — no external services required. Documents are processed and queried locally.
 
-Neo4j provides graph storage and traversal. Without it, the system still works using Agentlang's built-in vector search, but you won't get multi-hop graph traversal or the Neo4j Browser visualization.
-
-```bash
-docker run -d --name neo4j-dracula \
-  -p 7474:7474 -p 7687:7687 \
-  -e NEO4J_AUTH=neo4j/password \
-  neo4j:5
-```
-
-Set the environment variables:
-
-```bash
-export GRAPH_DB_URI=bolt://localhost:7687
-export GRAPH_DB_USER=neo4j
-export GRAPH_DB_PASSWORD=password
-```
-
-### 2. Set your API key
+### 1. Set your API key
 
 ```bash
 export AGENTLANG_OPENAI_KEY=sk-...
 ```
 
-Or if using Anthropic (edit `src/core.al` to change `service "openai"` to `service "anthropic"`):
-
-```bash
-export AGENTLANG_ANTHROPIC_KEY=sk-ant-...
-```
-
-### 3. Build Agentlang
+### 2. Build Agentlang
 
 From the agentlang root directory:
 
@@ -57,33 +30,72 @@ From the agentlang root directory:
 npm run build
 ```
 
-### 4. Run the example
+### 3. Run the example
 
 ```bash
 node ./bin/cli.js run example/dracula
 ```
 
-## Performance Notes
+**What happens:**
 
-Dracula is a large novel (~870KB, about 6x the size of Alice in Wonderland). The streaming approach keeps memory constant regardless of size, but expect more LLM calls:
+1. The CLI loads `config.al` (SQLite + LanceDB) and `src/core.al` (agent + document declaration)
+2. On the first query, the agent lazily processes `dracula.txt`:
+   - Splits into ~870 chunks (1000 chars, 200 overlap)
+   - Generates OpenAI embeddings (`text-embedding-3-small`, 1536-dim)
+   - Stores vectors in LanceDB (`./data/knowledge-vectors.lance`)
+3. Each query embeds the question and retrieves the top-k most similar chunks
+4. Relevant chunks are appended as context to the LLM prompt
 
-- ~18 mega-batches → **18 LLM calls** for entity extraction + **18 for relationships** = **~36 total**
-- **First request will take 3-5 minutes** depending on LLM response times
-- Subsequent requests are fast (<1s)
+## Option B: Running with a Knowledge Service (Remote Mode)
 
-### Recommended settings for large documents
+When a `knowledgeGraph.serviceUrl` is configured, the agent delegates document processing and retrieval to a remote knowledge-service.
+
+### 1. Set environment variables
 
 ```bash
-# Increase mega-batch size to reduce LLM calls further (halves to ~18 total)
-export KG_MEGA_BATCH_CHARS=100000
-
-# Higher salience threshold filters noise from a longer text
-export KG_MIN_ENTITY_SALIENCE=3
-export KG_MIN_ENTITY_MENTIONS=3
-
-# Run with exposed GC for memory efficiency
-node --expose-gc ./bin/cli.js run example/dracula
+export AGENTLANG_OPENAI_KEY=sk-...
+export KNOWLEDGE_SERVICE_URL=https://your-knowledge-service.example.com
 ```
+
+### 2. Update config.al
+
+Add the `knowledgeGraph` block to `config.al`:
+
+```json
+{
+  "agentlang": {
+    "service": {
+        "port": "#js parseInt(process.env.SERVICE_PORT || '8080')"
+    },
+    "store": {
+        "type": "sqlite",
+        "dbname": "dracula.db"
+    },
+    "vectorStore": {
+      "type": "lancedb"
+    },
+    "knowledgeGraph": {
+      "serviceUrl": "#js process.env.KNOWLEDGE_SERVICE_URL || ''"
+    }
+  }
+}
+```
+
+### 3. Run the example
+
+```bash
+node ./bin/cli.js run example/dracula
+```
+
+**What happens:**
+
+1. `KnowledgeService` detects the configured `serviceUrl` and enters remote mode
+2. Document processing is handled by the knowledge-service (no local embedding)
+3. Queries are forwarded via HTTP POST to:
+   - `POST {serviceUrl}/api/knowledge/query` (primary endpoint)
+   - `POST {serviceUrl}/knowledge.core/ApiKnowledgeQuery` (fallback)
+4. The remote service returns entities, relationships, chunks, and a context string
+5. The context is appended to the LLM prompt
 
 ## Usage
 
@@ -110,113 +122,43 @@ curl -s -X POST http://localhost:8080/Dracula/ask \
   -H 'Content-Type: application/json' \
   -d '{"question": "What happens to Lucy Westenra?"}' | jq .
 
-# Locations
-curl -s -X POST http://localhost:8080/Dracula/ask \
-  -H 'Content-Type: application/json' \
-  -d '{"question": "Describe Castle Dracula and its significance in the story."}' | jq .
-
 # The journey
 curl -s -X POST http://localhost:8080/Dracula/ask \
   -H 'Content-Type: application/json' \
   -d '{"question": "How does Dracula travel from Transylvania to England?"}' | jq .
 ```
 
-### Inspect the Knowledge Graph (Neo4j Browser)
-
-If you started Neo4j, open http://localhost:7474 in your browser and run:
-
-```cypher
--- See all nodes
-MATCH (n:KnowledgeNode) RETURN n LIMIT 50
-
--- See all relationships
-MATCH (n:KnowledgeNode)-[r]->(m:KnowledgeNode)
-RETURN n, r, m LIMIT 100
-
--- Find Dracula's relationships
-MATCH (n:KnowledgeNode {name: 'Dracula'})-[r]->(m)
-RETURN n, r, m
-
--- Find all characters
-MATCH (n:KnowledgeNode {type: 'Person'})
-RETURN n.name, n.description
-ORDER BY n.name
-
--- Find all locations
-MATCH (n:KnowledgeNode {type: 'Location'})
-RETURN n.name, n.description
-```
-
-## Expected Knowledge Graph
-
-After processing, the knowledge graph should contain entities like:
-
-```
-Characters (Person):
-├── Count Dracula - Ancient vampire, Transylvanian nobleman
-├── Jonathan Harker - Solicitor, travels to Castle Dracula
-├── Mina Harker (née Murray) - Jonathan's wife, resourceful and brave
-├── Abraham Van Helsing - Dutch professor, vampire expert
-├── Dr. John Seward - Psychiatrist, runs asylum near Carfax
-├── Arthur Holmwood (Lord Godalming) - Lucy's fiancé, nobleman
-├── Quincey Morris - American, Texan adventurer
-├── Lucy Westenra - Mina's friend, Dracula's victim
-├── R.M. Renfield - Seward's patient, eats insects for "life"
-├── Peter Hawkins - Jonathan's employer, solicitor
-├── Captain of the Demeter - Ship that carries Dracula to England
-└── The Three Vampire Women - Dracula's brides at the castle
-
-Locations:
-├── Castle Dracula - Ancient fortress in the Carpathian Mountains
-├── Transylvania - Region in Romania, Dracula's homeland
-├── Borgo Pass - Mountain pass near the castle
-├── Whitby - English coastal town where Dracula arrives
-├── Carfax Abbey - Dracula's English estate, next to asylum
-├── Dr. Seward's Asylum - Adjacent to Carfax
-├── Hillingham - Lucy's home
-├── Piccadilly - Dracula's London property
-├── The Demeter - Ship from Varna to Whitby
-└── Varna - Port city, Dracula's escape route
-
-Key Relationships:
-Jonathan Harker ──MARRIED_TO──> Mina Harker
-Count Dracula ──IMPRISONS──> Jonathan Harker
-Count Dracula ──FEEDS_ON──> Lucy Westenra
-Count Dracula ──FEEDS_ON──> Mina Harker
-Van Helsing ──LEADS──> Hunting Party
-Arthur Holmwood ──ENGAGED_TO──> Lucy Westenra
-Dr. Seward ──TREATS──> Renfield
-Renfield ──SERVES──> Count Dracula
-Count Dracula ──TRAVELS_ON──> The Demeter
-Count Dracula ──RESIDES_AT──> Castle Dracula
-Count Dracula ──PURCHASES──> Carfax Abbey
-Van Helsing ──DESTROYS──> Count Dracula
-```
-
 ## Architecture
 
 ```
-Document (dracula.txt, ~870KB)
-    ↓
-Chunking (1000 chars, 200 overlap)
-    ↓
-Entity Extraction (LLM per chunk)
-    ↓
-Semantic Deduplication (cosine similarity > 0.85)
-    ↓
-┌──────────────────┬───────────────────┐
-│  Neo4j           │  Agentlang        │
-│  (Graph DB)      │  (KnowledgeNode)  │
-│  - Nodes         │  - Vector search  │
-│  - Edges         │  - Instance data  │
-│  - BFS traversal │  - @fullTextSearch│
-└──────────────────┴───────────────────┘
-    ↓
-Query: "Who hunts Dracula?"
-    ↓
-Vector Search → Seed nodes (Dracula, Van Helsing)
-    ↓
-Graph Expansion (2-hop BFS) → Related entities
-    ↓
-Structured Context → LLM → Answer
+                    ┌─────────────────────────────────────┐
+                    │           core.al                    │
+                    │  doc "dracula" → dracula.txt         │
+                    │  agent dracula (documents, llm)      │
+                    │  workflow ask → {dracula {message}}  │
+                    └──────────────┬──────────────────────┘
+                                   │
+                    ┌──────────────▼──────────────────────┐
+                    │       KnowledgeService               │
+                    │  (src/runtime/knowledge/service.ts)  │
+                    └──────┬───────────────┬──────────────┘
+                           │               │
+              Local mode   │               │  Remote mode
+          (no serviceUrl)  │               │  (serviceUrl set)
+                           │               │
+              ┌────────────▼───┐   ┌───────▼────────────┐
+              │  TextChunker   │   │  HTTP POST to       │
+              │  → Embeddings  │   │  knowledge-service  │
+              │  → LanceDB     │   │  /api/knowledge/    │
+              │  → Vector      │   │  query              │
+              │    Search      │   │                     │
+              └────────────────┘   └─────────────────────┘
+                           │               │
+                           └───────┬───────┘
+                                   │
+                    ┌──────────────▼──────────────────────┐
+                    │  Context appended to LLM prompt      │
+                    │  → Agent responds with grounded      │
+                    │    knowledge from the novel           │
+                    └──────────────────────────────────────┘
 ```
