@@ -26,6 +26,7 @@ import {
   asJSONSchema,
   Decision,
   fetchModule,
+  getAllDocumentsForTopics,
   getDecision,
   getGlobalRetry,
   Instance,
@@ -37,10 +38,9 @@ import {
   newInstanceAttributes,
   objectToInstanceAttributes,
   Record,
+  registerTopic as registerTopicInRegistry,
   resolveDocumentAliases,
   resolveTopicNames,
-  getAllDocumentsForTopics,
-  registerTopic as registerTopicInRegistry,
   Retry,
 } from '../module.js';
 import { provider } from '../agents/registry.js';
@@ -1759,7 +1759,7 @@ export async function registerTopic(
         : [];
 
       // Create or update topic in knowledge service
-      const response = await fetch(`${serviceUrl}/api/knowledge/topics`, {
+      let response = await fetch(`${serviceUrl}/api/knowledge/topics`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1770,6 +1770,22 @@ export async function registerTopic(
           documentTitles: docList,
         }),
       });
+
+      if (!response.ok) {
+        // Fallback to Agentlang entity path for deployed knowledge-service
+        response = await fetch(`${serviceUrl}/knowledge.core/Topic`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name,
+            description: `Topic ${name} with ${docList.length} documents`,
+            type: 'manual',
+            documentCount: docList.length,
+          }),
+        });
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
