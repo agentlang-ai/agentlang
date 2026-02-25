@@ -38,6 +38,9 @@ import {
   objectToInstanceAttributes,
   Record,
   resolveDocumentAliases,
+  resolveTopicNames,
+  getAllDocumentsForTopics,
+  registerTopic as registerTopicInRegistry,
   Retry,
 } from '../module.js';
 import { provider } from '../agents/registry.js';
@@ -145,6 +148,7 @@ entity ${AgentEntityName} {
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
     documents String @optional, // comma-separated list of document names
+    topics String @optional, // comma-separated list of topic names
     channels String @optional, // comma-separated list of channel names
     goal String @optional,
     role String,
@@ -190,6 +194,15 @@ workflow processDoc {
   // S3 config can be provided via retrievalConfig or env vars
   // Embedding config can customize chunking behavior
   await ai.fetchAndCreateDocument(doc.title, doc.url, doc.retrievalConfig, doc.embeddingConfig)
+}
+
+event topic {
+  name String,
+  documents String @optional
+}
+
+workflow processTopic {
+  await ai.registerTopic(topic.name, topic.documents)
 }
 
 entity Directive {
@@ -382,6 +395,7 @@ export class AgentInstance {
   type: string = 'chat';
   tools: string | undefined;
   documents: string | undefined;
+  topics: string | undefined;
   channels: string | undefined;
   runWorkflows: boolean = true;
   goal: string | undefined;
@@ -1138,7 +1152,10 @@ Only return a pure JSON object with no extra text, annotations etc.`;
   }
 
   private async maybeAddRelevantDocuments(message: string, _env: Environment): Promise<string> {
-    if (!this.documents || this.documents.length === 0) {
+    const hasDocuments = this.documents && this.documents.length > 0;
+    const hasTopics = this.topics && this.topics.length > 0;
+
+    if (!hasDocuments && !hasTopics) {
       return message;
     }
 
@@ -1150,21 +1167,45 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     }
 
     try {
-      const documentEntries = this.documents
-        .split(',')
-        .map(d => d.trim())
-        .filter(Boolean);
-      const documentTitles = resolveDocumentAliases(documentEntries);
-      const documentRefs = documentEntries.filter(d => d.startsWith('document-service://'));
+      // Resolve topics → container tags and their associated document titles
+      let containerTags: string[] = [];
+      let topicDocumentTitles: string[] = [];
+
+      if (hasTopics) {
+        const topicNames = resolveTopicNames(this.topics!);
+        containerTags = topicNames; // topic names are used as container tags
+        topicDocumentTitles = getAllDocumentsForTopics(topicNames);
+      }
+
+      // If no topics specified, fall back to agent FQ name as container tag
+      if (containerTags.length === 0) {
+        containerTags = [this.getFqName()];
+      }
+
+      // Resolve direct document references
+      let documentTitles: string[] = [];
+      let documentRefs: string[] = [];
+
+      if (hasDocuments) {
+        const documentEntries = this.documents!
+          .split(',')
+          .map(d => d.trim())
+          .filter(Boolean);
+        documentTitles = resolveDocumentAliases(documentEntries);
+        documentRefs = documentEntries.filter(d => d.startsWith('document-service://'));
+      }
+
+      // Merge topic-derived document titles with direct document titles
+      const allDocumentTitles = [...new Set([...topicDocumentTitles, ...documentTitles])];
 
       let response = await fetch(`${serviceUrl}/api/knowledge/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: message,
-          containerTags: [this.getFqName()],
-          documentTitles,
-          documentRefs,
+          containerTags,
+          documentTitles: allDocumentTitles.length > 0 ? allDocumentTitles : undefined,
+          documentRefs: documentRefs.length > 0 ? documentRefs : undefined,
         }),
       });
 
@@ -1175,8 +1216,8 @@ Only return a pure JSON object with no extra text, annotations etc.`;
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             queryText: message,
-            containerTagsJson: JSON.stringify([this.getFqName()]),
-            documentTitlesJson: JSON.stringify(documentTitles),
+            containerTagsJson: JSON.stringify(containerTags),
+            documentTitlesJson: JSON.stringify(allDocumentTitles),
             documentRefsJson: JSON.stringify(documentRefs),
             optionsJson: JSON.stringify({
               includeChunks: true,
@@ -1657,6 +1698,15 @@ export async function loadFlowStep(chatId: string, step: string): Promise<Instan
       return undefined;
     }
   }
+}
+
+export async function registerTopic(
+  name: string,
+  documents: string | undefined,
+  _env: Environment
+): Promise<any> {
+  registerTopicInRegistry(name, documents ?? undefined);
+  return { topic: { name, documents: documents ?? '' } };
 }
 
 export async function fetchAndCreateDocument(

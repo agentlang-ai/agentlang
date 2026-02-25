@@ -2859,6 +2859,43 @@ export function resolveDocumentAliases(names: string[]): string[] {
   return names.map((name: string) => DocumentAliasMap.get(name) ?? name);
 }
 
+// TopicRegistry: maps topic name → list of document titles belonging to that topic
+const TopicRegistry: Map<string, string[]> = new Map();
+
+export function registerTopic(name: string, documents?: string): void {
+  if (!name) return;
+  const docs = documents
+    ? documents.split(',').map(d => d.trim()).filter(Boolean)
+    : [];
+  TopicRegistry.set(name, docs);
+}
+
+export function getTopicDocuments(topicName: string): string[] {
+  return TopicRegistry.get(topicName) ?? [];
+}
+
+export function resolveTopicNames(topicsCsv: string): string[] {
+  return topicsCsv
+    .split(',')
+    .map(t => t.trim())
+    .filter(Boolean);
+}
+
+export function getTopicContainerTags(topicNames: string[]): string[] {
+  return topicNames.filter(name => TopicRegistry.has(name));
+}
+
+export function getAllDocumentsForTopics(topicNames: string[]): string[] {
+  const docs: string[] = [];
+  for (const name of topicNames) {
+    const topicDocs = TopicRegistry.get(name);
+    if (topicDocs) {
+      docs.push(...topicDocs);
+    }
+  }
+  return [...new Set(docs)];
+}
+
 export function addGlobalRetry(r: Retry): Retry {
   if (GlobalRetries === undefined) {
     GlobalRetries = new Array<Retry>();
