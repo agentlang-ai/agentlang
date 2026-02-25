@@ -27,7 +27,6 @@ import { OpenAPIClientAxios } from 'openapi-client-axios';
 import { registerOpenApiModule } from '../runtime/openapi.js';
 import { initDatabase, resetDefaultDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { runInitFunctions } from '../runtime/util.js';
-import { getKnowledgeService } from '../runtime/knowledge/service.js';
 import { startServer } from '../api/http.js';
 import { enableExecutionGraph } from '../runtime/exec-graph.js';
 import { importModule } from '../runtime/jsmodules.js';
@@ -142,16 +141,6 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   await runInitFunctions();
   await runStandaloneStatements();
   initCoreModuleManager();
-  // Initialize knowledge service (connects to Neo4j if configured)
-  try {
-    getKnowledgeService();
-  } catch (err) {
-    logger.warn(`[CLI] Knowledge service initialization failed: ${err}`);
-  }
-
-  // Document ingestion is handled by knowledge-service.
-  // No local pre-processing needed.
-
   await runPersistedTimers();
   logger.info(
     `Running application ${appSpec?.name || 'unknown'} version ${appSpec?.version || 'unknown'} on port ${config?.service?.port || 8080}`
