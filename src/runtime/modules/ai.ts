@@ -1739,7 +1739,48 @@ export async function registerTopic(
   documents: string | undefined,
   _env: Environment
 ): Promise<any> {
+  // Register in local registry
   registerTopicInRegistry(name, documents ?? undefined);
+
+  // Sync to knowledge service if configured
+  const kgConfig = getKnowledgeGraphConfig();
+  const serviceUrl = kgConfig?.serviceUrl?.trim() || process.env.KNOWLEDGE_SERVICE_URL || null;
+
+  if (serviceUrl) {
+    try {
+      // Parse document list
+      const docList = documents
+        ? documents
+            .split(',')
+            .map(d => d.trim())
+            .filter(Boolean)
+        : [];
+
+      // Create or update topic in knowledge service
+      const response = await fetch(`${serviceUrl}/api/knowledge/topics`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          description: `Topic ${name} with ${docList.length} documents`,
+          documentTitles: docList,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.debug(`[KNOWLEDGE] Failed to sync topic to service: ${errorText}`);
+      } else {
+        logger.debug(`[KNOWLEDGE] Synced topic "${name}" to knowledge service`);
+      }
+    } catch (err) {
+      // Don't fail topic registration if service sync fails
+      logger.debug(`[KNOWLEDGE] Error syncing topic to service: ${err}`);
+    }
+  }
+
   return { topic: { name, documents: documents ?? '' } };
 }
 
