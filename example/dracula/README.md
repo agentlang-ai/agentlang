@@ -128,6 +128,40 @@ curl -s -X POST http://localhost:8080/Dracula/ask \
   -d '{"question": "How does Dracula travel from Transylvania to England?"}' | jq .
 ```
 
+## Topics
+
+Topics group multiple documents under a named label that agents can reference instead of (or alongside) individual document titles. Define topics in your config or `.al` files:
+
+```json
+{
+  "agentlang.ai/topic": {
+    "name": "novel-knowledge",
+    "documents": ["dracula", "other-doc"]
+  }
+}
+```
+
+Then reference in an agent:
+
+```
+agent dracula {
+    topics "novel-knowledge",
+    llm "llm01"
+}
+```
+
+**How topics interact with local vs. remote mode:**
+
+| | Local mode | Remote mode |
+| --- | --- | --- |
+| **Topic resolution** | Topic names → document titles → local embedding + vector search | Topic names → `containerTags` sent to knowledge-service |
+| **`containerTags`** | Ignored (only `documentTitles` used for filtering) | Sent to knowledge-service to scope the query |
+| **Documents** | Each document title is resolved to a URL and processed locally | Document titles sent as filter hints; processing handled by service |
+
+In local mode, topics are a convenience for grouping documents — they resolve to the same document titles you'd list directly. In remote mode, topic names become `containerTags` that the knowledge-service uses to scope queries across its own document index.
+
+> **Note:** If an agent has `topics` but no `documents`, the topic's linked document titles are still resolved and processed locally. Topics and documents can also be combined — the titles are merged and deduplicated.
+
 ## Architecture
 
 ```

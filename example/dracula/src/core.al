@@ -10,6 +10,10 @@ module Dracula
   title "dracula",
   url "./example/dracula/docs/dracula.txt"}, @upsert}
 
+{agentlang.ai/topic {
+  name "dracula-novel",
+  documents "dracula"}, @upsert}
+
 @public agent dracula {
     instruction `You are an expert on "Dracula" by Bram Stoker.
 You have deep knowledge of all the characters, locations, events, and relationships in the novel.
@@ -20,7 +24,7 @@ When answering questions:
 3. Describe character traits, motivations, and transformations accurately
 4. Explain the connections between characters and events
 5. Be atmospheric and capture the gothic horror tone of the novel`,
-    documents ["dracula"],
+    topics "dracula-novel",
     llm "llm01"
 }
 

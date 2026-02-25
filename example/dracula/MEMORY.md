@@ -278,6 +278,42 @@ In remote mode, the knowledge-service can provide entity extraction, graph trave
 
 ---
 
+## Topics and Document Resolution
+
+Agents can reference documents directly (`documents ["dracula"]`) or via topics (`topics "novel-knowledge"`). Topics are named groups of documents registered via `agentlang.ai/topic`:
+
+```
+event topic { name String, documents String @optional }
+```
+
+The resolution flow in `maybeAddRelevantDocuments` (ai.ts):
+
+```typescript
+// 1. Resolve topics → container tags + document titles
+if (hasTopics) {
+  const topicNames = resolveTopicNames(this.topics!);   // "novel-knowledge" → ["novel-knowledge"]
+  containerTags = topicNames;                            // used as scope for remote queries
+  topicDocumentTitles = getAllDocumentsForTopics(topicNames); // → ["dracula", "other-doc"]
+}
+
+// 2. If no topics, fall back to agent FQ name as container tag
+if (containerTags.length === 0) {
+  containerTags = [this.getFqName()]; // e.g. "Dracula/dracula"
+}
+
+// 3. Merge topic docs + direct docs (deduplicated)
+const allDocumentTitles = [...new Set([...topicDocumentTitles, ...documentTitles])];
+```
+
+**Behavior differs by mode:**
+
+- **Local mode**: `containerTags` are ignored. `allDocumentTitles` are resolved to URLs, each is processed via `processLocalDocument`, and `queryLocal` filters by `documentTitles`.
+- **Remote mode**: Both `containerTags` (topic names) and `documentTitles` are sent to the knowledge-service. The service uses `containerTags` to scope the query within its index.
+
+This means topics work identically in both modes from the agent's perspective — they resolve to document titles. The difference is that remote mode additionally passes topic names as container tags for server-side scoping.
+
+---
+
 ## Session Management
 
 Both modes support session-based conversation history via the `KnowledgeSession` and `KnowledgeSessionMessage` entities:
