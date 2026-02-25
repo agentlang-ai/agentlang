@@ -143,10 +143,8 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
   await runStandaloneStatements();
   initCoreModuleManager();
   // Initialize knowledge service (connects to Neo4j if configured)
-  let knowledgeService;
   try {
-    knowledgeService = getKnowledgeService();
-    await knowledgeService.init();
+    getKnowledgeService();
   } catch (err) {
     logger.warn(`[CLI] Knowledge service initialization failed: ${err}`);
   }
