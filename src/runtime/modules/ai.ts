@@ -74,7 +74,8 @@ import {
 import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
 import { Statement } from '../../language/generated/ast.js';
-import { isMonitoringEnabled, TtlCache, getKnowledgeGraphConfig } from '../state.js';
+import { isMonitoringEnabled, TtlCache } from '../state.js';
+import { getKnowledgeService } from '../knowledge/service.js';
 import { isNodeEnv } from '../../utils/runtime.js';
 import { getFileSystem } from '../../utils/fs-utils.js';
 
@@ -377,14 +378,6 @@ async function activatedUserDefinedAgentDirectives(
 export const AgentFqName = makeFqName(CoreAIModuleName, AgentEntityName);
 
 const ProviderDb = new Map<string, AgentServiceProvider>();
-
-function normalizeKnowledgeQueryPayload(payload: any): any {
-  const first = Array.isArray(payload) ? payload[0] : payload;
-  if (first && typeof first === 'object' && first.KnowledgeQuery) {
-    return first.KnowledgeQuery;
-  }
-  return first;
-}
 
 export class AgentInstance {
   llm: string = '';
@@ -1158,12 +1151,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       return message;
     }
 
-    const kgConfig = getKnowledgeGraphConfig();
-    const serviceUrl = kgConfig?.serviceUrl?.trim() || process.env.KNOWLEDGE_SERVICE_URL || null;
-
-    if (!serviceUrl) {
-      return message;
-    }
+    const knowledgeService = getKnowledgeService();
 
     try {
       // Resolve topics → container tags and their associated document titles
@@ -1172,7 +1160,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
 
       if (hasTopics) {
         const topicNames = resolveTopicNames(this.topics!);
-        containerTags = topicNames; // topic names are used as container tags
+        containerTags = topicNames;
         topicDocumentTitles = getAllDocumentsForTopics(topicNames);
       }
 
@@ -1186,8 +1174,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       let documentRefs: string[] = [];
 
       if (hasDocuments) {
-        const documentEntries = this.documents!
-          .split(',')
+        const documentEntries = this.documents!.split(',')
           .map(d => d.trim())
           .filter(Boolean);
         documentTitles = resolveDocumentAliases(documentEntries);
@@ -1197,46 +1184,39 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       // Merge topic-derived document titles with direct document titles
       const allDocumentTitles = [...new Set([...topicDocumentTitles, ...documentTitles])];
 
-      let response = await fetch(`${serviceUrl}/api/knowledge/query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: message,
-          containerTags,
-          documentTitles: allDocumentTitles.length > 0 ? allDocumentTitles : undefined,
-          documentRefs: documentRefs.length > 0 ? documentRefs : undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        // Fallback to Agentlang-native endpoint when /api adapter is unavailable.
-        response = await fetch(`${serviceUrl}/knowledge.core/ApiKnowledgeQuery`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            queryText: message,
-            containerTagsJson: JSON.stringify(containerTags),
-            documentTitlesJson: JSON.stringify(allDocumentTitles),
-            documentRefsJson: JSON.stringify(documentRefs),
-            optionsJson: JSON.stringify({
-              includeChunks: true,
-              includeEntities: true,
-              includeEdges: true,
-            }),
-          }),
-        });
-      }
-
-      if (response.ok) {
-        const rawPayload: any = await response.json();
-        const payload = normalizeKnowledgeQueryPayload(rawPayload);
-        const contextString = payload?.contextString;
-        if (typeof contextString === 'string' && contextString.trim().length > 0) {
-          return message.concat('\n\nRelevant context from documents:\n').concat(contextString);
+      // In local mode, process documents lazily before querying
+      if (!knowledgeService.isRemote()) {
+        const aiModule = isModule(DefaultModuleName + '.ai')
+          ? fetchModule(DefaultModuleName + '.ai')
+          : null;
+        if (aiModule) {
+          for (const title of allDocumentTitles) {
+            const url = aiModule.getDocument(title);
+            if (url) {
+              await knowledgeService.processLocalDocument(title, url);
+            }
+          }
         }
       }
+
+      // Query knowledge — works for both local and remote modes
+      const result = await knowledgeService.queryKnowledge(message, containerTags, {
+        chunkLimit: 10,
+        entityLimit: 20,
+        includeChunks: true,
+        includeEntities: true,
+        includeEdges: true,
+        documentTitles: allDocumentTitles.length > 0 ? allDocumentTitles : undefined,
+        documentRefs: documentRefs.length > 0 ? documentRefs : undefined,
+      });
+
+      if (result?.contextString && result.contextString.trim().length > 0) {
+        return message
+          .concat('\n\nRelevant context from documents:\n')
+          .concat(result.contextString);
+      }
     } catch (err) {
-      logger.debug(`[KNOWLEDGE] Remote knowledge-service retrieval failed: ${err}`);
+      logger.debug(`[KNOWLEDGE] Knowledge retrieval failed: ${err}`);
     }
 
     return message;

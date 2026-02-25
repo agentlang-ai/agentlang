@@ -48,10 +48,11 @@ describe('Knowledge Graph Memory System', () => {
       expect(service1).not.toBe(service2);
     });
 
-    test('KnowledgeService state reflects API key presence', () => {
+    test('KnowledgeService is always enabled (local or remote mode)', () => {
       const service = getKnowledgeService();
-      const hasKey = process.env.AGENTLANG_OPENAI_KEY || process.env.OPENAI_API_KEY;
-      expect(service.isEnabled()).toBe(!!hasKey);
+      // Service is always enabled — local mode (pgvector/LanceDB) when no serviceUrl,
+      // remote mode when serviceUrl is configured.
+      expect(service.isEnabled()).toBe(true);
     });
   });
 });
