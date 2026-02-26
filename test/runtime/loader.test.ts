@@ -20,9 +20,8 @@ describe('loadAppConfig', () => {
 
   afterEach(() => {
     if (tempDir && fs.existsSync(tempDir)) {
-      const configFile = path.join(tempDir, 'config.al');
-      if (fs.existsSync(configFile)) {
-        fs.unlinkSync(configFile);
+      for (const name of fs.readdirSync(tempDir)) {
+        fs.unlinkSync(path.join(tempDir, name));
       }
       fs.rmdirSync(tempDir);
       tempDir = null;
@@ -138,5 +137,45 @@ describe('loadAppConfig', () => {
 
     const config = await loadAppConfig(tempDir);
     assert(config !== undefined, 'Should handle AgentLang pattern format');
+  });
+
+  test('should create entities from Excel files in config', async () => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentlang-test-excel-'));
+    const XLSX = await import('xlsx');
+    const wb = (XLSX as any).utils.book_new();
+    const ws = (XLSX as any).utils.aoa_to_sheet([
+      ['name', 'country', 'birthdate'],
+      ['Alice', 'USA', '1990-01-15'],
+      ['Bob', 'UK', '1985-06-20'],
+    ]);
+    (XLSX as any).utils.book_append_sheet(wb, ws, 'Sheet1');
+    (XLSX as any).writeFile(wb, path.join(tempDir, 'Person.xlsx'));
+
+    const configContent = JSON.stringify({
+      agentlang: {
+        service: { port: 8080 },
+        store: { type: 'sqlite', dbname: 'excel_test.db' },
+        excel: [{ url: './Person.xlsx' }],
+      },
+    });
+    const configFile = path.join(tempDir, 'config.al');
+    fs.writeFileSync(configFile, configContent);
+
+    const config = await loadAppConfig(tempDir, { basePath: tempDir });
+    assert(config !== undefined, 'Config should load with excel entries');
+
+    const { getEntity } = await import('../../src/runtime/module.js');
+    const personEntity = getEntity('Person', 'Excel');
+    assert(personEntity !== undefined, 'Person entity should be created from Person.xlsx');
+    const schema = personEntity.schema;
+    assert(schema.has('name'), 'Person should have name field');
+    assert(schema.has('country'), 'Person should have country field');
+    assert(schema.has('birthdate'), 'Person should have birthdate field');
+    assert(personEntity.getMeta('excel_path'), 'Person should have excel_path in meta');
+    assert(personEntity.getMeta('sheet_name'), 'Person should have sheet_name in meta');
+
+    const { getResolverNameForPath } = await import('../../src/runtime/resolvers/registry.js');
+    const resolverName = getResolverNameForPath('Excel/Person');
+    assert(resolverName !== undefined, 'Person entity should have a file resolver registered');
   });
 });
