@@ -556,10 +556,11 @@ class DocumentFetcherService {
     // Lazy load PDF parser
     if (!this.pdfParser) {
       try {
-        const pdfParse = await import('pdf-parse');
-        // Handle both ESM and CSM module formats
-        const parser = (pdfParse as any).default || pdfParse;
-        this.pdfParser = parser;
+        const { PDFParse } = await import('pdf-parse');
+        if (!PDFParse) {
+          throw new Error('pdf-parse does not export PDFParse');
+        }
+        this.pdfParser = PDFParse;
       } catch (error) {
         logger.error('Failed to load PDF parser', { error });
         throw new Error(
@@ -569,11 +570,16 @@ class DocumentFetcherService {
     }
 
     try {
-      const result = await this.pdfParser(buffer);
+      const parser = new this.pdfParser({ data: buffer });
+      const result = await parser.getText();
+      if (typeof parser.destroy === 'function') {
+        await parser.destroy();
+      }
       return result.text || '';
     } catch (error) {
       logger.error('PDF parsing failed', { error });
-      throw new Error(`Failed to parse PDF: ${error}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to parse PDF: ${message}`);
     }
   }
 
