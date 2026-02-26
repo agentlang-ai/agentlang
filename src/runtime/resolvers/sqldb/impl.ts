@@ -101,6 +101,10 @@ export class EmbeddingService {
     return await this.provider.embedText(query);
   }
 
+  async embedTexts(texts: string[]): Promise<number[][]> {
+    return await this.provider.embedTexts(texts);
+  }
+
   private averageEmbeddings(embeddings: number[][]): number[] {
     if (embeddings.length === 0) return [];
     const dimension = embeddings[0].length;

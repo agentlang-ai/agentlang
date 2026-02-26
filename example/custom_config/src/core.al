@@ -44,6 +44,7 @@ decision contactExistsCheck {
   llm "llm01",
   role "You are a chat-manager"
   instruction "Based on the user instruction, create chat messages",
+  topics ["product-knowledge", "support-knowledge"],
   retry classifyRetry,
   tools [custom_config.core/ChatMessage]
 }

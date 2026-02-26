@@ -35,6 +35,21 @@ export const ConfigSchema = z.object({
         type: z.literal('sqlite'),
         dbname: z.string().optional(),
       }),
+      z.object({
+        type: z.literal('lancedb'),
+        path: z.string().optional(),
+      }),
+    ])
+    .optional(),
+  vectorStore: z
+    .discriminatedUnion('type', [
+      z.object({
+        type: z.literal('pgvector'),
+      }),
+      z.object({
+        type: z.literal('lancedb'),
+        dbname: z.string().optional(),
+      }),
     ])
     .optional(),
   integrations: z
@@ -79,6 +94,11 @@ export const ConfigSchema = z.object({
   monitoring: z
     .object({
       enabled: z.boolean().default(false),
+    })
+    .optional(),
+  knowledgeGraph: z
+    .object({
+      serviceUrl: z.string().default('#js process.env.KNOWLEDGE_SERVICE_URL || ""'),
     })
     .optional(),
   authentication: z
@@ -163,6 +183,15 @@ export function disableInternalMonitoring() {
 
 export function isMonitoringEnabled(): boolean {
   return internalMonitoringEnabled || AppConfig?.monitoring?.enabled === true;
+}
+
+export function isKnowledgeGraphEnabled(): boolean {
+  const url = AppConfig?.knowledgeGraph?.serviceUrl?.trim();
+  return !!(url && url.length > 0) || !!process.env.KNOWLEDGE_SERVICE_URL;
+}
+
+export function getKnowledgeGraphConfig(): Config['knowledgeGraph'] | undefined {
+  return AppConfig?.knowledgeGraph;
 }
 
 type TtlCacheEntry<T> = {

@@ -1,4 +1,3 @@
-
 <div align="center">
 
 <p>
@@ -25,18 +24,20 @@
 <a href="https://github.com/agentlang-ai/agentlang/tree/main/example"><img src="https://img.shields.io/badge/Examples-Page-yellow?logo=homepage&logoColor=yellow&style=for-the-badge"></a>
 
 [![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen?logo=node.js)](https://nodejs.org) [![CI](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml/badge.svg)](https://github.com/agentlang-ai/agentlang/actions/workflows/ci.yml)![License](https://img.shields.io/badge/License-Sustainable%20Use%20v1.0-blue.svg) [![npm downloads](https://img.shields.io/npm/dm/agentlang.svg)](https://www.npmjs.com/package/agentlang)
+
 <hr>
 
 ## Agentlang - Team as Code
+
 </div>
 
 Agentlang is a declarative DSL (built on TypeScript) for creating AI Agents and full-stack Agentic Apps. With Agentlang, you define, version, run, mentor, and monitor teams of AI agents, along with the app infrastructure they need: data model, workflows, RBAC, integrations, and UI. We refer to this approach - bringing together AI agent development and App development into a single coherent discipline - as Team-as-Code (our riff on IaC).
 
-* **For Devs and Non-Devs:** Code and vibe-code in your IDE, focusing on the business-logic of your app, not wiring. Alternatively, you can build, run, mentor and monitor your AI Team in Studio - our visual-builder (coming soon). Switch back-and-forth between the two modes seamlessly.
+- **For Devs and Non-Devs:** Code and vibe-code in your IDE, focusing on the business-logic of your app, not wiring. Alternatively, you can build, run, mentor and monitor your AI Team in Studio - our visual-builder (coming soon). Switch back-and-forth between the two modes seamlessly.
 
-* **Robust Integrations:** The Agentlang runtime ships with native integrations for LLMs, databases, vector DBs, and auth providers. Our connector architecture is built for the enterprise, with a rapidly growing catalog for systems like Salesforce, ServiceNow, HubSpot, Snowflake, and more. Also, because Agentlang compiles to Node.js (and runs in the browser), you can use any existing JavaScript library out of the box.
+- **Robust Integrations:** The Agentlang runtime ships with native integrations for LLMs, databases, vector DBs, and auth providers. Our connector architecture is built for the enterprise, with a rapidly growing catalog for systems like Salesforce, ServiceNow, HubSpot, Snowflake, and more. Also, because Agentlang compiles to Node.js (and runs in the browser), you can use any existing JavaScript library out of the box.
 
-* **Production-grade**: Under the hood, it’s all modern TypeScript—strong typing, tooling, testing, and CI/CD-friendly workflows—built for enterprise-class reliability, governance, and scale.
+- **Production-grade**: Under the hood, it’s all modern TypeScript—strong typing, tooling, testing, and CI/CD-friendly workflows—built for enterprise-class reliability, governance, and scale.
 
 Agentlang introduces two foundational innovations: [Agentic Reliability Modeling](#-agentic-reliability-modeling) and [AgentLang Ontology](#agentlang-ontology)
 
@@ -131,7 +132,6 @@ workflow ticketInProgress {
     ...
 }
 ```
-
 
 ### ✨ First-class AI Agents
 
@@ -328,8 +328,8 @@ What makes this model special is how seamlessly an agent can interact with it �
 
 To get started with Agentlang Ontology, please see the [Agentlang Tutorial](https://docs.fractl.io/app) or explore the following example applications:
 
- * [Car Dealership](https://github.com/agentlang-ai/agentlang/tree/main/example/car_dealership)
- * [Customer Support System](https://github.com/agentlang-ai/agentlang/tree/main/example/customer_support_system)
+- [Car Dealership](https://github.com/agentlang-ai/agentlang/tree/main/example/car_dealership)
+- [Customer Support System](https://github.com/agentlang-ai/agentlang/tree/main/example/customer_support_system)
 
 ## 🚀 Getting Started
 
@@ -363,14 +363,7 @@ For contributors who want to build and develop Agentlang itself:
 ```shell
 # Install dependencies
 npm install
-
-OR
-
-# Install pnpm: https://pnpm.io/installation
-# Use pnpm
-pnpm install
 ```
-**Note**: If pnpm shows build script warnings, run `pnpm approve-builds` and approve esbuild and sqlite3.
 
 ### ⚡ Build
 
