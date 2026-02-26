@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.3](https://github.com/agentlang-ai/agentlang/compare/0.10.2...0.10.3) (2026-02-26)
+
+### Changes
+
+* Knowledge graph memory system implementation (#591) ([c92be97](https://github.com/agentlang-ai/agentlang/commit/c92be97c8503e06fa4a578b6d08668bc77e9e31e)) - @pratik
+* Integration Manager credential offload and OAuth flow (#625) ([b624ea6](https://github.com/agentlang-ai/agentlang/commit/b624ea666f4c060a0eb2979978acdf65011eb785)) - @ranga
+* Add human-friendly parser error messages (#623) ([59a99a3](https://github.com/agentlang-ai/agentlang/commit/59a99a3eb42e246ec824eba407176307fb173884)) - @ranga
+* Evolve @empty + @as syntax for unambiguous alias bindings (#622) ([ba2ea02](https://github.com/agentlang-ai/agentlang/commit/ba2ea02e2672f060d369a3190535a06bf477960b)) - @ranga
+* Fix @expr attribute handling: user overrides and chained evaluation (#602) ([5668989](https://github.com/agentlang-ai/agentlang/commit/56689891c6bf4edf2e1f6fef78abe6cb4e4d777d)) - @ranga
+* Support @expr references through between-relationships (#604) ([d697198](https://github.com/agentlang-ai/agentlang/commit/d6971988019137e5cd30d12723bfa7929e969789)) - @ranga
+* Add @limit/@offset pagination to GET resource endpoints (#612) ([c17e0ae](https://github.com/agentlang-ai/agentlang/commit/c17e0ae855a58db8924e99062f1e80c5ccce53d4)) - @ranga
+* Handle inline relationship data in HTTP POST entity endpoint (#600) ([1326597](https://github.com/agentlang-ai/agentlang/commit/1326597d40bd164684b4cefda64274573a1b5335)) - @ranga
+* Agent cancellation (#616) ([b1ed3cd](https://github.com/agentlang-ai/agentlang/commit/b1ed3cdc6be8bbfbb9ab9a1966f452fd97e2412e)) - @vijayfractl
+
+---
 ## [0.10.2](https://github.com/agentlang-ai/agentlang/compare/0.10.1...0.10.2) (2026-02-18)
 
 ### Changes
