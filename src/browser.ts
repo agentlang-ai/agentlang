@@ -412,9 +412,15 @@ export { isExecGraphEnabled } from './utils/runtime.js';
 export { enableInternalMonitoring, disableInternalMonitoring } from './runtime/state.js';
 
 // ===============================
-// Database Exports
+// Browser Database Exports (SQL.js)
 // ===============================
-export { initDatabase, resetDefaultDatabase } from './runtime/resolvers/sqldb/database.js';
+export {
+  initDatabase,
+  resetDefaultDatabase,
+  getSqlJsDb,
+  getSQL,
+  isDatabaseInitialized,
+} from './runtime/resolvers/sqldb/browser-database.js';
 
 // ===============================
 // Core Module Exports
@@ -475,6 +481,3 @@ export {
 
 // Default export from AI module (the module template)
 export { default as aiModuleDefault } from './runtime/modules/ai.js';
-
-// Note: Features requiring Node.js modules (fs, LanceDB, child_process, etc.) are not available in browser
-// Use environment detection to conditionally load these features
