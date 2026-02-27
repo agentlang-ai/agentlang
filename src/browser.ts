@@ -109,6 +109,7 @@ export {
   // Record operations
   addEntity,
   addEvent,
+  removeEvent,
   addMcpEvent,
   addRecord,
   addRelationship,
@@ -162,12 +163,13 @@ export {
   loadAppConfig,
   parseAndIntern,
   runStandaloneStatements,
+  loadCoreModules,
 } from './runtime/loader.js';
 
 // ===============================
 // Runtime Utilities Exports
 // ===============================
-export { isFqName, nameToPath } from './runtime/util.js';
+export { isFqName, nameToPath, runInitFunctions, Path } from './runtime/util.js';
 
 // ===============================
 // Runtime Graph Exports
@@ -188,6 +190,7 @@ export {
   BasePattern,
   EmptyBasePattern,
   LiteralPattern,
+  LiteralPatternType,
   FunctionCallPattern,
   ExpressionPattern,
   GroupExpressionPattern,
@@ -387,6 +390,91 @@ export {
   setLocalEnv,
   getLocalEnv,
 } from './runtime/auth/defs.js';
+
+// ===============================
+// Runtime API Exports
+// ===============================
+export { initGlobalApi } from './runtime/api.js';
+
+// ===============================
+// Runtime Execution Graph Exports
+// ===============================
+export { enableExecutionGraph } from './runtime/exec-graph.js';
+
+// ===============================
+// Runtime Utilities Exports
+// ===============================
+export { isExecGraphEnabled } from './utils/runtime.js';
+
+// ===============================
+// Runtime State Exports
+// ===============================
+export { enableInternalMonitoring, disableInternalMonitoring } from './runtime/state.js';
+
+// ===============================
+// Database Exports
+// ===============================
+export { initDatabase, resetDefaultDatabase } from './runtime/resolvers/sqldb/database.js';
+
+// ===============================
+// Core Module Exports
+// ===============================
+export {
+  // loadCoreModules is in loader.ts, not core.ts
+  restartSuspension,
+  lookupActiveSuspension,
+  fetchLatestMonitorForEvent,
+  fetchMonitorsForEvent,
+  validateModule,
+} from './runtime/modules/core.js';
+
+// ===============================
+// Auth Module Exports
+// ===============================
+export {
+  signUpUser,
+  confirmSignupUser,
+  resendConfirmationCodeUser,
+  loginUser,
+  forgotPasswordUser,
+  confirmForgotPasswordUser,
+  logoutUser,
+  changePassword,
+  refreshUserToken,
+  getUserInfo,
+  getUserInfoByEmail,
+  inviteUser,
+  acceptInvitationUser,
+  callbackUser,
+} from './runtime/modules/auth.js';
+
+// ===============================
+// AI Module Exports
+// ===============================
+export {
+  CoreAIModuleName,
+  AgentEntityName,
+  LlmEntityName,
+  AgentLearnerType,
+  AgentCancelledException,
+  cancelAgent,
+  checkCancelled,
+  clearCancellation,
+  AgentFqName,
+  AgentInstance,
+  findAgentByName,
+  findProviderForLLM,
+  findAgentChatSession,
+  saveAgentChatSession,
+  agentName,
+  normalizeGeneratedCode,
+  processAgentLearning,
+  saveFlowStepResultLocally,
+  saveFlowStepResult,
+} from './runtime/modules/ai.js';
+
+// Default export from AI module (the module template)
+export { default as aiModuleDefault } from './runtime/modules/ai.js';
 
 // Note: Features requiring Node.js modules (fs, LanceDB, child_process, etc.) are not available in browser
 // Use environment detection to conditionally load these features
