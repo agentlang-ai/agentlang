@@ -37,7 +37,9 @@ export async function pushNotification(_: Resolver, inst: Instance) {
     });
     if (!response.ok) {
       const text = await response.text();
-      logger.error(`Failed to push notification to inbox ${inbox}: HTTP ${response.status} — ${text}`);
+      logger.error(
+        `Failed to push notification to inbox ${inbox}: HTTP ${response.status} — ${text}`
+      );
     }
     return inst;
   } catch (err: any) {
