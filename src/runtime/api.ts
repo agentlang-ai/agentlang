@@ -1,4 +1,5 @@
 import { fetchConfig as al_fetchConfig } from './interpreter.js';
+import { defaultDataSource } from './resolvers/sqldb/database.js';
 import {
   makeInstance as al_makeInstance,
   isInstanceOfType as al_isInstanceOfType,
@@ -6,6 +7,13 @@ import {
 import { getLocalEnv as al_getLocalEnv, setLocalEnv as al_setLocalEnv } from './auth/defs.js';
 import { now } from './util.js';
 import { initDateFns } from './datefns.js';
+import {
+  integrationAuthFetch as al_authFetch,
+  getIntegrationAuthHeaders as al_getAuthHeaders,
+  getOAuthAuthorizeUrl as al_getOAuthAuthorizeUrl,
+  exchangeOAuthCode as al_exchangeOAuthCode,
+  getIntegrationAccessToken as al_getAccessToken,
+} from './integration-client.js';
 
 declare global {
   var agentlang: any | undefined;
@@ -36,6 +44,29 @@ export function initGlobalApi() {
 
     // Expose date-fns functions globally as dateFns.*
     globalThis.dateFns = initDateFns();
+
+    // Expose credential auth helpers globally
+    globalThis.agentlang.authFetch = al_authFetch;
+    globalThis.agentlang.getAuthHeaders = al_getAuthHeaders;
+
+    // Expose OAuth consent flow helpers globally
+    globalThis.agentlang.getOAuthAuthorizeUrl = al_getOAuthAuthorizeUrl;
+    globalThis.agentlang.exchangeOAuthCode = al_exchangeOAuthCode;
+    globalThis.agentlang.getAccessToken = al_getAccessToken;
+
+    // Expose raw SQL query for resolvers that need direct database access (e.g. pgvector)
+    globalThis.agentlang.rawQuery = async (sql: string, params?: any[]) => {
+      if (!defaultDataSource || !defaultDataSource.isInitialized) {
+        throw new Error('Database not initialized');
+      }
+      return defaultDataSource.query(sql, params);
+    };
+
+    // Expose database type detection for resolvers
+    globalThis.agentlang.getDbType = () => {
+      if (!defaultDataSource || !defaultDataSource.isInitialized) return 'unknown';
+      return defaultDataSource.options.type;
+    };
 
     ApiInited = true;
   }

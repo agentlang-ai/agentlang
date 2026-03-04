@@ -1,7 +1,6 @@
-import { Instance } from './module.js';
 import { isString } from './util.js';
 
-const Integrations = new Map<string, Instance>();
+const Integrations = new Map<string, any>();
 
 const IntegManagerModel = 'integmanager.core';
 
@@ -16,7 +15,8 @@ export async function prepareIntegrations(
   const keys = [...integConfig.keys()];
   for (let i = 0; i < keys.length; ++i) {
     const configName = keys[i];
-    const configPath = integConfig.get(configName);
+    const entry = integConfig.get(configName);
+    const configPath = typeof entry === 'string' ? entry : entry?.config;
     if (configPath) {
       const apiUrl = mkApiUrl(integManagerHost, configPath);
       try {
@@ -35,9 +35,6 @@ export async function prepareIntegrations(
         const data = await response.json();
         if (data.length > 0) {
           const inst: any = data[0].config;
-          if (inst.type == 'custom' && isString(inst.parameter)) {
-            inst.parameter = new Map(Object.entries(JSON.parse(inst.parameter)));
-          }
           Integrations.set(configName, inst);
         } else {
           console.error(`Integration not found for ${configPath}`);
@@ -84,14 +81,26 @@ function mkApiUrl(integManagerHost: string, configPath: string): string {
   const parts = configPath.split('/');
   const integId = parts[0];
   const configId = parts[1];
-  return `${integManagerHost}/${IntegManagerModel}/integration/${integId}/integrationConfig/config/${configId}`;
+  return `${integManagerHost}/${IntegManagerModel}/integration/${integId}/integrationConfig/config/${configId}?tree=true`;
 }
 
 export function getIntegrationConfig(name: string, configName: string): any {
   const config: any = Integrations.get(name);
-  if (config) {
-    return config.parameter.get(configName);
-  } else {
-    return undefined;
+  if (!config) return undefined;
+  if (config.parameter == null) return undefined;
+
+  if (config.parameter instanceof Map) {
+    return Object.fromEntries(config.parameter).get(configName);
   }
+  if (isString(config.parameter)) {
+    try {
+      return JSON.parse(config.parameter)[configName];
+    } catch {
+      return undefined;
+    }
+  }
+  if (typeof config.parameter === 'object') {
+    return config.parameter[configName];
+  }
+  return undefined;
 }
