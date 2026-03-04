@@ -2,6 +2,7 @@ import { default as ai, normalizeGeneratedCode } from './ai.js';
 import { default as auth } from './auth.js';
 import { default as files } from './files.js';
 import { default as mcp } from './mcp.js';
+import messaging, { initMessagingModule } from './messaging.js';
 import {
   DefaultModuleName,
   DefaultModules,
@@ -188,6 +189,7 @@ export function registerCoreModules() {
     { def: ai, name: makeCoreModuleName('ai') },
     { def: files, name: makeCoreModuleName('files') },
     { def: mcp, name: mcpn },
+    { def: messaging, name: makeCoreModuleName('messaging') },
   ];
 
   coreModuleInfo.forEach(({ def, name }) => {
@@ -639,6 +641,8 @@ async function internPersistentModules() {
 }
 
 export function initCoreModuleManager() {
+  initMessagingModule();
+
   const ModuleResolverName = 'agentlang/moduleResolver';
   const ModuleResolver = new GenericResolver(ModuleResolverName, {
     create: createModule,
