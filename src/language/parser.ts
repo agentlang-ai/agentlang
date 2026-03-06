@@ -327,10 +327,10 @@ function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
       cp.orderBy = opts.orderByClause.colNames;
     }
     if (opts.limitClause) {
-      cp.limit = opts.limitClause.value;
+      cp.limit = opts.limitClause.value ?? opts.limitClause.expr?.$cstNode?.text;
     }
     if (opts.offsetClause) {
-      cp.offset = opts.offsetClause.value;
+      cp.offset = opts.offsetClause.value ?? opts.offsetClause.expr?.$cstNode?.text;
     }
     cp.isCreate = false;
     cp.isQueryUpdate = false;
