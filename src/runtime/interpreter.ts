@@ -1578,7 +1578,11 @@ async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
   }
 }
 
-async function maybeSetQueryClauses(inst: Instance, qopts: ExtractedQueryOptions, env: Environment) {
+async function maybeSetQueryClauses(
+  inst: Instance,
+  qopts: ExtractedQueryOptions,
+  env: Environment
+) {
   if (qopts.groupByClause) {
     inst.setGroupBy(qopts.groupByClause.colNames);
   }
