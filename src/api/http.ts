@@ -54,11 +54,7 @@ import {
 } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
 import { Config } from '../runtime/state.js';
-import {
-  findFileByFilename,
-  createFileRecord,
-  deleteFileRecord,
-} from '../runtime/modules/files.js';
+import { findFileByFilename, createFileRecord, deleteFileRecord } from '../runtime/modules/fs.js';
 import {
   getOAuthAuthorizeUrl,
   exchangeOAuthCode,
