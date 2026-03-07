@@ -182,7 +182,7 @@ export class Environment extends Instance {
   private agentMode: 'chat' | 'planner' | undefined = undefined;
   private agentChatId: string | undefined = undefined;
   private monitor: Monitor | undefined = undefined;
-  private escalatedRole: string | undefined;
+  private assumedRole: string | undefined;
   private activeChatId: string | undefined;
 
   private activeUserData: any = undefined;
@@ -210,7 +210,7 @@ export class Environment extends Instance {
       this.eventExecutor = parent.eventExecutor;
       this.agentChatId = parent.agentChatId;
       this.monitor = parent.monitor;
-      this.escalatedRole = parent.escalatedRole;
+      this.assumedRole = parent.assumedRole;
       this.activeChatId = parent.activeChatId;
     } else {
       this.activeModule = DefaultModuleName;
@@ -308,17 +308,17 @@ export class Environment extends Instance {
     return this;
   }
 
-  setEscalatedRole(s: string): Environment {
-    this.escalatedRole = s;
+  setAssumedRole(s: string): Environment {
+    this.assumedRole = s;
     return this;
   }
 
-  getEscalatedRole(): string | undefined {
-    return this.escalatedRole;
+  getAssumedRole(): string | undefined {
+    return this.assumedRole;
   }
 
-  resetEscalatedRole(): Environment {
-    this.escalatedRole = undefined;
+  resetAssumedRole(): Environment {
+    this.assumedRole = undefined;
     return this;
   }
 
@@ -971,7 +971,7 @@ export let evaluate = async function (
         env = new Environment(eventInstance.name + '.env', activeEnv);
         env.setActiveEvent(eventInstance);
         const er = wf.getRoleEscalation();
-        if (er) env.setEscalatedRole(er);
+        if (er) env.setAssumedRole(er);
         if (kernelCall) {
           env.setInKernelMode(true);
         }
@@ -1012,7 +1012,7 @@ export let evaluate = async function (
       throw err;
     }
   } finally {
-    env?.resetEscalatedRole();
+    env?.resetAssumedRole();
     if (!txnRolledBack && env !== undefined && activeEnv === undefined) {
       await env.commitAllTransactions();
     }
