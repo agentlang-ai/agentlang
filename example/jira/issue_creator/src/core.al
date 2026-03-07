@@ -73,7 +73,7 @@ flow issueManager {
 }
 
 @public agent issueManager {
-    role "You are an agent who analyses user messages and creates jira issues from it"
+    goal "You are an agent who analyses user messages and creates jira issues from it"
 }
 
 entity ProcessedMessage {

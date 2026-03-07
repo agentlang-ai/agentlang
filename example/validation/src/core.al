@@ -134,5 +134,5 @@ flow networkProvisioningRequestManager {
 }
 
 @public agent networkProvisioningRequestManager {
-    role "You are a network-provisioning request manager"
+    goal "You are a network-provisioning request manager"
 }

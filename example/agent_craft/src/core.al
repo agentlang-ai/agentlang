@@ -231,7 +231,7 @@ flow builderAgent {
 
 @public agent builderAgent {
   llm "haiku_llm",
-  role "You are a language builder which generates Agentlang based code."
+  goal "You are a language builder which generates Agentlang based code."
 }
 
 @public event generateAgentlang {
@@ -308,7 +308,7 @@ flow builderAgentResolver {
 
 @public agent builderAgentResolver {
   llm "haiku_llm",
-  role "You are a language builder which generates Agentlang based code with resolver awareness."
+  goal "You are a language builder which generates Agentlang based code with resolver awareness."
 }
 
 @public event generateAgentlangResolver {
@@ -430,7 +430,7 @@ record OrchestratorResponse {
 }
 
 @public agent componentOrchestrator {
-    role "Orchestrate multiple component creation and update operations based on user request",
+    goal "Orchestrate multiple component creation and update operations based on user request",
     instruction "{{message}}
 
 YOU MUST RETURN STRUCTURED DATA, NOT RAW CODE.

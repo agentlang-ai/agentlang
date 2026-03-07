@@ -481,7 +481,7 @@ in the incident's description."
 
     @public agent orchestratorAgent {
         llm "ticketflow_llm",
-        role "You are an incident manager.",
+        goal "You are an incident manager.",
         flows [orchestrator]
     }
 
@@ -556,7 +556,7 @@ incidentProvisioner --> incidentStatusUpdater
 @public agent orchestratorAgent
 {
     llm "ticketflow_llm",
-    role "You are an incident manager.",
+    goal "You are an incident manager.",
     flows [orchestrator]
 }
 {manager {id "01", category "DNS"}}

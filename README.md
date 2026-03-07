@@ -102,7 +102,7 @@ flow TicketFlow {
 
 agent TicketFlow {
     llm "gpt4o",
-    role "You are a network ticket management application. Your job is to triage any ticket passed to you
+    goal "You are a network ticket management application. Your job is to triage any ticket passed to you
           and update the ticket with appropriate assigned_to, status and triaging comments.",
 	glossary [
 		{"name": "incident", "meaning": "a problem report", "synonyms": "ticket"},
@@ -140,7 +140,7 @@ Agents and many concepts agents use are built-in language constructs.
 ```typescript
 agent TicketFlow {
     llm "gpt4o",
-    role "You are a network ticket management agent. Your job is to triage any ticket passed to you and
+    goal "You are a network ticket management agent. Your job is to triage any ticket passed to you and
           update the ticket with appropriate assigned_to, status and triaging comments."
 }
 

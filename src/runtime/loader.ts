@@ -832,7 +832,7 @@ async function addAgentDefinition(
       }
       const ov = v;
       if (apdef.value.id || apdef.value.ref || apdef.value.array) {
-        if (!(apdef.name === 'instruction' || apdef.name === 'role' || apdef.name === 'llm'))
+        if (!(apdef.name === 'instruction' || apdef.name === 'goal' || apdef.name === 'llm'))
           v = `"${v}"`;
       } else if (apdef.value.str) {
         v = `"${escapeSpecialChars(v)}"`;
@@ -869,7 +869,7 @@ async function addAgentDefinition(
     const llmn = llmName || attrs.get('llm');
     wf = `${wf}; {${CoreAIModuleName}/${AgentEntityName}
         {name "${name}_${AgentLearnerType}", moduleName "${moduleName}", llm "${llmn}",
-         type "${AgentLearnerType}", role "You are an agent that summarizes user-provided scenarios."}, @upsert}`;
+         type "${AgentLearnerType}", goal "You are an agent that summarizes user-provided scenarios."}, @upsert}`;
   }
   (await parseWorkflow(`workflow A {${wf}}`)).statements.forEach((stmt: Statement) => {
     addStandaloneStatement(stmt, moduleName, false);

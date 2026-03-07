@@ -110,5 +110,5 @@ flow carOrderRequestManager {
 }
 
 @public agent carOrderRequestManager {
-    role "You are an agent who analyses customer order requests for new cars and make appropriate orders"
+    goal "You are an agent who analyses customer order requests for new cars and make appropriate orders"
 }

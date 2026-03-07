@@ -95,7 +95,7 @@ agent findSupportExecutive {
 }
 
 agent ticketAssignment {
-    role "You are an agent who assigns or escalates support tickets",
+    goal "You are an agent who assigns or escalates support tickets",
     instruction "When a new support ticket arrives, analyze its subject and description. 
 If the ticket topic matches one of the support executive’s skills {{SupportExecutive.skills}}, assign it to that executive with email {{SupportExecutive.email}}.
 Otherwise, escalate the ticket to the EscalationQueue.",
@@ -151,7 +151,7 @@ flow ticketManager {
 }
 
 agent ticketManager {
-    role "You are an agent who classifies and assigns customer support tickets to executives"
+    goal "You are an agent who classifies and assigns customer support tickets to executives"
 }
 
 workflow afterCreateTicket {

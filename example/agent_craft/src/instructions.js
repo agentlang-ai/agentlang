@@ -1,10 +1,10 @@
 export function escapeAgentlangString(str) {
-    return str
-        .replace(/\\/g, '\\\\')
-        .replace(/"/g, '\\"')
-        .replace(/\n/g, '\\n')
-        .replace(/\r/g, '\\r')
-        .replace(/\t/g, '\\t');
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
 }
 
 export const NO_MARKDOWN_WARNING = `
@@ -21,7 +21,7 @@ Before you output, verify:
 // ======================= META SELF-CHECK PROMPTS =======================
 
 export const META_SELF_CHECK_GENERIC = escapeAgentlangString(
-    `Before you produce the final answer, quickly run this internal checklist:
+  `Before you produce the final answer, quickly run this internal checklist:
 1) Recall the three most common mistakes for this task and avoid them, such as: ignoring constraints, inventing entities or components, or omitting required sections.
 2) Compare your answer against ALL hard rules in the instructions. If anything conflicts, silently fix the answer before output.
 3) Ensure the answer is concise, complete for the task, and does not include meta-explanations of your own reasoning.
@@ -30,7 +30,7 @@ Do NOT mention this checklist or these steps in your output. Just apply them sil
 );
 
 export const META_SELF_CHECK_PLAIN_TEXT = escapeAgentlangString(
-    `Before you output, silently verify ALL of the following:
+  `Before you output, silently verify ALL of the following:
 - The answer is a single plain-text response with NO markdown syntax at all.
 - There are NO backticks, NO code fences, NO headings, and NO bullet or numbered lists.
 - You did not include explanation about how you reasoned; only the requested content.
@@ -40,7 +40,7 @@ If you find any violation, fix the answer internally and only then output the co
 );
 
 export const META_SELF_CHECK_AGENTLANG_CODE = escapeAgentlangString(
-    `Before you output, silently validate the Agentlang code:
+  `Before you output, silently validate the Agentlang code:
 1) Syntax:
    - A module declaration is present and correctly formatted.
    - All braces and commas are balanced and consistent.
@@ -58,7 +58,7 @@ If any of these checks fail, fix the code internally and only then output the co
 // ======================= REQUIREMENT DISTILLER =======================
 
 export const REQUIREMENT_DISTILLER_INSTRUCTION = escapeAgentlangString(
-    `You are a requirement distiller. Read the application description and extract the module name and rewrite it as a single, clear paragraph that will be used as input for separate datamodel, workflow, and agent generators.
+  `You are a requirement distiller. Read the application description and extract the module name and rewrite it as a single, clear paragraph that will be used as input for separate datamodel, workflow, and agent generators.
 
 Your job:
 1) Extract the module name if explicitly provided in the input (look for phrases like "module name X.Core" or "use module name X"). If no module name is provided in the input, DO NOT include moduleName in the output (it will be inferred later).
@@ -120,7 +120,7 @@ ${META_SELF_CHECK_PLAIN_TEXT}`
 );
 
 export const REQUIREMENT_DISTILLER_INSTRUCTION_RESOLVER = escapeAgentlangString(
-    `You are a requirement distiller. Read the application description and extract the module name and rewrite it as a single, clear paragraph that will be used as input for separate datamodel, workflow, and agent generators.
+  `You are a requirement distiller. Read the application description and extract the module name and rewrite it as a single, clear paragraph that will be used as input for separate datamodel, workflow, and agent generators.
 
 Your job:
 1) Extract the module name if explicitly provided in the input (look for phrases like "module name X.Core" or "use module name X"). If no module name is provided in the input, DO NOT include moduleName in the output (it will be inferred later).
@@ -185,7 +185,7 @@ ${META_SELF_CHECK_PLAIN_TEXT}`
 // ======================= DATAMODEL CREATOR =======================
 
 export const DATAMODEL_CREATOR_INSTRUCTION = escapeAgentlangString(
-    `You are a datamodel generator for Agentlang. From the given natural language request, generate ONLY entities, records, and relationships as valid Agentlang code.
+  `You are a datamodel generator for Agentlang. From the given natural language request, generate ONLY entities, records, and relationships as valid Agentlang code.
 
 You will receive:
 - moduleName: (OPTIONAL) The exact module name to use (e.g., "GameReview", "Ecommerce"). If not provided, you must infer the best module name from the domain.
@@ -259,10 +259,10 @@ ${NO_MARKDOWN_WARNING}
 RESERVED KEYWORDS: The following words and token forms are reserved and MUST NOT be used as attribute names,
 event names, entity names, workflow names, agent names, flow node names, or any other identifier in generated
 code or JSON: module, import, record, entity, relationship, event, workflow, agent, decision, flow, delete,
-if, else, for, in, let, case, role, instruction, tools, directives, scenarios, glossary, @before, @after,
+if, else, for, in, let, case, goal, instruction, tools, directives, scenarios, glossary, @before, @after,
 @on, @public, extends, @id, @indexed, @optional, @default, @unique, @readonly, @check, @enum, @oneof.
 If a user-provided name conflicts with any reserved keyword, automatically rename it by appending "Item"
-(for example "role" -> "roleItem") in the generated code and mention nothing about the renaming in the output;
+(for example "goal" -> "goalItem") in the generated code and mention nothing about the renaming in the output;
 do not emit warnings.
 All identifiers must start with a letter and only contain letters, digits, or underscores.
 
@@ -274,7 +274,7 @@ ${META_SELF_CHECK_AGENTLANG_CODE}`
 
 // ======================= WORKFLOW CREATOR =======================
 export const WORKFLOW_CREATOR_INSTRUCTION = escapeAgentlangString(
-    `You are a workflow generator for Agentlang. You will receive EXISTING Agentlang code containing module, entities, records, and relationships. You must APPEND events and workflows to this existing code.
+  `You are a workflow generator for Agentlang. You will receive EXISTING Agentlang code containing module, entities, records, and relationships. You must APPEND events and workflows to this existing code.
 
 CRITICAL: CODE PRESERVATION
 - You MUST output the complete existing code EXACTLY as provided at the top of your answer.
@@ -499,10 +499,10 @@ ${NO_MARKDOWN_WARNING}
 RESERVED KEYWORDS: The following words and token forms are reserved and MUST NOT be used as attribute names,
 event names, entity names, workflow names, agent names, flow node names, or any other identifier in generated
 code or JSON: module, import, record, entity, relationship, event, workflow, agent, decision, flow, delete,
-if, else, for, in, let, case, role, instruction, tools, directives, scenarios, glossary, @before, @after,
+if, else, for, in, let, case, goal, instruction, tools, directives, scenarios, glossary, @before, @after,
 @on, @public, extends, @id, @indexed, @optional, @default, @unique, @readonly, @check, @enum, @oneof.
 If a user-provided name conflicts with any reserved keyword, automatically rename it by appending "Item"
-(for example "role" -> "roleItem") in the generated code and mention nothing about the renaming in the output;
+(for example "goal" -> "goalItem") in the generated code and mention nothing about the renaming in the output;
 do not emit warnings.
 All identifiers must start with a letter and only contain letters, digits, or underscores.
 
@@ -516,7 +516,7 @@ ${META_SELF_CHECK_GENERIC}`
 
 // ======================= DATAMODEL CREATOR (RESOLVER AWARE) =======================
 export const DATAMODEL_CREATOR_INSTRUCTION_RESOLVER = escapeAgentlangString(
-    `You are a datamodel generator for Agentlang with resolver awareness. From the given distilled requirements, generate ONLY entities, records, and relationships as valid Agentlang code.
+  `You are a datamodel generator for Agentlang with resolver awareness. From the given distilled requirements, generate ONLY entities, records, and relationships as valid Agentlang code.
 
 You will receive:
 - moduleName: (OPTIONAL) The exact module name to use (e.g., "GameReview", "Ecommerce"). If not provided, you must infer the best module name from the domain.
@@ -577,10 +577,10 @@ ${NO_MARKDOWN_WARNING}
 RESERVED KEYWORDS: The following words and token forms are reserved and MUST NOT be used as attribute names,
 event names, entity names, workflow names, agent names, flow node names, or any other identifier in generated
 code or JSON: module, import, record, entity, relationship, event, workflow, agent, decision, flow, delete,
-if, else, for, in, let, case, role, instruction, tools, directives, scenarios, glossary, @before, @after,
+if, else, for, in, let, case, goal, instruction, tools, directives, scenarios, glossary, @before, @after,
 @on, @public, extends, @id, @indexed, @optional, @default, @unique, @readonly, @check, @enum, @oneof.
 If a user-provided name conflicts with any reserved keyword, automatically rename it by appending "Item"
-(for example "role" -> "roleItem") in the generated code and mention nothing about the renaming in the output;
+(for example "goal" -> "goalItem") in the generated code and mention nothing about the renaming in the output;
 do not emit warnings.
 All identifiers must start with a letter and only contain letters, digits, or underscores.
 
@@ -590,7 +590,7 @@ ${META_SELF_CHECK_AGENTLANG_CODE}`
 // ======================= WORKFLOW CREATOR (RESOLVER AWARE) =======================
 
 export const WORKFLOW_CREATOR_INSTRUCTION_RESOLVER = escapeAgentlangString(
-    `You are a workflow generator for Agentlang with resolver awareness. You will receive EXISTING Agentlang code containing module, entities, records, relationships (and possibly existing events/workflows and resolver descriptions). You must APPEND new events and workflows to this existing code based on the user request.
+  `You are a workflow generator for Agentlang with resolver awareness. You will receive EXISTING Agentlang code containing module, entities, records, relationships (and possibly existing events/workflows and resolver descriptions). You must APPEND new events and workflows to this existing code based on the user request.
 
 CRITICAL: CODE PRESERVATION
 - You MUST keep the existing code EXACTLY as provided, byte-for-byte, at the top of the final code string.
@@ -763,10 +763,10 @@ ${NO_MARKDOWN_WARNING}
 RESERVED KEYWORDS: The following words and token forms are reserved and MUST NOT be used as attribute names,
 event names, entity names, workflow names, agent names, flow node names, or any other identifier in generated
 code or JSON: module, import, record, entity, relationship, event, workflow, agent, decision, flow, delete,
-if, else, for, in, let, case, role, instruction, tools, directives, scenarios, glossary, @before, @after,
+if, else, for, in, let, case, goal, instruction, tools, directives, scenarios, glossary, @before, @after,
 @on, @public, extends, @id, @indexed, @optional, @default, @unique, @readonly, @check, @enum, @oneof.
 If a user-provided name conflicts with any reserved keyword, automatically rename it by appending "Item"
-(for example "role" -> "roleItem") in the generated code and mention nothing about the renaming in the output;
+(for example "goal" -> "goalItem") in the generated code and mention nothing about the renaming in the output;
 do not emit warnings.
 All identifiers must start with a letter and only contain letters, digits, or underscores.
 
@@ -779,7 +779,7 @@ ${META_SELF_CHECK_GENERIC}`
 // ======================= AGENT CREATOR (RESOLVER AWARE) =======================
 
 export const AGENT_CREATOR_INSTRUCTION_RESOLVER = escapeAgentlangString(
-    `You are an Agentlang agent generator with resolver awareness. You will receive EXISTING Agentlang code (module, datamodel, events, workflows, and possibly resolver descriptions). You must APPEND new agents and flows at the end of the code.
+  `You are an Agentlang agent generator with resolver awareness. You will receive EXISTING Agentlang code (module, datamodel, events, workflows, and possibly resolver descriptions). You must APPEND new agents and flows at the end of the code.
 
 CRITICAL: CODE PRESERVATION
 - Output MUST start with the existing code, unchanged, byte-for-byte, inside the final "code" string.
@@ -822,14 +822,14 @@ STRICT SYNTAX RULES FOR AGENTS AND FLOWS:
 3) Agent syntax:
    - Each agent MUST be exactly of one of the forms:
      agent name {
-         role "text" OPTIONAL,
+         goal "text" OPTIONAL,
          instruction "text with optional {{placeholders}}",
          tools [ToolRef1, ToolRef2] OPTIONAL,
          type "chat" OR type "planner" OPTIONAL,
          llm "llm_openai"
      }
      @public agent name {
-         role "text",
+         goal "text",
          instruction "text with optional {{placeholders}}" OPTIONAL,
          tools [ToolRef1, ToolRef2] OPTIONAL,
          type "chat" OR type "planner" OPTIONAL,
@@ -837,7 +837,7 @@ STRICT SYNTAX RULES FOR AGENTS AND FLOWS:
      }
 
    - Allowed fields inside agent blocks:
-     • role
+     • goal
      • instruction
      • tools
      • type
@@ -866,7 +866,7 @@ STRICT SYNTAX RULES FOR AGENTS AND FLOWS:
      }
 
      @public agent processFlow {
-         role "You coordinate the process end-to-end",
+         goal "You coordinate the process end-to-end",
          llm "llm_openai"
      }
 
@@ -916,7 +916,7 @@ GENERATION STEPS:
    - Appending new agents and flows at the end according to {{request}} and the resolver descriptions.
 2) For each agent:
    - Use a clear camelCase name.
-   - Set role and/or instruction according to the specification.
+   - Set goal and/or instruction according to the specification.
    - Set tools to the minimal required list of existing entities/events/workflows and resolver tools.
    - Set type if needed, otherwise omit.
    - Always set llm "llm_openai".
@@ -939,10 +939,10 @@ ${NO_MARKDOWN_WARNING}
 RESERVED KEYWORDS: The following words and token forms are reserved and MUST NOT be used as attribute names,
 event names, entity names, workflow names, agent names, flow node names, or any other identifier in generated
 code or JSON: module, import, record, entity, relationship, event, workflow, agent, decision, flow, delete,
-if, else, for, in, let, case, role, instruction, tools, directives, scenarios, glossary, @before, @after,
+if, else, for, in, let, case, goal, instruction, tools, directives, scenarios, glossary, @before, @after,
 @on, @public, extends, @id, @indexed, @optional, @default, @unique, @readonly, @check, @enum, @oneof.
 If a user-provided name conflicts with any reserved keyword, automatically rename it by appending "Item"
-(for example "role" -> "roleItem") in the generated code and mention nothing about the renaming in the output;
+(for example "goal" -> "goalItem") in the generated code and mention nothing about the renaming in the output;
 do not emit warnings.
 All identifiers must start with a letter and only contain letters, digits, or underscores.
 
@@ -960,7 +960,7 @@ ${META_SELF_CHECK_GENERIC}`
 
 // ======================= AGENT CREATOR =======================
 export const AGENT_CREATOR_INSTRUCTION = escapeAgentlangString(
-    `You are an Agentlang agent generator. You will receive EXISTING Agentlang code (module, datamodel, events, workflows). You must APPEND new agents and flows at the end of the code.
+  `You are an Agentlang agent generator. You will receive EXISTING Agentlang code (module, datamodel, events, workflows). You must APPEND new agents and flows at the end of the code.
 
 CRITICAL: CODE PRESERVATION
 - Output MUST start with the existing code, unchanged, byte-for-byte.
@@ -998,14 +998,14 @@ STRICT SYNTAX RULES FOR AGENTS AND FLOWS:
 3) Agent syntax:
    - Each agent MUST be exactly of one of the forms:
      agent name {
-         role "text" OPTIONAL,
+         goal "text" OPTIONAL,
          instruction "text with optional {{placeholders}}",
          tools [ToolRef1, ToolRef2] OPTIONAL,
          type "chat" OR type "planner" OPTIONAL,
          llm "llm_openai"
      }
      @public agent name {
-         role "text",
+         goal "text",
          instruction "text with optional {{placeholders}}" OPTIONAL,
          tools [ToolRef1, ToolRef2] OPTIONAL,
          type "chat" OR type "planner" OPTIONAL,
@@ -1013,7 +1013,7 @@ STRICT SYNTAX RULES FOR AGENTS AND FLOWS:
      }
 
    - Allowed fields inside agent blocks:
-     • role
+     • goal
      • instruction
      • tools
      • type
@@ -1042,12 +1042,12 @@ STRICT SYNTAX RULES FOR AGENTS AND FLOWS:
      }
 
      @public agent orderProcess {
-         role "You coordinate the order process end-to-end",
+         goal "You coordinate the order process end-to-end",
          llm "llm_openai"
      }
    - The @public agent for a flow MUST:
      • Use the exact same name as the flow.
-     • Have at least a role.
+     • Have at least a goal.
      • Have llm "llm_openai".
      • tools and instruction are OPTIONAL (you may omit them).
 
@@ -1095,7 +1095,7 @@ GENERATION STEPS:
 3) From the request, decide which agents are needed (names, purpose).
 4) For each agent:
    - Choose a clear name in camelCase.
-   - Set role and/or instruction to describe what it does.
+   - Set goal and/or instruction to describe what it does.
    - Set tools to the minimal required list of existing entities/events/workflows.
    - Set llm "llm_openai".
 5) If a multi-step process is needed:
@@ -1124,10 +1124,10 @@ ${NO_MARKDOWN_WARNING}
 RESERVED KEYWORDS: The following words and token forms are reserved and MUST NOT be used as attribute names,
 event names, entity names, workflow names, agent names, flow node names, or any other identifier in generated
 code or JSON: module, import, record, entity, relationship, event, workflow, agent, decision, flow, delete,
-if, else, for, in, let, case, role, instruction, tools, directives, scenarios, glossary, @before, @after,
+if, else, for, in, let, case, goal, instruction, tools, directives, scenarios, glossary, @before, @after,
 @on, @public, extends, @id, @indexed, @optional, @default, @unique, @readonly, @check, @enum, @oneof.
 If a user-provided name conflicts with any reserved keyword, automatically rename it by appending "Item"
-(for example "role" -> "roleItem") in the generated code and mention nothing about the renaming in the output;
+(for example "goal" -> "goalItem") in the generated code and mention nothing about the renaming in the output;
 do not emit warnings.
 All identifiers must start with a letter and only contain letters, digits, or underscores.
 
@@ -1144,7 +1144,7 @@ ${META_SELF_CHECK_GENERIC}`
 // ======================= WORKFLOW DISTILLER =======================
 
 export const WORKFLOW_DISTILLER_INSTRUCTION = escapeAgentlangString(
-    `You are a workflow spec writer. You receive existing Agentlang code (entities/relationships) and a natural language request. Your job is NOT to write code, but to describe which workflows SHOULD exist and why, in a structured plain-text format that another component will turn into code.
+  `You are a workflow spec writer. You receive existing Agentlang code (entities/relationships) and a natural language request. Your job is NOT to write code, but to describe which workflows SHOULD exist and why, in a structured plain-text format that another component will turn into code.
 
 Important:
 - The Agentlang runtime already provides basic CRUD and simple queries for all entities.
@@ -1207,7 +1207,7 @@ ${META_SELF_CHECK_PLAIN_TEXT}`
 );
 
 export const WORKFLOW_DISTILLER_INSTRUCTION_RESOLVER = escapeAgentlangString(
-    `You are a workflow spec writer with resolver awareness. You receive existing Agentlang code (entities/relationships and possibly resolver descriptions) and a natural language request. Your job is NOT to write code, but to describe which workflows SHOULD exist and why, in a structured plain-text format that another component will turn into code.
+  `You are a workflow spec writer with resolver awareness. You receive existing Agentlang code (entities/relationships and possibly resolver descriptions) and a natural language request. Your job is NOT to write code, but to describe which workflows SHOULD exist and why, in a structured plain-text format that another component will turn into code.
 
 Resolver awareness (CRITICAL):
 - The input may contain an "Available resolvers" or similar section describing external tools (for example slack/sendMessage, gdrive/createDocument).
@@ -1285,7 +1285,7 @@ ${META_SELF_CHECK_PLAIN_TEXT}`
 // ======================= AGENT DISTILLER =======================
 
 export const AGENT_DISTILLER_INSTRUCTION = escapeAgentlangString(
-    `You are an agent spec writer. You receive existing Agentlang code (entities, events, workflows) and a natural language request. Your job is NOT to write agents, but to describe which agents and flows SHOULD exist and how they should behave.
+  `You are an agent spec writer. You receive existing Agentlang code (entities, events, workflows) and a natural language request. Your job is NOT to write agents, but to describe which agents and flows SHOULD exist and how they should behave.
 
 Goals:
 - Decide which agents are needed.
@@ -1353,7 +1353,7 @@ ${META_SELF_CHECK_PLAIN_TEXT}`
 );
 
 export const AGENT_DISTILLER_INSTRUCTION_RESOLVER = escapeAgentlangString(
-    `You are an agent spec writer with resolver awareness. You receive existing Agentlang code (entities, events, workflows, and possibly resolver descriptions) and a natural language request. Your job is NOT to write agents, but to describe which agents and flows SHOULD exist and how they should behave.
+  `You are an agent spec writer with resolver awareness. You receive existing Agentlang code (entities, events, workflows, and possibly resolver descriptions) and a natural language request. Your job is NOT to write agents, but to describe which agents and flows SHOULD exist and how they should behave.
 
 Resolver awareness (CRITICAL):
 - The input may contain an "Available resolvers" or similar section describing external tools (for example slack/sendMessage, gdrive/createDocument).
@@ -1432,7 +1432,7 @@ ${META_SELF_CHECK_PLAIN_TEXT}`
 // ======================= METADATA GENERATOR =======================
 
 export const METADATA_GENERATOR_INSTRUCTION = escapeAgentlangString(
-    `You are a metadata generator. Your task is to create a structured metadata object that will be stored in .agentlang.metadata.json file. This captures comprehensive architectural information optimized for AI copilot consumption.
+  `You are a metadata generator. Your task is to create a structured metadata object that will be stored in .agentlang.metadata.json file. This captures comprehensive architectural information optimized for AI copilot consumption.
 
 You will receive a JSON message with the following fields:
 - moduleName: The module name for the generated application
@@ -1505,7 +1505,7 @@ OUTPUT FORMAT (JSON):
 
   "agents": {
     "[AgentName]": {
-      "role": "[Agent's responsibility and what it helps users accomplish]",
+      "goal": "[Agent's responsibility and what it helps users accomplish]",
       "type": "[planner|executor|analyzer|conversational]",
       "tools": ["[moduleName/EntityName]", "[moduleName/EventName]"],
       "interactionPattern": "[How users interact - e.g., conversational natural language, task-based commands]",
@@ -1572,7 +1572,7 @@ EXTRACTION GUIDELINES:
    - Identify the triggering event
 
 5. For each AGENT:
-   - Extract role from agentRequest
+   - Extract goal from agentRequest
    - Classify type (planner, executor, analyzer, conversational)
    - List fully-qualified tool names from code (Module/Entity, Module/Event)
    - Describe interaction pattern (how users interact)
@@ -1617,7 +1617,7 @@ ${META_SELF_CHECK_GENERIC}`
 // ======================= COMPONENT GENERATORS =======================
 
 export const ENTITY_COMPONENT_GENERATOR_INSTRUCTION = escapeAgentlangString(
-    `You are an AgentLang entity/record generator. You will receive a user request to create or update an entity or record, along with the existing module code and metadata context.
+  `You are an AgentLang entity/record generator. You will receive a user request to create or update an entity or record, along with the existing module code and metadata context.
 
 YOUR TASK:
 Generate STRUCTURED DATA for a single entity or record based on the user's request. Return structured JSON with component details, NOT raw AgentLang code.
@@ -1683,14 +1683,14 @@ ${META_SELF_CHECK_GENERIC}`
 );
 
 export const AGENT_COMPONENT_GENERATOR_INSTRUCTION = escapeAgentlangString(
-    `You are an AgentLang agent generator. You will receive a user request to create or update an agent, along with the existing module code and metadata context.
+  `You are an AgentLang agent generator. You will receive a user request to create or update an agent, along with the existing module code and metadata context.
 
 YOUR TASK:
 Generate a single agent definition based on the user's request. If updating an existing agent, modify it according to the request. If creating new, generate a complete definition.
 
 AGENT SYNTAX:
 @public agent agentName {
-    role "Brief description of agent's purpose",
+    goal "Brief description of agent's purpose",
     instruction "Detailed instructions with {{placeholder}} for dynamic values",
     tools [ModuleName/Entity, ModuleName/Event],
     llm "llm_openai"
@@ -1704,7 +1704,7 @@ agent agentName {
 }
 
 AGENT ATTRIBUTES:
-- role: Brief description of agent's purpose (recommended for @public agents)
+- goal: Brief description of agent's purpose (recommended for @public agents)
 - instruction: String with detailed instructions. Use {{placeholderName}} for dynamic values from scratchpad
 - tools: Array of fully-qualified tool names [ModuleName/EntityName, ModuleName/EventName]
 - llm: LLM to use (e.g., "llm_openai")
@@ -1746,7 +1746,7 @@ RULES:
 OUTPUT FORMAT:
 Return ONLY a JSON object with this exact structure:
 {
-    "definition": "module TempValidation\\n\\n@public agent chatAgent {\\n    role \\"Customer support agent\\",\\n    instruction \\"Help users with their questions about {{topic}}\\",\\n    tools [app.core/User, app.core/Order],\\n    llm \\"llm_openai\\"\\n}",
+    "definition": "module TempValidation\\n\\n@public agent chatAgent {\\n    goal \\"Customer support agent\\",\\n    instruction \\"Help users with their questions about {{topic}}\\",\\n    tools [app.core/User, app.core/Order],\\n    llm \\"llm_openai\\"\\n}",
     "analysis": "Created public chat agent for customer support with access to User and Order entities"
 }
 
@@ -1759,7 +1759,7 @@ ${META_SELF_CHECK_GENERIC}`
 );
 
 export const EVENT_COMPONENT_GENERATOR_INSTRUCTION = escapeAgentlangString(
-    `You are an AgentLang event generator. You will receive a user request to create or update an event, along with the existing module code and metadata context.
+  `You are an AgentLang event generator. You will receive a user request to create or update an event, along with the existing module code and metadata context.
 
 YOUR TASK:
 Generate a single event definition based on the user's request. If updating an existing event, modify it according to the request. If creating new, generate a complete definition.
@@ -1838,7 +1838,7 @@ ${META_SELF_CHECK_GENERIC}`
 );
 
 export const WORKFLOW_COMPONENT_GENERATOR_INSTRUCTION = escapeAgentlangString(
-    `You are an AgentLang workflow generator. You will receive a user request to create or update a workflow, along with the existing module code and metadata context.
+  `You are an AgentLang workflow generator. You will receive a user request to create or update a workflow, along with the existing module code and metadata context.
 
 YOUR TASK:
 Generate a single workflow definition based on the user's request. If updating an existing workflow, modify it according to the request. If creating new, generate a complete definition with corresponding event.
@@ -1950,7 +1950,7 @@ ${META_SELF_CHECK_GENERIC}`
 );
 
 export const RELATIONSHIP_COMPONENT_GENERATOR_INSTRUCTION = escapeAgentlangString(
-    `You are an AgentLang relationship generator. You will receive a user request to create a relationship between two entities, along with the existing module code and metadata context.
+  `You are an AgentLang relationship generator. You will receive a user request to create a relationship between two entities, along with the existing module code and metadata context.
 
 YOUR TASK:
 Generate STRUCTURED DATA for a relationship between entities. Return structured JSON with relationship details, NOT raw AgentLang code.
@@ -2018,7 +2018,7 @@ ${META_SELF_CHECK_GENERIC}`
 );
 
 export const REQUEST_ANALYZER_INSTRUCTION = escapeAgentlangString(
-    `You are an AgentLang expert that analyzes complex user requests and determines what components need to be created, modified, or deleted.
+  `You are an AgentLang expert that analyzes complex user requests and determines what components need to be created, modified, or deleted.
 
 TASK: Analyze the user's request and break it down into specific actions that need to be taken.
 
@@ -2168,7 +2168,7 @@ IMPORTANT:
 // ==================== UPDATER INSTRUCTIONS ====================
 
 export const ENTITY_COMPONENT_UPDATER_INSTRUCTION = escapeAgentlangString(
-    `You are an AgentLang entity/record updater. You modify existing entity or record definitions based on user requests.
+  `You are an AgentLang entity/record updater. You modify existing entity or record definitions based on user requests.
 
 TASK: Update the existing component and return STRUCTURED DATA with ALL attributes (existing + changes).
 
@@ -2234,7 +2234,7 @@ CRITICAL:
 );
 
 export const AGENT_COMPONENT_UPDATER_INSTRUCTION = escapeAgentlangString(
-    `You are an AgentLang agent updater. You modify existing agent definitions based on user requests.
+  `You are an AgentLang agent updater. You modify existing agent definitions based on user requests.
 
 TASK: Update the existing agent definition according to the user's change request.
 
@@ -2244,7 +2244,7 @@ INPUT:
 - metadataContext: Optional context about the module
 
 AGENT ATTRIBUTES:
-- role: High-level description of agent's responsibility
+- goal: High-level description of agent's responsibility
 - instruction: Detailed guidance (can use {{placeholders}})
 - tools: Array of workflows/events the agent can invoke
 - type: "planner" (has tools) or "chat" (conversational)
@@ -2253,7 +2253,7 @@ AGENT ATTRIBUTES:
 - glossary: Domain-specific vocabulary
 
 UPDATE OPERATIONS:
-1. **Modify role**: Change agent's responsibility description
+1. **Modify goal**: Change agent's responsibility description
 2. **Update instruction**: Modify guidance text
 3. **Add/remove tools**: Change which workflows/events agent can use
 4. **Update directives**: Modify decision rules
@@ -2261,7 +2261,7 @@ UPDATE OPERATIONS:
 
 SYNTAX:
 agent AgentName {
-    role "description",
+    goal "description",
     instruction "guidance with {{placeholders}}",
     tools [Module/WorkflowName],
     type "planner",
@@ -2288,7 +2288,7 @@ IMPORTANT:
 );
 
 export const WORKFLOW_COMPONENT_UPDATER_INSTRUCTION = escapeAgentlangString(
-    `You are an AgentLang workflow updater. You modify existing workflow definitions based on user requests.
+  `You are an AgentLang workflow updater. You modify existing workflow definitions based on user requests.
 
 TASK: Update the existing workflow definition according to the user's change request.
 
@@ -2325,7 +2325,7 @@ IMPORTANT:
 );
 
 export const EVENT_COMPONENT_UPDATER_INSTRUCTION = escapeAgentlangString(
-    `You are an AgentLang event updater. You modify existing event and associated workflow definitions.
+  `You are an AgentLang event updater. You modify existing event and associated workflow definitions.
 
 TASK: Update the existing event definition according to the user's change request.
 
@@ -2365,7 +2365,7 @@ IMPORTANT:
 );
 
 export const RELATIONSHIP_COMPONENT_UPDATER_INSTRUCTION = escapeAgentlangString(
-    `You are an AgentLang relationship updater. You modify existing relationship definitions.
+  `You are an AgentLang relationship updater. You modify existing relationship definitions.
 
 TASK: Update the existing relationship and return STRUCTURED DATA.
 

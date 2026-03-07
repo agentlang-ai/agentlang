@@ -2171,8 +2171,8 @@ const MAX_PLANNER_RETRIES = 3;
 async function agentInvoke(agent: AgentInstance, msg: string, env: Environment): Promise<void> {
   // log invocation details
   let invokeDebugMsg = `\nInvoking agent ${agent.name}:`;
-  if (agent.role) {
-    invokeDebugMsg = `${invokeDebugMsg} Role=${agent.role}`;
+  if (agent.goal) {
+    invokeDebugMsg = `${invokeDebugMsg} Goal=${agent.goal}`;
   }
   console.debug(invokeDebugMsg);
   invokeDebugMsg = `\nMessage=${msg}`;

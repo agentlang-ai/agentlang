@@ -376,7 +376,7 @@ if (process.env.AL_TEST === 'true') {
           classifyUserRequest --> "Other" reportFailure
         }
         agent customerProductManager
-        {role "You are a product and customer manager"}
+        {goal "You are a product and customer manager"}
           `
       );
       const k = async (ins: string) => {
@@ -576,7 +576,7 @@ if (process.env.AL_TEST === 'true') {
           classifyNetworkProvisioningRequest --> "type is Other" reportFailure
         }
         agent networkProvisioningRequestManager
-        {role "You are a network-provisioning request manager"}
+        {goal "You are a network-provisioning request manager"}
           `
       );
       const k = async (ins: string) => {
@@ -829,7 +829,7 @@ if (process.env.AL_TEST === 'true') {
           ManagerCreated --> SendManagerWelcomeEmail
         }
         agent userRequestManager
-        {role "You are a user request manager"}
+        {goal "You are a user request manager"}
           `
       );
       const m = fetchModule(moduleName);
@@ -936,7 +936,7 @@ ManagerCreated --> SendManagerWelcomeEmail
     }
 agent userRequestManager
 {
-    role "You are a user request manager"
+    goal "You are a user request manager"
 }`
       );
     });

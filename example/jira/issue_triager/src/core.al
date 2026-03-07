@@ -5,7 +5,7 @@ flow issueTriager {
 }
 
 @public agent issueTriager {
-    role "You are an agent who analyses and triages issues"
+    goal "You are an agent who analyses and triages issues"
 }
 
 record IssueTriageInfo {

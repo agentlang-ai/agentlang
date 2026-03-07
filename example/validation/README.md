@@ -8,6 +8,7 @@ The model implements a **network provisioning system** where requests are analyz
 ## Overview
 
 In this module, a network provisioning request can be of two types:
+
 - **DNS** – requires a CNAME and an IP address.
 - **WLAN** – requires only an IP address.
 
@@ -62,6 +63,7 @@ agentlang/retry classifyRetry {
 ```
 
 This configuration tells Agentlang to:
+
 - Retry up to **3 times**.
 - Wait **2 seconds** between attempts.
 - Increase the delay linearly by a factor of 2 with each retry.
@@ -80,11 +82,11 @@ This ensures that if the agent’s validation fails, it will automatically attem
 
 Agentlang supports three **retry backoff strategies** for fine-grained control over retry timing:
 
-| Strategy      | Description |
-|----------------|-------------|
-| **constant**   | Uses a fixed delay between retries. For example, always retry after 3 seconds. |
-| **linear**     | Increases delay by a fixed multiple (e.g., 2s, 4s, 6s...). |
-| **exponential**| Doubles the delay after each failed attempt (e.g., 2s, 4s, 8s...). |
+| Strategy        | Description                                                                    |
+| --------------- | ------------------------------------------------------------------------------ |
+| **constant**    | Uses a fixed delay between retries. For example, always retry after 3 seconds. |
+| **linear**      | Increases delay by a fixed multiple (e.g., 2s, 4s, 6s...).                     |
+| **exponential** | Doubles the delay after each failed attempt (e.g., 2s, 4s, 8s...).             |
 
 These strategies help balance reliability and responsiveness depending on the nature of the failure or system load.
 
@@ -110,6 +112,7 @@ for instance, by assigning a default value such as `"Unknown"` or `"anonymous"` 
 ### 5. Agent Definitions
 
 #### `classifyNetworkProvisioningRequest`
+
 - **Role:** Classifies the incoming request as DNS, WLAN, or Other.
 - **Schema:** `NetworkProvisioningRequest`
 - **Validation:** `net.core/validateProvisiongRequest`
@@ -125,15 +128,19 @@ agent classifyNetworkProvisioningRequest {
 ```
 
 #### `provisionDNS`
+
 Executes DNS provisioning based on the classified request.
 
 #### `provisionWLAN`
+
 Executes WLAN provisioning.
 
 #### `reportFailure`
+
 Handles failed or invalid requests by recording a failure event.
 
 #### `markTicketAsDone`
+
 Marks successful provisioning requests as completed.
 
 ---
@@ -163,7 +170,7 @@ The flow is exposed through the following public agent:
 
 ```agentlang
 @public agent networkProvisioningRequestManager {
-    role "You are a network-provisioning request manager"
+    goal "You are a network-provisioning request manager"
 }
 ```
 
@@ -175,9 +182,12 @@ This allows clients to submit provisioning requests through a simple REST API en
 
 This example illustrates how Agentlang supports **reliable and resilient agent behavior** through:
 
-- **Structured validation** of agent outputs.  
-- **Automated retry logic** with configurable backoff strategies.  
+- **Structured validation** of agent outputs.
+- **Automated retry logic** with configurable backoff strategies.
 - **Declarative orchestration** of multiple agents through flows.
 
 Together, these capabilities allow developers to build agents that not only act autonomously but also **recover intelligently from validation failures**, ensuring consistency and robustness in real-world automation tasks.
-````
+
+```
+
+```

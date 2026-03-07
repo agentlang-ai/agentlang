@@ -55,5 +55,5 @@ flow customerProductManager {
 }
 
 @public agent customerProductManager {
-    role "You are a product and customer manager"
+    goal "You are a product and customer manager"
 }
