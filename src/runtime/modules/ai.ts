@@ -152,6 +152,7 @@ entity ${AgentEntityName} {
     topics String @optional, // list of topic names
     channels String @optional, // comma-separated list of channel names
     goal String @optional,
+    role String,
     flows String @optional,
     validate String @optional,
     retry String @optional,
@@ -391,6 +392,7 @@ export class AgentInstance {
   channels: string | undefined;
   runWorkflows: boolean = true;
   goal: string | undefined;
+  role: string = '';
   flows: string | undefined;
   validate: string | undefined;
   retry: string | undefined;

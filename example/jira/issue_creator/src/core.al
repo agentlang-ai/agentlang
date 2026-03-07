@@ -7,6 +7,7 @@ record Issue {
 }
 
 agent analyseUserMessage {
+    role "issue_manager",
     instruction "Analyse the message and create a new issue based on it. If possible, created a markdown formatted description with the following sections: Problem statement, Steps to reproduce and Expected behavior. All sections except 'Problem statement' are optional.",
     responseSchema issues.core/Issue
 }
@@ -25,6 +26,7 @@ workflow createIssue {
 }
 
 agent issueCreator {
+    role "issue_manager",
     instruction "Create an issue with description {{Issue.description}}, summary {{Issue.summary}} and type {{Issue.type}}",
     tools [issues.core/createIssue]
 }
@@ -47,6 +49,7 @@ workflow notifyUser {
 }
 
 agent replyToUser {
+    role "issue_manager",
     instruction "Notify the user that the issue with summary {{summary}}, description {{description}} and key {{key}} is created.",
     tools [issues.core/notifyUser]
 }
@@ -73,6 +76,7 @@ flow issueManager {
 }
 
 @public agent issueManager {
+    role "issue_manager",
     goal "You are an agent who analyses user messages and creates jira issues from it"
 }
 

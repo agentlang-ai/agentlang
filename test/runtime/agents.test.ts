@@ -316,6 +316,7 @@ if (process.env.AL_TEST === 'true') {
 
         agent empAgent {
           llm "custom-test-llm",
+          role "hr_ops",
           instruction "create a new employee",
           tools [CustomLLM/Employee]
         }
@@ -358,10 +359,12 @@ if (process.env.AL_TEST === 'true') {
         }
          agent createCustomer {
             instruction "Based on the user request, create a new customer.",
+            role "sales_ops",
             tools "FlowTest/Customer"
          }
         agent createProduct {
             instruction "Based on the user request, create a product.",
+            role "sales_ops",
             tools "FlowTest/Product"
          }
         event reportFailure {
@@ -543,28 +546,33 @@ if (process.env.AL_TEST === 'true') {
         
         agent provisionDNS {
           instruction "Provision DNS with ipaddress={{classifyNetworkProvisioningRequest.IPAddress}} and cname={{classifyNetworkProvisioningRequest.CNAME}}",
+          role "network_ops",
           tools [NetworkProvisioning/doProvisionDNS],
           scratch [provisioningId]
         }
 
         agent provisionWLAN {
           instruction "Using {{classifyNetworkProvisioningRequest.IPAddress}} as ipaddress, provision WLAN",
+          role "network_ops",
           tools [NetworkProvisioning/doProvisionWLAN],
           scratch [provisioningId]
         }
 
         agent reportFailure {
-          instruction "Report the request as failed for {{classifyNetworkProvisioningRequest.requestedBy}}."
+          instruction "Report the request as failed for {{classifyNetworkProvisioningRequest.requestedBy}}.",
+          role "network_ops",
           tools [NetworkProvisioning/reportRequestFailed]
         }
-        
+
         agent classifyNetworkProvisioningRequest {
           instruction "Analyse the network provisioning request and return its type and other relevant information.",
+          role "network_ops",
           responseSchema NetworkProvisioningRequest
         }
 
         agent markTicketAsDone {
           instruction "Use type={{classifyNetworkProvisioningRequest.type}}, requestedBy={{classifyNetworkProvisioningRequest.requestedBy}} and provisioningId={{provisioningId}} to mark the request as completed",
+          role "network_ops",
           tools [NetworkProvisioning/markRequestCompleted]
         }
         
@@ -695,9 +703,10 @@ if (process.env.AL_TEST === 'true') {
         
         agent analyseCarOrderRequest {
           instruction \`Analyse the customer request for "ordering a car" and return the relevant information you are able to figure out\`,
+          role "sales_ops",
           responseSchema CarOrderRequest
         }
-        
+
         decision classifyOrder {
           case (carType == "EV" and segment == "economy") {
             EconomyEV
@@ -725,7 +734,8 @@ if (process.env.AL_TEST === 'true') {
         }
 
         agent carOrderRequestManager {
-          instruction "You are an agent who analyses customer order requests for new cars and make appropriate orders"
+          instruction "You are an agent who analyses customer order requests for new cars and make appropriate orders",
+          role "sales_ops"
         }
         `
       );
@@ -808,6 +818,7 @@ if (process.env.AL_TEST === 'true') {
 
         agent classifyUserRequest {
           instruction "Analyse the user request and classify it as an Employee or Manager",
+          role "hr_ops",
           responseSchema UserRequest
         }
 
@@ -970,6 +981,7 @@ agent userRequestManager
 
         agent CustomerManager {
             instruction "Manage customer related requests.",
+            role "customer_ops",
             tools [erp.core2]
         }`
       );
@@ -1059,6 +1071,7 @@ agent userRequestManager
 
           agent supportAgent {
               llm "test-llm",
+              role "support_ops",
               instruction "Answer questions about cameras and their features.",
               documents ["camera manual", "pricing"]
           }
@@ -1151,6 +1164,7 @@ agent userRequestManager
 
           agent docAgent {
               llm "gpt4o",
+              role "support_ops",
               instruction "Answer questions about cameras by using the provided documents. Be concise and specific.",
               documents ["nikon specs", "camera prices", "troubleshooting"]
           }
@@ -1268,6 +1282,7 @@ Remember: Practice regularly and experiment. The best camera is the one you have
 
           agent guideAgent {
               llm "chunk-llm",
+              role "support_ops",
               instruction "Answer questions about cameras using the comprehensive guide provided.",
               documents ["camera guide"]
           }
@@ -1390,6 +1405,7 @@ Remember: Practice makes perfect!
 
           agent markdownAgent {
               llm "md-llm",
+              role "support_ops",
               instruction "Answer questions about cameras using the markdown guide.",
               documents ["camera guide"]
           }

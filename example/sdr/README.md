@@ -62,6 +62,7 @@ record EmailQualificationResult {
 
 @public agent EmailQualificationAgent {
     llm "sonnet_llm",
+    role "sales_ops",
     goal "You are an intelligent email qualification agent who determines if an email requires sales engagement processing.",
     tools [sdr.core/InboundEmailPayload],
     instruction "You receive an InboundEmailPayload instance as input. Your job is to determine if this email needs sales processing.",

@@ -96,6 +96,7 @@ describe('LLM Service Selection', () => {
       
       agent testAgent {
         instruction "You are a test agent",
+        role "analyst",
         llm "agent_llm"
       }
     `

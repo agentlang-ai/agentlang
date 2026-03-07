@@ -12,6 +12,7 @@ entity EV extends BaseEV {
 }
 
 agent orderEV {
+    role "sales_agent",
     instruction "Create an EV of segment {{segment}}, battery pack {{batteryPack}},
 charger {{charger}} and color {{bodyColor}}",
     tools [order.core/EV]
@@ -30,6 +31,7 @@ entity SUV extends BaseSUV {
 }
 
 agent orderSUV {
+    role "sales_agent",
     instruction "Create an EV of segment {{segment}}, transmission {{transmission}},
 fule {{fuel}}, torque {{torque}} and color {{bodyColor}}",
     tools [order.core/SUV]
@@ -47,6 +49,7 @@ record CarOrderRequest {
 }
 
 agent analyseCarOrderRequest {
+    role "sales_agent",
     instruction "Analyse the customer request for ordering a car and return the relevant information you are able to figure out",
     directives [{"if": "customer request contains references to electric vehicle, battery etc", "then": "carType: EV"},
 		{"if": "request talks about mileage, fule-efficiency etc", "then": "carType: SUV"}]
@@ -110,5 +113,6 @@ flow carOrderRequestManager {
 }
 
 @public agent carOrderRequestManager {
+    role "sales_agent",
     goal "You are an agent who analyses customer order requests for new cars and make appropriate orders"
 }

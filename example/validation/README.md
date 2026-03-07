@@ -120,6 +120,7 @@ for instance, by assigning a default value such as `"Unknown"` or `"anonymous"` 
 
 ```agentlang
 agent classifyNetworkProvisioningRequest {
+    role "network_ops",
     instruction "Analyse the network provisioning request and return its type and other relevant information.",
     responseSchema NetworkProvisioningRequest,
     validate net.core/validateProvisiongRequest,
@@ -170,6 +171,7 @@ The flow is exposed through the following public agent:
 
 ```agentlang
 @public agent networkProvisioningRequestManager {
+    role "network_ops",
     goal "You are a network-provisioning request manager"
 }
 ```

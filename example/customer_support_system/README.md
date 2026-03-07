@@ -76,6 +76,7 @@ Searches for a support executive based on the ticket’s subject and description
 
 ```agentlang
 agent findSupportExecutive {
+    role "support_manager",
     instruction "Lookup a support executive who can handle the ticket based on its subject - {{subject}}",
     tools [support.core/lookupSupportExecutive]
 }
@@ -90,6 +91,7 @@ It uses **directives**, **scenarios**, and a **glossary** to make its decision p
 
 ```agentlang
 agent ticketAssignment {
+    role "support_manager",
     goal "You are an agent who assigns or escalates support tickets",
     instruction "When a new support ticket arrives, analyze its subject and description.
 If the ticket topic matches one of the support executive’s skills {{SupportExecutive.skills}}, assign it to that executive with email {{SupportExecutive.email}}.

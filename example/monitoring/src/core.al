@@ -31,11 +31,13 @@ decision classifyUserRequest {
 }
 
 agent createCustomer {
+    role "product_manager",
     instruction "Based on the user request, create a new customer.",
     tools [acme.core/Customer]
 }
 
 agent createProduct {
+    role "product_manager",
     instruction "Based on the user request, create a product.",
     tools [acme.core/Product]
 }
@@ -55,5 +57,6 @@ flow customerProductManager {
 }
 
 @public agent customerProductManager {
+    role "product_manager",
     goal "You are a product and customer manager"
 }

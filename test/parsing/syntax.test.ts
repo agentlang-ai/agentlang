@@ -448,15 +448,17 @@ describe('Flow syntax', () => {
       
       agent incidentTriager {
         llm "ticketflow_llm",
+        role "incident_ops",
         instruction "Based on the description of the incident (in context), return one of - DNS, WLAN or Other.
 Only return one of the strings [DNS, WLAN, Other] and nothing else."
       }
 
     agent managerRequestHandler {
         channels [slack],
+        role "incident_ops",
         instruction "Create an approval request from the incident and send it over the slack-channel. Details of the incident
 and the slack channel id will be available in the context passed to you. For example, if the context contains an incident related to
-WLAN provisioning and the slack channel id CC774882, then send the approvale request as: 
+WLAN provisioning and the slack channel id CC774882, then send the approvale request as:
 {slack/sendMessageOnChannel {channel &quote;CC774882&quote;, message &quote;Request to provision WLAN&quote;}}.
 Try to include as much information about the provisioning request in the message as possible."
     }
@@ -464,11 +466,12 @@ Try to include as much information about the provisioning request in the message
     agent incidentProvisioner {
         tools [ticketflow.core/handleDnsProvisioning,
 	             ticketflow.core/handleWlanProvisioning],
+        role "incident_ops",
         instruction "If the incident triage category is DNS, do DNS provisioning. Otherwise do WLAN provisioning.
 The incident data and triage category will be available in the context. The relevant DNS or WLAN name will be available
 in the incident's description."
     }
-  
+
     flow orchestrator {
         incidentTriager --> "DNS" findManagerForCategory
         incidentTriager --> "WLAN" findManagerForCategory
@@ -481,6 +484,7 @@ in the incident's description."
 
     @public agent orchestratorAgent {
         llm "ticketflow_llm",
+        role "incident_ops",
         goal "You are an incident manager.",
         flows [orchestrator]
     }
@@ -525,21 +529,24 @@ entity managerSlackChannel
 agent incidentTriager
 {
     llm "ticketflow_llm",
+    role "incident_ops",
     instruction "Based on the description of the incident (in context), return one of - DNS, WLAN or Other.
 Only return one of the strings [DNS, WLAN, Other] and nothing else."
 }
 agent managerRequestHandler
 {
     channels "slack",
+    role "incident_ops",
     instruction "Create an approval request from the incident and send it over the slack-channel. Details of the incident
 and the slack channel id will be available in the context passed to you. For example, if the context contains an incident related to
-WLAN provisioning and the slack channel id CC774882, then send the approvale request as: 
+WLAN provisioning and the slack channel id CC774882, then send the approvale request as:
 {slack/sendMessageOnChannel {channel &quote;CC774882&quote;, message &quote;Request to provision WLAN&quote;}}.
 Try to include as much information about the provisioning request in the message as possible."
 }
 agent incidentProvisioner
 {
     tools [ticketflow.core/handleDnsProvisioning,ticketflow.core/handleWlanProvisioning],
+    role "incident_ops",
     instruction "If the incident triage category is DNS, do DNS provisioning. Otherwise do WLAN provisioning.
 The incident data and triage category will be available in the context. The relevant DNS or WLAN name will be available
 in the incident's description."
@@ -556,6 +563,7 @@ incidentProvisioner --> incidentStatusUpdater
 @public agent orchestratorAgent
 {
     llm "ticketflow_llm",
+    role "incident_ops",
     goal "You are an incident manager.",
     flows [orchestrator]
 }
@@ -578,6 +586,7 @@ describe('Extra agent attributes', () => {
       }
        agent xaaAgent
           {instruction "Create appropriate patterns for managing Employee information",
+           role "hr_ops",
            tools "GA",
            scenarios  [{"user": "Jake hit a jackpot!", "ai": "[{GA/Employee {name? &quote;Jake&quote;}} @as [employee]; {GA/Employee {id? employee.id, salary employee.salary + employee.salary * .5}}]"}],
            glossary [{"name": "jackpot", "meaning": "sales of 5000 or above", "synonyms": "high sales, block-buster"}]}
@@ -627,6 +636,7 @@ record emp
 agent xaaAgent
 {
     instruction "Create appropriate patterns for managing Employee information",
+    role "hr_ops",
     tools "GA",
     directives [{"if":"Employee sales exceeded 5000","then":"Give a salary hike of 5 percent"},{"if":"sales is more than 2000 but less than 5000","then":"hike salary by 2 percent"}],
     scenarios [{"user":"Jake hit a jackpot!","ai":"[{GA/Employee {name? &quote;Jake&quote;}} @as [employee]; {GA/Employee {id? employee.id, salary employee.salary + employee.salary * .5}}]"},{"user":"hello","ai":"unknown request"}],
@@ -698,6 +708,7 @@ describe('agent-xtras-to-string', () => {
          }
          agent ga
           {instruction "Create appropriate patterns for managing Employee information",
+           role "hr_ops",
            tools "GA",
            directives [{"if": "Employee sales exceeded 5000", "then": "Give a salary hike of 5 percent"},
                        {"if": "sales is more than 2000 but less than 5000", "then": "hike salary by 2 percent"}],
@@ -727,6 +738,7 @@ workflow scenario01 {
 agent ga
 {
     instruction "Create appropriate patterns for managing Employee information",
+    role "hr_ops",
     tools "GA",
     directives [{"if":"Employee sales exceeded 5000","then":"Give a salary hike of 5 percent"},{"if":"sales is more than 2000 but less than 5000","then":"hike salary by 2 percent"}],
     scenarios [{"user":"Jake hit a jackpot!","ai":"GuidedAgent/scenario01"}],
@@ -811,11 +823,13 @@ case (salary < 1000) {
       `${s}
   
   agent offerAccept {
-      instruction "Accept the incoming offer"
+      instruction "Accept the incoming offer",
+      role "reviewer"
   }
 
   agent offerReject {
-      instruction "Reject the incoming offer"
+      instruction "Reject the incoming offer",
+      role "reviewer"
   }
 
   flow offerReviewer {
@@ -839,11 +853,13 @@ case (salary < 1000) {
     }
 agent offerAccept
 {
-    instruction "Accept the incoming offer"
+    instruction "Accept the incoming offer",
+    role "reviewer"
 }
 agent offerReject
 {
-    instruction "Reject the incoming offer"
+    instruction "Reject the incoming offer",
+    role "reviewer"
 }
 flow offerReviewer {
       acceptOrRejectOffer --> "Accept" offerAccept
@@ -868,7 +884,7 @@ describe('directive-generation', () => {
     );
     await doInternModule(
       'dirGen',
-      `agent A {instruction "OK"}
+      `agent A {instruction "OK", role "analyst"}
       ${s}`
     );
     const ms = fetchModule('dirGen').toString();
@@ -878,7 +894,8 @@ describe('directive-generation', () => {
 
 agent A
 {
-    instruction "OK"
+    instruction "OK",
+    role "analyst"
 }
 directive A.dir01 {
         if("salary > 1000") {"accept the offer"}
@@ -913,7 +930,7 @@ describe('scenario-generation', () => {
     );
     await doInternModule(
       'dirGen',
-      `agent A {instruction "OK"}
+      `agent A {instruction "OK", role "analyst"}
       ${s1}
       ${s2}`
     );
@@ -924,7 +941,8 @@ describe('scenario-generation', () => {
 
 agent A
 {
-    instruction "OK"
+    instruction "OK",
+    role "analyst"
 }
 scenario A.scn01 {
     if("salary > 1000") {acme.core/incrementSalary}
@@ -1002,12 +1020,14 @@ record RecordE
 agent Agent4
 {
     llm "llm01",
+    role "analyst",
     flows [Agent4],
    responseSchema expaugust.core/RecordOne
 }
 agent Agent1
 {
-    llm "llm01"
+    llm "llm01",
+    role "analyst"
 }
 event id
 {
@@ -1020,12 +1040,14 @@ workflow id {
 agent Agent2
 {
     type "chat",
-    llm "llm01"
+    llm "llm01",
+    role "analyst"
 }
 agent Agent5
 {
     type "chat",
-    llm "llm01"
+    llm "llm01",
+    role "analyst"
 }
 flow Agent4 {
       
@@ -1064,6 +1086,7 @@ describe('retry-construct', () => {
 
       agent a1 {
         instruction "test agent",
+        role "analyst",
         validate v1,
         retry r1
       }
@@ -1095,6 +1118,7 @@ workflow v1 {
 agent a1
 {
     instruction "test agent",
+    role "analyst",
     validate "v1",
     retry "r1"
 }`

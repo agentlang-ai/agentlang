@@ -94,6 +94,7 @@ describe('Basic exec-graph evaluation', () => {
           }
           agent personManager {
             instruction "Based on user request, create, update and delete persons",
+            role "person_manager",
             tools [exg02/Person]
           }
           `

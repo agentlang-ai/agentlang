@@ -856,7 +856,7 @@ export class Environment extends Instance {
       if (this.activeEventInstance && isCoreModule(this.activeEventInstance.moduleName)) {
         return this;
       }
-      this.monitor = new Monitor(this.activeEventInstance, this.activeUser);
+      this.monitor = new Monitor(this.activeEventInstance, this.activeUser, this.assumedRole);
     }
     this.monitor.addEntry(new MonitorEntry(stmt));
     return this;
@@ -2299,6 +2299,9 @@ export async function handleAgentInvocation(
   env: Environment
 ): Promise<void> {
   const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
+  if (agent.role) {
+    env.setAssumedRole(agent.role);
+  }
   const chatId = agentEventInst.lookup('chatId');
   if (chatId) {
     env.setActiveChatId(chatId);

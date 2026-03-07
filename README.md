@@ -102,6 +102,7 @@ flow TicketFlow {
 
 agent TicketFlow {
     llm "gpt4o",
+    role "ticket_manager",
     goal "You are a network ticket management application. Your job is to triage any ticket passed to you
           and update the ticket with appropriate assigned_to, status and triaging comments.",
 	glossary [
@@ -140,6 +141,7 @@ Agents and many concepts agents use are built-in language constructs.
 ```typescript
 agent TicketFlow {
     llm "gpt4o",
+    role "ticket_manager",
     goal "You are a network ticket management agent. Your job is to triage any ticket passed to you and
           update the ticket with appropriate assigned_to, status and triaging comments."
 }
@@ -210,6 +212,7 @@ As the flow executes an agent that specializes in evaluating decision tables wil
 
 ```typescript
 agent salaryHikeAgent {
+    role "hr_manager",
     instruction "Give an employee a salary-hike based on his/her sales performance",
     tools acme/employee
 }
@@ -226,6 +229,7 @@ As the `salaryHikeAgent` tries to compute the salary-increment for a particular 
 
 ```typescript
 agent salaryHikeAgent {
+    role "hr_manager",
     instruction "Give an employee a salary-hike based on his/her sales performance",
     tools acme/employee
 }
@@ -254,6 +258,7 @@ Here, the provided scenario helps the agent to take a well-specified action in t
 
 ```typescript
 agent campaignAnalyzer {
+    role "marketing_analyst",
     instruction "Evaluate and optimize marketing campaign performance based on key performance indicators (KPIs) and assign a performance rating",
     tools acme/campaign_eval,
     // ...
@@ -317,6 +322,7 @@ entity Category {
 relationship PostCategory between(Post, Category)
 
 @public agent postEditor {
+    role "content_editor",
     instruction "Create a new blog post based on the outline provided to you.",
     tools [blog.core/Post]
 }

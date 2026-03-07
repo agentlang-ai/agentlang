@@ -963,6 +963,9 @@ export async function userHasPermissions(
   const assumedRole = env.getAssumedRole();
   if (assumedRole) {
     tempRoles = [assumedRole];
+    if (!RolePermissionsCache.get(assumedRole)) {
+      await updatePermissionCacheForRole(assumedRole, env);
+    }
   }
   if (
     tempRoles &&

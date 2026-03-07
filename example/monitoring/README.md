@@ -51,16 +51,19 @@ Three key agents are involved:
 
 ```agentlang
 agent createCustomer {
+    role "product_manager",
     instruction "Using the data provided by the user, create a new customer.",
     tools [acme.core/Customer]
 }
 
 agent createProduct {
+    role "product_manager",
     instruction "Using the data provided by the user, create a product.",
     tools [acme.core/Product]
 }
 
 agent reportFailure {
+    role "product_manager",
     instruction "Report failure if the request is unrelated to customers or products.",
     tools [acme.core/reportFailure]
 }
@@ -82,6 +85,7 @@ The top-level public agent exposes the flow:
 
 ```agentlang
 @public agent customerProductManager {
+    role "product_manager",
     goal "You are a product and customer manager"
 }
 ```
@@ -177,6 +181,7 @@ A successful execution of the `customerProductManager` agent might produce monit
             "name": "customerProductManager",
             "moduleName": "acme.core",
             "type": "chat",
+            "role": "product_manager",
             "runWorkflows": true,
             "instruction": null,
             "tools": null,
@@ -257,6 +262,7 @@ A successful execution of the `customerProductManager` agent might produce monit
                     "name": "createCustomer",
                     "moduleName": "acme.core",
                     "type": "chat",
+                    "role": "product_manager",
                     "runWorkflows": true,
                     "instruction": "Based on the user request, create a new customer.",
                     "tools": "acme.core/Customer",
