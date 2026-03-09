@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.4](https://github.com/agentlang-ai/agentlang/compare/0.10.3...0.10.4) (2026-03-09)
+
+### Changes
+
+* Messaging patterns (#630) ([499b137](https://github.com/agentlang-ai/agentlang/commit/499b137d15f669343b3e68ef47f1ca20c605326d)) - @vijayfractl
+* Contextual arguments for @limit and @offset (#631) ([bcee701](https://github.com/agentlang-ai/agentlang/commit/bcee7017004f0001c313d8c496b1f22e348e85dc)) - @vijayfractl
+
+---
 ## [0.10.3](https://github.com/agentlang-ai/agentlang/compare/0.10.2...0.10.3) (2026-02-26)
 
 ### Changes
