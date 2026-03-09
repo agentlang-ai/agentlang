@@ -20,7 +20,8 @@ resolver ChatResolver ["custom_config.core/ChatMessage"] {
 
 @public agent findExistingContact {
   llm "llm01",
-  role "Search for contact in HubSpot."
+  role "crm_agent",
+  goal "Search for contact in HubSpot."
   instruction "You have available: {{contactEmail}}
 
 Call agenticcrm.core/FindContactByEmail with email={{contactEmail}}
@@ -42,7 +43,8 @@ decision contactExistsCheck {
 
 @public agent createChatAgent {
   llm "llm01",
-  role "You are a chat-manager"
+  role "crm_agent",
+  goal "You are a chat-manager"
   instruction "Based on the user instruction, create chat messages",
   topics ["product-knowledge", "support-knowledge"],
   retry classifyRetry,

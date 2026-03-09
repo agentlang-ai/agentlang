@@ -179,6 +179,7 @@ export class Monitor {
   private id: string;
   private eventInstance: Instance | undefined;
   private user: string | undefined;
+  private role: string | undefined;
   private entries: (MonitorEntry | Monitor)[] = new Array<MonitorEntry | Monitor>();
   private parent: Monitor | undefined = undefined;
   private lastEntry: MonitorEntry | undefined = undefined;
@@ -189,10 +190,15 @@ export class Monitor {
 
   private static MAX_REGISTRY_SIZE = 25;
 
-  constructor(eventInstance?: Instance | undefined, user?: string | undefined) {
+  constructor(
+    eventInstance?: Instance | undefined,
+    user?: string | undefined,
+    role?: string | undefined
+  ) {
     this.eventInstance = eventInstance;
     this.id = eventInstance ? eventInstance.getId() : crypto.randomUUID();
     this.user = user;
+    this.role = role;
     this.timestamp = Date.now();
     while (monitorRegistry.length >= Monitor.MAX_REGISTRY_SIZE) {
       monitorRegistry.shift();
@@ -404,6 +410,9 @@ export class Monitor {
     }
     if (this.user) {
       r.user = this.user;
+    }
+    if (this.role) {
+      r.role = this.role;
     }
     r.timestamp = this.timestamp;
     if (this.flowResult !== undefined) {

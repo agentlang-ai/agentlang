@@ -151,7 +151,8 @@ entity ${AgentEntityName} {
     documents String @optional, // list of document names
     topics String @optional, // list of topic names
     channels String @optional, // comma-separated list of channel names
-    role String @optional,
+    goal String @optional,
+    role String,
     flows String @optional,
     validate String @optional,
     retry String @optional,
@@ -297,7 +298,7 @@ type AgentInstructionActivator = {
   provider: AgentServiceProvider;
   userMessage: string;
   agentInstruction: string;
-  agentRole: string | undefined;
+  agentGoal: string | undefined;
 };
 
 const MAX_USER_DEFINED_GLOSSARY = 20;
@@ -390,7 +391,8 @@ export class AgentInstance {
   topics: string | undefined;
   channels: string | undefined;
   runWorkflows: boolean = true;
-  role: string | undefined;
+  goal: string | undefined;
+  role: string = '';
   flows: string | undefined;
   validate: string | undefined;
   retry: string | undefined;
@@ -661,7 +663,7 @@ export class AgentInstance {
     activator: AgentInstructionActivator
   ): Promise<string> {
     const fqName = this.getFqName();
-    const ins = this.role ? `${this.role}\n${this.instruction || ''}` : this.instruction || '';
+    const ins = this.goal ? `${this.goal}\n${this.instruction || ''}` : this.instruction || '';
     let finalInstruction = `${ins} ${await this.directivesAsString(fqName, activator)}`;
     const staticGls = getAgentGlossary(fqName) || [];
     let userGls = await this.getUserDefinedAgentGlossary(fqName);
@@ -925,7 +927,7 @@ Only return a pure JSON object with no extra text, annotations etc.`;
       provider: p,
       userMessage: message,
       agentInstruction: this.instruction,
-      agentRole: this.role,
+      agentGoal: this.goal,
     };
     if (sess) {
       msgs = sess.lookup('messages');

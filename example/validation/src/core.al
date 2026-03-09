@@ -75,18 +75,21 @@ workflow markRequestCompleted {
 }
 
 agent provisionDNS {
+    role "network_ops",
     instruction "Provision DNS with ipaddress={{classifyNetworkProvisioningRequest.IPAddress}} and cname={{classifyNetworkProvisioningRequest.CNAME}}",
     tools [net.core/doProvisionDNS],
     scratch [provisioningId]
 }
 
 agent provisionWLAN {
+    role "network_ops",
     instruction "Using {{classifyNetworkProvisioningRequest.IPAddress}} as ipaddress, provision WLAN",
     tools [net.core/doProvisionWLAN],
     scratch [provisioningId]
 }
 
 agent reportFailure {
+    role "network_ops",
     instruction "Report the request as failed for {{classifyNetworkProvisioningRequest.requestedBy}}."
     tools [net.core/reportRequestFailed]
 }
@@ -114,6 +117,7 @@ agentlang/retry classifyRetry {
 }
 
 agent classifyNetworkProvisioningRequest {
+    role "network_ops",
     instruction "Analyse the network provisioning request and return its type and other relevant information.",
     responseSchema NetworkProvisioningRequest,
     validate net.core/validateProvisiongRequest,
@@ -121,6 +125,7 @@ agent classifyNetworkProvisioningRequest {
 }
 
 agent markTicketAsDone {
+    role "network_ops",
     instruction "Use type={{classifyNetworkProvisioningRequest.type}}, requestedBy={{classifyNetworkProvisioningRequest.requestedBy}} and provisioningId={{provisioningId}} to mark the request as completed",
     tools [net.core/markRequestCompleted]
 }
@@ -134,5 +139,6 @@ flow networkProvisioningRequestManager {
 }
 
 @public agent networkProvisioningRequestManager {
-    role "You are a network-provisioning request manager"
+    role "network_ops",
+    goal "You are a network-provisioning request manager"
 }

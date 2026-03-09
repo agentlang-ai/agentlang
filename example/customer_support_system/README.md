@@ -24,11 +24,11 @@ All of this happens declaratively through **flows**, **decisions**, and **agents
 
 The model is defined under the `support.core` module:
 
-* **Customer** — Represents the person raising a support request.
-* **SupportExecutive** — Represents support team members, with indexed searchable `skills`.
-* **Ticket** — Captures issue details, such as subject, description, priority, and status.
-* **ExecutiveTicketAssignment** — Links a ticket to an assigned executive.
-* **EscalationQueueEntry** — Represents tickets that need manual review.
+- **Customer** — Represents the person raising a support request.
+- **SupportExecutive** — Represents support team members, with indexed searchable `skills`.
+- **Ticket** — Captures issue details, such as subject, description, priority, and status.
+- **ExecutiveTicketAssignment** — Links a ticket to an assigned executive.
+- **EscalationQueueEntry** — Represents tickets that need manual review.
 
 Each `Ticket` automatically triggers the workflow `afterCreateTicket`, which launches the `ticketManager` flow to begin automated handling.
 
@@ -56,13 +56,13 @@ This declarative rulebase ensures that priority is consistently determined — n
 
 ---
 
-##  Workflows
+## Workflows
 
 Several workflows implement the business logic:
 
-* **makeTicketHighPriority / makeTicketMediumPriority** — Automatically adjust ticket priority.
-* **lookupSupportExecutive** — Uses full-text search to find an executive matching the ticket subject.
-* **assignTicketToExecutive** — Creates a link between a `Ticket` and a `SupportExecutive`.
+- **makeTicketHighPriority / makeTicketMediumPriority** — Automatically adjust ticket priority.
+- **lookupSupportExecutive** — Uses full-text search to find an executive matching the ticket subject.
+- **assignTicketToExecutive** — Creates a link between a `Ticket` and a `SupportExecutive`.
 
 These workflows serve as reusable building blocks for the agent-driven flow.
 
@@ -76,6 +76,7 @@ Searches for a support executive based on the ticket’s subject and description
 
 ```agentlang
 agent findSupportExecutive {
+    role "support_manager",
     instruction "Lookup a support executive who can handle the ticket based on its subject - {{subject}}",
     tools [support.core/lookupSupportExecutive]
 }
@@ -90,22 +91,23 @@ It uses **directives**, **scenarios**, and a **glossary** to make its decision p
 
 ```agentlang
 agent ticketAssignment {
-    role "You are an agent who assigns or escalates support tickets",
-    instruction "When a new support ticket arrives, analyze its subject and description. 
+    role "support_manager",
+    goal "You are an agent who assigns or escalates support tickets",
+    instruction "When a new support ticket arrives, analyze its subject and description.
 If the ticket topic matches one of the support executive’s skills {{SupportExecutive.skills}}, assign it to that executive with email {{SupportExecutive.email}}.
 Otherwise, escalate the ticket to the EscalationQueue.",
 
     directives [
-        {"if": "the support executive’s skills match the ticket subject or keywords", 
+        {"if": "the support executive’s skills match the ticket subject or keywords",
          "then": "assign the ticket to that executive"},
-        {"if": "no matching executive is found", 
+        {"if": "no matching executive is found",
          "then": "add the ticket to the EscalationQueue for manual review"}
     ],
 
     scenarios [
-        {"user": "Ticket Id: '714a164e-1ebb-4ca3-97c5-c7a0bccdf8f4', subject: Payment failure reported by customer. Executive email - 'joe@acme.com, executive skills - payments,transactions,billing", 
+        {"user": "Ticket Id: '714a164e-1ebb-4ca3-97c5-c7a0bccdf8f4', subject: Payment failure reported by customer. Executive email - 'joe@acme.com, executive skills - payments,transactions,billing",
          "ai": "{assignTicketToExecutive {executiveEmail \"joe@acme.com\", ticketId \"714a164e-1ebb-4ca3-97c5-c7a0bccdf8f4\"}}"},
-        {"user": "Ticket Id: '30c2f915-16d6-4300-84e0-1b9041bb69fd', subject: Security alert: SSL certificate expired, Executive email - 'mat@acme.com', executive skills - networking", 
+        {"user": "Ticket Id: '30c2f915-16d6-4300-84e0-1b9041bb69fd', subject: Security alert: SSL certificate expired, Executive email - 'mat@acme.com', executive skills - networking",
          "ai": "{EscalationQueueEntry {ticketId \"30c2f915-16d6-4300-84e0-1b9041bb69fd\"}}"}
     ],
 
@@ -156,8 +158,8 @@ flowchart TD
 
 It ensures:
 
-* High and medium priority tickets are processed first.
-* Tickets are intelligently routed or escalated.
+- High and medium priority tickets are processed first.
+- Tickets are intelligently routed or escalated.
 
 ---
 
@@ -237,17 +239,17 @@ This example highlights how **Agentlang** unifies **declarative data modeling**,
 
 It’s a compact, real-world demonstration of:
 
-* **Graph-based entity modeling**
-* **Intelligent agents** guided by **directives** and **scenarios**
-* **Decision-driven flows**
-* **Event-triggered automation**
+- **Graph-based entity modeling**
+- **Intelligent agents** guided by **directives** and **scenarios**
+- **Decision-driven flows**
+- **Event-triggered automation**
 
 Together, they form an intelligent customer support system that can:
 
-* Classify tickets automatically
-* Adjust priorities
-* Assign them intelligently
-* Escalate when necessary
+- Classify tickets automatically
+- Adjust priorities
+- Assign them intelligently
+- Escalate when necessary
 
 All without writing a single `if` statement.
 

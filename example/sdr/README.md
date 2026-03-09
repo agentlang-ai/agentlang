@@ -10,11 +10,11 @@ This README explains how **agent learning** works using a real-world example: an
 
 In many real systems, it is not feasible to encode every business rule upfront. Agentlang is designed so that:
 
-* Agents can start with **simple, high-level instructions**
-* Misclassifications can be **corrected after deployment**
-* Learnings are **persistent and cumulative**
-* Training happens via **explicit, auditable API calls**
-* No model fine-tuning or code changes are required
+- Agents can start with **simple, high-level instructions**
+- Misclassifications can be **corrected after deployment**
+- Learnings are **persistent and cumulative**
+- Training happens via **explicit, auditable API calls**
+- No model fine-tuning or code changes are required
 
 This approach combines the flexibility of LLMs with the reliability of rule-based systems.
 
@@ -62,7 +62,8 @@ record EmailQualificationResult {
 
 @public agent EmailQualificationAgent {
     llm "sonnet_llm",
-    role "You are an intelligent email qualification agent who determines if an email requires sales engagement processing.",
+    role "sales_ops",
+    goal "You are an intelligent email qualification agent who determines if an email requires sales engagement processing.",
     tools [sdr.core/InboundEmailPayload],
     instruction "You receive an InboundEmailPayload instance as input. Your job is to determine if this email needs sales processing.",
     retry classifyRetry,
@@ -161,13 +162,12 @@ Examples of such emails:
 
 ### What This Does
 
-* Adds **persistent learnings** to the agent
-* Improves future classifications
-* Does not affect unrelated behavior
-* Does not require restarting the agent or server
+- Adds **persistent learnings** to the agent
+- Improves future classifications
+- Does not affect unrelated behavior
+- Does not require restarting the agent or server
 
-The **persistent learnings** are internally represented as agent-specific *directives*, *scenarios* and *glossary-entries*.
----
+## The **persistent learnings** are internally represented as agent-specific _directives_, _scenarios_ and _glossary-entries_.
 
 ## Improved Behavior
 
@@ -212,9 +212,9 @@ curl -X POST http://localhost:8080/agentlang.ai/agentLearning \
 
 Agents can be deployed with:
 
-* Minimal instructions
-* Broad intent
-* General reasoning
+- Minimal instructions
+- Broad intent
+- General reasoning
 
 ### 2. Observe Real Usage
 
@@ -224,18 +224,18 @@ Misclassifications are expected and useful—they reveal missing domain knowledg
 
 Learnings:
 
-* Are additive
-* Are explicit
-* Do not require code changes
-* Do not retrain the underlying LLM
+- Are additive
+- Are explicit
+- Do not require code changes
+- Do not retrain the underlying LLM
 
 ### 4. Continuous Learning
 
 Over time, an agent accumulates:
 
-* Business rules
-* Edge-case handling
-* Organization-specific knowledge
+- Business rules
+- Edge-case handling
+- Organization-specific knowledge
 
 This produces behavior similar to a fine-tuned model—but with **full transparency and control**.
 
@@ -245,22 +245,22 @@ This produces behavior similar to a fine-tuned model—but with **full transpare
 
 Traditional approaches require:
 
-* Hard-coded rules upfront **or**
-* Costly model fine-tuning cycles
+- Hard-coded rules upfront **or**
+- Costly model fine-tuning cycles
 
 Agentlang enables:
 
-* **Live learning**
-* **Fast iteration**
-* **Production-safe learnings**
-* **Human-in-the-loop refinement**
+- **Live learning**
+- **Fast iteration**
+- **Production-safe learnings**
+- **Human-in-the-loop refinement**
 
 This makes Agentlang well-suited for:
 
-* Sales & support automation
-* Internal tools
-* Evolving business workflows
-* Long-lived agents in production
+- Sales & support automation
+- Internal tools
+- Evolving business workflows
+- Long-lived agents in production
 
 ---
 
@@ -268,9 +268,9 @@ This makes Agentlang well-suited for:
 
 Agentlang agents:
 
-* Start working immediately
-* Improve through learning
-* Learn continuously
-* Remain auditable and controllable
+- Start working immediately
+- Improve through learning
+- Learn continuously
+- Remain auditable and controllable
 
 Dynamic agent training allows you to **treat agents as living systems** that evolve alongside your business—without sacrificing reliability or clarity.

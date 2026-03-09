@@ -88,12 +88,14 @@ agentlang/retry classifyRetry {
 }
 
 agent requirementDistiller {
+  role "builder",
   instruction ins.REQUIREMENT_DISTILLER_INSTRUCTION,
   llm "sonnet_llm",
   responseSchema UserRequest
 }
 
 agent dataModelCreator {
+  role "builder",
   instruction ins.DATAMODEL_CREATOR_INSTRUCTION,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -102,12 +104,14 @@ agent dataModelCreator {
 }
 
 agent workflowDistiller {
+  role "builder",
   instruction ins.WORKFLOW_DISTILLER_INSTRUCTION,
   llm "sonnet_llm",
   responseSchema AgentCraft/DistilledRequest
 }
 
 agent workflowCreator {
+  role "builder",
   instruction ins.WORKFLOW_CREATOR_INSTRUCTION,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -116,12 +120,14 @@ agent workflowCreator {
 }
 
 agent agentDistiller {
+  role "builder",
   instruction ins.AGENT_DISTILLER_INSTRUCTION,
   llm "sonnet_llm",
   responseSchema AgentCraft/DistilledRequest
 }
 
 agent agentCreator {
+  role "builder",
   instruction ins.AGENT_CREATOR_INSTRUCTION,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -134,18 +140,21 @@ event GenerateMetadata {
 }
 
 agent metadataGenerator {
+  role "builder",
   instruction ins.METADATA_GENERATOR_INSTRUCTION,
   llm "sonnet_llm",
   responseSchema AgentCraft/MetadataDoc
 }
 
 agent entityComponentGenerator {
+  role "builder",
   instruction ins.ENTITY_COMPONENT_GENERATOR_INSTRUCTION,
   llm "sonnet_llm",
   responseSchema AgentCraft/EntityComponentResponse
 }
 
 agent agentComponentGenerator {
+  role "builder",
   instruction ins.AGENT_COMPONENT_GENERATOR_INSTRUCTION,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -154,6 +163,7 @@ agent agentComponentGenerator {
 }
 
 agent eventComponentGenerator {
+  role "builder",
   instruction ins.EVENT_COMPONENT_GENERATOR_INSTRUCTION,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -162,6 +172,7 @@ agent eventComponentGenerator {
 }
 
 agent workflowComponentGenerator {
+  role "builder",
   instruction ins.WORKFLOW_COMPONENT_GENERATOR_INSTRUCTION,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -170,24 +181,28 @@ agent workflowComponentGenerator {
 }
 
 agent relationshipComponentGenerator {
+  role "builder",
   instruction ins.RELATIONSHIP_COMPONENT_GENERATOR_INSTRUCTION,
   llm "sonnet_llm",
   responseSchema AgentCraft/RelationshipComponentResponse
 }
 
 agent requestAnalyzer {
+  role "builder",
   instruction ins.REQUEST_ANALYZER_INSTRUCTION,
   llm "sonnet_llm",
   responseSchema AgentCraft/RequestAnalysisResponse
 }
 
 agent entityComponentUpdater {
+  role "builder",
   instruction ins.ENTITY_COMPONENT_UPDATER_INSTRUCTION,
   llm "sonnet_llm",
   responseSchema AgentCraft/EntityComponentResponse
 }
 
 agent agentComponentUpdater {
+  role "builder",
   instruction ins.AGENT_COMPONENT_UPDATER_INSTRUCTION,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -196,6 +211,7 @@ agent agentComponentUpdater {
 }
 
 agent workflowComponentUpdater {
+  role "builder",
   instruction ins.WORKFLOW_COMPONENT_UPDATER_INSTRUCTION,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -204,6 +220,7 @@ agent workflowComponentUpdater {
 }
 
 agent eventComponentUpdater {
+  role "builder",
   instruction ins.EVENT_COMPONENT_UPDATER_INSTRUCTION,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -212,6 +229,7 @@ agent eventComponentUpdater {
 }
 
 agent relationshipComponentUpdater {
+  role "builder",
   instruction ins.RELATIONSHIP_COMPONENT_UPDATER_INSTRUCTION,
   llm "sonnet_llm",
   responseSchema AgentCraft/RelationshipComponentResponse
@@ -231,7 +249,8 @@ flow builderAgent {
 
 @public agent builderAgent {
   llm "haiku_llm",
-  role "You are a language builder which generates Agentlang based code."
+  role "builder",
+  goal "You are a language builder which generates Agentlang based code."
 }
 
 @public event generateAgentlang {
@@ -243,6 +262,7 @@ workflow generateAgentlang {
 }
 
 agent requirementDistillerResolver {
+  role "builder",
   instruction ins.REQUIREMENT_DISTILLER_INSTRUCTION_RESOLVER,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -250,6 +270,7 @@ agent requirementDistillerResolver {
 }
 
 agent dataModelCreatorResolver {
+  role "builder",
   instruction ins.DATAMODEL_CREATOR_INSTRUCTION_RESOLVER,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -257,12 +278,14 @@ agent dataModelCreatorResolver {
 }
 
 agent workflowDistillerResolver {
+  role "builder",
   instruction ins.WORKFLOW_DISTILLER_INSTRUCTION_RESOLVER,
   llm "sonnet_llm",
   responseSchema AgentCraft/DistilledRequest
 }
 
 agent workflowCreatorResolver {
+  role "builder",
   instruction ins.WORKFLOW_CREATOR_INSTRUCTION_RESOLVER,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -270,12 +293,14 @@ agent workflowCreatorResolver {
 }
 
 agent agentDistillerResolver {
+  role "builder",
   instruction ins.AGENT_DISTILLER_INSTRUCTION_RESOLVER,
   llm "sonnet_llm",
   responseSchema AgentCraft/DistilledRequest
 }
 
 agent agentCreatorResolver {
+  role "builder",
   instruction ins.AGENT_CREATOR_INSTRUCTION_RESOLVER,
   llm "sonnet_llm",
   validate agentlang/validateModule,
@@ -283,6 +308,7 @@ agent agentCreatorResolver {
 }
 
 agent metadataGeneratorResolver {
+  role "builder",
   instruction ins.METADATA_GENERATOR_INSTRUCTION,
   llm "sonnet_llm",
   responseSchema AgentCraft/MetadataDoc
@@ -308,7 +334,8 @@ flow builderAgentResolver {
 
 @public agent builderAgentResolver {
   llm "haiku_llm",
-  role "You are a language builder which generates Agentlang based code with resolver awareness."
+  role "builder",
+  goal "You are a language builder which generates Agentlang based code with resolver awareness."
 }
 
 @public event generateAgentlangResolver {
@@ -430,7 +457,8 @@ record OrchestratorResponse {
 }
 
 @public agent componentOrchestrator {
-    role "Orchestrate multiple component creation and update operations based on user request",
+    role "builder",
+    goal "Orchestrate multiple component creation and update operations based on user request",
     instruction "{{message}}
 
 YOU MUST RETURN STRUCTURED DATA, NOT RAW CODE.

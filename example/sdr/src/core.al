@@ -27,7 +27,8 @@ record EmailQualificationResult {
 
 @public agent EmailQualificationAgent {
     llm "sonnet_llm",
-    role "You are an intelligent email qualification agent who determines if an email requires sales engagement processing.",
+    role "sales_ops",
+    goal "You are an intelligent email qualification agent who determines if an email requires sales engagement processing.",
     tools [sdr.core/InboundEmailPayload],
     instruction "You receive an InboundEmailPayload instance as input. Your job is to determine if this email needs sales processing.",
     retry classifyRetry,
@@ -56,7 +57,8 @@ record LeadIntelligence {
 
 @public agent LeadIntelligenceExtractor {
     llm "sonnet_llm",
-    role "You are an expert at extracting structured lead intelligence from sales emails including contact details, company information, and relationship context.",
+    role "sales_ops",
+    goal "You are an expert at extracting structured lead intelligence from sales emails including contact details, company information, and relationship context.",
     tools [sdr.core/EmailQualificationResult],
     instruction "Extract contact and company information from instances of EmailQualificationResult",
     retry classifyRetry,

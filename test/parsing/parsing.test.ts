@@ -205,11 +205,13 @@ describe('Agent toString test', () => {
       }
 
       agent Agent1 {
-        instruction "This Agent will solve higher ordered equation"
+        instruction "This Agent will solve higher ordered equation",
+        role "solver"
       }
 
       agent Agent2 {
         instruction "This Agent will solve any math problem",
+        role "solver",
         tools [a,b],
         llm "agent2_llm"
       }
@@ -233,11 +235,13 @@ entity F
 
 agent Agent1
 {
-    instruction "This Agent will solve higher ordered equation"
+    instruction "This Agent will solve higher ordered equation",
+    role "solver"
 }
 agent Agent2
 {
     instruction "This Agent will solve any math problem",
+    role "solver",
     tools [a,b],
     llm "agent2_llm"
 }`

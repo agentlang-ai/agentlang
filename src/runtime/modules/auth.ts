@@ -960,10 +960,12 @@ export async function userHasPermissions(
     UserRoleCache.set(userId, userRoles);
   }
   let tempRoles = userRoles;
-  const escalatedRole = env.getEscalatedRole();
-  if (escalatedRole) {
-    tempRoles = userRoles.slice();
-    tempRoles.push(escalatedRole);
+  const assumedRole = env.getAssumedRole();
+  if (assumedRole) {
+    tempRoles = [assumedRole];
+    if (!RolePermissionsCache.get(assumedRole)) {
+      await updatePermissionCacheForRole(assumedRole, env);
+    }
   }
   if (
     tempRoles &&
