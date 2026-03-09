@@ -5,8 +5,7 @@ import { OpenAIEmbeddingProvider } from './embeddings/openai.js';
 import { LanceDBVectorStore } from './resolvers/vector/lancedb-store.js';
 import type { VectorStore } from './resolvers/vector/types.js';
 import crypto from 'crypto';
-import { readFileSync } from 'fs';
-import { resolve as pathResolve } from 'path';
+import { createFS } from '../utils/fs/index.js';
 
 const VECTOR_DIMENSION = 1536;
 
@@ -104,11 +103,12 @@ class DocumentRetriever {
         }
         content = await resp.text();
       } else {
-        const filePath = pathResolve(url);
+        // Use filesystem abstraction for browser/Node.js compatibility
         try {
-          content = readFileSync(filePath, 'utf-8');
+          const fs = await createFS();
+          content = await fs.readFile(url);
         } catch (err) {
-          logger.warn(`[DOCUMENT-RETRIEVER] Failed to read "${title}" from ${filePath}: ${err}`);
+          logger.warn(`[DOCUMENT-RETRIEVER] Failed to read "${title}" from ${url}: ${err}`);
           return;
         }
       }
