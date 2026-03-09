@@ -364,7 +364,7 @@ export function isBeforeTriggerDefinition(item: unknown): item is BeforeTriggerD
 }
 
 export interface BinExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError | WhereSpecClause;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | LimitClause | MapEntry | NegExpr | NotExpr | OffsetClause | Pattern | SetAttribute | ThrowError | WhereSpecClause;
     readonly $type: 'BinExpr';
     e1: Expr | PrimExpr;
     e2: Expr | PrimExpr;
@@ -873,7 +873,7 @@ export function isGlossaryEntryDefinition(item: unknown): item is GlossaryEntryD
 }
 
 export interface Group extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError | WhereSpecClause;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | LimitClause | MapEntry | NegExpr | NotExpr | OffsetClause | Pattern | SetAttribute | ThrowError | WhereSpecClause;
     readonly $type: 'Group';
     ge: Expr;
 }
@@ -1034,11 +1034,13 @@ export function isKvPairs(item: unknown): item is KvPairs {
 export interface LimitClause extends langium.AstNode {
     readonly $container: QueryOption;
     readonly $type: 'LimitClause';
-    value: number;
+    expr?: Expr;
+    value?: number;
 }
 
 export const LimitClause = {
     $type: 'LimitClause',
+    expr: 'expr',
     value: 'value'
 } as const;
 
@@ -1047,7 +1049,7 @@ export function isLimitClause(item: unknown): item is LimitClause {
 }
 
 export interface Literal extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | CaseEntry | CrudMap | FnCall | FullTextSearch | GenericPropertyDef | Group | If | KvPair | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError | WhereSpecClause;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | CrudMap | FnCall | FullTextSearch | GenericPropertyDef | Group | If | KvPair | LimitClause | MapEntry | NegExpr | NotExpr | OffsetClause | Pattern | SetAttribute | ThrowError | WhereSpecClause;
     readonly $type: 'Literal';
     array?: ArrayLiteral;
     asyncFnCall?: AsyncFnCall;
@@ -1162,7 +1164,7 @@ export function isModuleDefinition(item: unknown): item is ModuleDefinition {
 }
 
 export interface NegExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError | WhereSpecClause;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | LimitClause | MapEntry | NegExpr | NotExpr | OffsetClause | Pattern | SetAttribute | ThrowError | WhereSpecClause;
     readonly $type: 'NegExpr';
     ne: Expr;
 }
@@ -1194,7 +1196,7 @@ export function isNodeDefinition(item: unknown): item is NodeDefinition {
 }
 
 export interface NotExpr extends langium.AstNode {
-    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | MapEntry | NegExpr | NotExpr | Pattern | SetAttribute | ThrowError | WhereSpecClause;
+    readonly $container: AttributeDefinition | BinExpr | CaseEntry | FnCall | Group | If | LimitClause | MapEntry | NegExpr | NotExpr | OffsetClause | Pattern | SetAttribute | ThrowError | WhereSpecClause;
     readonly $type: 'NotExpr';
     ne: Expr;
 }
@@ -1211,11 +1213,13 @@ export function isNotExpr(item: unknown): item is NotExpr {
 export interface OffsetClause extends langium.AstNode {
     readonly $container: QueryOption;
     readonly $type: 'OffsetClause';
-    value: number;
+    expr?: Expr;
+    value?: number;
 }
 
 export const OffsetClause = {
     $type: 'OffsetClause',
+    expr: 'expr',
     value: 'value'
 } as const;
 
@@ -2889,6 +2893,9 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
         LimitClause: {
             name: LimitClause.$type,
             properties: {
+                expr: {
+                    name: LimitClause.expr
+                },
                 value: {
                     name: LimitClause.value
                 }
@@ -3024,6 +3031,9 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
         OffsetClause: {
             name: OffsetClause.$type,
             properties: {
+                expr: {
+                    name: OffsetClause.expr
+                },
                 value: {
                     name: OffsetClause.value
                 }

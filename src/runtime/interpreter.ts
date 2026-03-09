@@ -1578,7 +1578,11 @@ async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
   }
 }
 
-function maybeSetQueryClauses(inst: Instance, qopts: ExtractedQueryOptions) {
+async function maybeSetQueryClauses(
+  inst: Instance,
+  qopts: ExtractedQueryOptions,
+  env: Environment
+) {
   if (qopts.groupByClause) {
     inst.setGroupBy(qopts.groupByClause.colNames);
   }
@@ -1586,10 +1590,26 @@ function maybeSetQueryClauses(inst: Instance, qopts: ExtractedQueryOptions) {
     inst.setOrderBy(qopts.orderByClause.colNames, qopts.orderByClause.order === '@desc');
   }
   if (qopts.limitClause) {
-    inst.setLimit(qopts.limitClause.value);
+    if (qopts.limitClause.value !== undefined) {
+      inst.setLimit(qopts.limitClause.value);
+    } else if (qopts.limitClause.expr) {
+      await evaluateExpression(qopts.limitClause.expr, env);
+      const v = env.getLastResult();
+      if (typeof v === 'number') {
+        inst.setLimit(v);
+      }
+    }
   }
   if (qopts.offsetClause) {
-    inst.setOffset(qopts.offsetClause.value);
+    if (qopts.offsetClause.value !== undefined) {
+      inst.setOffset(qopts.offsetClause.value);
+    } else if (qopts.offsetClause.expr) {
+      await evaluateExpression(qopts.offsetClause.expr, env);
+      const v = env.getLastResult();
+      if (typeof v === 'number') {
+        inst.setOffset(v);
+      }
+    }
   }
 }
 
@@ -1608,7 +1628,7 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   const onlyAggregates = inst.aggregates !== undefined && qattrs === undefined;
   const isQueryAll = onlyAggregates || crud.name.endsWith(QuerySuffix);
   const distinct: boolean = qopts.distinct !== undefined;
-  maybeSetQueryClauses(inst, qopts);
+  await maybeSetQueryClauses(inst, qopts, env);
   if (attrs.size > 0) {
     await maybeValidateOneOfRefs(inst, env);
   }

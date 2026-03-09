@@ -102,6 +102,57 @@ describe('limit-offset-queries', () => {
     assert(insts[0].lookup('id') == 2);
     assert(insts[1].lookup('id') == 3);
   });
+
+  test('Dynamic limit and offset from workflow attributes', async () => {
+    const moduleName = 'dloq';
+    await doInternModule(
+      moduleName,
+      `entity Product {
+            id Int @id,
+            name String
+        }
+
+        workflow BrowseProducts {
+            {${moduleName}/Product? {}, @orderBy(id),
+             @limit(BrowseProducts.pageSize),
+             @offset(BrowseProducts.pageOffset)}
+        }
+        `
+    );
+    const entName = `${moduleName}/Product`;
+    for (let i = 1; i <= 5; i++) {
+      await parseAndEvaluateStatement(`{${entName} {id ${i}, name "p${i}"}}`);
+    }
+
+    // page 1: pageSize=2, pageOffset=0
+    let insts: Instance[] = await parseAndEvaluateStatement(
+      `{${moduleName}/BrowseProducts {pageSize 2, pageOffset 0}}`
+    );
+    assert(insts.length === 2, `Expected 2, got ${insts.length}`);
+    assert(insts[0].lookup('id') == 1);
+    assert(insts[1].lookup('id') == 2);
+
+    // page 2: pageSize=2, pageOffset=2
+    insts = await parseAndEvaluateStatement(
+      `{${moduleName}/BrowseProducts {pageSize 2, pageOffset 2}}`
+    );
+    assert(insts.length === 2, `Expected 2, got ${insts.length}`);
+    assert(insts[0].lookup('id') == 3);
+    assert(insts[1].lookup('id') == 4);
+
+    // page 3: pageSize=2, pageOffset=4
+    insts = await parseAndEvaluateStatement(
+      `{${moduleName}/BrowseProducts {pageSize 2, pageOffset 4}}`
+    );
+    assert(insts.length === 1, `Expected 1, got ${insts.length}`);
+    assert(insts[0].lookup('id') == 5);
+
+    // dynamic limit with expression: pageSize=1+2=3, pageOffset=0
+    insts = await parseAndEvaluateStatement(
+      `{${moduleName}/BrowseProducts {pageSize 3, pageOffset 0}}`
+    );
+    assert(insts.length === 3, `Expected 3, got ${insts.length}`);
+  });
 });
 
 describe('basic-aggregate-queries', () => {

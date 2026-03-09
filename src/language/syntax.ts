@@ -413,8 +413,8 @@ export class CrudPattern extends BasePattern {
   where: WhereSpecClausePattern[] | undefined;
   groupBy: string[] | undefined;
   orderBy: string[] | undefined;
-  limit: number | undefined;
-  offset: number | undefined;
+  limit: number | string | undefined;
+  offset: number | string | undefined;
   isQuery: boolean = false;
   isQueryUpdate: boolean = false;
   isCreate: boolean = false;
