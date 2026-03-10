@@ -1034,13 +1034,11 @@ export function isKvPairs(item: unknown): item is KvPairs {
 export interface LimitClause extends langium.AstNode {
     readonly $container: QueryOption;
     readonly $type: 'LimitClause';
-    expr?: Expr;
-    value?: number;
+    value: Expr;
 }
 
 export const LimitClause = {
     $type: 'LimitClause',
-    expr: 'expr',
     value: 'value'
 } as const;
 
@@ -1213,13 +1211,11 @@ export function isNotExpr(item: unknown): item is NotExpr {
 export interface OffsetClause extends langium.AstNode {
     readonly $container: QueryOption;
     readonly $type: 'OffsetClause';
-    expr?: Expr;
-    value?: number;
+    value: Expr;
 }
 
 export const OffsetClause = {
     $type: 'OffsetClause',
-    expr: 'expr',
     value: 'value'
 } as const;
 
@@ -2893,9 +2889,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
         LimitClause: {
             name: LimitClause.$type,
             properties: {
-                expr: {
-                    name: LimitClause.expr
-                },
                 value: {
                     name: LimitClause.value
                 }
@@ -3031,9 +3024,6 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
         OffsetClause: {
             name: OffsetClause.$type,
             properties: {
-                expr: {
-                    name: OffsetClause.expr
-                },
                 value: {
                     name: OffsetClause.value
                 }

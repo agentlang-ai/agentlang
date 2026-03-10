@@ -1590,25 +1590,17 @@ async function maybeSetQueryClauses(
     inst.setOrderBy(qopts.orderByClause.colNames, qopts.orderByClause.order === '@desc');
   }
   if (qopts.limitClause) {
-    if (qopts.limitClause.value !== undefined) {
-      inst.setLimit(qopts.limitClause.value);
-    } else if (qopts.limitClause.expr) {
-      await evaluateExpression(qopts.limitClause.expr, env);
-      const v = env.getLastResult();
-      if (typeof v === 'number') {
-        inst.setLimit(v);
-      }
+    await evaluateExpression(qopts.limitClause.value, env);
+    const v = env.getLastResult();
+    if (typeof v === 'number') {
+      inst.setLimit(v);
     }
   }
   if (qopts.offsetClause) {
-    if (qopts.offsetClause.value !== undefined) {
-      inst.setOffset(qopts.offsetClause.value);
-    } else if (qopts.offsetClause.expr) {
-      await evaluateExpression(qopts.offsetClause.expr, env);
-      const v = env.getLastResult();
-      if (typeof v === 'number') {
-        inst.setOffset(v);
-      }
+    await evaluateExpression(qopts.offsetClause.value, env);
+    const v = env.getLastResult();
+    if (typeof v === 'number') {
+      inst.setOffset(v);
     }
   }
 }

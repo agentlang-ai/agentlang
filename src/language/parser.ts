@@ -294,6 +294,13 @@ function introspectExpression(expr: Expr | undefined): BasePattern {
   throw new Error('Failed to introspect expression - ' + expr);
 }
 
+function exprToLimitOffset(expr: Expr): number | string | undefined {
+  if (isLiteral(expr) && expr.num !== undefined) {
+    return expr.num;
+  }
+  return expr.$cstNode?.text;
+}
+
 function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
   if (crudMap) {
     const cp: CrudPattern = new CrudPattern(crudMap.name);
@@ -327,10 +334,10 @@ function introspectQueryPattern(crudMap: CrudMap): CrudPattern {
       cp.orderBy = opts.orderByClause.colNames;
     }
     if (opts.limitClause) {
-      cp.limit = opts.limitClause.value ?? opts.limitClause.expr?.$cstNode?.text;
+      cp.limit = exprToLimitOffset(opts.limitClause.value);
     }
     if (opts.offsetClause) {
-      cp.offset = opts.offsetClause.value ?? opts.offsetClause.expr?.$cstNode?.text;
+      cp.offset = exprToLimitOffset(opts.offsetClause.value);
     }
     cp.isCreate = false;
     cp.isQueryUpdate = false;

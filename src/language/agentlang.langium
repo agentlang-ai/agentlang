@@ -148,8 +148,8 @@ WhereSpecClause: lhs=QueryId op=SqlComparisonOpr? rhs=Expr;
 
 GroupByClause: '@groupBy' ('(' (colNames+=QualifiedName (',' colNames+=QualifiedName)*)+ ')');
 OrderByClause: '@orderBy' ('(' (colNames+=QualifiedName (',' colNames+=QualifiedName)*)+ ')') (order=('@asc' | '@desc'))?;
-LimitClause: '@limit' '(' (value=INT | expr=Expr) ')';
-OffsetClause: '@offset' '(' (value=INT | expr=Expr) ')';
+LimitClause: '@limit' '(' value=Expr ')';
+OffsetClause: '@offset' '(' value=Expr ')';
 
 FullTextSearch: '{' name=QueryId query=Literal options=MapLiteral? '}';
 
