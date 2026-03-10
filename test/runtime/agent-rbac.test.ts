@@ -1,5 +1,5 @@
 import { assert, describe, test } from 'vitest';
-import { assignUserToRole, createPermission, createUser } from '../../src/runtime/modules/auth.js';
+import { assignUserToRole, createUser } from '../../src/runtime/modules/auth.js';
 import { Environment, parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import { isInstanceOfType } from '../../src/runtime/module.js';
 import { doInternModule, expectError } from '../util.js';

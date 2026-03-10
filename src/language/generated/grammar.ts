@@ -4359,33 +4359,16 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "value": "("
           },
           {
-            "$type": "Alternatives",
-            "elements": [
-              {
-                "$type": "Assignment",
-                "feature": "value",
-                "operator": "=",
-                "terminal": {
-                  "$type": "RuleCall",
-                  "rule": {
-                    "$ref": "#/rules@135"
-                  },
-                  "arguments": []
-                }
+            "$type": "Assignment",
+            "feature": "value",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@113"
               },
-              {
-                "$type": "Assignment",
-                "feature": "expr",
-                "operator": "=",
-                "terminal": {
-                  "$type": "RuleCall",
-                  "rule": {
-                    "$ref": "#/rules@113"
-                  },
-                  "arguments": []
-                }
-              }
-            ]
+              "arguments": []
+            }
           },
           {
             "$type": "Keyword",
@@ -4412,33 +4395,16 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "value": "("
           },
           {
-            "$type": "Alternatives",
-            "elements": [
-              {
-                "$type": "Assignment",
-                "feature": "value",
-                "operator": "=",
-                "terminal": {
-                  "$type": "RuleCall",
-                  "rule": {
-                    "$ref": "#/rules@135"
-                  },
-                  "arguments": []
-                }
+            "$type": "Assignment",
+            "feature": "value",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@113"
               },
-              {
-                "$type": "Assignment",
-                "feature": "expr",
-                "operator": "=",
-                "terminal": {
-                  "$type": "RuleCall",
-                  "rule": {
-                    "$ref": "#/rules@113"
-                  },
-                  "arguments": []
-                }
-              }
-            ]
+              "arguments": []
+            }
           },
           {
             "$type": "Keyword",
