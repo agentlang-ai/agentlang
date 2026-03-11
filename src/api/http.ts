@@ -20,6 +20,7 @@ import {
   Module,
   getAllBetweenRelationshipNames,
   linkInstancesEvent,
+  getPublicMeta,
 } from '../runtime/module.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
@@ -1045,6 +1046,8 @@ async function handleMetaGet(req: Request, res: Response): Promise<void> {
                       : rel.isOneToMany()
                         ? 'one-to-many'
                         : 'many-to-many',
+                    documentation: rel.getDocumentation(),
+                    meta: getPublicMeta(rel),
                   });
                 } else if (
                   childNode.path.getModuleName() === moduleName &&
@@ -1060,6 +1063,8 @@ async function handleMetaGet(req: Request, res: Response): Promise<void> {
                       : rel.isOneToMany()
                         ? 'one-to-many'
                         : 'many-to-many',
+                    documentation: rel.getDocumentation(),
+                    meta: getPublicMeta(rel),
                   });
                 }
               });
@@ -1072,7 +1077,8 @@ async function handleMetaGet(req: Request, res: Response): Promise<void> {
               type: 'entity',
               attributes: attributes,
               relationships: relationships,
-              meta: entity instanceof Record && entity.meta ? Object.fromEntries(entity.meta) : {},
+              documentation: entity instanceof Record ? entity.getDocumentation() : undefined,
+              meta: entity instanceof Record ? getPublicMeta(entity) : {},
             };
             entities.push(entityInfo);
           } catch (err: any) {
@@ -1139,7 +1145,8 @@ async function handleMetaGet(req: Request, res: Response): Promise<void> {
               fqName: makeFqName(moduleName, eventName),
               type: 'event',
               attributes: attributes,
-              meta: event instanceof Record && event.meta ? Object.fromEntries(event.meta) : {},
+              documentation: event instanceof Record ? event.getDocumentation() : undefined,
+              meta: event instanceof Record ? getPublicMeta(event) : {},
             };
             events.push(eventInfo);
           } catch (err: any) {
