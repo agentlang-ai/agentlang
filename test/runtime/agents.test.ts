@@ -828,13 +828,13 @@ if (process.env.AL_TEST === 'true') {
             erp.test/Employee {
               email classifyUserRequest.email,
               name classifyUserRequest.name
-            }
+            }, @upsert
           }
           classifyUserRequest --> "type is Manager" {
               erp.test/Manager {
                   email classifyUserRequest.email,
                   name classifyUserRequest.name
-              }
+              }, @upsert
           } @as ManagerCreated
           erp.test/Employee --> SendEmployeeWelcomeEmail
           ManagerCreated --> SendManagerWelcomeEmail
@@ -926,6 +926,7 @@ workflow SendManagerWelcomeEmail {
 agent classifyUserRequest
 {
     instruction "Analyse the user request and classify it as an Employee or Manager",
+    role "hr_ops",
    responseSchema erp.test/UserRequest
 }
 flow userRequestManager {
@@ -934,13 +935,13 @@ flow userRequestManager {
             erp.test/Employee {
               email classifyUserRequest.email,
               name classifyUserRequest.name
-            }
+            }, @upsert
           }
 classifyUserRequest --> "type is Manager" {
               erp.test/Manager {
                   email classifyUserRequest.email,
                   name classifyUserRequest.name
-              }
+              }, @upsert
           } @as ManagerCreated
 erp.test/Employee --> SendEmployeeWelcomeEmail
 ManagerCreated --> SendManagerWelcomeEmail

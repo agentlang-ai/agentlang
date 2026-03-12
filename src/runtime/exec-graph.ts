@@ -9,6 +9,7 @@ import {
   isPattern,
   isStatement,
   isWorkflowDefinition,
+  LetBinding,
   ModuleDefinition,
   Pattern,
   Purge,
@@ -143,6 +144,13 @@ class GraphGenerator extends PatternHandler {
     const handler = new GraphGenerator();
     await handler.handleIf(ifWithAlias.if, env);
     this.addSubGraph(SubGraphType.IF_WITH_ALIAS, handler.getGraph(), env);
+  }
+
+  override async handleLetBinding(letBinding: LetBinding, env: Environment) {
+    const newEnv = Environment.from(env).setActiveUserData(letBinding.pattern);
+    const handler = new GraphGenerator();
+    await evaluatePattern(letBinding.pattern, newEnv, handler);
+    this.addSubGraph(SubGraphType.LET_BINDING, handler.getGraph(), env);
   }
 
   private async handleSubPattern(subGraphType: SubGraphType, pat: Pattern, env: Environment) {
@@ -290,6 +298,9 @@ export async function executeGraph(execGraph: ExecGraph, env: Environment): Prom
               case SubGraphType.THROW:
                 await evaluateExpression(subg.getRootNodes()[0].code as Expr, env);
                 throw new Error(env.getLastResult());
+              case SubGraphType.LET_BINDING:
+                await evaluateStatement(node.code as Statement, env);
+                break;
               default:
                 throw new Error(`Invalid sub-graph type: ${node.subGraphType}`);
             }

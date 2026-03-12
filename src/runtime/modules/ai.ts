@@ -152,7 +152,7 @@ entity ${AgentEntityName} {
     topics String @optional, // list of topic names
     channels String @optional, // comma-separated list of channel names
     goal String @optional,
-    role String,
+    role String @optional,
     flows String @optional,
     validate String @optional,
     retry String @optional,

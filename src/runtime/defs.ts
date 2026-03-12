@@ -129,6 +129,7 @@ export enum SubGraphType {
   RETURN,
   AGENT,
   THROW,
+  LET_BINDING,
   NONE,
 }
 
