@@ -55,6 +55,9 @@ import {
   newInstanceAttributes,
   PlaceholderRecordEntry,
   Relationship,
+  allModuleNames,
+  isEntity,
+  isRelationship,
   setMetaAttributes,
   Workflow,
 } from './module.js';
@@ -2792,6 +2795,289 @@ async function dereferencePath(path: string, env: Environment): Promise<Result> 
   return undefined;
 }
 
+const EntityMethods = new Set([
+  'create',
+  'find',
+  'find_all',
+  'update',
+  'upsert',
+  'delete',
+  'with_max',
+  'with_min',
+  'top',
+  'bottom',
+]);
+
+type EntityMethodInfo = {
+  entityName: string;
+  fqEntityName: string;
+  method: string;
+  isRelationship: boolean;
+};
+
+function detectEntityMethod(fnName: string, env: Environment): EntityMethodInfo | undefined {
+  const dotIdx = fnName.lastIndexOf('.');
+  if (dotIdx <= 0) return undefined;
+  const method = fnName.substring(dotIdx + 1);
+  if (!EntityMethods.has(method)) return undefined;
+  const entityName = fnName.substring(0, dotIdx);
+  if (isFqName(entityName)) {
+    if (isEntity(entityName)) {
+      return { entityName, fqEntityName: entityName, method, isRelationship: false };
+    }
+    if (isRelationship(entityName)) {
+      return { entityName, fqEntityName: entityName, method, isRelationship: true };
+    }
+    return undefined;
+  }
+  // Try active module first
+  const fqName = makeFqName(env.getActiveModuleName(), entityName);
+  if (isEntity(fqName)) {
+    return { entityName, fqEntityName: fqName, method, isRelationship: false };
+  }
+  if (isRelationship(fqName)) {
+    return { entityName, fqEntityName: fqName, method, isRelationship: true };
+  }
+  // Search all modules for the entity name
+  for (const modName of allModuleNames()) {
+    const candidateFqName = makeFqName(modName, entityName);
+    if (isEntity(candidateFqName)) {
+      return { entityName, fqEntityName: candidateFqName, method, isRelationship: false };
+    }
+    if (isRelationship(candidateFqName)) {
+      return { entityName, fqEntityName: candidateFqName, method, isRelationship: true };
+    }
+  }
+  return undefined;
+}
+
+function serializeValue(v: any): string {
+  if (v === null || v === undefined) return 'null';
+  if (typeof v === 'string') return `"${v}"`;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v)) return `[${v.map(serializeValue).join(', ')}]`;
+  if (v instanceof Instance) return v.getPath();
+  if (typeof v === 'object') {
+    const entries = Object.entries(v).map(([k, val]) => `"${k}": ${serializeValue(val)}`);
+    return `{${entries.join(', ')}}`;
+  }
+  return String(v);
+}
+
+function serializeAttrs(obj: any, queryMode: boolean): string {
+  if (!obj || typeof obj !== 'object') return '';
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (queryMode) {
+      // In query mode, all attributes get ? suffix for lookup
+      // Support operator suffixes: "salary>=" becomes "salary?>="
+      const opMatch = k.match(/^(\w+)(>=|<=|<>|!=|>|<|=| like| in| between)$/);
+      if (opMatch) {
+        const attrName = opMatch[1];
+        const op = opMatch[2].trim();
+        parts.push(`${attrName}?${op} ${serializeValue(v)}`);
+      } else {
+        parts.push(`${k}? ${serializeValue(v)}`);
+      }
+    } else {
+      parts.push(`${k} ${serializeValue(v)}`);
+    }
+  }
+  return parts.join(', ');
+}
+
+function serializeQueryOptions(opts: any): string {
+  if (!opts || typeof opts !== 'object') return '';
+  const parts: string[] = [];
+  if (opts.orderBy) {
+    const cols = Array.isArray(opts.orderBy) ? opts.orderBy.join(', ') : opts.orderBy;
+    let orderByStr = `@orderBy(${cols})`;
+    if (opts.desc === true) {
+      orderByStr += ' @desc';
+    } else if (opts.asc === true) {
+      orderByStr += ' @asc';
+    }
+    parts.push(orderByStr);
+  }
+  if (opts.limit !== undefined) {
+    parts.push(`@limit(${opts.limit})`);
+  }
+  if (opts.offset !== undefined) {
+    parts.push(`@offset(${opts.offset})`);
+  }
+  if (opts.distinct === true) {
+    parts.push('@distinct');
+  }
+  return parts.length > 0 ? ', ' + parts.join(', ') : '';
+}
+
+async function applyEntityMethod(
+  info: EntityMethodInfo,
+  args: Array<Result>,
+  env: Environment
+): Promise<void> {
+  const fqName = info.fqEntityName;
+  let pattern: string;
+
+  switch (info.method) {
+    case 'create': {
+      const attrs = args[0] || {};
+      const rels = args[1];
+      let relParts = '';
+      if (rels && typeof rels === 'object') {
+        const relStrs: string[] = [];
+        for (const [relName, relValue] of Object.entries(rels)) {
+          const relFqName = isFqName(relName)
+            ? relName
+            : makeFqName(env.getActiveModuleName(), relName);
+          if (Array.isArray(relValue)) {
+            // Multiple related entities: [{Post {title "P1"}}, {Post {title "P2"}}]
+            // relValue items are already created instances from nested .create() calls
+            const items = relValue.map((inst: any) => {
+              if (inst instanceof Instance) {
+                const entName = makeFqName(inst.moduleName, inst.name);
+                return `{${entName} {${serializeAttrs(inst.userAttributesAsObject(), false)}}}`;
+              }
+              return `{${serializeAttrs(inst, false)}}`;
+            });
+            relStrs.push(`${relFqName} [${items.join(', ')}]`);
+          } else if (relValue instanceof Instance) {
+            const entName = makeFqName(relValue.moduleName, relValue.name);
+            relStrs.push(
+              `${relFqName} {${entName} {${serializeAttrs(relValue.userAttributesAsObject(), false)}}}`
+            );
+          }
+        }
+        if (relStrs.length > 0) {
+          relParts = ',\n' + relStrs.join(',\n');
+        }
+      }
+      pattern = `{${fqName} {${serializeAttrs(attrs, false)}}${relParts}}`;
+      break;
+    }
+
+    case 'find': {
+      const filter = args[0] || {};
+      pattern = `{${fqName} {${serializeAttrs(filter, true)}}}`;
+      break;
+    }
+
+    case 'find_all': {
+      // find_all() — no args
+      // find_all(filter) — filter only
+      // find_all(filter, options) — filter + options
+      // find_all(options) — options only (detected by option keys like orderBy, limit, etc.)
+      const optionKeys = new Set(['orderBy', 'desc', 'asc', 'limit', 'offset']);
+      let filter: any = undefined;
+      let opts: any = undefined;
+
+      if (args.length === 2) {
+        filter = args[0];
+        opts = args[1];
+      } else if (args.length === 1 && args[0] && typeof args[0] === 'object') {
+        const keys = Object.keys(args[0]);
+        const isOptions = keys.some(k => optionKeys.has(k));
+        if (isOptions) {
+          opts = args[0];
+        } else {
+          filter = args[0];
+        }
+      }
+
+      const hasFilter = filter && typeof filter === 'object' && Object.keys(filter).length > 0;
+      const filterStr = hasFilter ? serializeAttrs(filter, true) : '';
+      const optsStr = opts ? serializeQueryOptions(opts) : '';
+      if (hasFilter) {
+        pattern = `{${fqName} {${filterStr}}${optsStr}}`;
+      } else {
+        pattern = `{${fqName}? {}${optsStr}}`;
+      }
+      break;
+    }
+
+    case 'update': {
+      const lookup = args[0] || {};
+      const values = args[1] || {};
+      const parts: string[] = [];
+      // Lookup attributes get ? suffix
+      for (const [k, v] of Object.entries(lookup)) {
+        parts.push(`${k}? ${serializeValue(v)}`);
+      }
+      // Value attributes are plain
+      for (const [k, v] of Object.entries(values)) {
+        parts.push(`${k} ${serializeValue(v)}`);
+      }
+      pattern = `{${fqName} {${parts.join(', ')}}}`;
+      break;
+    }
+
+    case 'upsert': {
+      const attrs = args[0] || {};
+      pattern = `{${fqName} {${serializeAttrs(attrs, false)}}, @upsert}`;
+      break;
+    }
+
+    case 'delete': {
+      const filter = args[0] || {};
+      pattern = `delete {${fqName} {${serializeAttrs(filter, true)}}}`;
+      break;
+    }
+
+    case 'with_max':
+    case 'with_min': {
+      const attr = args[0] as string;
+      const filter = args[1];
+      const desc = info.method === 'with_max';
+      const hasFilter = filter && typeof filter === 'object' && Object.keys(filter).length > 0;
+      const filterStr = hasFilter ? serializeAttrs(filter, true) : '';
+      const order = desc ? '@desc' : '@asc';
+      if (hasFilter) {
+        pattern = `{${fqName} {${filterStr}}, @orderBy(${attr}) ${order}, @limit(1)}`;
+      } else {
+        pattern = `{${fqName}? {}, @orderBy(${attr}) ${order}, @limit(1)}`;
+      }
+      break;
+    }
+
+    case 'top':
+    case 'bottom': {
+      const n = args[0] as number;
+      const attr = args[1] as string;
+      const filter = args[2];
+      const desc = info.method === 'top';
+      const hasFilter = filter && typeof filter === 'object' && Object.keys(filter).length > 0;
+      const filterStr = hasFilter ? serializeAttrs(filter, true) : '';
+      const order = desc ? '@desc' : '@asc';
+      if (hasFilter) {
+        pattern = `{${fqName} {${filterStr}}, @orderBy(${attr}) ${order}, @limit(${n})}`;
+      } else {
+        pattern = `{${fqName}? {}, @orderBy(${attr}) ${order}, @limit(${n})}`;
+      }
+      break;
+    }
+
+    default:
+      throw new Error(`Unknown entity method: ${info.method}`);
+  }
+
+  const result = await parseAndEvaluateStatement(
+    pattern,
+    env.getAuthContextUserId(),
+    env
+  );
+
+  // For find/with_max/with_min: unwrap single-element arrays
+  if (
+    (info.method === 'find' || info.method === 'with_max' || info.method === 'with_min') &&
+    Array.isArray(result) &&
+    result.length > 0
+  ) {
+    env.setLastResult(result[0]);
+  } else {
+    env.setLastResult(result);
+  }
+}
+
 async function applyFn(fnCall: FnCall, env: Environment, isAsync: boolean): Promise<void> {
   const fnName: string | undefined = fnCall.name;
   if (fnName !== undefined) {
@@ -2807,6 +3093,13 @@ async function applyFn(fnCall: FnCall, env: Environment, isAsync: boolean): Prom
         }
         args.push(env.getLastResult());
       }
+    }
+    const entityMethod = detectEntityMethod(fnName, env);
+    if (entityMethod) {
+      await applyEntityMethod(entityMethod, args || [], env);
+      return;
+    }
+    if (args) {
       args.push(env);
     }
     const r: Result = await invokeModuleFn(fnName, args, isAsync);

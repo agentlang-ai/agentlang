@@ -7111,6 +7111,26 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
                   "$ref": "#/rules@130"
                 },
                 "arguments": []
+              },
+              {
+                "$type": "Keyword",
+                "value": "create"
+              },
+              {
+                "$type": "Keyword",
+                "value": "update"
+              },
+              {
+                "$type": "Keyword",
+                "value": "delete"
+              },
+              {
+                "$type": "Keyword",
+                "value": "upsert"
+              },
+              {
+                "$type": "Keyword",
+                "value": "query"
               }
             ]
           }

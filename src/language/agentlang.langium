@@ -263,7 +263,7 @@ QueryId returns string: QualifiedName | QualifiedName '?';
 
 TaggedId returns string: '@' ID;
 
-Ref returns string: ID '.' (Ref | ID);
+Ref returns string: ID '.' (Ref | ID | 'create' | 'update' | 'delete' | 'upsert' | 'query');
 
 QualifiedName returns string: Ref | ID;
 
