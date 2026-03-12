@@ -60,6 +60,10 @@ import {
   isRelationship,
   setMetaAttributes,
   Workflow,
+  getEntity,
+  linkInstancesEvent,
+  fetchModule,
+  Entity,
 } from './module.js';
 import { JoinInfo, Resolver, WhereClause } from './resolvers/interface.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
@@ -2806,6 +2810,22 @@ const EntityMethods = new Set([
   'with_min',
   'top',
   'bottom',
+  // Tier 2: cross-entity aggregates
+  'with_max_count',
+  'with_min_count',
+  'with_max_sum',
+  'with_min_sum',
+  'with_max_avg',
+  'with_min_avg',
+  'top_by_count',
+  'bottom_by_count',
+  'top_by_sum',
+  'bottom_by_sum',
+  'top_by_avg',
+  'bottom_by_avg',
+  // Relationship methods
+  'link',
+  'unlink',
 ]);
 
 type EntityMethodInfo = {
@@ -3056,6 +3076,41 @@ async function applyEntityMethod(
       break;
     }
 
+    // Tier 2: cross-entity aggregate methods
+    case 'with_max_count':
+    case 'with_min_count':
+    case 'with_max_sum':
+    case 'with_min_sum':
+    case 'with_max_avg':
+    case 'with_min_avg':
+    case 'top_by_count':
+    case 'bottom_by_count':
+    case 'top_by_sum':
+    case 'bottom_by_sum':
+    case 'top_by_avg':
+    case 'bottom_by_avg': {
+      const result = await applyTier2Method(info, args, env);
+      env.setLastResult(result);
+      return;
+    }
+
+    // Relationship methods
+    case 'link':
+    case 'unlink': {
+      if (!info.isRelationship) {
+        throw new Error(`${info.method} can only be called on relationships`);
+      }
+      const e1 = args[0];
+      const e2 = args[1];
+      const id1 = e1 instanceof Instance ? e1.lookup(e1.record.getIdAttributeName()!) : e1;
+      const id2 = e2 instanceof Instance ? e2.lookup(e2.record.getIdAttributeName()!) : e2;
+      const fqParts = splitFqName(info.fqEntityName);
+      const eventPath = await linkInstancesEvent(fqParts[0], fqParts[1], info.method === 'unlink');
+      const rel = getRelationship(info.entityName, fqParts[0]);
+      pattern = `{${eventPath.asFqName()} {${rel.node1.alias} ${serializeValue(id1)}, ${rel.node2.alias} ${serializeValue(id2)}}}`;
+      break;
+    }
+
     default:
       throw new Error(`Unknown entity method: ${info.method}`);
   }
@@ -3067,14 +3122,186 @@ async function applyEntityMethod(
   );
 
   // For find/with_max/with_min: unwrap single-element arrays
+  const unwrapMethods = new Set(['find', 'with_max', 'with_min']);
   if (
-    (info.method === 'find' || info.method === 'with_max' || info.method === 'with_min') &&
+    unwrapMethods.has(info.method) &&
     Array.isArray(result) &&
     result.length > 0
   ) {
     env.setLastResult(result[0]);
   } else {
     env.setLastResult(result);
+  }
+}
+
+function resolveEntityFqName(shortName: string, env: Environment): string | undefined {
+  if (isFqName(shortName)) {
+    return isEntity(shortName) ? shortName : undefined;
+  }
+  const fq = makeFqName(env.getActiveModuleName(), shortName);
+  if (isEntity(fq)) return fq;
+  for (const modName of allModuleNames()) {
+    const candidate = makeFqName(modName, shortName);
+    if (isEntity(candidate)) return candidate;
+  }
+  return undefined;
+}
+
+async function applyTier2Method(
+  info: EntityMethodInfo,
+  args: Array<Result>,
+  env: Environment
+): Promise<Result> {
+  const method = info.method;
+  const fqName = info.fqEntityName;
+
+  // Parse method name to extract: aggType, sortDir, limit
+  // with_max_count -> agg=count, dir=desc, limit=1
+  // top_by_sum -> agg=sum, dir=desc, limit=from args
+  let aggType: string;
+  let sortDir: string;
+  let isNVariant: boolean;
+
+  if (method.startsWith('with_max_')) {
+    aggType = method.substring('with_max_'.length); // count, sum, avg
+    sortDir = '@desc';
+    isNVariant = false;
+  } else if (method.startsWith('with_min_')) {
+    aggType = method.substring('with_min_'.length);
+    sortDir = '@asc';
+    isNVariant = false;
+  } else if (method.startsWith('top_by_')) {
+    aggType = method.substring('top_by_'.length);
+    sortDir = '@desc';
+    isNVariant = true;
+  } else if (method.startsWith('bottom_by_')) {
+    aggType = method.substring('bottom_by_'.length);
+    sortDir = '@asc';
+    isNVariant = true;
+  } else {
+    throw new Error(`Unknown tier 2 method: ${method}`);
+  }
+
+  // Parse arguments based on variant
+  let limitN: number;
+  let relatedArg: string; // "Deal" for count, "Deal.value" for sum/avg
+  let joinAttr: string;
+  let filter: any;
+
+  if (isNVariant) {
+    // top_by_count(n, related, joinAttr, filter?)
+    // top_by_sum(n, related.attr, joinAttr, filter?)
+    limitN = args[0] as number;
+    relatedArg = args[1] as string;
+    joinAttr = args[2] as string;
+    filter = args[3];
+  } else {
+    // with_max_count(related, joinAttr, filter?)
+    // with_max_sum(related.attr, joinAttr, filter?)
+    limitN = 1;
+    relatedArg = args[0] as string;
+    joinAttr = args[1] as string;
+    filter = args[2];
+  }
+
+  // For sum/avg, parse "Deal.value" into entity + attribute
+  let relatedName: string;
+  let aggAttr: string | undefined;
+  if (aggType === 'count') {
+    relatedName = relatedArg;
+  } else {
+    const dotIdx = relatedArg.indexOf('.');
+    if (dotIdx > 0) {
+      relatedName = relatedArg.substring(0, dotIdx);
+      aggAttr = relatedArg.substring(dotIdx + 1);
+    } else {
+      relatedName = relatedArg;
+      aggAttr = undefined;
+    }
+  }
+
+  // Resolve related entity FQN
+  const relatedFqName = resolveEntityFqName(relatedName, env);
+  if (!relatedFqName) {
+    throw new Error(`Entity '${relatedName}' not found for ${method}`);
+  }
+
+  // Get the primary entity's ID attribute
+  const primaryParts = splitFqName(fqName);
+  const primaryEntity = getEntity(primaryParts[1], primaryParts[0]);
+  if (!primaryEntity) {
+    throw new Error(`Entity '${fqName}' not found`);
+  }
+  const primaryIdAttr = primaryEntity.getIdAttributeName();
+  if (!primaryIdAttr) {
+    throw new Error(`Entity '${fqName}' has no @id attribute`);
+  }
+
+  // Build the aggregate expression
+  let aggExpr: string;
+  if (aggType === 'count') {
+    aggExpr = `@count(${relatedFqName}.${joinAttr})`;
+  } else if (aggAttr) {
+    aggExpr = `@${aggType}(${relatedFqName}.${aggAttr})`;
+  } else {
+    throw new Error(`${method} requires "Entity.attribute" as first argument for ${aggType} aggregation`);
+  }
+
+  // Build filter string
+  const hasFilter = filter && typeof filter === 'object' && Object.keys(filter).length > 0;
+  const filterStr = hasFilter ? serializeAttrs(filter, true) : '';
+  const queryPart = hasFilter ? filterStr : '';
+
+  // Step 1: Run aggregate subquery using @into to get join values with aggregate
+  // Use {Entity? {}} for no-filter (empty body), or {Entity {filter}} for filtered (attributes have ? from serializeAttrs)
+  let step1Pattern: string;
+  if (hasFilter) {
+    step1Pattern = `{${relatedFqName} {${queryPart}}, @into {__jv ${relatedFqName}.${joinAttr}, __agg ${aggExpr}}, @groupBy(${relatedFqName}.${joinAttr})}`;
+  } else {
+    step1Pattern = `{${relatedFqName}? {}, @into {__jv ${relatedFqName}.${joinAttr}, __agg ${aggExpr}}, @groupBy(${relatedFqName}.${joinAttr})}`;
+  }
+
+
+  const step1Result: any[] = await parseAndEvaluateStatement(
+    step1Pattern,
+    env.getAuthContextUserId(),
+    env
+  );
+
+  if (!Array.isArray(step1Result) || step1Result.length === 0) {
+    return isNVariant ? [] : undefined as any;
+  }
+
+  // Sort results in JS by __agg value (desc or asc) and take top N
+  const descSort = sortDir === '@desc';
+  step1Result.sort((a: any, b: any) => {
+    const va = Number(a.__agg ?? 0);
+    const vb = Number(b.__agg ?? 0);
+    return descSort ? vb - va : va - vb;
+  });
+  const topRows = step1Result.slice(0, limitN);
+
+  // Step 2: Look up primary entities by the join values, preserving order
+  const entities: Instance[] = [];
+  for (const row of topRows) {
+    const joinValue = row.__jv;
+    if (joinValue === undefined || joinValue === null) continue;
+    const step2Pattern = `{${fqName} {${primaryIdAttr}? ${serializeValue(joinValue)}}}`;
+    const found: Instance[] = await parseAndEvaluateStatement(
+      step2Pattern,
+      env.getAuthContextUserId(),
+      env
+    );
+    if (Array.isArray(found) && found.length > 0) {
+      entities.push(found[0]);
+    }
+  }
+
+  // Return single or array based on variant
+  if (isNVariant) {
+    return entities;
+  } else {
+    return entities.length > 0 ? entities[0] : undefined as any;
   }
 }
 
