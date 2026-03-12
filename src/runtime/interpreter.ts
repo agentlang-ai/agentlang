@@ -63,8 +63,6 @@ import {
   Workflow,
   getEntity,
   linkInstancesEvent,
-  fetchModule,
-  Entity,
 } from './module.js';
 import { JoinInfo, Resolver, WhereClause } from './resolvers/interface.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
