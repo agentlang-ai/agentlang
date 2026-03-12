@@ -875,9 +875,7 @@ export class LetBindingPattern extends BasePattern {
   }
 
   override toString(): string {
-    const binding = this.letAlias
-      ? this.letAlias
-      : `[${(this.letAliases ?? []).join(', ')}]`;
+    const binding = this.letAlias ? this.letAlias : `[${(this.letAliases ?? []).join(', ')}]`;
     return `let ${binding} = ${this.pattern.toString()}`;
   }
 }

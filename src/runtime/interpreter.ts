@@ -3152,19 +3152,11 @@ async function applyEntityMethod(
       throw new Error(`Unknown entity method: ${info.method}`);
   }
 
-  const result = await parseAndEvaluateStatement(
-    pattern,
-    env.getAuthContextUserId(),
-    env
-  );
+  const result = await parseAndEvaluateStatement(pattern, env.getAuthContextUserId(), env);
 
   // For find/with_max/with_min: unwrap single-element arrays
   const unwrapMethods = new Set(['find', 'with_max', 'with_min']);
-  if (
-    unwrapMethods.has(info.method) &&
-    Array.isArray(result) &&
-    result.length > 0
-  ) {
+  if (unwrapMethods.has(info.method) && Array.isArray(result) && result.length > 0) {
     env.setLastResult(result[0]);
   } else {
     env.setLastResult(result);
@@ -3281,7 +3273,9 @@ async function applyTier2Method(
   } else if (aggAttr) {
     aggExpr = `@${aggType}(${relatedFqName}.${aggAttr})`;
   } else {
-    throw new Error(`${method} requires "Entity.attribute" as first argument for ${aggType} aggregation`);
+    throw new Error(
+      `${method} requires "Entity.attribute" as first argument for ${aggType} aggregation`
+    );
   }
 
   // Build filter string
@@ -3298,7 +3292,6 @@ async function applyTier2Method(
     step1Pattern = `{${relatedFqName}? {}, @into {__jv ${relatedFqName}.${joinAttr}, __agg ${aggExpr}}, @groupBy(${relatedFqName}.${joinAttr})}`;
   }
 
-
   const step1Result: any[] = await parseAndEvaluateStatement(
     step1Pattern,
     env.getAuthContextUserId(),
@@ -3306,7 +3299,7 @@ async function applyTier2Method(
   );
 
   if (!Array.isArray(step1Result) || step1Result.length === 0) {
-    return isNVariant ? [] : undefined as any;
+    return isNVariant ? [] : (undefined as any);
   }
 
   // Sort results in JS by __agg value (desc or asc) and take top N
@@ -3338,7 +3331,7 @@ async function applyTier2Method(
   if (isNVariant) {
     return entities;
   } else {
-    return entities.length > 0 ? entities[0] : undefined as any;
+    return entities.length > 0 ? entities[0] : (undefined as any);
   }
 }
 

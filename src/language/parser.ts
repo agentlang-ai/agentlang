@@ -229,11 +229,7 @@ function introspectPattern(pat: Pattern): BasePattern {
 
 function introspectLetBinding(lb: LetBinding): LetBindingPattern {
   const inner = introspectPattern(lb.pattern);
-  return new LetBindingPattern(
-    inner,
-    lb.alias,
-    lb.aliases.length > 0 ? lb.aliases : undefined
-  );
+  return new LetBindingPattern(inner, lb.alias, lb.aliases.length > 0 ? lb.aliases : undefined);
 }
 
 function introspectInto(intoSpec: SelectIntoSpec, p: CrudPattern): CrudPattern {

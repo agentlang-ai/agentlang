@@ -24,24 +24,18 @@ describe('entity-method-crud', () => {
     assert(e1.lookup('name') === 'Alice');
     assert(e1.lookup('salary') == 50000);
 
-    await parseAndEvaluateStatement(
-      `Employee.create({"id": 2, "name": "Bob", "salary": 70000})`
-    );
+    await parseAndEvaluateStatement(`Employee.create({"id": 2, "name": "Bob", "salary": 70000})`);
     await parseAndEvaluateStatement(
       `Employee.create({"id": 3, "name": "Charlie", "salary": 60000})`
     );
 
     // find — returns single entity
-    const found: Instance = await parseAndEvaluateStatement(
-      `Employee.find({"id": 2})`
-    );
+    const found: Instance = await parseAndEvaluateStatement(`Employee.find({"id": 2})`);
     assert(isInstanceOfType(found, fqn));
     assert(found.lookup('name') === 'Bob');
 
     // find_all — no filter
-    let all: Instance[] = await parseAndEvaluateStatement(
-      `Employee.find_all()`
-    );
+    let all: Instance[] = await parseAndEvaluateStatement(`Employee.find_all()`);
     assert(all.length === 3, `Expected 3, got ${all.length}`);
 
     // find_all — with comparison filter
@@ -53,18 +47,12 @@ describe('entity-method-crud', () => {
     // find_all with options is tested inside workflows (see below)
 
     // update
-    await parseAndEvaluateStatement(
-      `Employee.update({"id": 1}, {"salary": 55000})`
-    );
-    const updated: Instance = await parseAndEvaluateStatement(
-      `Employee.find({"id": 1})`
-    );
+    await parseAndEvaluateStatement(`Employee.update({"id": 1}, {"salary": 55000})`);
+    const updated: Instance = await parseAndEvaluateStatement(`Employee.find({"id": 1})`);
     assert(updated.lookup('salary') == 55000, `Expected 55000, got ${updated.lookup('salary')}`);
 
     // delete
-    await parseAndEvaluateStatement(
-      `Employee.delete({"id": 3})`
-    );
+    await parseAndEvaluateStatement(`Employee.delete({"id": 3})`);
     all = await parseAndEvaluateStatement(`Employee.find_all()`);
     assert(all.length === 2, `Expected 2 after delete, got ${all.length}`);
   });
@@ -90,16 +78,12 @@ describe('entity-method-aggregates', () => {
     }
 
     // with_max — returns single entity with highest value
-    const expensive: Instance = await parseAndEvaluateStatement(
-      `Product.with_max("price")`
-    );
+    const expensive: Instance = await parseAndEvaluateStatement(`Product.with_max("price")`);
     assert(isInstanceOfType(expensive, fqn));
     assert(expensive.lookup('id') == 5);
 
     // with_min — returns single entity with lowest value
-    const cheap: Instance = await parseAndEvaluateStatement(
-      `Product.with_min("price")`
-    );
+    const cheap: Instance = await parseAndEvaluateStatement(`Product.with_min("price")`);
     assert(isInstanceOfType(cheap, fqn));
     assert(cheap.lookup('id') == 1);
 
@@ -110,18 +94,14 @@ describe('entity-method-aggregates', () => {
     assert(expFiltered.lookup('id') == 3);
 
     // top N
-    const top3: Instance[] = await parseAndEvaluateStatement(
-      `Product.top(3, "price")`
-    );
+    const top3: Instance[] = await parseAndEvaluateStatement(`Product.top(3, "price")`);
     assert(top3.length === 3);
     assert(top3[0].lookup('id') == 5);
     assert(top3[1].lookup('id') == 4);
     assert(top3[2].lookup('id') == 3);
 
     // bottom N
-    const bottom2: Instance[] = await parseAndEvaluateStatement(
-      `Product.bottom(2, "price")`
-    );
+    const bottom2: Instance[] = await parseAndEvaluateStatement(`Product.bottom(2, "price")`);
     assert(bottom2.length === 2);
     assert(bottom2[0].lookup('id') == 1);
     assert(bottom2[1].lookup('id') == 2);
@@ -156,12 +136,8 @@ describe('entity-method-upsert', () => {
     assert(c1.lookup('value') === 'dark');
 
     // Update via upsert
-    await parseAndEvaluateStatement(
-      `Config.upsert({"key": "theme", "value": "light"})`
-    );
-    const c2: Instance = await parseAndEvaluateStatement(
-      `Config.find({"key": "theme"})`
-    );
+    await parseAndEvaluateStatement(`Config.upsert({"key": "theme", "value": "light"})`);
+    const c2: Instance = await parseAndEvaluateStatement(`Config.find({"key": "theme"})`);
     assert(c2.lookup('value') === 'light');
   });
 });
@@ -191,22 +167,16 @@ describe('entity-method-in-workflow', () => {
     const fqn = `${m}/Item`;
 
     for (let i = 1; i <= 4; i++) {
-      await parseAndEvaluateStatement(
-        `{${fqn} {id ${i}, name "item${i}", price ${i * 25}}}`
-      );
+      await parseAndEvaluateStatement(`{${fqn} {id ${i}, name "item${i}", price ${i * 25}}}`);
     }
 
     // Workflow using with_max
-    const result: Instance = await parseAndEvaluateStatement(
-      `{${m}/FindExpensive {}}`
-    );
+    const result: Instance = await parseAndEvaluateStatement(`{${m}/FindExpensive {}}`);
     assert(isInstanceOfType(result, fqn));
     assert(result.lookup('id') == 4);
 
     // Workflow using top with dynamic parameter
-    const topItems: Instance[] = await parseAndEvaluateStatement(
-      `{${m}/TopItems {n 2}}`
-    );
+    const topItems: Instance[] = await parseAndEvaluateStatement(`{${m}/TopItems {n 2}}`);
     assert(topItems.length === 2);
     assert(topItems[0].lookup('id') == 4);
     assert(topItems[1].lookup('id') == 3);
@@ -248,9 +218,7 @@ describe('entity-method-in-workflow', () => {
     const fqn = `${m}/Task`;
 
     // CreateAndFind workflow
-    const found: Instance = await parseAndEvaluateStatement(
-      `{${m}/CreateAndFind {}}`
-    );
+    const found: Instance = await parseAndEvaluateStatement(`{${m}/CreateAndFind {}}`);
     assert(isInstanceOfType(found, fqn));
     assert(found.lookup('title') === 'first');
 
@@ -259,29 +227,19 @@ describe('entity-method-in-workflow', () => {
     assert(all.length === 2, `Expected 2, got ${all.length}`);
 
     // Update
-    await parseAndEvaluateStatement(
-      `{${m}/UpdateTask {taskId 1, newTitle "updated"}}`
-    );
-    const updatedArr: Instance[] = await parseAndEvaluateStatement(
-      `{${fqn} {id? 1}}`
-    );
+    await parseAndEvaluateStatement(`{${m}/UpdateTask {taskId 1, newTitle "updated"}}`);
+    const updatedArr: Instance[] = await parseAndEvaluateStatement(`{${fqn} {id? 1}}`);
     assert(updatedArr[0].lookup('title') === 'updated');
 
     // Delete
-    await parseAndEvaluateStatement(
-      `{${m}/DeleteTask {taskId 2}}`
-    );
+    await parseAndEvaluateStatement(`{${m}/DeleteTask {taskId 2}}`);
     all = await parseAndEvaluateStatement(`{${m}/ListTasks {}}`);
     assert(all.length === 1, `Expected 1 after delete, got ${all.length}`);
 
     // Re-create task for TopTasks test
-    await parseAndEvaluateStatement(
-      `Task.create({"id": 3, "title": "third"})`
-    );
+    await parseAndEvaluateStatement(`Task.create({"id": 3, "title": "third"})`);
     // TopTasks workflow: find_all with orderBy desc, limit
-    const topTasks: Instance[] = await parseAndEvaluateStatement(
-      `{${m}/TopTasks {n 1}}`
-    );
+    const topTasks: Instance[] = await parseAndEvaluateStatement(`{${m}/TopTasks {n 1}}`);
     assert(topTasks.length === 1, `Expected 1, got ${topTasks.length}`);
     assert(topTasks[0].lookup('id') == 3, `Expected id 3, got ${topTasks[0].lookup('id')}`);
   });
@@ -312,9 +270,7 @@ describe('entity-method-with-ref', () => {
     );
     assert(isInstanceOfType(d1, deptFqn));
 
-    await parseAndEvaluateStatement(
-      `${m}/Dept.create({"id": 2, "name": "Sales"})`
-    );
+    await parseAndEvaluateStatement(`${m}/Dept.create({"id": 2, "name": "Sales"})`);
 
     // Create staff with valid @ref
     const e1: Instance = await parseAndEvaluateStatement(
@@ -324,9 +280,7 @@ describe('entity-method-with-ref', () => {
     assert(e1.lookup('name') === 'Alice');
     assert(e1.lookup('deptId') == 1);
 
-    await parseAndEvaluateStatement(
-      `${m}/Staff.create({"id": 101, "name": "Bob", "deptId": 1})`
-    );
+    await parseAndEvaluateStatement(`${m}/Staff.create({"id": 101, "name": "Bob", "deptId": 1})`);
     await parseAndEvaluateStatement(
       `${m}/Staff.create({"id": 102, "name": "Charlie", "deptId": 2})`
     );
@@ -338,27 +292,17 @@ describe('entity-method-with-ref', () => {
     assert(engStaff.length === 2, `Expected 2 engineering staff, got ${engStaff.length}`);
 
     // find_all departments
-    const depts: Instance[] = await parseAndEvaluateStatement(
-      `${m}/Dept.find_all()`
-    );
+    const depts: Instance[] = await parseAndEvaluateStatement(`${m}/Dept.find_all()`);
     assert(depts.length === 2, `Expected 2 departments, got ${depts.length}`);
 
     // update staff's department ref
-    await parseAndEvaluateStatement(
-      `${m}/Staff.update({"id": 100}, {"deptId": 2})`
-    );
-    const updated: Instance = await parseAndEvaluateStatement(
-      `${m}/Staff.find({"id": 100})`
-    );
+    await parseAndEvaluateStatement(`${m}/Staff.update({"id": 100}, {"deptId": 2})`);
+    const updated: Instance = await parseAndEvaluateStatement(`${m}/Staff.find({"id": 100})`);
     assert(updated.lookup('deptId') == 2, `Expected deptId 2, got ${updated.lookup('deptId')}`);
 
     // delete a staff member
-    await parseAndEvaluateStatement(
-      `${m}/Staff.delete({"id": 102})`
-    );
-    const afterDel: Instance[] = await parseAndEvaluateStatement(
-      `${m}/Staff.find_all()`
-    );
+    await parseAndEvaluateStatement(`${m}/Staff.delete({"id": 102})`);
+    const afterDel: Instance[] = await parseAndEvaluateStatement(`${m}/Staff.find_all()`);
     assert(afterDel.length === 2, `Expected 2 staff after delete, got ${afterDel.length}`);
   });
 });
@@ -393,29 +337,15 @@ describe('entity-method-with-between-relationship', () => {
     );
 
     // Create pupils and courses using entity methods with FQN
-    await parseAndEvaluateStatement(
-      `${m}/Pupil.create({"id": 1, "name": "Alice"})`
-    );
-    await parseAndEvaluateStatement(
-      `${m}/Pupil.create({"id": 2, "name": "Bob"})`
-    );
-    await parseAndEvaluateStatement(
-      `${m}/Course.create({"id": 10, "title": "Math"})`
-    );
-    await parseAndEvaluateStatement(
-      `${m}/Course.create({"id": 20, "title": "Physics"})`
-    );
+    await parseAndEvaluateStatement(`${m}/Pupil.create({"id": 1, "name": "Alice"})`);
+    await parseAndEvaluateStatement(`${m}/Pupil.create({"id": 2, "name": "Bob"})`);
+    await parseAndEvaluateStatement(`${m}/Course.create({"id": 10, "title": "Math"})`);
+    await parseAndEvaluateStatement(`${m}/Course.create({"id": 20, "title": "Physics"})`);
 
     // Enroll pupils via workflow that uses entity method find + relationship create
-    await parseAndEvaluateStatement(
-      `{${m}/Enroll {pupilId 1, courseId 10}}`
-    );
-    await parseAndEvaluateStatement(
-      `{${m}/Enroll {pupilId 1, courseId 20}}`
-    );
-    await parseAndEvaluateStatement(
-      `{${m}/Enroll {pupilId 2, courseId 10}}`
-    );
+    await parseAndEvaluateStatement(`{${m}/Enroll {pupilId 1, courseId 10}}`);
+    await parseAndEvaluateStatement(`{${m}/Enroll {pupilId 1, courseId 20}}`);
+    await parseAndEvaluateStatement(`{${m}/Enroll {pupilId 2, courseId 10}}`);
 
     // Query pupil's courses via relationship
     const aliceCourses: Instance[] = await parseAndEvaluateStatement(
@@ -426,14 +356,10 @@ describe('entity-method-with-between-relationship', () => {
     assert(courses.length === 2, `Expected 2 courses for Alice, got ${courses.length}`);
 
     // Verify entity methods still work for querying the entities directly
-    const allPupils: Instance[] = await parseAndEvaluateStatement(
-      `${m}/Pupil.find_all()`
-    );
+    const allPupils: Instance[] = await parseAndEvaluateStatement(`${m}/Pupil.find_all()`);
     assert(allPupils.length === 2, `Expected 2 pupils, got ${allPupils.length}`);
 
-    const math: Instance = await parseAndEvaluateStatement(
-      `${m}/Course.find({"id": 10})`
-    );
+    const math: Instance = await parseAndEvaluateStatement(`${m}/Course.find({"id": 10})`);
     assert(math.lookup('title') === 'Math');
   });
 });
@@ -466,16 +392,12 @@ describe('entity-method-with-contains-relationship', () => {
     );
 
     // Use entity methods to query the parent entity (FQN)
-    const order: Instance = await parseAndEvaluateStatement(
-      `${m}/SalesOrder.find({"id": 1})`
-    );
+    const order: Instance = await parseAndEvaluateStatement(`${m}/SalesOrder.find({"id": 1})`);
     assert(isInstanceOfType(order, orderFqn));
     assert(order.lookup('customer') === 'Alice');
 
     // Use entity methods to query the child entities
-    const items: Instance[] = await parseAndEvaluateStatement(
-      `${m}/LineItem.find_all()`
-    );
+    const items: Instance[] = await parseAndEvaluateStatement(`${m}/LineItem.find_all()`);
     assert(items.length === 2, `Expected 2 line items, got ${items.length}`);
 
     // Query order with its line items via old relationship syntax
@@ -487,28 +409,18 @@ describe('entity-method-with-contains-relationship', () => {
     assert(lineItems.length === 2, `Expected 2 related items, got ${lineItems.length}`);
 
     // Use entity method aggregates on child entities
-    const topItem: Instance = await parseAndEvaluateStatement(
-      `${m}/LineItem.with_max("qty")`
-    );
+    const topItem: Instance = await parseAndEvaluateStatement(`${m}/LineItem.with_max("qty")`);
     assert(topItem.lookup('product') === 'Widget');
     assert(topItem.lookup('qty') == 2);
 
     // Update a line item via entity method
-    await parseAndEvaluateStatement(
-      `${m}/LineItem.update({"id": 10}, {"qty": 5})`
-    );
-    const updated: Instance = await parseAndEvaluateStatement(
-      `${m}/LineItem.find({"id": 10})`
-    );
+    await parseAndEvaluateStatement(`${m}/LineItem.update({"id": 10}, {"qty": 5})`);
+    const updated: Instance = await parseAndEvaluateStatement(`${m}/LineItem.find({"id": 10})`);
     assert(updated.lookup('qty') == 5, `Expected qty 5, got ${updated.lookup('qty')}`);
 
     // Delete a line item via entity method
-    await parseAndEvaluateStatement(
-      `${m}/LineItem.delete({"id": 11})`
-    );
-    const remaining: Instance[] = await parseAndEvaluateStatement(
-      `${m}/LineItem.find_all()`
-    );
+    await parseAndEvaluateStatement(`${m}/LineItem.delete({"id": 11})`);
+    const remaining: Instance[] = await parseAndEvaluateStatement(`${m}/LineItem.find_all()`);
     assert(remaining.length === 1, `Expected 1 item after delete, got ${remaining.length}`);
   });
 });
@@ -686,26 +598,24 @@ describe('relationship-link-unlink', () => {
     const a1: Instance = await parseAndEvaluateStatement(
       `${m}/Author.create({"id": 1, "name": "Alice"})`
     );
+    assert(isInstanceOfType(a1, `${m}/Author`));
     const a2: Instance = await parseAndEvaluateStatement(
       `${m}/Author.create({"id": 2, "name": "Bob"})`
     );
+    assert(isInstanceOfType(a2, `${m}/Author`));
     const b1: Instance = await parseAndEvaluateStatement(
       `${m}/Book.create({"id": 10, "title": "Intro to CS"})`
     );
+    assert(isInstanceOfType(b1, `${m}/Book`));
     const b2: Instance = await parseAndEvaluateStatement(
       `${m}/Book.create({"id": 20, "title": "Advanced Math"})`
     );
+    assert(isInstanceOfType(b2, `${m}/Book`));
 
     // Link author to books using relationship method
-    await parseAndEvaluateStatement(
-      `${m}/AuthorBook.link(1, 10)`
-    );
-    await parseAndEvaluateStatement(
-      `${m}/AuthorBook.link(1, 20)`
-    );
-    await parseAndEvaluateStatement(
-      `${m}/AuthorBook.link(2, 10)`
-    );
+    await parseAndEvaluateStatement(`${m}/AuthorBook.link(1, 10)`);
+    await parseAndEvaluateStatement(`${m}/AuthorBook.link(1, 20)`);
+    await parseAndEvaluateStatement(`${m}/AuthorBook.link(2, 10)`);
 
     // Query Alice's books
     const aliceBooks: Instance[] = await parseAndEvaluateStatement(
@@ -716,9 +626,7 @@ describe('relationship-link-unlink', () => {
     assert(books.length === 2, `Expected 2 books for Alice, got ${books.length}`);
 
     // Unlink Alice from Advanced Math
-    await parseAndEvaluateStatement(
-      `${m}/AuthorBook.unlink(1, 20)`
-    );
+    await parseAndEvaluateStatement(`${m}/AuthorBook.unlink(1, 20)`);
 
     // Verify only 1 book remains for Alice
     const aliceBooksAfter: Instance[] = await parseAndEvaluateStatement(
@@ -729,9 +637,7 @@ describe('relationship-link-unlink', () => {
     assert(booksAfter[0].lookup('title') === 'Intro to CS');
 
     // Bob still has his book
-    const bobBooks: Instance[] = await parseAndEvaluateStatement(
-      `{${m}/AuthorBooks {authorId 2}}`
-    );
+    const bobBooks: Instance[] = await parseAndEvaluateStatement(`{${m}/AuthorBooks {authorId 2}}`);
     const bobBkList = bobBooks[0].getRelatedInstances('AuthorBook');
     assert(bobBkList.length === 1);
     assert(bobBkList[0].lookup('title') === 'Intro to CS');
@@ -758,9 +664,7 @@ describe('let-binding-syntax', () => {
        }`
     );
 
-    const result: Instance = await parseAndEvaluateStatement(
-      `{${m}/FindCheapest {}}`
-    );
+    const result: Instance = await parseAndEvaluateStatement(`{${m}/FindCheapest {}}`);
     assert(isInstanceOfType(result, `${m}/Product`));
     assert(result.lookup('name') === 'Eraser');
     assert(result.lookup('price') == 0.75);
@@ -785,9 +689,7 @@ describe('let-binding-syntax', () => {
        }`
     );
 
-    const result = await parseAndEvaluateStatement(
-      `{${m}/TopTwo {}}`
-    );
+    const result = await parseAndEvaluateStatement(`{${m}/TopTwo {}}`);
     assert(result.first === 'Alice');
     assert(result.second === 'Bob');
   });
@@ -810,9 +712,7 @@ describe('let-binding-syntax', () => {
        }`
     );
 
-    const result: Instance = await parseAndEvaluateStatement(
-      `{${m}/BiggestOrder {}}`
-    );
+    const result: Instance = await parseAndEvaluateStatement(`{${m}/BiggestOrder {}}`);
     assert(isInstanceOfType(result, `${m}/Order`));
     assert(result.lookup('total') == 250);
   });
@@ -834,9 +734,7 @@ describe('let-binding-syntax', () => {
        }`
     );
 
-    const result = await parseAndEvaluateStatement(
-      `{${m}/LabelWidget {}}`
-    );
+    const result = await parseAndEvaluateStatement(`{${m}/LabelWidget {}}`);
     assert(result === 'first');
   });
 
@@ -855,9 +753,7 @@ describe('let-binding-syntax', () => {
        }`
     );
 
-    const result = await parseAndEvaluateStatement(
-      `{${m}/TestIf {}}`
-    );
+    const result = await parseAndEvaluateStatement(`{${m}/TestIf {}}`);
     assert(result === 'yes', `Expected "yes", got ${JSON.stringify(result)}`);
   });
 });
