@@ -20,6 +20,7 @@ import {
   isPrimExpr,
   isWorkflowDefinition,
   JoinSpec,
+  LetBinding,
   LimitClause,
   Literal,
   MapEntry,
@@ -60,6 +61,7 @@ import {
   GroupExpressionPattern,
   IfPattern,
   JoinPattern,
+  LetBindingPattern,
   LiteralPattern,
   NegExpressionPattern,
   NotExpressionPattern,
@@ -216,11 +218,22 @@ function introspectPattern(pat: Pattern): BasePattern {
     r = introspectReturn(pat.return);
   } else if (pat.fullTextSearch) {
     r = introspectFullTextSearch(pat.fullTextSearch);
+  } else if (pat.letBinding) {
+    r = introspectLetBinding(pat.letBinding);
   }
   if (r) return r;
   else {
     throw new Error(`Failed to introspect pattern: ${pat}`);
   }
+}
+
+function introspectLetBinding(lb: LetBinding): LetBindingPattern {
+  const inner = introspectPattern(lb.pattern);
+  return new LetBindingPattern(
+    inner,
+    lb.alias,
+    lb.aliases.length > 0 ? lb.aliases : undefined
+  );
 }
 
 function introspectInto(intoSpec: SelectIntoSpec, p: CrudPattern): CrudPattern {

@@ -108,10 +108,12 @@ WorkflowDirectiveEntry: tag='@withRole' '(' value=(ID | STRING) ')';
 
 PublicWorkflowDefinition: '@public' def=WorkflowDefinition;
 
-Pattern: expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge 
+Pattern: letBinding=LetBinding | expr=Expr | crudMap=CrudMap | if=If | forEach=ForEach | delete=Delete | purge=Purge
 | fullTextSearch=FullTextSearch | return=Return | throwError=ThrowError | ifWithAlias=IfWithAlias;
 
 Statement: pattern=Pattern hints+=RuntimeHint*;
+
+LetBinding: 'let' (alias=ID | '[' ( aliases+=ID (',' aliases+=ID)*)+ ']') '=' pattern=Pattern;
 
 IfWithAlias: '(' if=If ')';
 

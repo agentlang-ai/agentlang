@@ -737,3 +737,127 @@ describe('relationship-link-unlink', () => {
     assert(bobBkList[0].lookup('title') === 'Intro to CS');
   });
 });
+
+describe('let-binding-syntax', () => {
+  test('let binds a single result', async () => {
+    const m = 'emLet1';
+    await doInternModule(
+      m,
+      `entity Product {
+          id Int @id,
+          name String,
+          price Decimal
+       }
+
+       workflow FindCheapest {
+          Product.create({"id": 1, "name": "Pen", "price": 1.50});
+          Product.create({"id": 2, "name": "Notebook", "price": 5.00});
+          Product.create({"id": 3, "name": "Eraser", "price": 0.75});
+          let cheapest = Product.with_min("price");
+          cheapest
+       }`
+    );
+
+    const result: Instance = await parseAndEvaluateStatement(
+      `{${m}/FindCheapest {}}`
+    );
+    assert(isInstanceOfType(result, `${m}/Product`));
+    assert(result.lookup('name') === 'Eraser');
+    assert(result.lookup('price') == 0.75);
+  });
+
+  test('let with destructuring binds array elements', async () => {
+    const m = 'emLet2';
+    await doInternModule(
+      m,
+      `entity Student {
+          id Int @id,
+          name String,
+          score Int
+       }
+
+       workflow TopTwo {
+          Student.create({"id": 1, "name": "Alice", "score": 95});
+          Student.create({"id": 2, "name": "Bob", "score": 88});
+          Student.create({"id": 3, "name": "Carol", "score": 72});
+          let [first, second] = Student.top(2, "score");
+          {"first": first.name, "second": second.name}
+       }`
+    );
+
+    const result = await parseAndEvaluateStatement(
+      `{${m}/TopTwo {}}`
+    );
+    assert(result.first === 'Alice');
+    assert(result.second === 'Bob');
+  });
+
+  test('let works with CrudMap patterns', async () => {
+    const m = 'emLet3';
+    await doInternModule(
+      m,
+      `entity Order {
+          id Int @id,
+          total Decimal
+       }
+
+       workflow BiggestOrder {
+          {${m}/Order {id 1, total 100}};
+          {${m}/Order {id 2, total 250}};
+          {${m}/Order {id 3, total 50}};
+          let [top] = {${m}/Order? {}, @orderBy(total) @desc, @limit(1)};
+          top
+       }`
+    );
+
+    const result: Instance = await parseAndEvaluateStatement(
+      `{${m}/BiggestOrder {}}`
+    );
+    assert(isInstanceOfType(result, `${m}/Order`));
+    assert(result.lookup('total') == 250);
+  });
+
+  test('let with if-expression', async () => {
+    const m = 'emLet4';
+    await doInternModule(
+      m,
+      `entity Widget {
+          id Int @id,
+          label String
+       }
+
+       workflow LabelWidget {
+          Widget.create({"id": 1, "label": "alpha"});
+          let w = Widget.find({"id": 1});
+          (if (w.label == "alpha") {"first"} else {"other"}) @as msg;
+          msg
+       }`
+    );
+
+    const result = await parseAndEvaluateStatement(
+      `{${m}/LabelWidget {}}`
+    );
+    assert(result === 'first');
+  });
+
+  test('let with if-expression', async () => {
+    const m = 'emLet5';
+    await doInternModule(
+      m,
+      `entity Gadget {
+          id Int @id,
+          tag String
+       }
+
+       workflow TestIf {
+          let msg = if (1 == 1) {"yes"} else {"no"};
+          msg
+       }`
+    );
+
+    const result = await parseAndEvaluateStatement(
+      `{${m}/TestIf {}}`
+    );
+    assert(result === 'yes', `Expected "yes", got ${JSON.stringify(result)}`);
+  });
+});

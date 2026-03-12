@@ -862,6 +862,26 @@ export class FullTextSearchPattern extends BasePattern {
   }
 }
 
+export class LetBindingPattern extends BasePattern {
+  letAlias: string | undefined;
+  letAliases: string[] | undefined;
+  pattern: BasePattern;
+
+  constructor(pattern: BasePattern, alias?: string, aliases?: string[]) {
+    super();
+    this.pattern = pattern;
+    this.letAlias = alias;
+    this.letAliases = aliases;
+  }
+
+  override toString(): string {
+    const binding = this.letAlias
+      ? this.letAlias
+      : `[${(this.letAliases ?? []).join(', ')}]`;
+    return `let ${binding} = ${this.pattern.toString()}`;
+  }
+}
+
 export function isDeletePattern(p: BasePattern): boolean {
   return p instanceof DeletePattern;
 }

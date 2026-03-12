@@ -16,6 +16,7 @@ import {
   isNotExpr,
   isReturn,
   JoinSpec,
+  LetBinding,
   Literal,
   MapKey,
   MapLiteral,
@@ -1357,6 +1358,10 @@ export class PatternHandler {
   async handleThrow(throwErr: ThrowError, env: Environment) {
     await evaluateThrowError(throwErr, env);
   }
+
+  async handleLetBinding(letBinding: LetBinding, env: Environment) {
+    await evaluateLetBinding(letBinding, env, this);
+  }
 }
 
 const DefaultPatternHandler = new PatternHandler();
@@ -1366,6 +1371,10 @@ export async function evaluatePattern(
   env: Environment,
   handler: PatternHandler = DefaultPatternHandler
 ): Promise<void> {
+  if (pat.letBinding) {
+    await handler.handleLetBinding(pat.letBinding, env);
+    return;
+  }
   if (pat.expr) {
     await handler.handleExpression(pat.expr, env);
   } else if (pat.crudMap) {
@@ -1387,6 +1396,35 @@ export async function evaluatePattern(
     env.markForReturn();
   } else if (pat.throwError) {
     await handler.handleThrow(pat.throwError, env);
+  }
+}
+
+async function evaluateLetBinding(
+  letBinding: LetBinding,
+  env: Environment,
+  handler: PatternHandler
+): Promise<void> {
+  await evaluatePattern(letBinding.pattern, env, handler);
+  const result: Result = env.getLastResult();
+  const alias: string | undefined = letBinding.alias;
+  if (alias !== undefined) {
+    env.bind(alias, result);
+  } else {
+    const aliases: string[] = letBinding.aliases;
+    if (result instanceof Array) {
+      const resArr: Array<any> = result as Array<any>;
+      for (let i = 0; i < aliases.length; ++i) {
+        const k: string = aliases[i];
+        if (k == '__') {
+          env.bind(aliases[i + 1], resArr.splice(i));
+          break;
+        } else if (k != '_') {
+          env.bind(aliases[i], resArr[i]);
+        }
+      }
+    } else {
+      env.bind(aliases[0], result);
+    }
   }
 }
 
@@ -2569,7 +2607,8 @@ async function evaluateForEach(forEach: ForEach, env: Environment): Promise<void
 
 async function evaluateIf(ifStmt: If, env: Environment): Promise<void> {
   await evaluateExpression(ifStmt.cond, env);
-  if (env.getLastResult()) {
+  const cond = env.getLastResult();
+  if (cond) {
     await evaluateStatements(ifStmt.statements, env);
   } else if (ifStmt.else !== undefined) {
     await evaluateStatements(ifStmt.else.statements, env);

@@ -103,6 +103,7 @@ export type AgentlangKeywordNames =
     | "if"
     | "import"
     | "in"
+    | "let"
     | "like"
     | "module"
     | "not"
@@ -1031,6 +1032,25 @@ export function isKvPairs(item: unknown): item is KvPairs {
     return reflection.isInstance(item, KvPairs.$type);
 }
 
+export interface LetBinding extends langium.AstNode {
+    readonly $container: Pattern;
+    readonly $type: 'LetBinding';
+    alias?: string;
+    aliases: Array<string>;
+    pattern: Pattern;
+}
+
+export const LetBinding = {
+    $type: 'LetBinding',
+    alias: 'alias',
+    aliases: 'aliases',
+    pattern: 'pattern'
+} as const;
+
+export function isLetBinding(item: unknown): item is LetBinding {
+    return reflection.isInstance(item, LetBinding.$type);
+}
+
 export interface LimitClause extends langium.AstNode {
     readonly $container: QueryOption;
     readonly $type: 'LimitClause';
@@ -1256,7 +1276,7 @@ export function isOrderByClause(item: unknown): item is OrderByClause {
 }
 
 export interface Pattern extends langium.AstNode {
-    readonly $container: Delete | ForEach | Purge | RelationshipPattern | Return | Statement;
+    readonly $container: Delete | ForEach | LetBinding | Purge | RelationshipPattern | Return | Statement;
     readonly $type: 'Pattern';
     crudMap?: CrudMap;
     delete?: Delete;
@@ -1265,6 +1285,7 @@ export interface Pattern extends langium.AstNode {
     fullTextSearch?: FullTextSearch;
     if?: If;
     ifWithAlias?: IfWithAlias;
+    letBinding?: LetBinding;
     purge?: Purge;
     return?: Return;
     throwError?: ThrowError;
@@ -1279,6 +1300,7 @@ export const Pattern = {
     fullTextSearch: 'fullTextSearch',
     if: 'if',
     ifWithAlias: 'ifWithAlias',
+    letBinding: 'letBinding',
     purge: 'purge',
     return: 'return',
     throwError: 'throwError'
@@ -2182,6 +2204,7 @@ export type AgentlangAstType = {
     JoinSpec: JoinSpec
     KvPair: KvPair
     KvPairs: KvPairs
+    LetBinding: LetBinding
     LimitClause: LimitClause
     Literal: Literal
     MapEntry: MapEntry
@@ -2886,6 +2909,22 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
             },
             superTypes: []
         },
+        LetBinding: {
+            name: LetBinding.$type,
+            properties: {
+                alias: {
+                    name: LetBinding.alias
+                },
+                aliases: {
+                    name: LetBinding.aliases,
+                    defaultValue: []
+                },
+                pattern: {
+                    name: LetBinding.pattern
+                }
+            },
+            superTypes: []
+        },
         LimitClause: {
             name: LimitClause.$type,
             properties: {
@@ -3075,6 +3114,9 @@ export class AgentlangAstReflection extends langium.AbstractAstReflection {
                 },
                 ifWithAlias: {
                     name: Pattern.ifWithAlias
+                },
+                letBinding: {
+                    name: Pattern.letBinding
                 },
                 purge: {
                     name: Pattern.purge
