@@ -457,7 +457,8 @@ export function setInternDynamicModuleFn(f: Function) {
   InternDynamicModule = f;
 }
 
-export const DefaultTenantId = process.env.AGENTLANG_DEFAULT_TENANT_ID || '12345678-1234-1234-1234-123456789abc';
+export const DefaultTenantId =
+  process.env.AGENTLANG_DEFAULT_TENANT_ID || '12345678-1234-1234-1234-123456789abc';
 
 export let getUserTenantId = async function (_: string, env: any): Promise<string> {
   env;

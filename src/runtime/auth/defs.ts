@@ -1,7 +1,8 @@
 import { AppConfig } from '../state.js';
 
 // TODO: AdminUserId must be dynamically set based on auth-service-config and a valid admin-login
-export const AdminUserId = process.env.AGENTLANG_ADMIN_USER_ID || '12345678-1234-1234-1234-123456789abc';
+export const AdminUserId =
+  process.env.AGENTLANG_ADMIN_USER_ID || '12345678-1234-1234-1234-123456789abc';
 
 export function isAuthEnabled(): boolean {
   if (AppConfig?.auth?.enabled == true) {
