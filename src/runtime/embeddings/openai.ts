@@ -1,7 +1,6 @@
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { EmbeddingProvider, EmbeddingProviderConfig } from './provider.js';
 import { getLocalEnv } from '../auth/defs.js';
-import { logger } from '../logger.js';
 
 export interface OpenAIEmbeddingConfig extends EmbeddingProviderConfig {
   model?: string;
@@ -15,9 +14,6 @@ export class OpenAIEmbeddingProvider extends EmbeddingProvider {
   constructor(config?: EmbeddingProviderConfig) {
     super(config || {});
     this.openaiConfig = (this.config as OpenAIEmbeddingConfig) || {};
-    logger.debug(
-      `[OPENAI-EMBEDDING] Provider created with model: ${this.openaiConfig.model || 'default'}`
-    );
   }
 
   protected createEmbeddings(): OpenAIEmbeddings {
@@ -25,40 +21,26 @@ export class OpenAIEmbeddingProvider extends EmbeddingProvider {
       apiKey: this.resolveApiKey(),
     };
 
-    // Use this.config directly since this.openaiConfig is not initialized yet
-    // during parent constructor (super() calls createEmbeddings before child init)
-    const openaiConfig = (this.config as OpenAIEmbeddingConfig) || {};
-
-    if (openaiConfig?.model) {
-      config.model = openaiConfig.model;
+    if (this.openaiConfig?.model) {
+      config.model = this.openaiConfig.model;
     }
 
-    if (openaiConfig?.dimensions) {
-      config.dimensions = openaiConfig.dimensions;
+    if (this.openaiConfig?.dimensions) {
+      config.dimensions = this.openaiConfig.dimensions;
     }
 
-    if (openaiConfig?.maxRetries !== undefined) {
-      config.maxRetries = openaiConfig.maxRetries;
+    if (this.openaiConfig?.maxRetries !== undefined) {
+      config.maxRetries = this.openaiConfig.maxRetries;
     }
 
     return new OpenAIEmbeddings(config);
   }
 
   protected resolveApiKey(): string {
-    // Use this.config directly since this.openaiConfig may not be initialized yet
-    // during constructor (createEmbeddings is called during super())
-    const config = this.openaiConfig || (this.config as OpenAIEmbeddingConfig) || {};
-    if (config.apiKey) {
-      return config.apiKey;
+    if (this.openaiConfig?.apiKey) {
+      return this.openaiConfig.apiKey;
     }
-    const envKey = process.env.AGENTLANG_OPENAI_KEY || getLocalEnv('AGENTLANG_OPENAI_KEY');
-    if (envKey) {
-      return envKey;
-    }
-    logger.warn(
-      `[OPENAI-EMBEDDING] No API key found! Set AGENTLANG_OPENAI_KEY environment variable.`
-    );
-    return '';
+    return process.env.AGENTLANG_OPENAI_KEY || getLocalEnv('AGENTLANG_OPENAI_KEY') || '';
   }
 
   getProviderName(): string {

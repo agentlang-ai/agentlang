@@ -7,13 +7,6 @@
       "type": "sqlite",
       "dbname": "cc.db"
     },
-    "vectorStore": {
-      "type": "lancedb",
-      "dbname": "./data/vector-store/cc-vectors.lance"
-    },
-    "knowledgeGraph": {
-      "serviceUrl": "#js process.env.KNOWLEDGE_SERVICE_URL || 'http://localhost:3000'"
-    },
     "retry": [
       {
         "name": "classifyRetry",
@@ -33,8 +26,8 @@
         "name": "llm01",
         "service": "openai",
         "config": {
-          "model": "gpt-5.2",
-          "maxTokens": 100000,
+          "model": "gpt-4.1",
+          "maxTokens": 200,
           "temperature": 0.7
         }
       }
@@ -44,7 +37,7 @@
         "name": "llm02",
         "service": "openai",
         "config": {
-          "model": "gpt-4o"
+          "model": "gpt-4.0"
         }
       }
     },
@@ -59,9 +52,11 @@
         "title": "company handbook",
         "url": "s3://my-bucket/docs/handbook.pdf",
         "retrievalConfig": {
-          "provider": "knowledge-service",
+          "provider": "s3",
           "config": {
-            "baseUrl": "#js process.env.KNOWLEDGE_SERVICE_URL || 'http://localhost:3000'"
+            "region": "#js process.env.AWS_REGION",
+            "accessKeyId": "#js process.env.AWS_ACCESS_KEY_ID",
+            "secretAccessKey": "#js process.env.AWS_SECRET_ACCESS_KEY"
           }
         },
         "embeddingConfig": {
@@ -81,11 +76,12 @@
     {
       "agentlang.ai/doc": {
         "title": "product manual",
-        "url": "./docs/product-manual.pdf",
+        "url": "document-service://f47ac10b-58cc-4372-a567-0e02b2c3d479/a1b2c3d4-e5f6-7890-abcd-ef1234567890/550e8400-e29b-41d4-a716-446655440000.pdf",
         "retrievalConfig": {
-          "provider": "knowledge-service",
+          "provider": "document-service",
           "config": {
-            "baseUrl": "#js process.env.KNOWLEDGE_SERVICE_URL || 'http://localhost:3000'"
+            "baseUrl": "#js process.env.DOCUMENT_SERVICE_URL",
+            "authToken": "#js process.env.DOCUMENT_SERVICE_AUTH_TOKEN"
           }
         },
         "embeddingConfig": {
@@ -98,20 +94,21 @@
     },
     {
       "agentlang.ai/doc": {
-        "title": "FAQ",
-        "url": "./docs/faq.md"
-      }
-    },
-    {
-      "agentlang.ai/topic": {
-        "name": "product-knowledge",
-        "documents": ["price list", "product manual", "company handbook"]
-      }
-    },
-    {
-      "agentlang.ai/topic": {
-        "name": "support-knowledge",
-        "documents": ["FAQ", "api documentation"]
+        "title": "company policies",
+        "retrievalConfig": {
+          "provider": "document-service",
+          "config": {
+            "baseUrl": "#js process.env.DOCUMENT_SERVICE_URL",
+            "appName": "my-app",
+            "authToken": "#js process.env.DOCUMENT_SERVICE_AUTH_TOKEN"
+          }
+        },
+        "embeddingConfig": {
+          "provider": "openai",
+          "model": "text-embedding-3-small",
+          "chunkSize": 1000,
+          "chunkOverlap": 200
+        }
       }
     }
   ],

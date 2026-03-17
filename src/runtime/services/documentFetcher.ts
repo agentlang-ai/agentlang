@@ -68,7 +68,6 @@ class DocumentFetcherService {
 
   async fetchDocument(config: DocumentConfig): Promise<FetchedDocument | null> {
     this.ensureNodeEnv();
-    logger.info(`[DOC-FETCH] Starting fetch for: ${config.title}`);
     const cacheKey = `${config.title}:${config.url || config.documentServiceId}`;
     const cached = this.documentCache.get(cacheKey);
 
@@ -80,7 +79,6 @@ class DocumentFetcherService {
     try {
       let content: string;
       let sourceUrl: string;
-      logger.info(`[DOC-FETCH] Fetching from URL: ${config.url}`);
 
       if (config.url?.startsWith('document-service://')) {
         if (!config.retrievalConfig || config.retrievalConfig.provider !== 'document-service') {
@@ -146,10 +144,8 @@ class DocumentFetcherService {
         content = await this.fetchFromUrl(config.url);
         sourceUrl = config.url;
       } else if (config.url) {
-        logger.info(`[DOC-FETCH] Fetching from local file: ${config.url}`);
         content = await this.fetchFromLocal(config.url);
         sourceUrl = config.url;
-        logger.info(`[DOC-FETCH] Local file fetched successfully: ${content.length} chars`);
       } else {
         if (this.documentServiceConfig) {
           const docId = await this.lookupDocumentByTitle(config.title);
@@ -175,9 +171,7 @@ class DocumentFetcherService {
 
       this.documentCache.set(cacheKey, document);
 
-      logger.info(`[DOC-FETCH] Creating Document entity for: ${config.title}`);
       await this.createDocumentEntity(document);
-      logger.info(`[DOC-FETCH] Document entity created successfully for: ${config.title}`);
 
       return document;
     } catch (error) {
@@ -449,14 +443,11 @@ class DocumentFetcherService {
 
   private async fetchFromLocal(filePath: string): Promise<string> {
     try {
-      logger.info(`[DOC-FETCH] Reading local file: ${filePath}`);
       const content = await readFile(filePath);
-      logger.info(`[DOC-FETCH] File read successfully: ${content.length} chars`);
       const lowerPath = filePath.toLowerCase();
       const isMarkdown = lowerPath.endsWith('.md') || lowerPath.endsWith('.markdown');
 
       if (isMarkdown) {
-        logger.info(`[DOC-FETCH] Parsing markdown...`);
         return this.parseMarkdownText(content);
       }
 
@@ -556,11 +547,10 @@ class DocumentFetcherService {
     // Lazy load PDF parser
     if (!this.pdfParser) {
       try {
-        const { PDFParse } = await import('pdf-parse');
-        if (!PDFParse) {
-          throw new Error('pdf-parse does not export PDFParse');
-        }
-        this.pdfParser = PDFParse;
+        const pdfParse = await import('pdf-parse');
+        // Handle both ESM and CSM module formats
+        const parser = (pdfParse as any).default || pdfParse;
+        this.pdfParser = parser;
       } catch (error) {
         logger.error('Failed to load PDF parser', { error });
         throw new Error(
@@ -570,16 +560,11 @@ class DocumentFetcherService {
     }
 
     try {
-      const parser = new this.pdfParser({ data: buffer });
-      const result = await parser.getText();
-      if (typeof parser.destroy === 'function') {
-        await parser.destroy();
-      }
+      const result = await this.pdfParser(buffer);
       return result.text || '';
     } catch (error) {
       logger.error('PDF parsing failed', { error });
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to parse PDF: ${message}`);
+      throw new Error(`Failed to parse PDF: ${error}`);
     }
   }
 

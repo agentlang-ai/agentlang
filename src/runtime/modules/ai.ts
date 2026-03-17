@@ -26,7 +26,6 @@ import {
   asJSONSchema,
   Decision,
   fetchModule,
-  getAllDocumentsForTopics,
   getDecision,
   getGlobalRetry,
   Instance,
@@ -38,9 +37,7 @@ import {
   newInstanceAttributes,
   objectToInstanceAttributes,
   Record,
-  registerTopic as registerTopicInRegistry,
   resolveDocumentAliases,
-  resolveTopicNames,
   Retry,
 } from '../module.js';
 import { provider } from '../agents/registry.js';
@@ -74,10 +71,9 @@ import {
 import { logger } from '../logger.js';
 import { FlowStep } from '../agents/flows.js';
 import { Statement } from '../../language/generated/ast.js';
-import { getKnowledgeGraphConfig, isMonitoringEnabled, TtlCache } from '../state.js';
+import { isMonitoringEnabled, TtlCache } from '../state.js';
 import { isNodeEnv } from '../../utils/runtime.js';
 import { getFileSystem } from '../../utils/fs-utils.js';
-import { getDocumentRetriever } from '../document-retriever.js';
 
 export const CoreAIModuleName = makeCoreModuleName('ai');
 export const AgentEntityName = 'Agent';
@@ -148,8 +144,7 @@ entity ${AgentEntityName} {
     stateless Boolean @default(false),
     instruction String @optional,
     tools String @optional, // comma-separated list of tool names
-    documents String @optional, // list of document names
-    topics String @optional, // list of topic names
+    documents String @optional, // comma-separated list of document names
     channels String @optional, // comma-separated list of channel names
     goal String @optional,
     role String,
@@ -195,15 +190,6 @@ workflow processDoc {
   // S3 config can be provided via retrievalConfig or env vars
   // Embedding config can customize chunking behavior
   await ai.fetchAndCreateDocument(doc.title, doc.url, doc.retrievalConfig, doc.embeddingConfig)
-}
-
-event topic {
-  name String,
-  documents String @optional // comma-separated or array of document titles
-}
-
-workflow processTopic {
-  await ai.registerTopic(topic.name, topic.documents)
 }
 
 entity Directive {
@@ -388,7 +374,6 @@ export class AgentInstance {
   type: string = 'chat';
   tools: string | undefined;
   documents: string | undefined;
-  topics: string | undefined;
   channels: string | undefined;
   runWorkflows: boolean = true;
   goal: string | undefined;
@@ -1144,139 +1129,93 @@ Only return a pure JSON object with no extra text, annotations etc.`;
     return result;
   }
 
-  private async maybeAddRelevantDocuments(message: string, _env: Environment): Promise<string> {
-    const hasDocuments = this.documents && this.documents.length > 0;
-    const hasTopics = this.topics && this.topics.length > 0;
+  private async maybeAddRelevantDocuments(message: string, env: Environment): Promise<string> {
+    if (this.documents && this.documents.length > 0) {
+      try {
+        const docNames = this.documents.split(',').map(d => d.trim());
+        const docTitles = resolveDocumentAliases(docNames);
 
-    if (!hasDocuments && !hasTopics) {
-      return message;
-    }
+        const searchQuery = message;
 
-    try {
-      let containerTags: string[] = [];
-      let topicDocumentTitles: string[] = [];
+        try {
+          const semanticResult: any[] = await parseHelper(
+            `{${CoreAIModuleName}/Document {content? "${searchQuery.replace(/"/g, '\\"')}"}}`,
+            env
+          );
 
-      if (hasTopics) {
-        const topicNames = resolveTopicNames(this.topics!);
-        containerTags = topicNames;
-        topicDocumentTitles = getAllDocumentsForTopics(topicNames);
-      }
+          if (semanticResult && semanticResult.length > 0) {
+            const docs: Instance[] = [];
+            for (const doc of semanticResult) {
+              const docTitle = doc.lookup ? doc.lookup('title') : doc.title;
+              if (AgentInstance.docTitlesMatch(docTitle, docTitles)) {
+                docs.push(
+                  doc instanceof Instance
+                    ? doc
+                    : Instance.newWithAttributes(doc, new Map(Object.entries(doc)))
+                );
+              }
+            }
 
-      if (containerTags.length === 0) {
-        containerTags = [this.getFqName()];
-      }
+            if (docs.length > 0) {
+              return message.concat('\n\nRelevant context from documents:\n').concat(
+                docs
+                  .map((v: Instance) => {
+                    return `Document: ${v.lookup('title')}\n${v.lookup('content') as string}`;
+                  })
+                  .join('\n\n---\n\n')
+              );
+            }
+          }
+        } catch (semanticErr) {
+          logger.debug(
+            `Semantic search is not available, falling back to title-based filtering: ${semanticErr}`
+          );
+        }
 
-      let documentTitles: string[] = [];
-      let documentRefs: string[] = [];
+        const result: any[] = await parseHelper(`{${CoreAIModuleName}/Document? {}}`, env);
+        if (result && result.length > 0) {
+          const docs: Instance[] = [];
+          for (let i = 0; i < result.length; ++i) {
+            const v: any = result[i];
+            const docTitle: string | undefined = AgentInstance.getDocumentTitle(v);
 
-      if (hasDocuments) {
-        const documentEntries = this.documents!.split(',')
-          .map(d => d.trim())
-          .filter(Boolean);
-        documentTitles = resolveDocumentAliases(documentEntries);
-        documentRefs = documentEntries.filter(d => d.startsWith('document-service://'));
-      }
+            if (docTitle && docTitles.includes(docTitle)) {
+              if (v instanceof Instance) {
+                docs.push(v);
+              }
+            }
+          }
 
-      const allDocumentTitles = [...new Set([...topicDocumentTitles, ...documentTitles])];
-
-      const kgConfig = getKnowledgeGraphConfig();
-      const serviceUrl = kgConfig?.serviceUrl?.trim() || process.env.KNOWLEDGE_SERVICE_URL || null;
-
-      if (serviceUrl) {
-        return await this.queryRemoteKnowledgeService(
-          message,
-          serviceUrl,
-          containerTags,
-          allDocumentTitles,
-          documentRefs
-        );
-      }
-
-      // Local mode: embed documents into pgvector/lancedb and query
-      const retriever = getDocumentRetriever();
-      const aiModule = isModule(DefaultModuleName + '.ai')
-        ? fetchModule(DefaultModuleName + '.ai')
-        : null;
-      if (aiModule) {
-        for (const title of allDocumentTitles) {
-          const url = aiModule.getDocument(title);
-          if (url) {
-            await retriever.processDocument(title, url);
+          if (docs.length > 0) {
+            return message.concat('\n\nRelevant context from documents:\n').concat(
+              docs
+                .map((v: Instance) => {
+                  return v.lookup('content') as string;
+                })
+                .join('\n\n')
+            );
           }
         }
+      } catch (err) {
+        logger.debug(`Error retrieving documents: ${err}`);
       }
-
-      const contextString = await retriever.query(
-        message,
-        allDocumentTitles.length > 0 ? allDocumentTitles : undefined,
-        10
-      );
-
-      if (contextString.trim().length > 0) {
-        return message.concat('\n\nRelevant context from documents:\n').concat(contextString);
-      }
-    } catch (err) {
-      logger.debug(`[KNOWLEDGE] Knowledge retrieval failed: ${err}`);
     }
-
     return message;
   }
 
-  private async queryRemoteKnowledgeService(
-    message: string,
-    serviceUrl: string,
-    containerTags: string[],
-    documentTitles: string[],
-    documentRefs: string[]
-  ): Promise<string> {
-    const options = {
-      chunkLimit: 10,
-      entityLimit: 20,
-      includeChunks: true,
-      includeEntities: true,
-      includeEdges: true,
-      documentTitles: documentTitles.length > 0 ? documentTitles : undefined,
-      documentRefs: documentRefs.length > 0 ? documentRefs : undefined,
-    };
+  private static docTitlesMatch(title: string | undefined, docNames: string[]): boolean {
+    return title !== undefined && docNames.includes(title);
+  }
 
-    let response = await fetch(`${serviceUrl}/api/knowledge/query`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: message, containerTags, ...options }),
-    });
-
-    if (!response.ok) {
-      response = await fetch(`${serviceUrl}/knowledge.core/ApiKnowledgeQuery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          queryText: message,
-          containerTagsJson: JSON.stringify(containerTags),
-          documentTitlesJson: JSON.stringify(options.documentTitles || []),
-          documentRefsJson: JSON.stringify(options.documentRefs || []),
-          optionsJson: JSON.stringify({
-            includeChunks: options.includeChunks,
-            includeEntities: options.includeEntities,
-            includeEdges: options.includeEdges,
-            chunkLimit: options.chunkLimit,
-            entityLimit: options.entityLimit,
-          }),
-        }),
-      });
+  private static getDocumentTitle(doc: any): string | undefined {
+    if (typeof doc.lookup === 'function') {
+      return doc.lookup('title') as string | undefined;
+    } else if (doc.attributes) {
+      return doc.attributes.get('title') as string | undefined;
+    } else if (doc.title) {
+      return doc.title;
     }
-
-    if (response.ok) {
-      const rawPayload: any = await response.json();
-      const first = Array.isArray(rawPayload) ? rawPayload[0] : rawPayload;
-      const payload =
-        first && typeof first === 'object' && first.KnowledgeQuery ? first.KnowledgeQuery : first;
-      const contextString = payload?.contextString || '';
-      if (contextString.trim().length > 0) {
-        return message.concat('\n\nRelevant context from documents:\n').concat(contextString);
-      }
-    }
-
-    return message;
+    return undefined;
   }
 
   private static ToolsCache = new Map<string, string>();
@@ -1734,72 +1673,6 @@ export async function loadFlowStep(chatId: string, step: string): Promise<Instan
       return undefined;
     }
   }
-}
-
-export async function registerTopic(
-  name: string,
-  documents: string | undefined,
-  _env: Environment
-): Promise<any> {
-  // Register in local registry
-  registerTopicInRegistry(name, documents ?? undefined);
-
-  // Sync to knowledge service if configured
-  const kgConfig = getKnowledgeGraphConfig();
-  const serviceUrl = kgConfig?.serviceUrl?.trim() || process.env.KNOWLEDGE_SERVICE_URL || null;
-
-  if (serviceUrl) {
-    try {
-      // Parse document list
-      const docList = documents
-        ? documents
-            .split(',')
-            .map(d => d.trim())
-            .filter(Boolean)
-        : [];
-
-      // Create or update topic in knowledge service
-      let response = await fetch(`${serviceUrl}/api/knowledge/topics`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name,
-          description: `Topic ${name} with ${docList.length} documents`,
-          documentTitles: docList,
-        }),
-      });
-
-      if (!response.ok) {
-        // Fallback to Agentlang entity path for deployed knowledge-service
-        response = await fetch(`${serviceUrl}/knowledge.core/Topic`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name,
-            description: `Topic ${name} with ${docList.length} documents`,
-            type: 'manual',
-            documentCount: docList.length,
-          }),
-        });
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        logger.debug(`[KNOWLEDGE] Failed to sync topic to service: ${errorText}`);
-      } else {
-        logger.debug(`[KNOWLEDGE] Synced topic "${name}" to knowledge service`);
-      }
-    } catch (err) {
-      // Don't fail topic registration if service sync fails
-      logger.debug(`[KNOWLEDGE] Error syncing topic to service: ${err}`);
-    }
-  }
-
-  return { topic: { name, documents: documents ?? '' } };
 }
 
 export async function fetchAndCreateDocument(
