@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.5](https://github.com/agentlang-ai/agentlang/compare/0.10.4...0.10.5) (2026-03-17)
+
+### Changes
+
+* Revert "Knowledge graph memory system implementation" (#637) ([6654805](https://github.com/agentlang-ai/agentlang/commit/6654805cd0125a6963ea2763d12d7b935ffde964)) - @pratik
+* Fix ambiguous syntax in @limit -- use only Expressions in limit (#634) ([4203438](https://github.com/agentlang-ai/agentlang/commit/4203438cd5e28db3b4a8c43c6b1b7d5e923b3f2d)) - @vijayfractl
+* Agent-level RBAC with assumedRole (#632) ([a18ddc6](https://github.com/agentlang-ai/agentlang/commit/a18ddc66bb2cb170d91000367251e0ff16c8c311)) - @ranga
+
+---
 ## [0.10.4](https://github.com/agentlang-ai/agentlang/compare/0.10.3...0.10.4) (2026-03-09)
 
 ### Changes
