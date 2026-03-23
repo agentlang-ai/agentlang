@@ -200,6 +200,10 @@ The following usage is NOT valid:
 Also C-style ternary-expressions of the form \`condition ? consequent : alternative\` IS INVALID in Agentlang. Always use a proper
 \`if-else\` statement.
 
+IMPORTANT: Agentlang does NOT support imperative variable declarations. Syntax like \`let x = 50;\`, \`const x = 50;\`, \`var x = 50;\` or any
+assignment statement of the form \`name = value\` IS INVALID. To bind a value to a name, always use the \`@as\` alias syntax, e.g:
+\`{SomeEntity {attr? value}} @as myAlias;\` or for literal values: \`50 @as baseScore;\`. There is no other way to introduce a named binding in Agentlang.
+
 A pattern may execute asynchronously and its eventual result can be handled by patterns provided in the '@then' clause. An example is shown below:
 
 {sendChatMessage {to "amy", "text" "hello"}} @as response @then {
