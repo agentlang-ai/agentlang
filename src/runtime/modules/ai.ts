@@ -147,7 +147,7 @@ entity ${AgentEntityName} {
     documents String @optional, // comma-separated list of document names
     channels String @optional, // comma-separated list of channel names
     goal String @optional,
-    role String,
+    role String @optional,
     flows String @optional,
     validate String @optional,
     retry String @optional,
@@ -377,7 +377,7 @@ export class AgentInstance {
   channels: string | undefined;
   runWorkflows: boolean = true;
   goal: string | undefined;
-  role: string = '';
+  role: string | undefined;
   flows: string | undefined;
   validate: string | undefined;
   retry: string | undefined;
