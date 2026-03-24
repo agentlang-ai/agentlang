@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.6](https://github.com/agentlang-ai/agentlang/compare/0.10.5...0.10.6) (2026-03-24)
+
+### Changes
+
+* fix query for array nums (#643) ([115c9fc](https://github.com/agentlang-ai/agentlang/commit/115c9fc992811a5f21949f4612bf5b80fc7e7050)) - @muazzam0x48
+* fix @update flow values with updated values (#642) ([49a9281](https://github.com/agentlang-ai/agentlang/commit/49a9281738242604709916fbfb7078b12f058bb0)) - @muazzam0x48
+* fix agent role default value issue (#641) ([76c93e3](https://github.com/agentlang-ai/agentlang/commit/76c93e384dfb37d383b62e2baedd316c3f572714)) - @vijayfractl
+
+---
 ## [0.10.5](https://github.com/agentlang-ai/agentlang/compare/0.10.4...0.10.5) (2026-03-17)
 
 ### Changes
