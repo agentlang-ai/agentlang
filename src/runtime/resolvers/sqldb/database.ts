@@ -444,6 +444,15 @@ export function isUsingSqljs(): boolean {
   return getDbType(AppConfig?.store) == 'sqljs';
 }
 
+/** Resolved store DB type (uses the same cache as initDatabase). */
+export function getStoreDbType(config?: DatabaseConfig | undefined): string {
+  return getDbType(config);
+}
+
+export function isPostgresStore(): boolean {
+  return getDbType(AppConfig?.store) === 'postgres';
+}
+
 export async function isVectorStoreSupported(): Promise<boolean> {
   const dbType = getDbType(AppConfig?.store);
   if (dbType === 'postgres') return true;
@@ -458,7 +467,7 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
   if (defaultDataSource === undefined) {
     const mkds = getDsFunction(config);
     if (mkds) {
-      const ormScm = modulesAsOrmSchema();
+      const ormScm = modulesAsOrmSchema(getStoreDbType(config));
       defaultDataSource = mkds(ormScm.entities, config) as DataSource;
       await defaultDataSource.initialize();
       await maybeHandleMigrations(defaultDataSource);

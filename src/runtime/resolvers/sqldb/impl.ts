@@ -9,8 +9,10 @@ import {
   getEntityRbacRules,
   Instance,
   InstanceAttributes,
+  isArrayAttribute,
   isBetweenRelationship,
   newInstanceAttributes,
+  type RecordSchema,
   Relationship,
 } from '../../module.js';
 import {
@@ -35,6 +37,7 @@ import {
   hardDeleteRow,
   insertBetweenRow,
   insertRow,
+  isPostgresStore,
   isVectorStoreSupported,
   JoinClause,
   JoinOn,
@@ -47,6 +50,22 @@ import {
   vectorStoreSearchEntryExists,
 } from './database.js';
 import { AggregateFunctionCall, Environment } from '../../interpreter.js';
+
+/** Postgres uses native array columns; other drivers store JSON text in varchar. */
+function rowObjectForSqlPersistence(row: object, schema: RecordSchema): object {
+  if (isPostgresStore()) {
+    return row;
+  }
+  const o = { ...(row as Record<string, any>) };
+  schema.forEach((spec, name) => {
+    if (!isArrayAttribute(spec)) return;
+    const v = o[name];
+    if (Array.isArray(v)) {
+      o[name] = JSON.stringify(v);
+    }
+  });
+  return o;
+}
 import {
   DeletedFlagAttributeName,
   ParentAttributeName,
@@ -230,7 +249,10 @@ export class SqlDbResolver extends Resolver {
       attrs.set(PathAttributeName, p);
     }
     const n: string = asTableReference(inst.moduleName, inst.name);
-    const rowObj: object = inst.attributesWithStringifiedObjects();
+    const rowObj: object = rowObjectForSqlPersistence(
+      inst.attributesWithStringifiedObjects(),
+      inst.record.schema
+    );
     await insertRow(n, rowObj, ctx, orUpdate);
     if (inst.record.getEmbeddingConfig() || inst.record.getFullTextSearchAttributes()) {
       const path = attrs.get(PathAttributeName);
@@ -292,7 +314,10 @@ export class SqlDbResolver extends Resolver {
     const queryVals: object = Object.fromEntries(
       new Map<string, any>().set(PathAttributeName, inst.attributes.get(PathAttributeName))
     );
-    const updateObj: object = Instance.stringifyObjects(newAttrs);
+    const updateObj: object = rowObjectForSqlPersistence(
+      Instance.stringifyObjects(newAttrs),
+      inst.record.schema
+    );
     await updateRow(
       asTableReference(inst.moduleName, inst.name),
       queryObj,

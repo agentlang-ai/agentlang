@@ -105,7 +105,7 @@ function isSqlDefault(d: any): boolean {
   return typeof d !== 'string' || !d.endsWith('()') || SqlDefaultFunctions.has(d);
 }
 
-export function modulesAsOrmSchema(): OrmSchema {
+export function modulesAsOrmSchema(storeDbType: string): OrmSchema {
   const ents: EntitySchema[] = [];
   const vects: EntitySchema[] = [];
   const fkSpecs: FkSpec[] = [];
@@ -115,12 +115,12 @@ export function modulesAsOrmSchema(): OrmSchema {
     const entities: Record[] = mod.getEntityEntries();
     const rels: Record[] = mod.getBetweenRelationshipEntriesThatNeedStore();
     entities.concat(rels).forEach((entry: Record) => {
-      ents.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, entry)));
+      ents.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, entry, storeDbType)));
       const ownerEntry = createOwnersEntity(entry);
-      ents.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, ownerEntry, true)));
+      ents.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, ownerEntry, storeDbType, true)));
       if (entry.getFullTextSearchAttributes()) {
         const vectorEntry = createVectorEntity(entry);
-        vects.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, vectorEntry, true)));
+        vects.push(new EntitySchema<any>(ormSchemaFromRecordSchema(n, vectorEntry, storeDbType, true)));
       }
     });
     entities.forEach((r: Record) => {
@@ -136,6 +136,7 @@ export function modulesAsOrmSchema(): OrmSchema {
 function ormSchemaFromRecordSchema(
   moduleName: string,
   entry: Record,
+  storeDbType: string,
   hasOwnPk?: boolean
 ): EntitySchemaOptions<any> {
   const entityName = entry.name;
@@ -159,13 +160,16 @@ function ormSchemaFromRecordSchema(
     else if (autoUuid) genStrat = 'uuid';
     const isuq: boolean = isUniqueAttribute(attrSpec);
     const ispk: boolean = chkforpk && isIdAttribute(attrSpec);
+    const isArr: boolean = isArrayAttribute(attrSpec);
+    const usePgArray: boolean = isArr && storeDbType === 'postgres';
     const colDef: EntitySchemaColumnOptions = {
-      type: asSqlType(attrSpec.type),
+      type: usePgArray ? asSqlType(attrSpec.type) : isArr ? 'varchar' : asSqlType(attrSpec.type),
       generated: genStrat,
       default: d,
       unique: isuq,
       primary: ispk,
       nullable: isOptionalAttribute(attrSpec),
+      ...(usePgArray ? { array: true } : {}),
     };
     if (ispk) {
       needPath = false;
