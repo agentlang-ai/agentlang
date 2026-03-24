@@ -47,6 +47,16 @@ describe('SQL.js Database Tests', () => {
     }
   });
 
+  test('should round-trip Int[] array attributes on create and query', async () => {
+    await doInternModule('SqlJsArrays', `entity ArrayHolder {id Int @id, nums Int[]}`);
+
+    await parseAndEvaluateStatement(`{SqlJsArrays/ArrayHolder {id 1, nums [-2, 4, 5]}}`);
+
+    const rows = (await parseAndEvaluateStatement(`{SqlJsArrays/ArrayHolder? {}}`)) as Instance[];
+    assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0].lookup('nums'), [-2, 4, 5]);
+  });
+
   test('should create and query simple entities', async () => {
     await doInternModule('SqlJsBasic', `entity Product {id Int @id, name String, price Float}`);
 

@@ -3841,11 +3841,11 @@ export class Instance {
       const attrSpec = this.record.schema.get(k);
       if (attrSpec) {
         const isstr = isString(v);
-        if (isNumericAttribute(attrSpec) && isstr) {
-          attrs.set(k, Number(v));
-        } else if ((isArrayAttribute(attrSpec) || isObjectAttribute(attrSpec)) && isstr) {
+        if ((isArrayAttribute(attrSpec) || isObjectAttribute(attrSpec)) && isstr) {
           const obj: any = JSON.parse(v);
           attrs.set(k, obj);
+        } else if (isNumericAttribute(attrSpec) && isstr) {
+          attrs.set(k, Number(v));
         }
       }
     });
@@ -3998,7 +3998,9 @@ export class Instance {
   static stringifyObjects(attributes: InstanceAttributes): object {
     const attrs = newInstanceAttributes();
     attributes.forEach((v: any, k: string) => {
-      if (v instanceof Object) {
+      if (Array.isArray(v)) {
+        attrs.set(k, v);
+      } else if (v instanceof Object) {
         attrs.set(k, JSON.stringify(v instanceof Map ? Object.fromEntries(v) : v));
       } else {
         attrs.set(k, v);
