@@ -1831,7 +1831,10 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
         } else {
           const res: Resolver = await getResolverForPath(lastRes.name, lastRes.moduleName, env);
           await computeExprAttributes(lastRes, crud.body?.attributes, attrs, env);
-          await runPreUpdateEvents(lastRes, env);
+          const mergedAttrsForHook = newInstanceAttributes();
+          lastRes.attributes.forEach((v: any, k: string) => mergedAttrsForHook.set(k, v));
+          attrs.forEach((v: any, k: string) => mergedAttrsForHook.set(k, v));
+          await runPreUpdateEvents(Instance.newWithAttributes(lastRes, mergedAttrsForHook), env);
           const finalInst: Instance = await res.updateInstance(lastRes, attrs);
           await runPostUpdateEvents(finalInst, lastRes, env);
           env.setLastResult([finalInst]);
