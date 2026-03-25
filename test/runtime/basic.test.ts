@@ -2500,4 +2500,18 @@ describe('Self-reference column comparison in queries', () => {
     assert(mixed.length == 1);
     assert(mixed[0].lookup('id') == 2);
   });
+
+  test('self-reference with dotted module name', async () => {
+    await doInternModule('Lead.core', `entity SalesRep { id Int @id, ActiveLeadCount Int, MaxLeadCapacity Int }`);
+    await parseAndEvaluateStatement(`{Lead.core/SalesRep {id 1, ActiveLeadCount 3, MaxLeadCapacity 50}}`);
+    await parseAndEvaluateStatement(`{Lead.core/SalesRep {id 2, ActiveLeadCount 50, MaxLeadCapacity 50}}`);
+    await parseAndEvaluateStatement(`{Lead.core/SalesRep {id 3, ActiveLeadCount 10, MaxLeadCapacity 20}}`);
+
+    const lt: Instance[] = await parseAndEvaluateStatement(`{Lead.core/SalesRep {ActiveLeadCount?< Lead.core/SalesRep.MaxLeadCapacity}}`);
+    assert(lt instanceof Array);
+    assert(lt.length == 2);
+    const ids = lt.map((inst: Instance) => inst.lookup('id')).sort();
+    assert(ids[0] == 1);
+    assert(ids[1] == 3);
+  });
 });

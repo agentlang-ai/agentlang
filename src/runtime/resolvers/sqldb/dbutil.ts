@@ -75,7 +75,7 @@ export function asColumnReference(n: string, tableName: string, entityName: stri
 export class ColumnRef {
   constructor(public readonly ref: string) {}
   toSql(tableName?: string): string {
-    const dotIdx = this.ref.indexOf('.');
+    const dotIdx = this.ref.lastIndexOf('.');
     const field = dotIdx >= 0 ? this.ref.substring(dotIdx + 1) : this.ref;
     return tableName ? `"${tableName}"."${field}"` : `"${field}"`;
   }

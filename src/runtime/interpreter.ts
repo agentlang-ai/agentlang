@@ -1481,10 +1481,20 @@ function getSelfColumnRef(expr: Expr, entityName: string, moduleName: string): s
   if (!isLiteral(expr)) return undefined;
   const ref = (expr as Literal).ref;
   if (ref === undefined) return undefined;
-  const dotIdx = ref.indexOf('.');
+  const slashIdx = ref.indexOf('/');
+  let entityRef: string;
+  if (slashIdx > 0) {
+    // Fully-qualified ref like "LeadAssignment.core/SalesRep.MaxLeadCapacity"
+    const refModule = ref.substring(0, slashIdx);
+    entityRef = ref.substring(slashIdx + 1);
+    if (refModule !== moduleName) return undefined;
+  } else {
+    entityRef = ref;
+  }
+  const dotIdx = entityRef.indexOf('.');
   if (dotIdx < 0) return undefined;
-  const entityPart = ref.substring(0, dotIdx);
-  if (entityPart === entityName || entityPart === makeFqName(moduleName, entityName)) {
+  const entityPart = entityRef.substring(0, dotIdx);
+  if (entityPart === entityName) {
     return ref;
   }
   return undefined;
