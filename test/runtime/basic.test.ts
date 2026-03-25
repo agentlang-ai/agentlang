@@ -2458,3 +2458,46 @@ describe('Built-in date functions', () => {
     assert(r.lookup('formatted') === '2026/03/04 09:15');
   });
 });
+
+describe('Self-reference column comparison in queries', () => {
+  test('x > y self-reference', async () => {
+    await doInternModule('SelfRef', `entity E { id Int @id, x Int, y Int }`);
+    await parseAndEvaluateStatement(`{SelfRef/E {id 1, x 2, y 3}}`);
+    await parseAndEvaluateStatement(`{SelfRef/E {id 2, x 20, y 1}}`);
+    await parseAndEvaluateStatement(`{SelfRef/E {id 3, x 5, y 6}}`);
+
+    // x > y: only id=2 (x=20, y=1)
+    const gt: Instance[] = await parseAndEvaluateStatement(`{SelfRef/E {x?> SelfRef/E.y}}`);
+    assert(gt instanceof Array);
+    assert(gt.length == 1);
+    assert(gt[0].lookup('id') == 2);
+  });
+
+  test('x < y self-reference', async () => {
+    await doInternModule('SelfRef2', `entity E { id Int @id, x Int, y Int }`);
+    await parseAndEvaluateStatement(`{SelfRef2/E {id 1, x 2, y 3}}`);
+    await parseAndEvaluateStatement(`{SelfRef2/E {id 2, x 20, y 1}}`);
+    await parseAndEvaluateStatement(`{SelfRef2/E {id 3, x 5, y 6}}`);
+
+    // x < y: id=1 (x=2, y=3) and id=3 (x=5, y=6)
+    const lt: Instance[] = await parseAndEvaluateStatement(`{SelfRef2/E {x?< SelfRef2/E.y}}`);
+    assert(lt instanceof Array);
+    assert(lt.length == 2);
+    const ids = lt.map((inst: Instance) => inst.lookup('id')).sort();
+    assert(ids[0] == 1);
+    assert(ids[1] == 3);
+  });
+
+  test('mixed self-reference and literal filter', async () => {
+    await doInternModule('SelfRef3', `entity E { id Int @id, x Int, y Int }`);
+    await parseAndEvaluateStatement(`{SelfRef3/E {id 1, x 2, y 3}}`);
+    await parseAndEvaluateStatement(`{SelfRef3/E {id 2, x 20, y 1}}`);
+    await parseAndEvaluateStatement(`{SelfRef3/E {id 3, x 5, y 6}}`);
+
+    // x > y AND id = 2
+    const mixed: Instance[] = await parseAndEvaluateStatement(`{SelfRef3/E {x?> SelfRef3/E.y, id? 2}}`);
+    assert(mixed instanceof Array);
+    assert(mixed.length == 1);
+    assert(mixed[0].lookup('id') == 2);
+  });
+});

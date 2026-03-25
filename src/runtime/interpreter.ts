@@ -61,6 +61,7 @@ import {
 import { JoinInfo, Resolver, WhereClause } from './resolvers/interface.js';
 import { ResolverAuthInfo } from './resolvers/authinfo.js';
 import { SqlDbResolver } from './resolvers/sqldb/impl.js';
+import { ColumnRef } from './resolvers/sqldb/dbutil.js';
 import {
   CrudType,
   DefaultModuleName,
@@ -1476,6 +1477,19 @@ export type AggregateFunctionCall = {
   args: string[];
 };
 
+function getSelfColumnRef(expr: Expr, entityName: string, moduleName: string): string | undefined {
+  if (!isLiteral(expr)) return undefined;
+  const ref = (expr as Literal).ref;
+  if (ref === undefined) return undefined;
+  const dotIdx = ref.indexOf('.');
+  if (dotIdx < 0) return undefined;
+  const entityPart = ref.substring(0, dotIdx);
+  if (entityPart === entityName || entityPart === makeFqName(moduleName, entityName)) {
+    return ref;
+  }
+  return undefined;
+}
+
 async function patternToInstance(
   entryName: string,
   attributes: SetAttribute[] | undefined,
@@ -1489,12 +1503,16 @@ async function patternToInstance(
   if (isQueryAll) {
     entryName = entryName.slice(0, entryName.length - 1);
   }
+  let moduleName = env.getActiveModuleName();
+  if (isFqName(entryName)) {
+    const p: Path = nameToPath(entryName);
+    if (p.hasModule()) moduleName = p.getModuleName();
+    if (p.hasEntry()) entryName = p.getEntryName();
+  }
   if (attributes) {
     for (let i = 0; i < attributes.length; ++i) {
       const a: SetAttribute = attributes[i];
       if (a.value !== undefined) {
-        await evaluateExpression(a.value, env);
-        const v: Result = env.getLastResult();
         let aname: string = a.name;
         if (aname.endsWith(QuerySuffix)) {
           if (isQueryAll) {
@@ -1504,21 +1522,22 @@ async function patternToInstance(
           if (qattrVals === undefined) qattrVals = newInstanceAttributes();
           aname = aname.slice(0, aname.length - 1);
           qattrs.set(aname, a.op === undefined ? '=' : a.op);
-          qattrVals.set(aname, v);
+          const selfRef = getSelfColumnRef(a.value, entryName, moduleName);
+          if (selfRef !== undefined) {
+            qattrVals.set(aname, new ColumnRef(selfRef));
+          } else {
+            await evaluateExpression(a.value, env);
+            qattrVals.set(aname, env.getLastResult());
+          }
         } else {
-          attrs.set(aname, v);
+          await evaluateExpression(a.value, env);
+          attrs.set(aname, env.getLastResult());
         }
       } else if (a.aggregate !== undefined) {
         if (aggregates === undefined) aggregates = new Map<string, AggregateFunctionCall>();
         aggregates.set(escapeQueryName(a.name), { name: a.aggregate.name, args: a.aggregate.args });
       }
     }
-  }
-  let moduleName = env.getActiveModuleName();
-  if (isFqName(entryName)) {
-    const p: Path = nameToPath(entryName);
-    if (p.hasModule()) moduleName = p.getModuleName();
-    if (p.hasEntry()) entryName = p.getEntryName();
   }
   const inst = makeInstance(moduleName, entryName, attrs, qattrs, qattrVals, isQueryAll);
   if (aggregates !== undefined) {

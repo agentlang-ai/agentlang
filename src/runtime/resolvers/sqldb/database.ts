@@ -10,6 +10,7 @@ import {
 import { logger } from '../../logger.js';
 import {
   asTableReference,
+  ColumnRef,
   DefaultVectorDimension,
   modulesAsOrmSchema,
   OwnersSuffix,
@@ -1000,6 +1001,12 @@ function objectToWhereClause(queryObj: object, queryVals: any, tableName?: strin
   Object.entries(queryObj).forEach((value: [string, any]) => {
     let op: string = value[1] as string;
     const k = value[0];
+    if (queryVals[k] instanceof ColumnRef) {
+      const colRef = (queryVals[k] as ColumnRef).toSql(tableName);
+      clauses.push(tableName ? `"${tableName}"."${k}" ${op} ${colRef}` : `"${k}" ${op} ${colRef}`);
+      delete queryVals[k];
+      return;
+    }
     const isnullcheck = queryVals[k] === null;
     if (isnullcheck) {
       if (op === '=') {
@@ -1027,6 +1034,11 @@ function objectToRawWhereClause(queryObj: object, queryVals: any, tableName?: st
   Object.entries(queryObj).forEach((value: [string, any]) => {
     let op: string = value[1] as string;
     const k: string = value[0];
+    if (queryVals[k] instanceof ColumnRef) {
+      const colRef = (queryVals[k] as ColumnRef).toSql(tableName);
+      clauses.push(tableName ? `"${tableName}"."${k}" ${op} ${colRef}` : `"${k}" ${op} ${colRef}`);
+      return;
+    }
     if (queryVals[k] === null) {
       if (op === '=') {
         op = 'IS';
