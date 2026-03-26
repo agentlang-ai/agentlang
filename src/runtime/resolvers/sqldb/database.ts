@@ -395,9 +395,7 @@ function simulateMigrationDryRun(queries: string[]): SimulateMigrationResult {
   return { success: errors.length === 0, queries, errors };
 }
 
-export async function simulateMigration(
-  dataSource: DataSource
-): Promise<SimulateMigrationResult> {
+export async function simulateMigration(dataSource: DataSource): Promise<SimulateMigrationResult> {
   const queries = await getSchemaDiff(dataSource);
   if (queries.length === 0) {
     return { success: true, queries: [], errors: [] };
@@ -415,7 +413,7 @@ async function validateSchemaInProd(dataSource: DataSource) {
     const pending = pendingQueries.join('\n  ');
     throw new Error(
       `Schema mismatch detected: the app model does not match the database schema. ` +
-      `Run migrations before starting in production mode.\n  Pending changes:\n  ${pending}`
+        `Run migrations before starting in production mode.\n  Pending changes:\n  ${pending}`
     );
   }
 }
