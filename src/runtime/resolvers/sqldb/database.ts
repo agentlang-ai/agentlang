@@ -37,6 +37,7 @@ import {
   isRuntimeMode_generate_migration,
   isRuntimeMode_init_schema,
   isRuntimeMode_migration,
+  isRuntimeMode_prod,
   isRuntimeMode_test,
   isRuntimeMode_undo_migration,
   PathAttributeName,
@@ -333,6 +334,92 @@ async function execMigrationSql(dataSource: DataSource, sql: string[]) {
   await queryRunner.commitTransaction();
 }
 
+export async function getSchemaDiff(dataSource: DataSource): Promise<string[]> {
+  const sqlInMemory = await dataSource.driver.createSchemaBuilder().log();
+  return sqlInMemory.upQueries.map((q: any) => q.query);
+}
+
+const DestructiveDdlPattern = /\bDROP\s+(TABLE|COLUMN)\b/i;
+
+function validateDryRunQueries(queries: string[]): string[] {
+  const errors: string[] = [];
+  for (const q of queries) {
+    if (DestructiveDdlPattern.test(q)) {
+      errors.push(`Destructive operation detected: ${q}`);
+    }
+  }
+  return errors;
+}
+
+export type SimulateMigrationResult = {
+  success: boolean;
+  queries: string[];
+  errors: string[];
+};
+
+async function simulateMigrationPostgres(
+  dataSource: DataSource,
+  queries: string[]
+): Promise<SimulateMigrationResult> {
+  const queryRunner = dataSource.createQueryRunner();
+  const errors: string[] = [];
+  try {
+    await queryRunner.startTransaction();
+    for (const q of queries) {
+      await queryRunner.query(q);
+    }
+    // Verify schema converged after applying
+    const remaining = await getSchemaDiff(dataSource);
+    if (remaining.length > 0) {
+      errors.push(
+        `Schema did not converge after migration. Remaining changes:\n  ${remaining.join('\n  ')}`
+      );
+    }
+    return { success: errors.length === 0, queries, errors };
+  } catch (err: any) {
+    errors.push(`Migration SQL failed: ${err.message}`);
+    return { success: false, queries, errors };
+  } finally {
+    // Always rollback — this is a simulation
+    try {
+      await queryRunner.rollbackTransaction();
+    } catch {
+      // already rolled back or connection lost
+    }
+    await queryRunner.release();
+  }
+}
+
+function simulateMigrationDryRun(queries: string[]): SimulateMigrationResult {
+  const errors = validateDryRunQueries(queries);
+  return { success: errors.length === 0, queries, errors };
+}
+
+export async function simulateMigration(
+  dataSource: DataSource
+): Promise<SimulateMigrationResult> {
+  const queries = await getSchemaDiff(dataSource);
+  if (queries.length === 0) {
+    return { success: true, queries: [], errors: [] };
+  }
+  if (dataSource.options.type === 'postgres') {
+    return simulateMigrationPostgres(dataSource, queries);
+  }
+  return simulateMigrationDryRun(queries);
+}
+
+async function validateSchemaInProd(dataSource: DataSource) {
+  if (!isRuntimeMode_prod()) return;
+  const pendingQueries = await getSchemaDiff(dataSource);
+  if (pendingQueries.length > 0) {
+    const pending = pendingQueries.join('\n  ');
+    throw new Error(
+      `Schema mismatch detected: the app model does not match the database schema. ` +
+      `Run migrations before starting in production mode.\n  Pending changes:\n  ${pending}`
+    );
+  }
+}
+
 async function maybeHandleMigrations(dataSource: DataSource) {
   const is_migration = isRuntimeMode_migration();
   const is_undo_migration = isRuntimeMode_undo_migration();
@@ -354,6 +441,14 @@ async function maybeHandleMigrations(dataSource: DataSource) {
       });
     }
     if (is_migration && ups?.length) {
+      const simulation = await simulateMigration(dataSource);
+      if (!simulation.success) {
+        logger.error(`Migration simulation failed:\n  ${simulation.errors.join('\n  ')}`);
+        throw new Error(
+          `Migration aborted: simulation failed.\n  ${simulation.errors.join('\n  ')}`
+        );
+      }
+      logger.info('Migration simulation passed, applying changes...');
       await saveMigration(getAppSpec().version, ups, downs);
       await execMigrationSql(dataSource, ups);
     } else if (is_undo_migration && downs?.length) {
@@ -472,6 +567,7 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
       defaultDataSource = mkds(ormScm.entities, config) as DataSource;
       await defaultDataSource.initialize();
       await maybeHandleMigrations(defaultDataSource);
+      await validateSchemaInProd(defaultDataSource);
       if (ormScm.fkSpecs.length > 0) {
         const qr = defaultDataSource.createQueryRunner();
         for (let i = 0; i < ormScm.fkSpecs.length; ++i) {
