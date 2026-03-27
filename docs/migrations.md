@@ -14,7 +14,7 @@ migration steps are needed.
 
 ```bash
 # Dev mode — schema auto-syncs on startup
-agentlang run app.al
+agent run app.al
 
 # Test mode — same auto-sync behavior
 NODE_ENV=test agentlang run app.al
@@ -34,7 +34,7 @@ For a fresh database (e.g. first deploy to a new environment), use `initSchema`
 to create all tables from scratch. This is a one-time operation.
 
 ```bash
-agentlang initSchema app.al -c config.json
+agent initSchema app.al -c config.json
 ```
 
 #### Step 1: Review pending migrations
@@ -42,7 +42,7 @@ agentlang initSchema app.al -c config.json
 When entity definitions change, review the pending schema changes before applying them:
 
 ```bash
-agentlang runMigrations app.al -c config.json
+agent runMigrations app.al -c config.json
 ```
 
 This command:
@@ -67,7 +67,7 @@ If the simulation detects problems, it reports errors and aborts.
 After reviewing the output, apply the changes:
 
 ```bash
-agentlang applyMigration app.al -c config.json
+agent applyMigration app.al -c config.json
 ```
 
 This command:
@@ -81,7 +81,7 @@ This command:
 To roll back the last applied migration:
 
 ```bash
-agentlang undoLastMigration app.al -c config.json
+agent undoLastMigration app.al -c config.json
 ```
 
 This executes the saved "down" queries to reverse the most recent migration.
@@ -91,7 +91,7 @@ This executes the saved "down" queries to reverse the most recent migration.
 To save a migration record without executing it:
 
 ```bash
-agentlang generateMigration app.al -c config.json
+agent generateMigration app.al -c config.json
 ```
 
 This stores the up and down queries in the `agentlang/Migration` entity for

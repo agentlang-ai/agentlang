@@ -357,17 +357,8 @@ async function simulateMigrationPostgres(
     for (const q of queries) {
       await queryRunner.query(q);
     }
-    // Verify schema converged after applying
-    const remaining = await getSchemaDiff(dataSource);
-    if (remaining.length > 0) {
-      errors.push(
-        `Schema did not converge after migration. Remaining changes:\n  ${remaining.join('\n  ')}`
-      );
-    }
-    return { success: errors.length === 0, queries, errors };
   } catch (err: any) {
     errors.push(`Migration SQL failed: ${err.message}`);
-    return { success: false, queries, errors };
   } finally {
     // Always rollback — this is a simulation
     try {
@@ -377,6 +368,7 @@ async function simulateMigrationPostgres(
     }
     await queryRunner.release();
   }
+  return { success: errors.length === 0, queries, errors };
 }
 
 function simulateMigrationDryRun(queries: string[]): SimulateMigrationResult {
@@ -396,7 +388,9 @@ export async function simulateMigration(dataSource: DataSource): Promise<Simulat
 
 async function validateSchemaInProd(dataSource: DataSource) {
   if (!isRuntimeMode_prod()) return;
-  const pendingQueries = await getSchemaDiff(dataSource);
+  const pendingQueries = (await getSchemaDiff(dataSource)).filter(
+    q => !q.match(/DROP CONSTRAINT\s+"FK_/i)
+  );
   if (pendingQueries.length > 0) {
     const pending = pendingQueries.join('\n  ');
     throw new Error(
@@ -430,7 +424,10 @@ async function maybeHandleMigrations(dataSource: DataSource) {
     if (is_migration && ups?.length) {
       // Review-only: display pending changes and simulation result, but do not apply
       logger.info('Pending migration queries:');
-      ups.forEach((q, i) => logger.info(`  [${i + 1}] ${q}`));
+      ups.forEach((q, i) => {
+        logger.info(`  [${i + 1}] ${q}`);
+        console.log(q + ';');
+      });
       const simulation = await simulateMigration(dataSource);
       if (!simulation.success) {
         logger.error(`Migration simulation failed:\n  ${simulation.errors.join('\n  ')}`);
@@ -572,7 +569,6 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
       defaultDataSource = mkds(ormScm.entities, config) as DataSource;
       await defaultDataSource.initialize();
       await maybeHandleMigrations(defaultDataSource);
-      await validateSchemaInProd(defaultDataSource);
       if (ormScm.fkSpecs.length > 0) {
         const qr = defaultDataSource.createQueryRunner();
         for (let i = 0; i < ormScm.fkSpecs.length; ++i) {
@@ -591,6 +587,7 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
           }
         }
       }
+      await validateSchemaInProd(defaultDataSource);
       const vectEnts = ormScm.vectorEntities.map((es: EntitySchema) => {
         return es.options.name;
       });

@@ -266,7 +266,7 @@ export const runModule = async (fileName: string, releaseDb: boolean = false): P
     }
   } finally {
     if (releaseDb === true) {
-      resetDefaultDatabase();
+      await resetDefaultDatabase();
     }
   }
 };
