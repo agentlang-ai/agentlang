@@ -33,6 +33,7 @@ import {
   DeletedFlagAttributeName,
   ForceReadPermFlag,
   getUserTenantId,
+  isRuntimeMode_apply_migration,
   isRuntimeMode_dev,
   isRuntimeMode_generate_migration,
   isRuntimeMode_init_schema,
@@ -420,12 +421,13 @@ async function validateSchemaInProd(dataSource: DataSource) {
 
 async function maybeHandleMigrations(dataSource: DataSource) {
   const is_migration = isRuntimeMode_migration();
+  const is_apply_migration = isRuntimeMode_apply_migration();
   const is_undo_migration = isRuntimeMode_undo_migration();
   const is_gen_migration = isRuntimeMode_generate_migration();
-  if (is_migration || is_undo_migration || is_gen_migration) {
+  if (is_migration || is_apply_migration || is_undo_migration || is_gen_migration) {
     const sqlInMemory = await dataSource.driver.createSchemaBuilder().log();
     let ups: string[] | undefined;
-    if (is_migration || is_gen_migration) {
+    if (is_migration || is_apply_migration || is_gen_migration) {
       ups = new Array<string>();
       sqlInMemory.upQueries.forEach(upQuery => {
         ups?.push(upQuery.query.replaceAll('`', '\\`'));
@@ -439,6 +441,21 @@ async function maybeHandleMigrations(dataSource: DataSource) {
       });
     }
     if (is_migration && ups?.length) {
+      // Review-only: display pending changes and simulation result, but do not apply
+      logger.info('Pending migration queries:');
+      ups.forEach((q, i) => logger.info(`  [${i + 1}] ${q}`));
+      const simulation = await simulateMigration(dataSource);
+      if (!simulation.success) {
+        logger.error(`Migration simulation failed:\n  ${simulation.errors.join('\n  ')}`);
+        throw new Error(
+          `Migration aborted: simulation failed.\n  ${simulation.errors.join('\n  ')}`
+        );
+      }
+      logger.info('Migration simulation passed.');
+      logger.info('Run `applyMigration` to apply these changes.');
+    } else if (is_migration && (!ups || ups.length === 0)) {
+      logger.info('No pending migration changes detected.');
+    } else if (is_apply_migration && ups?.length) {
       const simulation = await simulateMigration(dataSource);
       if (!simulation.success) {
         logger.error(`Migration simulation failed:\n  ${simulation.errors.join('\n  ')}`);
@@ -449,6 +466,9 @@ async function maybeHandleMigrations(dataSource: DataSource) {
       logger.info('Migration simulation passed, applying changes...');
       await saveMigration(getAppSpec().version, ups, downs);
       await execMigrationSql(dataSource, ups);
+      logger.info('Migration applied successfully.');
+    } else if (is_apply_migration && (!ups || ups.length === 0)) {
+      logger.info('No pending migration changes to apply.');
     } else if (is_undo_migration && downs?.length) {
       await saveMigration(getAppSpec().version, ups, downs);
       await execMigrationSql(dataSource, downs);
