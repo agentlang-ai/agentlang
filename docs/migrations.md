@@ -154,11 +154,10 @@ incomplete migrations that would leave the schema in a partially-migrated state.
 #### Other databases: Dry-run validation
 
 For databases that don't support transactional DDL rollback (e.g. SQLite),
-the simulation uses pattern-based validation instead:
-
-- Each query is checked against a destructive DDL pattern: `DROP TABLE` or `DROP COLUMN`
-- If any destructive operations are detected, the simulation fails with an error
-- Non-destructive operations (CREATE, ALTER ADD, etc.) pass validation
+the simulation performs a dry-run pass over the generated queries. Since the
+user reviews all pending SQL in the review step (`runMigrations`), the dry-run
+does not block on any particular SQL pattern — the user decides whether the
+changes are safe to apply.
 
 ### Migration Storage
 

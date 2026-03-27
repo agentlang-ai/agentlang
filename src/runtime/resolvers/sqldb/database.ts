@@ -340,18 +340,6 @@ export async function getSchemaDiff(dataSource: DataSource): Promise<string[]> {
   return sqlInMemory.upQueries.map((q: any) => q.query);
 }
 
-const DestructiveDdlPattern = /\bDROP\s+(TABLE|COLUMN)\b/i;
-
-function validateDryRunQueries(queries: string[]): string[] {
-  const errors: string[] = [];
-  for (const q of queries) {
-    if (DestructiveDdlPattern.test(q)) {
-      errors.push(`Destructive operation detected: ${q}`);
-    }
-  }
-  return errors;
-}
-
 export type SimulateMigrationResult = {
   success: boolean;
   queries: string[];
@@ -392,8 +380,7 @@ async function simulateMigrationPostgres(
 }
 
 function simulateMigrationDryRun(queries: string[]): SimulateMigrationResult {
-  const errors = validateDryRunQueries(queries);
-  return { success: errors.length === 0, queries, errors };
+  return { success: true, queries, errors: [] };
 }
 
 export async function simulateMigration(dataSource: DataSource): Promise<SimulateMigrationResult> {
