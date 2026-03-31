@@ -1108,7 +1108,12 @@ export async function resendConfirmationCodeUser(
 
 export async function forgotPasswordUser(username: string, env: Environment): Promise<Result> {
   try {
-    await fetchAuthImpl().forgotPassword(username.toLowerCase(), env);
+    const email = username.toLowerCase();
+    const allowed = await fetchAuthImpl().userExistsInIdentityProvider(email, env);
+    if (!allowed) {
+      throw new UserNotFoundError('Email not registered');
+    }
+    await fetchAuthImpl().forgotPassword(email, env);
     return { status: 'ok', message: 'Password reset code sent' };
   } catch (err: any) {
     logger.error(`Forgot password failed for ${username}: ${err.message}`);

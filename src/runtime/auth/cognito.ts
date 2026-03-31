@@ -451,6 +451,43 @@ export class CognitoAuth implements AgentlangAuth {
     }
   }
 
+  async userExistsInIdentityProvider(username: string, env: Environment): Promise<boolean> {
+    const email = username.toLowerCase();
+    const localUser = await findUserByEmail(email, env);
+    if (
+      localUser != null &&
+      localUser !== false &&
+      !(Array.isArray(localUser) && localUser.length === 0)
+    ) {
+      return true;
+    }
+
+    const poolId = this.config.get('UserPoolId');
+    if (!poolId || !isNodeEnv) {
+      return false;
+    }
+
+    try {
+      const client = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION || 'us-west-2',
+      });
+      const command = new AdminGetUserCommand({
+        UserPoolId: poolId,
+        Username: email,
+      });
+      await client.send(command);
+      return true;
+    } catch (err: any) {
+      if (err.name === 'UserNotFoundException') {
+        return false;
+      }
+      logger.error(
+        `userExistsInIdentityProvider failed for ${email}: ${sanitizeErrorMessage(err.message)}`
+      );
+      throw err;
+    }
+  }
+
   async forgotPassword(username: string, _env: Environment): Promise<void> {
     try {
       const client = new CognitoIdentityProviderClient({
