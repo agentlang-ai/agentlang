@@ -45,6 +45,8 @@ export interface AgentlangAuth {
   confirmSignup(username: string, confirmationCode: string, env: Environment): Promise<void>;
   resendConfirmationCode(username: string, env: Environment): Promise<void>;
   forgotPassword(username: string, env: Environment): Promise<void>;
+  /** True if the email exists locally (findUserByEmail) or in the identity provider (e.g. Cognito). */
+  userExistsInIdentityProvider(username: string, env: Environment): Promise<boolean>;
   confirmForgotPassword(
     username: string,
     confirmationCode: string,
