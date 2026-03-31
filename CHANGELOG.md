@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.10.7](https://github.com/agentlang-ai/agentlang/compare/0.10.6...0.10.7) (2026-03-31)
+
+### Changes
+
+*  forgot password with invalid email (issue #648) (#650) ([be504e6](https://github.com/agentlang-ai/agentlang/commit/be504e6e0c163620ffa67e8007e5d59be28f0bc4)) - @muazzam0x48
+* fix number syntax and json lists (#649) ([19121f4](https://github.com/agentlang-ai/agentlang/commit/19121f415e42e0b0fbf66afb3667ca9fcff1133c)) - @muazzam0x48
+* Migration sentry (#647) ([378e973](https://github.com/agentlang-ai/agentlang/commit/378e973ba8103db7fce80c692c3dbacd20399cd2)) - @vijayfractl
+* fix self-ref resolution (#646) ([2b552b4](https://github.com/agentlang-ai/agentlang/commit/2b552b4b4caa381f3e876c7fbe4c5ab472644aec)) - @vijayfractl
+* support self-refs in queries (#645) ([c1b5040](https://github.com/agentlang-ai/agentlang/commit/c1b5040841117c3790391a3b8ad4d51db112b8dd)) - @vijayfractl
+
+---
 ## [0.10.6](https://github.com/agentlang-ai/agentlang/compare/0.10.5...0.10.6) (2026-03-24)
 
 ### Changes
