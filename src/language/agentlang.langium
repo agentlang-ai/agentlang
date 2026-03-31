@@ -257,7 +257,8 @@ NotExpr: 'not' '(' ne=Expr ')';
 
 Boolean returns string: 'true' | 'false';
 
-Decimal returns number: INT | INT '.' INT;
+// Single-terminal decimals so -0.5 is not split into INT(-0) '.' INT(5), which stringifies as "0.5" and drops the sign.
+Decimal returns number: DECIMAL_NUMBER | INT;
 
 QueryId returns string: QualifiedName | QualifiedName '?';
 
@@ -280,6 +281,9 @@ terminal QUOTED_STRING returns string:  '"' ( '\\' . | !('\\' | '"' | '\r' | '\n
 terminal TICK_QUOTED_STRING returns string:  '`' ( '\\' . | !('\\' | '`' | '\r' | '\n') | '\r'? '\n' )* '`';
 
 STRING returns string: QUOTED_STRING | TICK_QUOTED_STRING;
+
+// Floats must lex before INT so -0.5 is one token (see Decimal).
+terminal DECIMAL_NUMBER returns number: /-?(?:[0-9]+\.[0-9]*|[0-9]*\.[0-9]+)/;
 
 // recognize an Integer (but represented via a 'number' type)
 terminal INT returns number: /-?[0-9]+/;

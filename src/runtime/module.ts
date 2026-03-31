@@ -3839,14 +3839,37 @@ export class Instance {
   normalizeAttributes(attrs: InstanceAttributes): InstanceAttributes {
     attrs.forEach((v: any, k: string) => {
       const attrSpec = this.record.schema.get(k);
-      if (attrSpec) {
-        const isstr = isString(v);
-        if ((isArrayAttribute(attrSpec) || isObjectAttribute(attrSpec)) && isstr) {
-          const obj: any = JSON.parse(v);
-          attrs.set(k, obj);
-        } else if (isNumericAttribute(attrSpec) && isstr) {
-          attrs.set(k, Number(v));
-        }
+      if (!attrSpec) {
+        return;
+      }
+
+      let next = v;
+
+      if (isString(next) && (isArrayAttribute(attrSpec) || isObjectAttribute(attrSpec))) {
+        next = JSON.parse(next);
+      }
+
+      // Array of record/object (e.g. RangeSettings[]): drivers may return each element as a JSON string.
+      if (isArrayAttribute(attrSpec) && isObjectAttribute(attrSpec) && Array.isArray(next)) {
+        next = next.map((elem: any) => {
+          if (isString(elem)) {
+            const t = elem.trim();
+            if (t.startsWith('{') || t.startsWith('[')) {
+              try {
+                return JSON.parse(elem);
+              } catch {
+                return elem;
+              }
+            }
+          }
+          return elem;
+        });
+      }
+
+      if (isNumericAttribute(attrSpec) && isString(v) && !isArrayAttribute(attrSpec)) {
+        attrs.set(k, Number(v));
+      } else {
+        attrs.set(k, next);
       }
     });
     return attrs;

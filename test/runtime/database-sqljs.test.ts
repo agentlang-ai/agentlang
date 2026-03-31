@@ -57,6 +57,18 @@ describe('SQL.js Database Tests', () => {
     assert.deepEqual(rows[0].lookup('nums'), [-2, 4, 5]);
   });
 
+  test('should round-trip Number[] array attributes including negative fractions', async () => {
+    await doInternModule('SqlJsNumArrays', `entity NumArrayHolder {id Int @id, nums Number[]}`);
+
+    await parseAndEvaluateStatement(
+      `{SqlJsNumArrays/NumArrayHolder {id 1, nums [-0.5, -0.7, -100.5]}}`
+    );
+
+    const rows = (await parseAndEvaluateStatement(`{SqlJsNumArrays/NumArrayHolder? {}}`)) as Instance[];
+    assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0].lookup('nums'), [-0.5, -0.7, -100.5]);
+  });
+
   test('should create and query simple entities', async () => {
     await doInternModule('SqlJsBasic', `entity Product {id Int @id, name String, price Float}`);
 
