@@ -737,6 +737,7 @@ function humanizeTokenName(token: string): string {
     ID: 'a name',
     NAME: 'a name',
     INT: 'a number',
+    DECIMAL_NUMBER: 'a decimal number',
     STRING: 'a string',
     QUOTED_STRING: 'a quoted string',
     TICK_QUOTED_STRING: 'a backtick-quoted string',

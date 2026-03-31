@@ -6989,27 +6989,11 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
             "arguments": []
           },
           {
-            "$type": "Group",
-            "elements": [
-              {
-                "$type": "RuleCall",
-                "rule": {
-                  "$ref": "#/rules@135"
-                },
-                "arguments": []
-              },
-              {
-                "$type": "Keyword",
-                "value": "."
-              },
-              {
-                "$type": "RuleCall",
-                "rule": {
-                  "$ref": "#/rules@135"
-                },
-                "arguments": []
-              }
-            ]
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@136"
+            },
+            "arguments": []
           }
         ]
       },
@@ -7540,6 +7524,21 @@ export const AgentlangGrammar = (): Grammar => loadedAgentlangGrammar ?? (loaded
       "entry": false,
       "fragment": false,
       "parameters": []
+    },
+    {
+      "$type": "TerminalRule",
+      "name": "DECIMAL_NUMBER",
+      "type": {
+        "$type": "ReturnType",
+        "name": "number"
+      },
+      "definition": {
+        "$type": "RegexToken",
+        "regex": "/-?(?:[0-9]+\\\\.[0-9]*|[0-9]*\\\\.[0-9]+)/",
+        "parenthesized": false
+      },
+      "fragment": false,
+      "hidden": false
     },
     {
       "$type": "TerminalRule",

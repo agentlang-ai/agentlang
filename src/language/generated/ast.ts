@@ -3,13 +3,14 @@
  * DO NOT EDIT MANUALLY!
  ******************************************************************************/
 
- 
+/* eslint-disable */
 import * as langium from 'langium';
 
 export const AgentlangTerminals = {
     ID: /(?:[_a-zA-Z][\w_]*)(\/(?:[_a-zA-Z][\w_]*))?/,
     QUOTED_STRING: /"(\\(?:[\s\S])|(?:(?!(\\|"|\r|\n))[\s\S]*?)|\r?\n)*"/,
     TICK_QUOTED_STRING: /`(\\(?:[\s\S])|(?:(?!(\\|`|\r|\n))[\s\S]*?)|\r?\n)*`/,
+    DECIMAL_NUMBER: /-?(?:[0-9]+\.[0-9]*|[0-9]*\.[0-9]+)/,
     INT: /-?[0-9]+/,
     WS: /\s+/,
     ML_COMMENT: /\/\*[\s\S]*?\*\//,
