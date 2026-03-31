@@ -361,6 +361,7 @@ enum RuntimeModeTag {
   TEST,
   INIT_SCHEMA,
   RUN_MIGRATION,
+  APPLY_MIGRATION,
   UNDO_MIGRATION,
   GENERATE_MIGRATION,
 }
@@ -385,6 +386,10 @@ export function setRuntimeMode_init_schema() {
 
 export function setRuntimeMode_migration() {
   RuntimeMode = RuntimeModeTag.RUN_MIGRATION;
+}
+
+export function setRuntimeMode_apply_migration() {
+  RuntimeMode = RuntimeModeTag.APPLY_MIGRATION;
 }
 
 export function setRuntimeMode_undo_migration() {
@@ -417,6 +422,10 @@ export function isRuntimeMode_migration(): boolean {
 
 export function isRuntimeMode_generate_migration(): boolean {
   return RuntimeMode === RuntimeModeTag.GENERATE_MIGRATION;
+}
+
+export function isRuntimeMode_apply_migration(): boolean {
+  return RuntimeMode === RuntimeModeTag.APPLY_MIGRATION;
 }
 
 export function isRuntimeMode_undo_migration(): boolean {

@@ -702,10 +702,14 @@ export async function saveMigration(
           .join(SqlSep)
       );
     }
-    const inst: Instance = await parseAndEvaluateStatement(`{agentlang/Migration {
+    const inst: Instance = await parseAndEvaluateStatement(
+      `{agentlang/Migration {
         appVersion "${version}",
         ups "${ups_str}",
-        downs "${downs_str}"}}`);
+        downs "${downs_str}"}}`,
+      undefined,
+      env
+    );
     if (isInstanceOfType(inst, 'agentlang/Migration') && inst.lookup('appVersion') === version) {
       await env.commitAllTransactions();
       return true;

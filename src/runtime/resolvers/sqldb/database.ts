@@ -33,10 +33,12 @@ import {
   DeletedFlagAttributeName,
   ForceReadPermFlag,
   getUserTenantId,
+  isRuntimeMode_apply_migration,
   isRuntimeMode_dev,
   isRuntimeMode_generate_migration,
   isRuntimeMode_init_schema,
   isRuntimeMode_migration,
+  isRuntimeMode_prod,
   isRuntimeMode_test,
   isRuntimeMode_undo_migration,
   PathAttributeName,
@@ -333,14 +335,80 @@ async function execMigrationSql(dataSource: DataSource, sql: string[]) {
   await queryRunner.commitTransaction();
 }
 
+export async function getSchemaDiff(dataSource: DataSource): Promise<string[]> {
+  const sqlInMemory = await dataSource.driver.createSchemaBuilder().log();
+  return sqlInMemory.upQueries.map((q: any) => q.query);
+}
+
+export type SimulateMigrationResult = {
+  success: boolean;
+  queries: string[];
+  errors: string[];
+};
+
+async function simulateMigrationPostgres(
+  dataSource: DataSource,
+  queries: string[]
+): Promise<SimulateMigrationResult> {
+  const queryRunner = dataSource.createQueryRunner();
+  const errors: string[] = [];
+  try {
+    await queryRunner.startTransaction();
+    for (const q of queries) {
+      await queryRunner.query(q);
+    }
+  } catch (err: any) {
+    errors.push(`Migration SQL failed: ${err.message}`);
+  } finally {
+    // Always rollback — this is a simulation
+    try {
+      await queryRunner.rollbackTransaction();
+    } catch {
+      // already rolled back or connection lost
+    }
+    await queryRunner.release();
+  }
+  return { success: errors.length === 0, queries, errors };
+}
+
+function simulateMigrationDryRun(queries: string[]): SimulateMigrationResult {
+  return { success: true, queries, errors: [] };
+}
+
+export async function simulateMigration(dataSource: DataSource): Promise<SimulateMigrationResult> {
+  const queries = await getSchemaDiff(dataSource);
+  if (queries.length === 0) {
+    return { success: true, queries: [], errors: [] };
+  }
+  if (dataSource.options.type === 'postgres') {
+    return simulateMigrationPostgres(dataSource, queries);
+  }
+  return simulateMigrationDryRun(queries);
+}
+
+async function validateSchemaInProd(dataSource: DataSource) {
+  if (!isRuntimeMode_prod()) return;
+  const pendingQueries = (await getSchemaDiff(dataSource)).filter(
+    q => !q.match(/DROP CONSTRAINT\s+"FK_/i)
+  );
+  if (pendingQueries.length > 0) {
+    const pending = pendingQueries.join('\n  ');
+    throw new Error(
+      `Schema mismatch detected: the app model does not match the database schema. ` +
+        `Run migrations before starting in production mode.\n  Pending changes:\n  ${pending}`
+    );
+  }
+}
+
 async function maybeHandleMigrations(dataSource: DataSource) {
   const is_migration = isRuntimeMode_migration();
+  const is_apply_migration = isRuntimeMode_apply_migration();
   const is_undo_migration = isRuntimeMode_undo_migration();
   const is_gen_migration = isRuntimeMode_generate_migration();
-  if (is_migration || is_undo_migration || is_gen_migration) {
+  if (is_migration || is_apply_migration || is_undo_migration || is_gen_migration) {
     const sqlInMemory = await dataSource.driver.createSchemaBuilder().log();
     let ups: string[] | undefined;
-    if (is_migration || is_gen_migration) {
+    if (is_migration || is_apply_migration || is_gen_migration) {
       ups = new Array<string>();
       sqlInMemory.upQueries.forEach(upQuery => {
         ups?.push(upQuery.query.replaceAll('`', '\\`'));
@@ -354,8 +422,37 @@ async function maybeHandleMigrations(dataSource: DataSource) {
       });
     }
     if (is_migration && ups?.length) {
+      // Review-only: display pending changes and simulation result, but do not apply
+      logger.info('Pending migration queries:');
+      ups.forEach((q, i) => {
+        logger.info(`  [${i + 1}] ${q}`);
+        console.log(q + ';');
+      });
+      const simulation = await simulateMigration(dataSource);
+      if (!simulation.success) {
+        logger.error(`Migration simulation failed:\n  ${simulation.errors.join('\n  ')}`);
+        throw new Error(
+          `Migration aborted: simulation failed.\n  ${simulation.errors.join('\n  ')}`
+        );
+      }
+      logger.info('Migration simulation passed.');
+      logger.info('Run `applyMigration` to apply these changes.');
+    } else if (is_migration && (!ups || ups.length === 0)) {
+      logger.info('No pending migration changes detected.');
+    } else if (is_apply_migration && ups?.length) {
+      const simulation = await simulateMigration(dataSource);
+      if (!simulation.success) {
+        logger.error(`Migration simulation failed:\n  ${simulation.errors.join('\n  ')}`);
+        throw new Error(
+          `Migration aborted: simulation failed.\n  ${simulation.errors.join('\n  ')}`
+        );
+      }
+      logger.info('Migration simulation passed, applying changes...');
       await saveMigration(getAppSpec().version, ups, downs);
       await execMigrationSql(dataSource, ups);
+      logger.info('Migration applied successfully.');
+    } else if (is_apply_migration && (!ups || ups.length === 0)) {
+      logger.info('No pending migration changes to apply.');
     } else if (is_undo_migration && downs?.length) {
       await saveMigration(getAppSpec().version, ups, downs);
       await execMigrationSql(dataSource, downs);
@@ -490,6 +587,7 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
           }
         }
       }
+      await validateSchemaInProd(defaultDataSource);
       const vectEnts = ormScm.vectorEntities.map((es: EntitySchema) => {
         return es.options.name;
       });

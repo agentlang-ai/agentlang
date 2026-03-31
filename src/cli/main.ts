@@ -35,6 +35,7 @@ import {
   isRuntimeMode_prod,
   isRuntimeMode_test,
   setInternDynamicModuleFn,
+  setRuntimeMode_apply_migration,
   setRuntimeMode_generate_migration,
   setRuntimeMode_init_schema,
   setRuntimeMode_migration,
@@ -91,8 +92,15 @@ export default function (): void {
     .command('runMigrations')
     .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
     .option('-c, --config <config>', 'configuration file')
-    .description('Automatically perform migration of the schema')
+    .description('Review pending migration changes (does not apply them)')
     .action(runMigrations);
+
+  program
+    .command('applyMigration')
+    .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+    .option('-c, --config <config>', 'configuration file')
+    .description('Apply pending migration after review')
+    .action(applyMigration);
 
   program
     .command('undoLastMigration')
@@ -258,7 +266,7 @@ export const runModule = async (fileName: string, releaseDb: boolean = false): P
     }
   } finally {
     if (releaseDb === true) {
-      resetDefaultDatabase();
+      await resetDefaultDatabase();
     }
   }
 };
@@ -270,6 +278,11 @@ async function initSchema(fileName: string) {
 
 async function runMigrations(fileName: string) {
   setRuntimeMode_migration();
+  await runModule(fileName, true);
+}
+
+async function applyMigration(fileName: string) {
+  setRuntimeMode_apply_migration();
   await runModule(fileName, true);
 }
 
