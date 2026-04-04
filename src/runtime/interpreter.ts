@@ -1847,7 +1847,13 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
             for (let i = 0; i < lastRes.length; ++i) {
               await computeExprAttributes(lastRes[i], crud.body?.attributes, attrs, env);
               env.attributes.set('__patch', attrs);
-              await runPreUpdateEvents(lastRes[i], env);
+              const mergedAttrsForHook = newInstanceAttributes();
+              lastRes[i].attributes.forEach((v: any, k: string) => mergedAttrsForHook.set(k, v));
+              attrs.forEach((v: any, k: string) => mergedAttrsForHook.set(k, v));
+              await runPreUpdateEvents(
+                Instance.newWithAttributes(lastRes[i], mergedAttrsForHook),
+                env
+              );
               await setMetaAttributes(attrs, env, true);
               const finalInst: Instance = await resolver.updateInstance(lastRes[i], attrs);
               await runPostUpdateEvents(finalInst, lastRes[i], env);
