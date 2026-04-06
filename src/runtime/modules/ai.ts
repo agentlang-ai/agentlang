@@ -1298,14 +1298,20 @@ export async function findAgentByName(name: string, env: Environment): Promise<A
 
 export async function findProviderForLLM(
   llmName: string,
-  env: Environment
+  _env: Environment
 ): Promise<AgentServiceProvider> {
+  // LLM rows are upserted during startup via runStandaloneStatements on GlobalEnvironment.
+  // Agent invocations often run under a child env (e.g. exec-graph sets active user from the
+  // event). Querying with that env can use a different tenant than bootstrap, so the LLM row
+  // is invisible. Use a child of GlobalEnvironment so lookup matches inserted configuration.
+  const lookupEnv = new Environment('llm-provider-lookup', GlobalEnvironment);
+
   let p: AgentServiceProvider | undefined = ProviderDb.get(llmName);
   if (p === undefined) {
     const result: Instance[] = await parseAndEvaluateStatement(
       `{${CoreAIModuleName}/${LlmEntityName} {name? "${llmName}"}}`,
       undefined,
-      env
+      lookupEnv
     );
     if (result.length > 0) {
       const llm: Instance = result[0];

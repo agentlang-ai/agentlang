@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import { doInternModule } from '../util.js';
-import { GlobalEnvironment, parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
+import { Environment, GlobalEnvironment, parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import { setLocalEnv } from '../../src/runtime/auth/defs.js';
+import { findProviderForLLM } from '../../src/runtime/modules/ai.js';
 
 describe('LLM Service Selection', () => {
   beforeAll(() => {
@@ -206,5 +207,68 @@ describe('LLM Service Selection', () => {
 
     const config = llm.lookup('config');
     expect(config.get ? config.get('model') : config['model']).toBe('claude-3-sonnet-20241022');
+  });
+
+  test('named LLM + @public myHelloAgent: provider resolve and live invoke when API key is set', async () => {
+    const envKey = process.env.AGENTLANG_ANTHROPIC_KEY;
+    const useLiveAnthropic = Boolean(
+      envKey && envKey !== 'test-anthropic-key' && envKey.length > 12
+    );
+    if (useLiveAnthropic) {
+      setLocalEnv('AGENTLANG_ANTHROPIC_KEY', envKey!);
+    }
+
+    await doInternModule(
+      'TestClaudeNamedLLM',
+      `
+      {agentlang.ai/LLM {
+        name "claude",
+        service "anthropic",
+        config {
+          "model": "claude-sonnet-4-20250514",
+          "max_tokens": 4096,
+          "stream": false
+        }
+      }, @upsert}
+
+      @public agent myHelloAgent {
+        llm "claude",
+        role "You are to greet me with hello"
+      }
+    `
+    );
+
+    const childEnv = new Environment('jwt-like-child', GlobalEnvironment);
+    childEnv.setActiveUser('some-end-user-id');
+
+    const provider = await findProviderForLLM('claude', childEnv);
+    expect(provider).toBeDefined();
+
+    if (useLiveAnthropic) {
+      const response = await parseAndEvaluateStatement(
+        `{TestClaudeNamedLLM/myHelloAgent {message "Please greet me in one short sentence."}}`,
+        undefined,
+        GlobalEnvironment
+      );
+      expect(typeof response).toBe('string');
+      expect((response as string).length).toBeGreaterThan(0);
+      expect((response as string).toLowerCase()).toMatch(/hello|hi|hey/);
+    }
+  });
+
+  test('findProviderForLLM fails clearly when LLM entity was never upserted', async () => {
+    await doInternModule(
+      'TestMissingLLMRow',
+      `
+      @public agent orphanAgent {
+        llm "no_such_llm_registered",
+        instruction "test"
+      }
+    `
+    );
+
+    await expect(findProviderForLLM('no_such_llm_registered', GlobalEnvironment)).rejects.toThrow(
+      /no agentlang\.ai\/LLM row/
+    );
   });
 });
