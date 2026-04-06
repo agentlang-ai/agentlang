@@ -1330,7 +1330,10 @@ export async function findProviderForLLM(
   if (p) {
     return p;
   } else {
-    throw new Error(`Failed to load provider for ${llmName}`);
+    throw new Error(
+      `Failed to load provider for ${llmName}: no agentlang.ai/LLM row named "${llmName}". ` +
+        `Define it with {agentlang.ai/LLM { name "${llmName}", service "openai"|"anthropic", ... }, @upsert} in a loaded module (not config.al, which is excluded from automatic loading), or add it under agentlang.ai in agentlang config JSON.`
+    );
   }
 }
 
