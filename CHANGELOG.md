@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.8](https://github.com/agentlang-ai/agentlang/compare/0.10.7...0.10.8) (2026-04-07)
+
+### Changes
+
+* fix anthropic provider error (#653) ([d0d9dbc](https://github.com/agentlang-ai/agentlang/commit/d0d9dbc7906b094a79a2772fad91d364394d4154)) - @muazzam0x48
+* @before update fix for list data (#652) ([fecb442](https://github.com/agentlang-ai/agentlang/commit/fecb44201e5e346d546cc9ba51643a1e36c752b1)) - @muazzam0x48
+
+---
 ## [0.10.7](https://github.com/agentlang-ai/agentlang/compare/0.10.6...0.10.7) (2026-03-31)
 
 ### Changes
