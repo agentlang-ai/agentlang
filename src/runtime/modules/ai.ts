@@ -1286,8 +1286,16 @@ async function parseHelper(stmt: string, env: Environment): Promise<any> {
   return env.getLastResult();
 }
 
-export async function findAgentByName(name: string, env: Environment): Promise<AgentInstance> {
-  const result = await parseHelper(`{${AgentFqName} {name? "${name}"}}`, env);
+export async function findAgentByName(name: string, _env: Environment): Promise<AgentInstance> {
+  // Match findProviderForLLM: Agent rows are upserted at load under GlobalEnvironment / bootstrap
+  // tenant. A request env (e.g. after setActiveEvent) may not see those rows; use a GlobalEnvironment
+  // child for the lookup.
+  const lookupEnv = new Environment('agent-by-name-lookup', GlobalEnvironment);
+  const result = await parseAndEvaluateStatement(
+    `{${AgentFqName} {name? "${name}"}}`,
+    undefined,
+    lookupEnv
+  );
   if (result instanceof Array && result.length > 0) {
     const agentInstance: Instance = result[0];
     return AgentInstance.FromInstance(agentInstance);

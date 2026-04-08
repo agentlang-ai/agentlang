@@ -34,6 +34,7 @@ import {
 import {
   Agent,
   defineAgentEvent,
+  eventAgentName,
   Event,
   getOneOfRef,
   getRelationship,
@@ -2348,7 +2349,8 @@ export async function handleAgentInvocation(
   agentEventInst: Instance,
   env: Environment
 ): Promise<void> {
-  const agent: AgentInstance = await findAgentByName(agentEventInst.name, env);
+  const agentLookupName = eventAgentName(agentEventInst) ?? agentEventInst.name;
+  const agent: AgentInstance = await findAgentByName(agentLookupName, env);
   if (agent.role) {
     env.setAssumedRole(agent.role);
   }

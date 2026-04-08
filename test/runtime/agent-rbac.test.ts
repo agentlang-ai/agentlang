@@ -1,5 +1,5 @@
 import { assert, describe, test } from 'vitest';
-import { assignUserToRole, createUser } from '../../src/runtime/modules/auth.js';
+import { assignUserToRole, createRole, createUser } from '../../src/runtime/modules/auth.js';
 import { Environment, parseAndEvaluateStatement } from '../../src/runtime/interpreter.js';
 import { isInstanceOfType } from '../../src/runtime/module.js';
 import { doInternModule, expectError } from '../util.js';
@@ -144,6 +144,46 @@ describe('Agent RBAC role enforcement', () => {
       assert(
         isInstanceOfType(r1, 'WithRoleReplace/Resource'),
         'withRole(editor) should allow create'
+      );
+    });
+  });
+
+  test('real admin role bypasses assumedRole narrowing', async () => {
+    await callWithRbac(async () => {
+      await doInternModule(
+        'AgentRbacAdmin',
+        `entity Note {
+          id Int @id,
+          body String,
+          @rbac [(roles: [reader], allow: [read]),
+                 (roles: [writer], allow: [create, read, update])]
+        }`
+      );
+
+      const userId = crypto.randomUUID();
+      const env = new Environment();
+      async function setup() {
+        await createUser(userId, 'admin-agent@test.com', 'Admin', 'User', env);
+        await createRole('admin', env);
+        assert(
+          (await assignUserToRole(userId, 'admin', env)) === true,
+          'assign admin role'
+        );
+      }
+      await env.callInTransaction(setup);
+
+      const envWithRole = new Environment('agent-env-admin');
+      envWithRole.setActiveUser(userId);
+      envWithRole.setAssumedRole('reader');
+
+      const n1 = await parseAndEvaluateStatement(
+        `{AgentRbacAdmin/Note {id 1, body "admin create under reader assumedRole"}}`,
+        userId,
+        envWithRole
+      );
+      assert(
+        isInstanceOfType(n1, 'AgentRbacAdmin/Note'),
+        'Admin should create despite reader assumedRole'
       );
     });
   });
