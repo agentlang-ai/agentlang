@@ -91,6 +91,7 @@ import {
   ScratchModuleName,
   splitRefs,
 } from './util.js';
+import { processExcelConfig } from './excel.js';
 import { getFileSystem, toFsPath, readFile, readdir, exists } from '../utils/fs-utils.js';
 import { URI } from 'vscode-uri';
 import { AstNode, LangiumCoreServices, LangiumDocument } from 'langium';
@@ -409,17 +410,27 @@ function isStringContent(content: string): boolean {
   return content.includes('{');
 }
 
-export async function loadAppConfig(configDirOrContent: string): Promise<Config> {
+export async function loadAppConfig(
+  configDirOrContent: string,
+  options?: { basePath?: string }
+): Promise<Config> {
   const stringContent = isStringContent(configDirOrContent);
+  let basePath = options?.basePath;
+  let configDir: string | undefined;
 
   let cfgObj: any = undefined;
 
   if (!stringContent) {
+    const configPath = configDirOrContent;
     const fs = await getFileSystem();
-    const alCfgFile = `${configDirOrContent}${path.sep}config.al`;
+    configDir = configPath.endsWith('.al') ? path.dirname(configPath) : configPath;
+    basePath = basePath ?? configDir;
+    const alCfgFile = `${configDir}${path.sep}config.al`;
     if (await fs.exists(alCfgFile)) {
       configDirOrContent = await fs.readFile(alCfgFile);
     }
+  } else {
+    basePath = basePath ?? (isNodeEnv ? process.cwd() : '/');
   }
 
   if (canParse(configDirOrContent)) {
@@ -428,8 +439,10 @@ export async function loadAppConfig(configDirOrContent: string): Promise<Config>
 
   try {
     let cfg = cfgObj
-      ? await configFromObject(cfgObj)
-      : await loadRawConfig(`${configDirOrContent}${path.sep}app.config.json`);
+      ? await configFromObject(cfgObj, true, basePath)
+      : await loadRawConfig(
+          configDir ? `${configDir}${path.sep}app.config.json` : 'app.config.json'
+        );
 
     const envAppConfig = typeof process !== 'undefined' ? process.env.APP_CONFIG : undefined;
     if (envAppConfig) {
@@ -1341,9 +1354,10 @@ export async function loadRawConfig(
   }
 }
 
-function filterConfigEntityInstances(rawConfig: any): [any, Array<any>] {
+function filterConfigEntityInstances(rawConfig: any): [any, Array<any>, any[]] {
   let cfg: any = undefined;
   const insts = new Array<any>();
+  let excelEntries: Array<{ url: string; sheet?: string; entityName?: string }> = [];
   const oldFormat = Object.keys(rawConfig).some((k: string) => {
     return k === 'store' || k === 'service';
   });
@@ -1352,6 +1366,12 @@ function filterConfigEntityInstances(rawConfig: any): [any, Array<any>] {
     Object.entries(rawConfig).forEach(([key, value]: [string, any]) => {
       if (key === 'agentlang') {
         cfg = value;
+        const excel = value?.excel;
+        if (Array.isArray(excel)) {
+          excelEntries = excel;
+        }
+      } else if (key === 'excel' && Array.isArray(value)) {
+        excelEntries = value;
       } else {
         if (value instanceof Array) {
           value.forEach((v: any) => {
@@ -1363,16 +1383,24 @@ function filterConfigEntityInstances(rawConfig: any): [any, Array<any>] {
       }
     });
     if (cfg === undefined) cfg = {};
-    return [cfg, insts];
+    return [cfg, insts, excelEntries];
   } else {
-    return [rawConfig, insts];
+    return [rawConfig, insts, excelEntries];
   }
 }
 
-async function configFromObject(cfgObj: any, validate: boolean = true): Promise<any> {
+async function configFromObject(
+  cfgObj: any,
+  validate: boolean = true,
+  basePath?: string
+): Promise<any> {
   const rawConfig = preprocessRawConfig(cfgObj);
   if (validate && rawConfig) {
-    const [cfg, insts] = filterConfigEntityInstances(rawConfig);
+    const [cfg, insts, excelEntries] = filterConfigEntityInstances(rawConfig);
+    if (excelEntries.length > 0 && basePath) {
+      await processExcelConfig(excelEntries, basePath);
+      if (cfg?.excel) delete cfg.excel;
+    }
     const pats = new Array<string>();
     insts.forEach((v: any) => {
       const n = Object.keys(v)[0];
