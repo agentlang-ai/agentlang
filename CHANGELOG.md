@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.9](https://github.com/agentlang-ai/agentlang/compare/0.10.8...0.10.9) (2026-04-08)
+
+### Changes
+
+* fix multiple agents in workflow & admin role issues (#655) ([bdafcb1](https://github.com/agentlang-ai/agentlang/commit/bdafcb103011c7152c28c937e8db9a54a0a1f1ed)) - @muazzam0x48
+
+---
 ## [0.10.8](https://github.com/agentlang-ai/agentlang/compare/0.10.7...0.10.8) (2026-04-07)
 
 ### Changes
