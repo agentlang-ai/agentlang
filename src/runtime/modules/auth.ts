@@ -934,6 +934,11 @@ async function updatePermissionCacheForRole(role: string, env: Environment) {
   }
 }
 
+/** Matches the built-in superuser role name (case-insensitive). */
+function isGlobalAdminRoleName(role: string | undefined | null): boolean {
+  return typeof role === 'string' && role.length > 0 && role.toLowerCase() === 'admin';
+}
+
 export async function userHasPermissions(
   userId: string,
   resourceFqName: string,
@@ -959,6 +964,10 @@ export async function userHasPermissions(
     }
     UserRoleCache.set(userId, userRoles);
   }
+  // Real admin users keep full access even when agents/workflows set assumedRole (narrowing).
+  if (userRoles?.some((r: string) => isGlobalAdminRoleName(r))) {
+    return true;
+  }
   let tempRoles = userRoles;
   const assumedRole = env.getAssumedRole();
   if (assumedRole) {
@@ -967,12 +976,7 @@ export async function userHasPermissions(
       await updatePermissionCacheForRole(assumedRole, env);
     }
   }
-  if (
-    tempRoles &&
-    tempRoles.find((role: string) => {
-      return role === 'admin';
-    })
-  ) {
+  if (tempRoles?.some((r: string) => isGlobalAdminRoleName(r))) {
     return true;
   }
   const [c, r, u, d] = [

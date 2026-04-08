@@ -80,6 +80,7 @@ import {
   asStringLiteralsMap,
   escapeSpecialChars,
   findRbacSchema,
+  isCoreModule,
   isFqName,
   makeFqName,
   maybeExtends,
@@ -105,6 +106,7 @@ import {
   parseStatement,
   parseWorkflow,
 } from '../language/parser.js';
+import { clearExecutionGraphCache } from './exec-graph-cache.js';
 import { logger } from './logger.js';
 import {
   Environment,
@@ -1305,6 +1307,9 @@ export async function internModule(
   moduleFileName?: string
 ): Promise<Module> {
   const mn = module.name;
+  if (!isCoreModule(mn)) {
+    clearExecutionGraphCache();
+  }
   const r = addModule(mn);
   // Process imports sequentially to ensure all JS modules are loaded before definitions
   for (const imp of module.imports as Import[]) {

@@ -56,10 +56,10 @@ import {
   makeFqName,
   nameToPath,
 } from './util.js';
-
-const GraphCache = new Map<string, ExecGraph>();
+import { getExecutionGraphCache } from './exec-graph-cache.js';
 
 export async function generateExecutionGraph(eventName: string): Promise<ExecGraph | undefined> {
+  const GraphCache = getExecutionGraphCache();
   const cg = GraphCache.get(eventName);
   if (cg) return cg;
   const wf = getWorkflowForEvent(eventName);
