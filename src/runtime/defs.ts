@@ -23,63 +23,96 @@ function asUnauthMessage(obj: string | UnautInfo): string {
   }
 }
 
+/** Optional `agentlangCode` is stripped before passing to `Error` (not a standard ErrorOptions field). */
+export type AgentlangErrorOptions = ErrorOptions & { agentlangCode?: string };
+
+function baseErrorOptions(opts?: AgentlangErrorOptions): ErrorOptions | undefined {
+  if (!opts) return undefined;
+  const { agentlangCode: _c, ...rest } = opts;
+  return Object.keys(rest).length > 0 ? rest : undefined;
+}
+
 export class UnauthorisedError extends Error {
-  constructor(message?: string | UnautInfo, options?: ErrorOptions) {
+  readonly agentlangCode: string;
+  constructor(message?: string | UnautInfo, options?: AgentlangErrorOptions) {
     super(
       message ? asUnauthMessage(message) : 'User not authorised to perform this operation',
-      options
+      baseErrorOptions(options)
     );
+    this.agentlangCode = options?.agentlangCode ?? 'AL_UNAUTHORIZED';
   }
 }
 
 export class BadRequestError extends Error {
-  constructor(message?: string, options?: ErrorOptions) {
-    super(message ? asUnauthMessage(message) : 'BadRequest', options);
+  readonly agentlangCode: string;
+  constructor(message?: string, options?: AgentlangErrorOptions) {
+    super(message ? asUnauthMessage(message) : 'BadRequest', baseErrorOptions(options));
+    this.agentlangCode = options?.agentlangCode ?? 'AL_BAD_REQUEST';
   }
 }
 
 export class UserNotFoundError extends Error {
-  constructor(message?: string, options?: ErrorOptions) {
-    super(message || 'User not found', options);
+  readonly agentlangCode: string;
+  constructor(message?: string, options?: AgentlangErrorOptions) {
+    super(message || 'User not found', baseErrorOptions(options));
+    this.agentlangCode = options?.agentlangCode ?? 'AL_USER_NOT_FOUND';
   }
 }
 
 export class UserNotConfirmedError extends Error {
-  constructor(message?: string, options?: ErrorOptions) {
+  readonly agentlangCode: string;
+  constructor(message?: string, options?: AgentlangErrorOptions) {
     super(
       message || 'User account is not confirmed. Please check your email for verification code.',
-      options
+      baseErrorOptions(options)
     );
+    this.agentlangCode = options?.agentlangCode ?? 'AL_USER_NOT_CONFIRMED';
   }
 }
 
 export class PasswordResetRequiredError extends Error {
-  constructor(message?: string, options?: ErrorOptions) {
-    super(message || 'Password reset is required for this account', options);
+  readonly agentlangCode: string;
+  constructor(message?: string, options?: AgentlangErrorOptions) {
+    super(message || 'Password reset is required for this account', baseErrorOptions(options));
+    this.agentlangCode = options?.agentlangCode ?? 'AL_PASSWORD_RESET_REQUIRED';
   }
 }
 
 export class TooManyRequestsError extends Error {
-  constructor(message?: string, options?: ErrorOptions) {
-    super(message || 'Too many requests. Please try again later.', options);
+  readonly agentlangCode: string;
+  constructor(message?: string, options?: AgentlangErrorOptions) {
+    super(message || 'Too many requests. Please try again later.', baseErrorOptions(options));
+    this.agentlangCode = options?.agentlangCode ?? 'AL_TOO_MANY_REQUESTS';
   }
 }
 
 export class InvalidParameterError extends Error {
-  constructor(message?: string, options?: ErrorOptions) {
-    super(message || 'Invalid parameters provided', options);
+  readonly agentlangCode: string;
+  constructor(message?: string, options?: AgentlangErrorOptions) {
+    super(message || 'Invalid parameters provided', baseErrorOptions(options));
+    this.agentlangCode = options?.agentlangCode ?? 'AL_INVALID_PARAMETER';
   }
 }
 
 export class ExpiredCodeError extends Error {
-  constructor(message?: string, options?: ErrorOptions) {
-    super(message || 'The verification code has expired. Please request a new one.', options);
+  readonly agentlangCode: string;
+  constructor(message?: string, options?: AgentlangErrorOptions) {
+    super(
+      message || 'The verification code has expired. Please request a new one.',
+      baseErrorOptions(options)
+    );
+    this.agentlangCode = options?.agentlangCode ?? 'AL_EXPIRED_CODE';
   }
 }
 
 export class CodeMismatchError extends Error {
-  constructor(message?: string, options?: ErrorOptions) {
-    super(message || 'The verification code is incorrect. Please try again.', options);
+  readonly agentlangCode: string;
+  constructor(message?: string, options?: AgentlangErrorOptions) {
+    super(
+      message || 'The verification code is incorrect. Please try again.',
+      baseErrorOptions(options)
+    );
+    this.agentlangCode = options?.agentlangCode ?? 'AL_CODE_MISMATCH';
   }
 }
 

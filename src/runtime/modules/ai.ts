@@ -85,6 +85,7 @@ const AgentEvalType = 'eval';
 // --- Agent cancellation infrastructure ---
 
 export class AgentCancelledException extends Error {
+  readonly agentlangCode = 'AL_AGENT_CANCELLED';
   constructor(chatId: string) {
     super(`Agent cancelled for chatId: ${chatId}`);
     this.name = 'AgentCancelledException';

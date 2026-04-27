@@ -140,6 +140,13 @@ export const ConfigSchema = z.object({
       })
     )
     .optional(),
+  customErrorMessages: z
+    .object({
+      enabled: z.boolean().default(false),
+      /** Relative to the app config directory. Defaults to `errors.json` when omitted. */
+      fileName: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

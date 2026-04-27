@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { createCodedError } from './errors/coded-error.js';
 import {
   AttributeDefinition,
   Expr,
@@ -2631,7 +2632,11 @@ export class Module {
 
   getEntry(entryName: string): ModuleEntry {
     const idx: number = this.getEntryIndex(entryName);
-    if (idx < 0) throw new Error(`Entry ${entryName} not found in module ${this.name}`);
+    if (idx < 0)
+      throw createCodedError(
+        `Entry ${entryName} not found in module ${this.name}`,
+        'AL_MOD_ENTRY_NOT_FOUND'
+      );
     return this.entries[idx];
   }
 
@@ -2646,7 +2651,10 @@ export class Module {
     if (e instanceof Record) {
       return e as Record;
     }
-    throw new Error(`${recordName} is not a record in module ${this.name}`);
+    throw createCodedError(
+      `${recordName} is not a record in module ${this.name}`,
+      'AL_MOD_NOT_A_RECORD'
+    );
   }
 
   removeEntry(entryName: string): boolean {
@@ -2942,7 +2950,7 @@ export function isModule(name: string): boolean {
 export function fetchModule(moduleName: string): Module {
   const module: Module | undefined = getModuleDb().get(moduleName);
   if (module === undefined) {
-    throw new Error(`Module not found - ${moduleName}`);
+    throw createCodedError(`Module not found - ${moduleName}`, 'AL_MOD_MODULE_NOT_FOUND');
   }
   return module;
 }
@@ -3481,7 +3489,7 @@ export function getEntity(name: string, moduleName: string): Entity | undefined 
 export function fetchEntity(path: Path): Entity {
   const e = getEntity(path.getEntryName(), path.getModuleName());
   if (e === undefined) {
-    throw new Error(`Entity not found - ${path.asFqName()}`);
+    throw createCodedError(`Entity not found - ${path.asFqName()}`, 'AL_MOD_ENTITY_NOT_FOUND');
   }
   return e;
 }
@@ -3513,7 +3521,10 @@ export function getEvent(name: string, moduleName: string): Event {
   if (fr.module.isEvent(fr.entryName)) {
     return fr.module.getEntry(fr.entryName) as Event;
   }
-  throw new Error(`Event ${fr.entryName} not found in module ${fr.moduleName}`);
+  throw createCodedError(
+    `Event ${fr.entryName} not found in module ${fr.moduleName}`,
+    'AL_MOD_EVENT_NOT_FOUND'
+  );
 }
 
 export function maybeGetEvent(name: string, moduleName: string): Event | undefined {
@@ -3529,7 +3540,10 @@ export function getRecord(name: string, moduleName: string): Record {
   if (fr.module.isRecord(fr.entryName)) {
     return fr.module.getEntry(fr.entryName) as Record;
   }
-  throw new Error(`Record ${fr.entryName} not found in module ${fr.moduleName}`);
+  throw createCodedError(
+    `Record ${fr.entryName} not found in module ${fr.moduleName}`,
+    'AL_MOD_RECORD_NOT_FOUND'
+  );
 }
 
 export function getRelationship(name: string, moduleName: string): Relationship {
@@ -3537,7 +3551,10 @@ export function getRelationship(name: string, moduleName: string): Relationship 
   if (fr.module.isRelationship(fr.entryName)) {
     return fr.module.getEntry(fr.entryName) as Relationship;
   }
-  throw new Error(`Relationship ${fr.entryName} not found in module ${fr.moduleName}`);
+  throw createCodedError(
+    `Relationship ${fr.entryName} not found in module ${fr.moduleName}`,
+    'AL_MOD_RELATIONSHIP_NOT_FOUND'
+  );
 }
 
 export function getAllBetweenRelationships(): Relationship[] {
@@ -4307,7 +4324,10 @@ export function makeInstance(
   if (schema.size > 0) {
     attributes.forEach((value: any, key: string) => {
       if (!schema.has(key)) {
-        throw new Error(`Invalid attribute '${key}' specified for ${moduleName}/${entryName}`);
+        throw createCodedError(
+          `Invalid attribute '${key}' specified for ${moduleName}/${entryName}`,
+          'AL_MOD_INVALID_ATTR'
+        );
       }
       const spec: AttributeSpec = getAttributeSpec(schema, key);
       if (value !== null && value !== undefined) validateType(key, value, spec);
