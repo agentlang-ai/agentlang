@@ -110,6 +110,10 @@ describe('Entity Create - POST', () => {
   test('POST with duplicate @id should fail', async () => {
     const res = await post('/HRT/User', { id: 1, name: 'Duplicate', email: 'dup@test.com' });
     assert(!res.ok, 'Duplicate id should fail');
+    assert(res.status === 409, `expected 409 Conflict for unique violation, got ${res.status}`);
+    const body = await res.json();
+    assert(body.code === 'AL_DB_UNIQUE_VIOLATION', `expected AL_DB_UNIQUE_VIOLATION, got ${body.code}`);
+    assert(typeof body.message === 'string' && body.message.length > 0);
   });
 
   test('POST /Module/Post creates a Post entity', async () => {
@@ -549,6 +553,19 @@ describe('Error Handling', () => {
   test('GET non-existent entity returns error', async () => {
     const res = await get('/HRT/NonExistent');
     assert(!res.ok, 'Should fail for non-existent entity');
+  });
+
+  test('POST with unknown attribute returns JSON error code', async () => {
+    const res = await post('/HRT/User', {
+      id: 888,
+      name: 'BadAttr',
+      email: 'badattr@test.com',
+      notAValidAttribute: true,
+    });
+    assert(!res.ok, 'Invalid attribute should fail');
+    const body = await res.json();
+    assert(body.code === 'AL_MOD_INVALID_ATTR', `got ${body.code}`);
+    assert(typeof body.message === 'string');
   });
 
   test('GET / returns application info', async () => {

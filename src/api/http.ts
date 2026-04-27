@@ -50,10 +50,15 @@ import {
   setEntityEndpointsUpdater,
   setEventEndpointsUpdater,
   setRelationshipEndpointsUpdater,
-  UnauthorisedError,
 } from '../runtime/defs.js';
 import { evaluate } from '../runtime/interpreter.js';
 import { Config } from '../runtime/state.js';
+import {
+  getErrorCode,
+  httpStatusFromError,
+  logEntityRouteError,
+  resolveEntityErrorMessage,
+} from '../runtime/errors/http-error.js';
 import {
   findFileByFilename,
   createFileRecord,
@@ -434,20 +439,32 @@ function ok(res: Response) {
 }
 
 function statusFromErrorType(err: any): number {
-  if (err instanceof UnauthorisedError) {
-    return 401;
-  } else if (err instanceof BadRequestError) {
-    return 400;
-  } else {
-    return 500;
-  }
+  return httpStatusFromError(err);
 }
 
-function internalError(res: Response) {
+function entityRouteError(res: Response, moduleName: string, entryName: string) {
   return (reason: any) => {
-    logger.error(reason);
-    res.status(statusFromErrorType(reason)).send(reason.message);
+    const code = getErrorCode(reason);
+    const defaultMsg = reason instanceof Error ? reason.message : String(reason ?? 'Unknown error');
+    const message = resolveEntityErrorMessage(moduleName, entryName, code, defaultMsg);
+    logEntityRouteError(reason, code);
+    res.status(httpStatusFromError(reason)).json({ code, message });
   };
+}
+
+function sendAuthRequired(res: Response, moduleName: string, entryName: string) {
+  const code = 'AL_HTTP_AUTH_REQUIRED';
+  const defaultMsg = 'Authorization required';
+  const message = resolveEntityErrorMessage(moduleName, entryName, code, defaultMsg);
+  res.status(401).json({ code, message });
+}
+
+function sendEntityCatch(res: Response, moduleName: string, entryName: string, err: any) {
+  const code = getErrorCode(err);
+  const defaultMsg = err instanceof Error ? err.message : String(err);
+  const message = resolveEntityErrorMessage(moduleName, entryName, code, defaultMsg);
+  logEntityRouteError(err, code);
+  res.status(httpStatusFromError(err)).json({ code, message });
 }
 
 function formatAttrValue(v: any, n: string): string {
@@ -565,7 +582,7 @@ async function handleEventPost(
   try {
     const sessionInfo = await verifyAuth(moduleName, eventName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
-      res.status(401).send('Authorization required');
+      sendAuthRequired(res, moduleName, eventName);
       return;
     }
     const inst: Instance = makeInstance(
@@ -573,10 +590,11 @@ async function handleEventPost(
       eventName,
       objectAsInstanceAttributes(req.body)
     ).setAuthContext(sessionInfo);
-    evaluate(inst).then(ok(res)).catch(internalError(res));
+    evaluate(inst)
+      .then(ok(res))
+      .catch(entityRouteError(res, moduleName, eventName));
   } catch (err: any) {
-    logger.error(err);
-    res.status(500).send(err.toString());
+    sendEntityCatch(res, moduleName, eventName, err);
   }
 }
 
@@ -586,10 +604,12 @@ async function handleEntityPost(
   req: Request,
   res: Response
 ): Promise<void> {
+  const routeModule = moduleName;
+  const routeEntry = entityName;
   try {
     const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
-      res.status(401).send('Authorization required');
+      sendAuthRequired(res, routeModule, routeEntry);
       return;
     }
     const entityFqName = makeFqName(moduleName, entityName);
@@ -601,10 +621,11 @@ async function handleEntityPost(
           objectAsInstanceAttributes(req.body),
           entityFqName
         );
-    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+    parseAndEvaluateStatement(pattern, sessionInfo.userId)
+      .then(ok(res))
+      .catch(entityRouteError(res, routeModule, routeEntry));
   } catch (err: any) {
-    logger.error(err);
-    res.status(500).send(err.toString());
+    sendEntityCatch(res, routeModule, routeEntry, err);
   }
 }
 
@@ -614,11 +635,13 @@ async function handleEntityGet(
   req: Request,
   res: Response
 ): Promise<void> {
+  const routeModule = moduleName;
+  const routeEntry = entityName;
   try {
     const path = pathFromRequest(moduleName, entityName, req);
     const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
-      res.status(401).send('Authorization required');
+      sendAuthRequired(res, routeModule, routeEntry);
       return;
     }
     let pattern = '';
@@ -627,10 +650,11 @@ async function handleEntityGet(
     } else {
       pattern = queryPatternFromPath(path, req);
     }
-    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+    parseAndEvaluateStatement(pattern, sessionInfo.userId)
+      .then(ok(res))
+      .catch(entityRouteError(res, routeModule, routeEntry));
   } catch (err: any) {
-    logger.error(err);
-    res.status(500).send(err.toString());
+    sendEntityCatch(res, routeModule, routeEntry, err);
   }
 }
 
@@ -740,11 +764,13 @@ async function handleEntityPut(
   req: Request,
   res: Response
 ): Promise<void> {
+  const routeModule = moduleName;
+  const routeEntry = entityName;
   try {
     const path = pathFromRequest(moduleName, entityName, req);
     const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
-      res.status(401).send('Authorization required');
+      sendAuthRequired(res, routeModule, routeEntry);
       return;
     }
     const attrs = objectAsInstanceAttributes(req.body);
@@ -753,10 +779,11 @@ async function handleEntityPut(
     moduleName = r[0];
     entityName = r[1];
     const pattern = patternFromAttributes(moduleName, entityName, attrs);
-    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+    parseAndEvaluateStatement(pattern, sessionInfo.userId)
+      .then(ok(res))
+      .catch(entityRouteError(res, routeModule, routeEntry));
   } catch (err: any) {
-    logger.error(err);
-    res.status(500).send(err.toString());
+    sendEntityCatch(res, routeModule, routeEntry, err);
   }
 }
 
@@ -766,19 +793,22 @@ async function handleEntityDelete(
   req: Request,
   res: Response
 ): Promise<void> {
+  const routeModule = moduleName;
+  const routeEntry = entityName;
   try {
     const path = pathFromRequest(moduleName, entityName, req);
     const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
-      res.status(401).send('Authorization required');
+      sendAuthRequired(res, routeModule, routeEntry);
       return;
     }
     const cmd = req.query.purge == 'true' ? 'purge' : 'delete';
     const pattern = `${cmd} ${queryPatternFromPath(path, req)}`;
-    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+    parseAndEvaluateStatement(pattern, sessionInfo.userId)
+      .then(ok(res))
+      .catch(entityRouteError(res, routeModule, routeEntry));
   } catch (err: any) {
-    logger.error(err);
-    res.status(500).send(err.toString());
+    sendEntityCatch(res, routeModule, routeEntry, err);
   }
 }
 
@@ -792,7 +822,7 @@ async function handleBetweenRelationshipLinking(
   try {
     const sessionInfo = await verifyAuth(moduleName, betweenRelName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
-      res.status(401).send('Authorization required');
+      sendAuthRequired(res, moduleName, betweenRelName);
       return;
     }
     const path = await linkInstancesEvent(moduleName, betweenRelName, unlink);
@@ -801,10 +831,11 @@ async function handleBetweenRelationshipLinking(
       path.getEntryName(),
       objectAsInstanceAttributes(req.body)
     );
-    parseAndEvaluateStatement(pattern, sessionInfo.userId).then(ok(res)).catch(internalError(res));
+    parseAndEvaluateStatement(pattern, sessionInfo.userId)
+      .then(ok(res))
+      .catch(entityRouteError(res, moduleName, betweenRelName));
   } catch (err: any) {
-    logger.error(err);
-    res.status(500).send(err.toString());
+    sendEntityCatch(res, moduleName, betweenRelName, err);
   }
 }
 
@@ -858,7 +889,7 @@ function createChildPattern(moduleName: string, entityName: string, req: Request
     );
     return `{${parentFqname} {${PathAttributeNameQuery} "${parentPath}"}, ${relName} ${cp}}`;
   } catch (err: any) {
-    throw new BadRequestError(err.message);
+    throw new BadRequestError(err.message, { agentlangCode: 'AL_HTTP_CHILD_PATTERN_INVALID' });
   }
 }
 

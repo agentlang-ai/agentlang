@@ -27,6 +27,7 @@ import {
   set_getUserTenantId,
   PathAttributeName,
 } from '../defs.js';
+import { createCodedError } from '../errors/coded-error.js';
 import {
   DbContext,
   getManyByRawQuery,
@@ -1045,7 +1046,7 @@ function fetchAuthImpl(): AgentlangAuth {
   if (runtimeAuth) {
     return runtimeAuth;
   } else {
-    throw new Error('Auth not initialized');
+    throw createCodedError('Auth not initialized', 'AL_AUTH_NOT_INITIALIZED');
   }
 }
 
@@ -1115,7 +1116,9 @@ export async function forgotPasswordUser(username: string, env: Environment): Pr
     const email = username.toLowerCase();
     const allowed = await fetchAuthImpl().userExistsInIdentityProvider(email, env);
     if (!allowed) {
-      throw new UserNotFoundError('Email not registered');
+      throw new UserNotFoundError('Email not registered', {
+        agentlangCode: 'AL_AUTH_EMAIL_NOT_REGISTERED',
+      });
     }
     await fetchAuthImpl().forgotPassword(email, env);
     return { status: 'ok', message: 'Password reset code sent' };
@@ -1265,7 +1268,9 @@ export async function changePassword(
       return undefined;
     }
   } else {
-    throw new UnauthorisedError(`No active session for user ${user}`);
+    throw new UnauthorisedError(`No active session for user ${user}`, {
+      agentlangCode: 'AL_AUTH_NO_ACTIVE_SESSION_CHANGE_PW',
+    });
   }
 }
 
@@ -1292,7 +1297,9 @@ async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveS
     try {
       // Validate JWT structure first
       if (!isJwtToken(token)) {
-        throw new UnauthorisedError('Invalid JWT token structure');
+        throw new UnauthorisedError('Invalid JWT token structure', {
+          agentlangCode: 'AL_AUTH_JWT_STRUCTURE_INVALID',
+        });
       }
 
       // Verify the JWT token directly with Cognito
@@ -1307,7 +1314,9 @@ async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveS
       const email = payload.email || payload['cognito:username'];
 
       if (!userId) {
-        throw new UnauthorisedError('Invalid JWT token: missing user identifier');
+        throw new UnauthorisedError('Invalid JWT token: missing user identifier', {
+          agentlangCode: 'AL_AUTH_JWT_MISSING_USER_ID',
+        });
       }
 
       let localUser = null;
@@ -1323,7 +1332,9 @@ async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveS
         logger.warn(
           `User not found in local database for JWT token. Email: ${email}, UserId: ${userId}`
         );
-        throw new UnauthorisedError(`User not found in local database`);
+        throw new UnauthorisedError(`User not found in local database`, {
+          agentlangCode: 'AL_AUTH_JWT_USER_NOT_IN_DB',
+        });
       }
 
       // Use the local user's ID for consistency
@@ -1332,12 +1343,16 @@ async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveS
       // Check if user status is 'Active'
       const userStatus = localUser.lookup('status');
       if (userStatus !== 'Active') {
-        throw new UnauthorisedError(`User account is not active. Status: ${userStatus}`);
+        throw new UnauthorisedError(`User account is not active. Status: ${userStatus}`, {
+          agentlangCode: 'AL_AUTH_USER_NOT_ACTIVE_JWT',
+        });
       }
 
       const sess = await findUserSession(localUserId, env);
       if (!sess) {
-        throw new UnauthorisedError(`No session found for user ${email}, UserId: ${userId}`);
+        throw new UnauthorisedError(`No session found for user ${email}, UserId: ${userId}`, {
+          agentlangCode: 'AL_AUTH_NO_SESSION_JWT',
+        });
       }
       // For JWT tokens, we use the token itself as sessionId for tracking
       return { sessionId: sess.lookup('id'), userId: localUserId };
@@ -1349,7 +1364,9 @@ async function verifyJwtToken(token: string, env?: Environment): Promise<ActiveS
         errorName: err.name,
         errorMessage: err.message,
       });
-      throw new UnauthorisedError('JWT token verification failed');
+      throw new UnauthorisedError('JWT token verification failed', {
+        agentlangCode: 'AL_AUTH_JWT_VERIFY_WRAPPER',
+      });
     }
   };
   if (needCommit) {
@@ -1372,7 +1389,9 @@ async function verifySessionToken(token: string, env?: Environment): Promise<Act
       if (user) {
         const userStatus = user.lookup('status');
         if (userStatus !== 'Active') {
-          throw new UnauthorisedError(`User account is not active. Status: ${userStatus}`);
+          throw new UnauthorisedError(`User account is not active. Status: ${userStatus}`, {
+            agentlangCode: 'AL_AUTH_USER_NOT_ACTIVE_SESSION',
+          });
         }
       }
 
@@ -1382,7 +1401,9 @@ async function verifySessionToken(token: string, env?: Environment): Promise<Act
         return { sessionId: sessId, userId: userId };
       } else {
         logger.warn(`No active session found for user '${userId}'`);
-        throw new UnauthorisedError(`No active session for user '${userId}'`);
+        throw new UnauthorisedError(`No active session for user '${userId}'`, {
+          agentlangCode: 'AL_AUTH_NO_ACTIVE_SESSION_TOKEN',
+        });
       }
     } catch (err: any) {
       if (err instanceof UnauthorisedError) {
@@ -1394,7 +1415,9 @@ async function verifySessionToken(token: string, env?: Environment): Promise<Act
         errorMessage: err.message,
         sessionId: sessId,
       });
-      throw new UnauthorisedError('Session verification failed');
+      throw new UnauthorisedError('Session verification failed', {
+        agentlangCode: 'AL_AUTH_SESSION_VERIFY_WRAPPER',
+      });
     }
   };
   if (needCommit) {

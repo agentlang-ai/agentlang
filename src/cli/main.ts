@@ -28,6 +28,7 @@ import { registerOpenApiModule } from '../runtime/openapi.js';
 import { initDatabase, resetDefaultDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { runInitFunctions } from '../runtime/util.js';
 import { startServer } from '../api/http.js';
+import { initErrorMessageOverrides } from '../runtime/errors/http-error.js';
 import { enableExecutionGraph } from '../runtime/exec-graph.js';
 import { importModule } from '../runtime/jsmodules.js';
 import {
@@ -142,8 +143,18 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
 };
 
 let LastActiveConfig: Config | undefined;
+let LastConfigDir: string | undefined;
 
-export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
+export async function runPostInitTasks(
+  appSpec?: ApplicationSpec,
+  config?: Config,
+  configDir?: string
+) {
+  if (configDir !== undefined) {
+    LastConfigDir = configDir;
+  }
+  const effectiveConfigDir = configDir ?? LastConfigDir;
+  await initErrorMessageOverrides(effectiveConfigDir, config?.customErrorMessages);
   await initDatabase(config?.store);
   await importModule('../runtime/api.js', 'agentlang');
   await runInitFunctions();
@@ -164,7 +175,7 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
 }
 
 export async function runPostInitTasksWithLastActiveConfig() {
-  await runPostInitTasks(undefined, LastActiveConfig);
+  await runPostInitTasks(undefined, LastActiveConfig, LastConfigDir);
 }
 
 let execGraphEnabled = false;
@@ -256,7 +267,7 @@ export const runModule = async (fileName: string, releaseDb: boolean = false): P
   }
   try {
     await load(fileName, undefined, async (appSpec?: ApplicationSpec) => {
-      await runPostInitTasks(appSpec, config);
+      await runPostInitTasks(appSpec, config, configDir);
     });
   } catch (err: any) {
     if (isNodeEnv && chalk) {

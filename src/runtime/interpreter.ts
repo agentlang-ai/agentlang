@@ -128,6 +128,7 @@ import { detailedDiff } from 'deep-object-diff';
 import { callMcpTool, mcpClientNameFromToolEvent } from './mcpclient.js';
 import { isNodeEnv } from '../utils/runtime.js';
 import Handlebars from 'handlebars';
+import { createCodedError } from './errors/coded-error.js';
 
 export type Result = any;
 
@@ -446,7 +447,11 @@ export class Environment extends Instance {
 
   setActiveEvent(eventInst: Instance | undefined): Environment {
     if (eventInst) {
-      if (!isEventInstance(eventInst)) throw new Error(`Not an event instance - ${eventInst.name}`);
+      if (!isEventInstance(eventInst))
+        throw createCodedError(
+          `Not an event instance - ${eventInst.name}`,
+          'AL_INT_NOT_EVENT_INSTANCE'
+        );
       this.bindInstance(eventInst);
       this.activeModule = eventInst.moduleName;
       this.activeEventInstance = eventInst;
@@ -532,7 +537,7 @@ export class Environment extends Instance {
     if (this.suspensionId) {
       return this.suspensionId;
     } else {
-      throw new Error('SuspensionId is not set');
+      throw createCodedError('SuspensionId is not set', 'AL_INT_SUSPENSION_ID_NOT_SET');
     }
   }
 
@@ -682,7 +687,7 @@ export class Environment extends Instance {
         this.activeTransactions.set(n, txnId);
         return txnId;
       } else {
-        throw new Error(`Failed to start transaction for ${n}`);
+        throw createCodedError(`Failed to start transaction for ${n}`, 'AL_INT_TXN_START_FAILED');
       }
     }
   }
@@ -774,7 +779,7 @@ export class Environment extends Instance {
   popHandlers(): CatchHandlers {
     const r = this.activeCatchHandlers.pop();
     if (r === undefined) {
-      throw new Error(`No more handlers to pop`);
+      throw createCodedError(`No more handlers to pop`, 'AL_INT_NO_HANDLERS_TO_POP');
     }
     return r;
   }
@@ -1000,7 +1005,7 @@ export let evaluate = async function (
         return null;
       }
     } else {
-      throw new Error('Not an event - ' + eventInstance.name);
+      throw createCodedError('Not an event - ' + eventInstance.name, 'AL_INT_NOT_AN_EVENT');
     }
   } catch (err) {
     if (env && env.hasHandlers()) {
@@ -1097,7 +1102,10 @@ async function evaluateAsyncPattern(
           if (s.$cstNode) {
             return s.$cstNode.text;
           } else {
-            throw new Error('failed to extract code for suspension statement');
+            throw createCodedError(
+              'failed to extract code for suspension statement',
+              'AL_INT_SUSPENSION_CODE_EXTRACT'
+            );
           }
         }),
         env
@@ -1387,7 +1395,7 @@ export async function evaluatePattern(
 
 async function evaluateThrowError(throwErr: ThrowError, env: Environment) {
   await evaluateExpression(throwErr.reason, env);
-  throw new Error(env.getLastResult());
+  throw createCodedError(String(env.getLastResult()), 'AL_INT_USER_THROW');
 }
 
 async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Promise<void> {
@@ -1397,7 +1405,10 @@ async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Pr
     if (inst) {
       n = makeFqName(inst.moduleName, n);
     } else {
-      throw new Error(`Fully qualified name required for full-text-search in ${n}`);
+      throw createCodedError(
+        `Fully qualified name required for full-text-search in ${n}`,
+        'AL_INT_FTS_FQN_REQUIRED'
+      );
     }
   }
   const path = nameToPath(n);
@@ -1407,7 +1418,10 @@ async function evaluateFullTextSearch(fts: FullTextSearch, env: Environment): Pr
   await evaluateLiteral(fts.query, env);
   const q = env.getLastResult();
   if (!isString(q)) {
-    throw new Error(`Full text search query must be a string - ${q}`);
+    throw createCodedError(
+      `Full text search query must be a string - ${q}`,
+      'AL_INT_FTS_QUERY_STRING'
+    );
   }
   let options: Map<string, any> | undefined;
   if (fts.options) {
@@ -1527,7 +1541,10 @@ async function patternToInstance(
         let aname: string = a.name;
         if (aname.endsWith(QuerySuffix)) {
           if (isQueryAll) {
-            throw new Error(`Cannot specifiy query attribute ${aname} here`);
+            throw createCodedError(
+              `Cannot specifiy query attribute ${aname} here`,
+              'AL_INT_QUERY_ATTR_FORBIDDEN'
+            );
           }
           if (qattrs === undefined) qattrs = newInstanceAttributes();
           if (qattrVals === undefined) qattrVals = newInstanceAttributes();
@@ -1570,11 +1587,15 @@ async function instanceFromSource(crud: CrudMap, env: Environment): Promise<Inst
       const m = nparts.hasModule() ? nparts.getModuleName() : env.getActiveModuleName();
       return makeInstance(m, n, attrs);
     } else {
-      throw new Error(`Failed to initialize instance of ${crud.name}, expected a map after @from.`);
+      throw createCodedError(
+        `Failed to initialize instance of ${crud.name}, expected a map after @from.`,
+        'AL_INT_CRUD_INIT_MAP_EXPECTED'
+      );
     }
   } else {
-    throw new Error(
-      `Cannot create instance of ${crud.name}, CRUD pattern does not specify a source map.`
+    throw createCodedError(
+      `Cannot create instance of ${crud.name}, CRUD pattern does not specify a source map.`,
+      'AL_INT_CRUD_NO_SOURCE_MAP'
     );
   }
 }
@@ -1589,7 +1610,7 @@ async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
     const attrSpec = inst.record.schema.get(n);
     if (!attrSpec) continue;
     const r = getOneOfRef(attrSpec);
-    if (!r) throw new Error(`Failed to fetch one-of-ref for ${n}`);
+    if (!r) throw createCodedError(`Failed to fetch one-of-ref for ${n}`, 'AL_INT_ONEOF_REF_FETCH');
     if (r) {
       const parts = r.split('.');
       const insts = await lookupOneOfVals(parts[0], env);
@@ -1602,7 +1623,7 @@ async function maybeValidateOneOfRefs(inst: Instance, env: Environment) {
           return i.lookup(parts[1]) == v;
         })
       ) {
-        throw new Error(`Invalid enum-value ${v} for ${n}`);
+        throw createCodedError(`Invalid enum-value ${v} for ${n}`, 'AL_INT_INVALID_ENUM');
       }
     }
   }
@@ -1656,12 +1677,16 @@ async function evaluateCrudMap(crud: CrudMap, env: Environment): Promise<void> {
   }
   if (qopts.into) {
     if (attrs.size > 0) {
-      throw new Error(
-        `Query pattern for ${entryName} with 'into' clause cannot be used to update attributes`
+      throw createCodedError(
+        `Query pattern for ${entryName} with 'into' clause cannot be used to update attributes`,
+        'AL_INT_INTO_WITH_ATTRS'
       );
     }
     if (qattrs === undefined && !isQueryAll) {
-      throw new Error(`Pattern for ${entryName} with 'into' clause must be a query`);
+      throw createCodedError(
+        `Pattern for ${entryName} with 'into' clause must be a query`,
+        'AL_INT_INTO_MUST_BE_QUERY'
+      );
     }
     if (qopts.joins && qopts.joins.length > 0) {
       await evaluateJoinQuery(qopts.joins, qopts.into, qopts.where, inst, distinct, env);
@@ -1914,7 +1939,10 @@ async function handleDocEvent(inst: Instance, env: Environment): Promise<void> {
   const url = inst.lookup('url');
   if (typeof url === 'string' && url.startsWith('s3://')) {
     if (!isNodeEnv) {
-      throw new Error('Document fetching is only available in Node.js environment');
+      throw createCodedError(
+        'Document fetching is only available in Node.js environment',
+        'AL_INT_DOC_FETCH_NODE_ONLY'
+      );
     }
     const title = inst.lookup('title');
     const retrievalConfig = inst.lookup('retrievalConfig');
@@ -2213,7 +2241,10 @@ async function walkJoinQueryPattern(
     });
     return joinsSpec;
   } else {
-    throw new Error(`Expected a query for relationship ${rp.name}`);
+    throw createCodedError(
+      `Expected a query for relationship ${rp.name}`,
+      'AL_INT_RELATIONSHIP_QUERY_EXPECTED'
+    );
   }
 }
 
@@ -2338,10 +2369,13 @@ async function agentInvoke(agent: AgentInstance, msg: string, env: Environment):
       }
     }
   } else {
-    throw new Error(`Agent ${agent.name} failed to generate a response`);
+    throw createCodedError(
+      `Agent ${agent.name} failed to generate a response`,
+      'AL_INT_AGENT_NO_RESPONSE'
+    );
   }
   if (agentInternalError !== undefined) {
-    throw new Error(agentInternalError);
+    throw createCodedError(agentInternalError, 'AL_INT_AGENT_INTERNAL');
   }
 }
 
@@ -2469,7 +2503,10 @@ async function iterateOnFlow(
       while (step != 'DONE' && !executedSteps.has(step)) {
         await checkCancelled(iterId);
         if (stepc > MaxFlowSteps) {
-          throw new Error(`Flow execution exceeded maximum steps limit`);
+          throw createCodedError(
+            `Flow execution exceeded maximum steps limit`,
+            'AL_INT_FLOW_MAX_STEPS'
+          );
         }
         executedSteps.add(step);
         ++stepc;
@@ -2531,7 +2568,10 @@ async function iterateOnFlow(
         ++fullFlowRetries;
         continue;
       } else {
-        throw new Error(reason);
+        throw createCodedError(
+          typeof reason === 'string' ? reason : String(reason),
+          'AL_INT_FLOW_FATAL'
+        );
       }
     } finally {
       env.decrementMonitor().revokeLastResult().setMonitorFlowResult();
@@ -2739,7 +2779,7 @@ export async function evaluateExpression(expr: Expr, env: Environment): Promise<
         });
         break;
       default:
-        throw new Error(`Unrecognized binary operator: ${expr.op}`);
+        throw createCodedError(`Unrecognized binary operator: ${expr.op}`, 'AL_INT_BAD_BINARY_OP');
     }
   } else if (isNegExpr(expr)) {
     await evaluateExpression(expr.ne, env);
@@ -2817,7 +2857,10 @@ async function followReference(env: Environment, s: string): Promise<Result> {
 async function dereferencePath(path: string, env: Environment): Promise<Result> {
   const fqName = fqNameFromPath(path);
   if (fqName === undefined) {
-    throw new Error(`Failed to deduce entry-name from path - ${path}`);
+    throw createCodedError(
+      `Failed to deduce entry-name from path - ${path}`,
+      'AL_INT_DEDUCE_ENTRY_NAME'
+    );
   }
   const newEnv = new Environment('path-deref', env);
   await parseAndEvaluateStatement(
@@ -2925,7 +2968,7 @@ async function runPrePostEvents(
       if (env.hasHandlers()) {
         throw reason;
       } else {
-        throw new Error(`${prefix}: ${reason}`);
+        throw createCodedError(`${prefix}: ${reason}`, 'AL_INT_PREPOST_EVENT_FAILED');
       }
     };
     if (trigInfo.async) {
