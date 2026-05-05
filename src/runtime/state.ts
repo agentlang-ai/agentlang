@@ -140,6 +140,22 @@ export const ConfigSchema = z.object({
       })
     )
     .optional(),
+  mcpServer: z
+    .object({
+      enabled: z.boolean().default(false),
+      path: z.string().default('/mcp'),
+      name: z.string().optional(),
+      version: z.string().optional(),
+      stateless: z.boolean().default(true),
+      expose: z
+        .object({
+          events: z.boolean().default(true),
+          entities: z.boolean().default(true),
+          resources: z.boolean().default(true),
+        })
+        .default({ events: true, entities: true, resources: true }),
+    })
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

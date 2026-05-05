@@ -66,6 +66,14 @@ import {
 } from '../runtime/integration-client.js';
 import * as XLSX from 'xlsx';
 import { objectToQueryPattern } from '../language/parser.js';
+import {
+  createMcpServer,
+  newStatefulTransport,
+  newStatelessTransport,
+  runWithSession,
+} from '../runtime/mcpserver.js';
+import type { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { Server as McpSdkServer } from '@modelcontextprotocol/sdk/server/index.js';
 
 export async function createApp(appSpec: ApplicationSpec, config?: Config): Promise<Express> {
   const app = express();
@@ -279,6 +287,102 @@ export async function createApp(appSpec: ApplicationSpec, config?: Config): Prom
         res.status(500).json({ error: err.message || 'Failed to get access token' });
       }
     });
+  }
+
+  if (config?.mcpServer?.enabled) {
+    const mcp = createMcpServer(appSpec, config);
+    const mcpPath = config.mcpServer.path || '/mcp';
+    const stateful = config.mcpServer.stateless === false;
+    const sessions = new Map<
+      string,
+      { server: McpSdkServer; transport: StreamableHTTPServerTransport }
+    >();
+
+    const methodNotAllowed = (res: Response) => {
+      res.status(405).json({
+        jsonrpc: '2.0',
+        error: { code: -32000, message: 'Method not allowed' },
+        id: null,
+      });
+    };
+
+    const handlePost = async (req: Request, res: Response): Promise<void> => {
+      try {
+        const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+        if (isNoSession(sessionInfo)) {
+          res.status(401).send('Authorization required');
+          return;
+        }
+
+        if (stateful) {
+          const sid = (req.headers['mcp-session-id'] as string | undefined) ?? undefined;
+          let entry = sid ? sessions.get(sid) : undefined;
+          if (!entry) {
+            const transport = newStatefulTransport();
+            const server = mcp.build();
+            await server.connect(transport);
+            entry = { server, transport };
+            transport.onclose = () => {
+              const id = transport.sessionId;
+              if (id) sessions.delete(id);
+            };
+          }
+          await runWithSession(sessionInfo, async () => {
+            await entry!.transport.handleRequest(req, res, req.body);
+          });
+          if (entry.transport.sessionId && !sessions.has(entry.transport.sessionId)) {
+            sessions.set(entry.transport.sessionId, entry);
+          }
+          return;
+        }
+
+        // Stateless: fresh server + transport per request.
+        const server = mcp.build();
+        const transport = newStatelessTransport();
+        res.on('close', () => {
+          transport.close().catch(() => undefined);
+          server.close().catch(() => undefined);
+        });
+        await server.connect(transport);
+        await runWithSession(sessionInfo, async () => {
+          await transport.handleRequest(req, res, req.body);
+        });
+      } catch (err: any) {
+        logger.error(`MCP request error: ${err?.stack || err}`);
+        if (!res.headersSent) {
+          res.status(500).json({
+            jsonrpc: '2.0',
+            error: { code: -32603, message: err?.message || 'Internal MCP error' },
+            id: null,
+          });
+        }
+      }
+    };
+
+    const handleStatefulNonPost = async (req: Request, res: Response): Promise<void> => {
+      const sessionInfo = await verifyAuth('', '', req.headers.authorization);
+      if (isNoSession(sessionInfo)) {
+        res.status(401).send('Authorization required');
+        return;
+      }
+      if (!stateful) {
+        methodNotAllowed(res);
+        return;
+      }
+      const sid = req.headers['mcp-session-id'] as string | undefined;
+      const entry = sid ? sessions.get(sid) : undefined;
+      if (!entry) {
+        res.status(400).send('Missing or unknown Mcp-Session-Id');
+        return;
+      }
+      await runWithSession(sessionInfo, async () => {
+        await entry.transport.handleRequest(req, res);
+      });
+    };
+
+    app.post(mcpPath, handlePost);
+    app.get(mcpPath, handleStatefulNonPost);
+    app.delete(mcpPath, handleStatefulNonPost);
   }
 
   if (isNodeEnv && upload && uploadDir) {
