@@ -167,6 +167,16 @@ entity Migration {
   downs String @optional
 }
 
+// Custom HTTP error messages. \`target\` is "*" for a universal (code-only) override,
+// or "module/Entry" for an entity-specific one. \`message\` may contain the
+// {{code}} and {{message}} placeholders, substituted at resolution time.
+entity errorMessage {
+  id UUID @id @default(uuid()),
+  target String @default("*") @indexed,
+  code String @indexed,
+  message String
+}
+
 @public event Query {
   q Any
 }
@@ -281,6 +291,22 @@ export async function saveTimerStatus(timerInst: Instance): Promise<boolean> {
 
 export async function lookupTimersWithRunningStatus(): Promise<Instance[]> {
   return await parseAndEvaluateStatement(`{agentlang/timer {status? "R"}}`);
+}
+
+/**
+ * Look up a custom error-message template stored in the `agentlang/errorMessage`
+ * system entity. `target` is "*" for a universal override or "module/Entry" for an
+ * entity-specific one. Returns the stored `message`, or undefined when none exists.
+ */
+export async function lookupCustomErrorMessage(
+  target: string,
+  code: string
+): Promise<string | undefined> {
+  const r: any = await parseAndEvaluateStatement(
+    `{${DefaultModuleName}/errorMessage {target? "${escapeSpecialChars(target)}", code? "${escapeSpecialChars(code)}"}}`
+  );
+  const insts: Instance[] = Array.isArray(r) ? r : r ? [r] : [];
+  return insts.length > 0 ? insts[0].lookup('message') : undefined;
 }
 
 async function addAudit(

@@ -145,6 +145,8 @@ dist
 
 generated/
 db*
+# ...but keep db-*.ts source files (the db* rule above is for local sqlite db files)
+!src/**/db-*.ts
 
 # Claude Code local settings
 .claude/

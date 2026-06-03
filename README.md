@@ -360,6 +360,66 @@ agent parseAndValidate blog.al
 agent run
 ```
 
+## ⚠️ Custom Error Messages
+
+Agentlang maps database and runtime failures to stable error codes (e.g. `AL_DB_UNIQUE_VIOLATION`, which is returned as HTTP `409`). You can override the message returned for any code with your own text, either globally or per entity. See [docs/error-codes.md](docs/error-codes.md) for the full list of codes and their meanings.
+
+### 1. Enable the feature
+
+In your app config, turn on custom error messages:
+
+```jsonc
+{
+  "customErrorMessages": { "enabled": true }
+}
+```
+
+When disabled, the built-in default message is always returned.
+
+### 2. Add an override
+
+Custom messages are stored in the `agentlang/errorMessage` system entity, which has three fields:
+
+| Field     | Description                                                                                  |
+| --------- | -------------------------------------------------------------------------------------------- |
+| `target`  | `"*"` for a universal (code-only) override, or `"Module/Entry"` for an entity-specific one. |
+| `code`    | The error code to override, e.g. `"AL_DB_UNIQUE_VIOLATION"`.                                  |
+| `message` | The replacement message. May contain `{{code}}` and `{{message}}` placeholders.              |
+
+An entity-specific override (`Module/Entry`) wins over a universal (`*`) one for the same code. The `id` field is auto-generated, so omit it.
+
+You can create a record from within Agentlang:
+
+```
+{agentlang/errorMessage {target "*", code "AL_DB_UNIQUE_VIOLATION", message "A record with this value already exists."}}
+```
+
+Or over HTTP — entities are exposed at `POST /<module>/<entity>`:
+
+```bash
+# Entity-specific override
+curl -X POST http://localhost:8080/agentlang/errorMessage \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "target": "HRT/User",
+    "code": "AL_DB_UNIQUE_VIOLATION",
+    "message": "A user with this email already exists."
+  }'
+
+# Universal override (applies to any entity for this code)
+curl -X POST http://localhost:8080/agentlang/errorMessage \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "target": "*",
+    "code": "AL_DB_UNIQUE_VIOLATION",
+    "message": "A record with this value already exists."
+  }'
+```
+
+The `{{code}}` and `{{message}}` placeholders are substituted with the runtime error code and the original message at resolution time, e.g. `"Duplicate value ({{code}}): {{message}}"`. The override changes only the response body text; the HTTP status for the code (e.g. `409` for `AL_DB_UNIQUE_VIOLATION`) is unchanged.
+
 ## 👨‍💻 Development
 
 For contributors who want to build and develop Agentlang itself:

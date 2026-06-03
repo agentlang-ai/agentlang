@@ -3724,7 +3724,10 @@ function checkOneOfValue(attrSpec: AttributeSpec, attrName: string, attrValue: a
   const vals: Set<string> | undefined = getEnumValues(attrSpec);
   if (vals) {
     if (!vals.has(attrValue as string)) {
-      throw new Error(`Value of ${attrName} must be one of [${[...vals]}]`);
+      throw createCodedError(
+        `Value of ${attrName} must be one of [${[...vals]}]`,
+        'AL_MOD_TYPE_MISMATCH'
+      );
     }
     return true;
   }
@@ -3742,7 +3745,10 @@ function getCheckPredicate(attrSpec: AttributeSpec): any {
 function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec) {
   if (attrSpec.type == 'Path') {
     if (!isPath(attrValue, getRefSpec(attrSpec))) {
-      throw new Error(`Failed to validate Path ${attrValue} passed to ${attrName}`);
+      throw createCodedError(
+        `Failed to validate Path ${attrValue} passed to ${attrName}`,
+        'AL_MOD_TYPE_MISMATCH'
+      );
     }
   }
   let predic = getCheckPredicate(attrSpec);
@@ -3750,16 +3756,22 @@ function validateType(attrName: string, attrValue: any, attrSpec: AttributeSpec)
   if (predic !== undefined) {
     if (isArrayAttribute(attrSpec)) {
       if (!(attrValue instanceof Array)) {
-        throw new Error(`${attrName} expects an array of values`);
+        throw createCodedError(`${attrName} expects an array of values`, 'AL_MOD_TYPE_MISMATCH');
       } else {
         if (!attrValue.every(predic)) {
-          throw new Error(`Invalid value in the array passed to ${attrName}`);
+          throw createCodedError(
+            `Invalid value in the array passed to ${attrName}`,
+            'AL_MOD_TYPE_MISMATCH'
+          );
         }
       }
     } else {
       if (!checkOneOfValue(attrSpec, attrName, attrValue)) {
         if (!predic(attrValue)) {
-          throw new Error(`Invalid value ${attrValue} specified for ${attrName}`);
+          throw createCodedError(
+            `Invalid value ${attrValue} specified for ${attrName}`,
+            'AL_MOD_TYPE_MISMATCH'
+          );
         }
       }
     }

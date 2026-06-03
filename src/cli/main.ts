@@ -28,7 +28,6 @@ import { registerOpenApiModule } from '../runtime/openapi.js';
 import { initDatabase, resetDefaultDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { runInitFunctions } from '../runtime/util.js';
 import { startServer } from '../api/http.js';
-import { initErrorMessageOverrides } from '../runtime/errors/http-error.js';
 import { enableExecutionGraph } from '../runtime/exec-graph.js';
 import { importModule } from '../runtime/jsmodules.js';
 import {
@@ -153,8 +152,6 @@ export async function runPostInitTasks(
   if (configDir !== undefined) {
     LastConfigDir = configDir;
   }
-  const effectiveConfigDir = configDir ?? LastConfigDir;
-  await initErrorMessageOverrides(effectiveConfigDir, config?.customErrorMessages);
   await initDatabase(config?.store);
   await importModule('../runtime/api.js', 'agentlang');
   await runInitFunctions();

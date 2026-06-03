@@ -57,6 +57,7 @@ import {
   getErrorCode,
   httpStatusFromError,
   logEntityRouteError,
+  recordCustomError,
   resolveEntityErrorMessage,
 } from '../runtime/errors/http-error.js';
 import {
@@ -443,27 +444,29 @@ function statusFromErrorType(err: any): number {
 }
 
 function entityRouteError(res: Response, moduleName: string, entryName: string) {
-  return (reason: any) => {
+  return async (reason: any) => {
     const code = getErrorCode(reason);
     const defaultMsg = reason instanceof Error ? reason.message : String(reason ?? 'Unknown error');
-    const message = resolveEntityErrorMessage(moduleName, entryName, code, defaultMsg);
+    const message = await resolveEntityErrorMessage(moduleName, entryName, code, defaultMsg);
     logEntityRouteError(reason, code);
+    recordCustomError(code, message);
     res.status(httpStatusFromError(reason)).json({ code, message });
   };
 }
 
-function sendAuthRequired(res: Response, moduleName: string, entryName: string) {
+async function sendAuthRequired(res: Response, moduleName: string, entryName: string) {
   const code = 'AL_HTTP_AUTH_REQUIRED';
   const defaultMsg = 'Authorization required';
-  const message = resolveEntityErrorMessage(moduleName, entryName, code, defaultMsg);
+  const message = await resolveEntityErrorMessage(moduleName, entryName, code, defaultMsg);
   res.status(401).json({ code, message });
 }
 
-function sendEntityCatch(res: Response, moduleName: string, entryName: string, err: any) {
+async function sendEntityCatch(res: Response, moduleName: string, entryName: string, err: any) {
   const code = getErrorCode(err);
   const defaultMsg = err instanceof Error ? err.message : String(err);
-  const message = resolveEntityErrorMessage(moduleName, entryName, code, defaultMsg);
+  const message = await resolveEntityErrorMessage(moduleName, entryName, code, defaultMsg);
   logEntityRouteError(err, code);
+  recordCustomError(code, message);
   res.status(httpStatusFromError(err)).json({ code, message });
 }
 
@@ -582,7 +585,7 @@ async function handleEventPost(
   try {
     const sessionInfo = await verifyAuth(moduleName, eventName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
-      sendAuthRequired(res, moduleName, eventName);
+      await sendAuthRequired(res, moduleName, eventName);
       return;
     }
     const inst: Instance = makeInstance(
@@ -594,7 +597,7 @@ async function handleEventPost(
       .then(ok(res))
       .catch(entityRouteError(res, moduleName, eventName));
   } catch (err: any) {
-    sendEntityCatch(res, moduleName, eventName, err);
+    await sendEntityCatch(res, moduleName, eventName, err);
   }
 }
 
@@ -609,7 +612,7 @@ async function handleEntityPost(
   try {
     const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
-      sendAuthRequired(res, routeModule, routeEntry);
+      await sendAuthRequired(res, routeModule, routeEntry);
       return;
     }
     const entityFqName = makeFqName(moduleName, entityName);
@@ -625,7 +628,7 @@ async function handleEntityPost(
       .then(ok(res))
       .catch(entityRouteError(res, routeModule, routeEntry));
   } catch (err: any) {
-    sendEntityCatch(res, routeModule, routeEntry, err);
+    await sendEntityCatch(res, routeModule, routeEntry, err);
   }
 }
 
@@ -641,7 +644,7 @@ async function handleEntityGet(
     const path = pathFromRequest(moduleName, entityName, req);
     const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
-      sendAuthRequired(res, routeModule, routeEntry);
+      await sendAuthRequired(res, routeModule, routeEntry);
       return;
     }
     let pattern = '';
@@ -654,7 +657,7 @@ async function handleEntityGet(
       .then(ok(res))
       .catch(entityRouteError(res, routeModule, routeEntry));
   } catch (err: any) {
-    sendEntityCatch(res, routeModule, routeEntry, err);
+    await sendEntityCatch(res, routeModule, routeEntry, err);
   }
 }
 
@@ -770,7 +773,7 @@ async function handleEntityPut(
     const path = pathFromRequest(moduleName, entityName, req);
     const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
-      sendAuthRequired(res, routeModule, routeEntry);
+      await sendAuthRequired(res, routeModule, routeEntry);
       return;
     }
     const attrs = objectAsInstanceAttributes(req.body);
@@ -783,7 +786,7 @@ async function handleEntityPut(
       .then(ok(res))
       .catch(entityRouteError(res, routeModule, routeEntry));
   } catch (err: any) {
-    sendEntityCatch(res, routeModule, routeEntry, err);
+    await sendEntityCatch(res, routeModule, routeEntry, err);
   }
 }
 
@@ -799,7 +802,7 @@ async function handleEntityDelete(
     const path = pathFromRequest(moduleName, entityName, req);
     const sessionInfo = await verifyAuth(moduleName, entityName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
-      sendAuthRequired(res, routeModule, routeEntry);
+      await sendAuthRequired(res, routeModule, routeEntry);
       return;
     }
     const cmd = req.query.purge == 'true' ? 'purge' : 'delete';
@@ -808,7 +811,7 @@ async function handleEntityDelete(
       .then(ok(res))
       .catch(entityRouteError(res, routeModule, routeEntry));
   } catch (err: any) {
-    sendEntityCatch(res, routeModule, routeEntry, err);
+    await sendEntityCatch(res, routeModule, routeEntry, err);
   }
 }
 
@@ -822,7 +825,7 @@ async function handleBetweenRelationshipLinking(
   try {
     const sessionInfo = await verifyAuth(moduleName, betweenRelName, req.headers.authorization);
     if (isNoSession(sessionInfo)) {
-      sendAuthRequired(res, moduleName, betweenRelName);
+      await sendAuthRequired(res, moduleName, betweenRelName);
       return;
     }
     const path = await linkInstancesEvent(moduleName, betweenRelName, unlink);
@@ -835,7 +838,7 @@ async function handleBetweenRelationshipLinking(
       .then(ok(res))
       .catch(entityRouteError(res, moduleName, betweenRelName));
   } catch (err: any) {
-    sendEntityCatch(res, moduleName, betweenRelName, err);
+    await sendEntityCatch(res, moduleName, betweenRelName, err);
   }
 }
 

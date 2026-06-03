@@ -142,9 +142,9 @@ export const ConfigSchema = z.object({
     .optional(),
   customErrorMessages: z
     .object({
+      // When true, error responses are resolved against the `agentlang/errorMessage`
+      // system entity before falling back to the default message.
       enabled: z.boolean().default(false),
-      /** Relative to the app config directory. Defaults to `errors.json` when omitted. */
-      fileName: z.string().optional(),
     })
     .optional(),
 });

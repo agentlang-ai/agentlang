@@ -1,6 +1,5 @@
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { AgentCancelledException } from '../modules/ai.js';
+import { lookupCustomErrorMessage } from '../modules/core.js';
 import {
   BadRequestError,
   CodeMismatchError,
@@ -12,7 +11,7 @@ import {
   UserNotConfirmedError,
   UserNotFoundError,
 } from '../defs.js';
-import { logger } from '../logger.js';
+import { errorFileLogger, logger } from '../logger.js';
 import { AppConfig } from '../state.js';
 import { AL_RUNTIME_UNHANDLED, isCodedError } from './coded-error.js';
 
@@ -23,19 +22,8 @@ export const AgentlangErrorCodes = {
   AL_HTTP_HANDLER_EXCEPTION: 'AL_HTTP_HANDLER_EXCEPTION',
 } as const;
 
-const DEFAULT_ERRORS_FILE = 'errors.json';
-
-/** Universal: error code -> template string. Entity: `module/Entry` -> code -> template. */
-export type ParsedErrorMessages = {
-  universal: Record<string, string>;
-  byEntity: Record<string, Record<string, string>>;
-};
-
-let parsedErrorMessages: ParsedErrorMessages = { universal: {}, byEntity: {} };
-
-export function getParsedErrorMessages(): ParsedErrorMessages {
-  return parsedErrorMessages;
-}
+/** `target` value of an override that applies to any entity for a given code. */
+const UNIVERSAL_TARGET = '*';
 
 /** Replace `{{code}}` and `{{message}}` with runtime values (iterates until stable). */
 export function applyErrorMessageTemplate(
@@ -53,83 +41,24 @@ export function applyErrorMessageTemplate(
   return out;
 }
 
-function validateOverridesJson(data: unknown): ParsedErrorMessages {
-  if (data === null || typeof data !== 'object' || Array.isArray(data)) {
-    throw new Error('errors.json must be a JSON object at the root');
-  }
-  const universal: Record<string, string> = {};
-  const byEntity: Record<string, Record<string, string>> = {};
-  for (const [topKey, val] of Object.entries(data as Record<string, unknown>)) {
-    if (typeof val === 'string') {
-      universal[topKey] = val;
-      continue;
-    }
-    if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
-      const codes: Record<string, string> = {};
-      for (const [code, msg] of Object.entries(val as Record<string, unknown>)) {
-        if (typeof msg !== 'string') {
-          throw new Error(`errors.json: "${topKey}" / "${code}" must map to a string message`);
-        }
-        codes[code] = msg;
-      }
-      byEntity[topKey] = codes;
-      continue;
-    }
-    throw new Error(
-      `errors.json: value for "${topKey}" must be a string (global code) or an object (per-entity map)`
-    );
-  }
-  return { universal, byEntity };
-}
-
-function resolveCustomErrorFilePath(configDir: string, fileName: string | undefined): string {
-  const name = fileName?.trim() || DEFAULT_ERRORS_FILE || DEFAULT_ERRORS_FILE;
-  const resolved = path.resolve(configDir, name);
-  const root = path.resolve(configDir);
-  const rel = path.relative(root, resolved);
-  if (rel.startsWith('..') || path.isAbsolute(rel)) {
-    throw new Error(
-      'customErrorMessages.fileName must resolve within the application config directory'
-    );
-  }
-  return resolved;
-}
-
-export type CustomErrorMessagesConfig = {
-  enabled?: boolean;
-  fileName?: string;
-};
-
-/**
- * Load custom error messages when `customErrorMessages.enabled` is true.
- * Clears overrides when disabled or when configDir is omitted (and disabled).
- */
-export async function initErrorMessageOverrides(
-  configDir: string | undefined,
-  customErrorMessages: CustomErrorMessagesConfig | undefined
-): Promise<void> {
-  parsedErrorMessages = { universal: {}, byEntity: {} };
-  if (!customErrorMessages?.enabled) {
-    return;
-  }
-  if (!configDir) {
-    throw new Error(
-      'customErrorMessages.enabled is true but application config directory is not available'
-    );
-  }
-  const filePath = resolveCustomErrorFilePath(configDir, customErrorMessages.fileName);
-  const raw = await fs.readFile(filePath, 'utf8');
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (e: any) {
-    throw new Error(`Custom errors file is not valid JSON: ${e?.message ?? e}`);
-  }
-  parsedErrorMessages = validateOverridesJson(parsed);
-}
-
 function customMessagesEnabled(): boolean {
   return AppConfig?.customErrorMessages?.enabled === true;
+}
+
+/**
+ * When custom error messages are enabled, append the error to a dedicated
+ * `logs/errors-<DATE>.log` file as a single line: timestamp (added by the logger),
+ * error code, and error message. No-op when custom messages are disabled.
+ */
+export function recordCustomError(code: string, message: string): void {
+  if (!customMessagesEnabled()) {
+    return;
+  }
+  try {
+    errorFileLogger?.error(`${code} ${message}`);
+  } catch (e) {
+    logger.warn(`Failed to write error to errors log file: ${e}`);
+  }
 }
 
 export function getErrorCode(err: unknown): string {
@@ -169,19 +98,31 @@ export function getErrorCode(err: unknown): string {
   return AL_RUNTIME_UNHANDLED;
 }
 
-export function resolveEntityErrorMessage(
+/**
+ * Resolve the message for an entity-route error from the `agentlang/errorMessage`
+ * system entity. An entity-specific override (`module/Entry`) wins over a universal
+ * (`*`) one for the same code; falls back to `defaultMessage` when neither exists or
+ * when custom messages are disabled.
+ */
+export async function resolveEntityErrorMessage(
   moduleName: string,
   entryName: string,
   code: string,
   defaultMessage: string
-): string {
+): Promise<string> {
   if (!customMessagesEnabled()) {
     return defaultMessage;
   }
-  const entityKey = `${moduleName}/${entryName}`;
-  const entityTemplate = parsedErrorMessages.byEntity[entityKey]?.[code];
-  const universalTemplate = parsedErrorMessages.universal[code];
-  const template = entityTemplate ?? universalTemplate;
+  let template: string | undefined;
+  try {
+    const entityKey = `${moduleName}/${entryName}`;
+    template =
+      (await lookupCustomErrorMessage(entityKey, code)) ??
+      (await lookupCustomErrorMessage(UNIVERSAL_TARGET, code));
+  } catch (e) {
+    logger.warn(`Failed to resolve custom error message for code ${code}: ${e}`);
+    return defaultMessage;
+  }
   if (template === undefined) {
     return defaultMessage;
   }
@@ -196,7 +137,10 @@ export function httpStatusFromError(err: unknown): number {
   if (
     ec === 'AL_DB_FOREIGN_KEY_VIOLATION' ||
     ec === 'AL_DB_NOT_NULL_VIOLATION' ||
-    ec === 'AL_DB_CHECK_VIOLATION'
+    ec === 'AL_DB_CHECK_VIOLATION' ||
+    ec === 'AL_DB_INVALID_TYPE' ||
+    ec === 'AL_MOD_TYPE_MISMATCH' ||
+    ec === 'AL_MOD_INVALID_ATTR'
   ) {
     return 400;
   }
