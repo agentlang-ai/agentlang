@@ -45,6 +45,8 @@ import {
   TenantAttributeName,
   UnauthorisedError,
 } from '../../defs.js';
+import { createCodedError } from '../../errors/coded-error.js';
+import { mapDatabaseError } from './db-errors.js';
 import { saveMigration } from '../../modules/core.js';
 import { getAppSpec } from '../../loader.js';
 import { WhereClause } from '../interface.js';
@@ -393,9 +395,10 @@ async function validateSchemaInProd(dataSource: DataSource) {
   );
   if (pendingQueries.length > 0) {
     const pending = pendingQueries.join('\n  ');
-    throw new Error(
+    throw createCodedError(
       `Schema mismatch detected: the app model does not match the database schema. ` +
-        `Run migrations before starting in production mode.\n  Pending changes:\n  ${pending}`
+        `Run migrations before starting in production mode.\n  Pending changes:\n  ${pending}`,
+      'AL_DB_SCHEMA_MISMATCH_PROD'
     );
   }
 }
@@ -431,8 +434,9 @@ async function maybeHandleMigrations(dataSource: DataSource) {
       const simulation = await simulateMigration(dataSource);
       if (!simulation.success) {
         logger.error(`Migration simulation failed:\n  ${simulation.errors.join('\n  ')}`);
-        throw new Error(
-          `Migration aborted: simulation failed.\n  ${simulation.errors.join('\n  ')}`
+        throw createCodedError(
+          `Migration aborted: simulation failed.\n  ${simulation.errors.join('\n  ')}`,
+          'AL_DB_MIGRATION_SIMULATION_FAILED'
         );
       }
       logger.info('Migration simulation passed.');
@@ -443,8 +447,9 @@ async function maybeHandleMigrations(dataSource: DataSource) {
       const simulation = await simulateMigration(dataSource);
       if (!simulation.success) {
         logger.error(`Migration simulation failed:\n  ${simulation.errors.join('\n  ')}`);
-        throw new Error(
-          `Migration aborted: simulation failed.\n  ${simulation.errors.join('\n  ')}`
+        throw createCodedError(
+          `Migration aborted: simulation failed.\n  ${simulation.errors.join('\n  ')}`,
+          'AL_DB_MIGRATION_SIMULATION_FAILED'
         );
       }
       logger.info('Migration simulation passed, applying changes...');
@@ -530,7 +535,10 @@ function getDsFunction(
     case 'sqljs':
       return makeSqljsDataSource;
     default:
-      throw new Error(`Unsupported database type - ${config?.type}`);
+      throw createCodedError(
+        `Unsupported database type - ${config?.type}`,
+        'AL_DB_UNSUPPORTED_TYPE'
+      );
   }
 }
 
@@ -595,7 +603,10 @@ export async function initDatabase(config: DatabaseConfig | undefined) {
         await initVectorStore(vectEnts, DbContext.getGlobalContext());
       }
     } else {
-      throw new Error(`Unsupported database type - ${getDbType(AppConfig?.store)}`);
+      throw createCodedError(
+        `Unsupported database type - ${getDbType(AppConfig?.store)}`,
+        'AL_DB_UNSUPPORTED_TYPE_INIT'
+      );
     }
   }
 }
@@ -617,9 +628,13 @@ async function insertRowsHelper(
   ctx: DbContext,
   doUpsert: boolean
 ): Promise<void> {
-  const repo = getDatasourceForTransaction(ctx.txnId).getRepository(tableName);
-  if (doUpsert) await repo.save(rows);
-  else await repo.insert(rows);
+  try {
+    const repo = getDatasourceForTransaction(ctx.txnId).getRepository(tableName);
+    if (doUpsert) await repo.save(rows);
+    else await repo.insert(rows);
+  } catch (err) {
+    mapDatabaseError(err);
+  }
 }
 
 export async function addRowForFullTextSearch(
@@ -884,7 +899,10 @@ export async function insertRows(
       }
     }
   } else {
-    throw new UnauthorisedError({ opr: 'insert', entity: tableName });
+    throw new UnauthorisedError(
+      { opr: 'insert', entity: tableName },
+      { agentlangCode: 'AL_DB_INSERT_UNAUTHORIZED' }
+    );
   }
 }
 
@@ -926,7 +944,10 @@ export async function insertBetweenRow(
     const row = Object.fromEntries(attrs);
     await insertRow(n, row, ctx.clone().setNeedAuthCheck(false), false);
   } else {
-    throw new UnauthorisedError({ opr: 'insert', entity: n });
+    throw new UnauthorisedError(
+      { opr: 'insert', entity: n },
+      { agentlangCode: 'AL_DB_BETWEEN_INSERT_UNAUTHORIZED' }
+    );
   }
 }
 
@@ -1046,12 +1067,16 @@ export async function updateRow(
   updateObj: object,
   ctx: DbContext
 ): Promise<boolean> {
-  await getDatasourceForTransaction(ctx.txnId)
-    .createQueryBuilder()
-    .update(tableName)
-    .set(updateObj)
-    .where(objectToWhereClause(queryObj, queryVals), queryVals)
-    .execute();
+  try {
+    await getDatasourceForTransaction(ctx.txnId)
+      .createQueryBuilder()
+      .update(tableName)
+      .set(updateObj)
+      .where(objectToWhereClause(queryObj, queryVals), queryVals)
+      .execute();
+  } catch (err) {
+    mapDatabaseError(err);
+  }
   return true;
 }
 
@@ -1069,12 +1094,16 @@ function queryObjectAsWhereClause(qobj: QueryObject): string {
 
 export async function hardDeleteRow(tableName: string, queryObject: QueryObject, ctx: DbContext) {
   const clause = queryObjectAsWhereClause(queryObject);
-  await getDatasourceForTransaction(ctx.txnId)
-    .createQueryBuilder()
-    .delete()
-    .from(tableName)
-    .where(clause, Object.fromEntries(queryObject))
-    .execute();
+  try {
+    await getDatasourceForTransaction(ctx.txnId)
+      .createQueryBuilder()
+      .delete()
+      .from(tableName)
+      .where(clause, Object.fromEntries(queryObject))
+      .execute();
+  } catch (err) {
+    mapDatabaseError(err);
+  }
   return true;
 }
 
@@ -1090,7 +1119,7 @@ function mkBetweenClause(tableName: string | undefined, k: string, queryVals: an
     delete queryVals[k];
     return s;
   } else {
-    throw new Error(`between requires an array argument, not ${ov}`);
+    throw createCodedError(`between requires an array argument, not ${ov}`, 'AL_DB_BETWEEN_ARRAY');
   }
 }
 
@@ -1112,7 +1141,10 @@ function objectToWhereClause(queryObj: object, queryVals: any, tableName?: strin
       } else if (op === '<>' || op === '!=') {
         op = 'IS NOT';
       } else {
-        throw new Error(`Operator ${op} cannot be appplied to SQL NULL`);
+        throw createCodedError(
+          `Operator ${op} cannot be appplied to SQL NULL`,
+          'AL_DB_NULL_OPERATOR'
+        );
       }
     }
     const v = isnullcheck ? 'NULL' : `:${k}`;
@@ -1143,7 +1175,10 @@ function objectToRawWhereClause(queryObj: object, queryVals: any, tableName?: st
       } else if (op === '<>' || op === '!=') {
         op = 'IS NOT';
       } else {
-        throw new Error(`Operator ${op} cannot be appplied to SQL NULL`);
+        throw createCodedError(
+          `Operator ${op} cannot be appplied to SQL NULL`,
+          'AL_DB_NULL_OPERATOR'
+        );
       }
     }
     let clause = '';
@@ -1274,8 +1309,12 @@ export async function getMany(
     qb.skip(querySpec.offset);
   }
   qb.where(queryStr, querySpec.queryVals);
-  if (hasAggregates) return await qb.getRawMany();
-  else return await qb.getMany();
+  try {
+    if (hasAggregates) return await qb.getRawMany();
+    else return await qb.getMany();
+  } catch (err) {
+    mapDatabaseError(err);
+  }
 }
 
 export async function getManyByRawQuery(
@@ -1287,7 +1326,11 @@ export async function getManyByRawQuery(
     .getRepository(tableName)
     .createQueryBuilder();
   qb.where('', querySpec.queryVals);
-  return await qb.getMany();
+  try {
+    return await qb.getMany();
+  } catch (err) {
+    mapDatabaseError(err);
+  }
 }
 
 export async function getManyByJoin(
@@ -1348,7 +1391,7 @@ export async function getManyByJoin(
     }
   });
   if (querySpec.intoSpec === undefined) {
-    throw new Error('SELECT-INTO pattern is missing');
+    throw createCodedError('SELECT-INTO pattern is missing', 'AL_DB_SELECT_INTO_MISSING');
   }
   const intos = querySpec.intoSpec.size > 0 ? intoSpecToSql(querySpec.intoSpec) : '';
   const intos_sep = intos.length === 0 ? '' : ',';
@@ -1370,7 +1413,11 @@ export async function getManyByJoin(
   }
   logger.debug(`Join Query: ${sql}`);
   const qb = getDatasourceForTransaction(ctx.txnId).getRepository(tableName).manager;
-  return await qb.query(sql);
+  try {
+    return await qb.query(sql);
+  } catch (err) {
+    mapDatabaseError(err);
+  }
 }
 
 function intoSpecToSql(intoSpec: Map<string, string>): string {
@@ -1440,7 +1487,11 @@ export async function getAllConnected(
       connAlias,
       buildQueryFromConnnectionInfo(connAlias, alias, connInfo)
     );
-  return await qb.getRawMany();
+  try {
+    return await qb.getRawMany();
+  } catch (err) {
+    mapDatabaseError(err);
+  }
 }
 
 const transactionsDb: Map<string, QueryRunner> = new Map<string, QueryRunner>();
@@ -1453,7 +1504,7 @@ export async function startDbTransaction(): Promise<string> {
     transactionsDb.set(txnId, queryRunner);
     return txnId;
   } else {
-    throw new Error('Database not initialized');
+    throw createCodedError('Database not initialized', 'AL_DB_NOT_INITIALIZED');
   }
 }
 
@@ -1461,13 +1512,13 @@ function getDatasourceForTransaction(txnId: string | undefined): DataSource | En
   if (txnId) {
     const qr: QueryRunner | undefined = transactionsDb.get(txnId);
     if (qr === undefined) {
-      throw new Error(`Transaction not found - ${txnId}`);
+      throw createCodedError(`Transaction not found - ${txnId}`, 'AL_DB_TXN_NOT_FOUND');
     } else {
       return qr.manager;
     }
   } else {
     if (defaultDataSource !== undefined) return defaultDataSource;
-    else throw new Error('No default datasource is initialized');
+    else throw createCodedError('No default datasource is initialized', 'AL_DB_NO_DATASOURCE');
   }
 }
 

@@ -17,6 +17,13 @@ if (isNodeEnv) {
 
 export let logger: any;
 
+/**
+ * Dedicated logger that records each error to `logs/errors-<DATE>.log`, one line
+ * per error. Used when custom error messages are enabled (see `recordCustomError`
+ * in errors/http-error.ts).
+ */
+export let errorFileLogger: any;
+
 function getLogLevel(): string {
   if (isNodeEnv && process.env && process.env.DEBUG) {
     return 'debug';
@@ -46,6 +53,25 @@ export function initializeLogger() {
       ),
       transports: [fileTransport],
     });
+
+    const errorFileTransport = new DailyRotateFile({
+      level: 'error',
+      filename: 'logs/errors-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '20m',
+      maxFiles: '30d',
+    });
+
+    errorFileLogger = winston.createLogger({
+      level: 'error',
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.printf(({ timestamp, message }: any) => {
+          return `[${timestamp}] ${message}`;
+        })
+      ),
+      transports: [errorFileTransport],
+    });
   } else {
     function mkLogger(tag: string): Function {
       return (msg: string) => {
@@ -58,6 +84,7 @@ export function initializeLogger() {
       warn: mkLogger('WARN'),
       error: mkLogger('ERROR'),
     };
+    errorFileLogger = { error: mkLogger('ERROR') };
   }
 }
 

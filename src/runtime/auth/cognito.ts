@@ -32,6 +32,7 @@ import {
   CodeMismatchError,
   BadRequestError,
 } from '../defs.js';
+import { createCodedError } from '../errors/coded-error.js';
 
 let fromEnv: any = undefined;
 let CognitoIdentityProviderClient: any = undefined;
@@ -105,154 +106,227 @@ function handleCognitoError(err: any, context: string): never {
   switch (err.name) {
     case 'UserNotFoundException':
       logger.debug(`User not found in context: ${context}`);
-      throw new UserNotFoundError('User account not found. Please check your email or sign up.');
+      throw new UserNotFoundError('User account not found. Please check your email or sign up.', {
+        agentlangCode: 'AL_COGNITO_USER_NOT_FOUND_EXCEPTION',
+      });
 
     case 'NotAuthorizedException':
       // Check if this is a password-related error vs other auth issues
       if (err.message && err.message.includes('password')) {
         logger.debug(`Invalid password attempt in context: ${context}`);
-        throw new UnauthorisedError('Invalid password. Please try again.');
+        throw new UnauthorisedError('Invalid password. Please try again.', {
+          agentlangCode: 'AL_COGNITO_INVALID_PASSWORD',
+        });
       } else if (err.message && err.message.includes('not confirmed')) {
         logger.debug(`User not confirmed in context: ${context}`);
-        throw new UserNotConfirmedError();
+        throw new UserNotConfirmedError(undefined, {
+          agentlangCode: 'AL_COGNITO_NOT_CONFIRMED_MSG',
+        });
       } else {
         logger.debug(`Authentication failed in context: ${context}`);
-        throw new UnauthorisedError('Authentication failed. Please check your credentials.');
+        throw new UnauthorisedError('Authentication failed. Please check your credentials.', {
+          agentlangCode: 'AL_COGNITO_AUTH_FAILED',
+        });
       }
 
     case 'UserNotConfirmedException':
       logger.debug(`User not confirmed in context: ${context}`);
-      throw new UserNotConfirmedError();
+      throw new UserNotConfirmedError(undefined, {
+        agentlangCode: 'AL_COGNITO_USER_NOT_CONFIRMED_EX',
+      });
 
     case 'PasswordResetRequiredException':
       logger.debug(`Password reset required in context: ${context}`);
-      throw new PasswordResetRequiredError();
+      throw new PasswordResetRequiredError(undefined, {
+        agentlangCode: 'AL_COGNITO_PASSWORD_RESET_REQUIRED_EX',
+      });
 
     case 'TooManyRequestsException':
       logger.warn(`Rate limit exceeded in context: ${context}`);
-      throw new TooManyRequestsError();
+      throw new TooManyRequestsError(undefined, { agentlangCode: 'AL_COGNITO_TOO_MANY_REQUESTS' });
 
     case 'TooManyFailedAttemptsException':
       logger.warn(`Too many failed attempts in context: ${context}`);
-      throw new TooManyRequestsError('Too many failed login attempts. Please try again later.');
+      throw new TooManyRequestsError('Too many failed login attempts. Please try again later.', {
+        agentlangCode: 'AL_COGNITO_TOO_MANY_FAILED_ATTEMPTS',
+      });
 
     case 'InvalidParameterException':
       logger.debug(`Invalid parameters in context: ${context}`);
       throw new InvalidParameterError(
-        sanitizeErrorMessage(err.message) || 'Invalid parameters provided'
+        sanitizeErrorMessage(err.message) || 'Invalid parameters provided',
+        { agentlangCode: 'AL_COGNITO_INVALID_PARAMETER_EX' }
       );
 
     case 'ExpiredCodeException':
       logger.debug(`Expired code in context: ${context}`);
-      throw new ExpiredCodeError();
+      throw new ExpiredCodeError(undefined, { agentlangCode: 'AL_COGNITO_EXPIRED_CODE_EX' });
 
     case 'CodeMismatchException':
       logger.debug(`Code mismatch in context: ${context}`);
-      throw new CodeMismatchError();
+      throw new CodeMismatchError(undefined, { agentlangCode: 'AL_COGNITO_CODE_MISMATCH_EX' });
 
     case 'UsernameExistsException':
       logger.debug(`Username exists in context: ${context}`);
-      throw new BadRequestError('An account with this email already exists.');
+      throw new BadRequestError('An account with this email already exists.', {
+        agentlangCode: 'AL_COGNITO_USERNAME_EXISTS',
+      });
 
     case 'InvalidPasswordException':
       logger.debug(`Invalid password format in context: ${context}`);
       throw new BadRequestError(
-        'Password does not meet requirements. It must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters.'
+        'Password does not meet requirements. It must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters.',
+        { agentlangCode: 'AL_COGNITO_INVALID_PASSWORD_FORMAT' }
       );
 
     case 'LimitExceededException':
       logger.warn(`Service limit exceeded in context: ${context}`);
-      throw new TooManyRequestsError('Service limit exceeded. Please try again later.');
+      throw new TooManyRequestsError('Service limit exceeded. Please try again later.', {
+        agentlangCode: 'AL_COGNITO_LIMIT_EXCEEDED',
+      });
 
     case 'InternalErrorException':
       logger.error(`Internal Cognito error in context: ${context}`);
-      throw new Error('Authentication service is temporarily unavailable. Please try again later.');
+      throw createCodedError(
+        'Authentication service is temporarily unavailable. Please try again later.',
+        'AL_COGNITO_INTERNAL_ERROR_EX'
+      );
 
     case 'ResourceNotFoundException':
       logger.error(`Resource not found in context: ${context}`);
-      throw new Error('Authentication service configuration error. Please contact support.');
+      throw createCodedError(
+        'Authentication service configuration error. Please contact support.',
+        'AL_COGNITO_RESOURCE_NOT_FOUND_EX'
+      );
 
     case 'AliasExistsException':
       logger.debug(`Alias exists in context: ${context}`);
-      throw new BadRequestError('An account with this email already exists.');
+      throw new BadRequestError('An account with this email already exists.', {
+        agentlangCode: 'AL_COGNITO_ALIAS_EXISTS',
+      });
 
     case 'InvalidEmailRoleAccessPolicyException':
       logger.error(`Invalid email role access policy in context: ${context}`);
-      throw new Error('Email service configuration error. Please contact support.');
+      throw createCodedError(
+        'Email service configuration error. Please contact support.',
+        'AL_COGNITO_INVALID_EMAIL_ROLE_POLICY'
+      );
 
     case 'UserLambdaValidationException':
       logger.error(`User lambda validation error in context: ${context}`);
-      throw new BadRequestError('User validation failed. Please check your input and try again.');
+      throw new BadRequestError('User validation failed. Please check your input and try again.', {
+        agentlangCode: 'AL_COGNITO_USER_LAMBDA_VALIDATION',
+      });
 
     case 'UnsupportedUserStateException':
       logger.debug(`Unsupported user state in context: ${context}`);
       throw new UserNotConfirmedError(
-        'User account is in an unsupported state. Please contact support.'
+        'User account is in an unsupported state. Please contact support.',
+        { agentlangCode: 'AL_COGNITO_UNSUPPORTED_USER_STATE' }
       );
 
     case 'MFAMethodNotFoundException':
       logger.debug(`MFA method not found in context: ${context}`);
-      throw new BadRequestError('MFA method not found. Please set up MFA and try again.');
+      throw new BadRequestError('MFA method not found. Please set up MFA and try again.', {
+        agentlangCode: 'AL_COGNITO_MFA_NOT_FOUND',
+      });
 
     case 'CodeDeliveryFailureException':
       logger.error(`Code delivery failure in context: ${context}`);
-      throw new Error('Unable to deliver verification code. Please try again later.');
+      throw createCodedError(
+        'Unable to deliver verification code. Please try again later.',
+        'AL_COGNITO_CODE_DELIVERY_FAILURE'
+      );
 
     case 'DuplicateProviderException':
       logger.error(`Duplicate provider in context: ${context}`);
-      throw new BadRequestError('Authentication provider already exists.');
+      throw new BadRequestError('Authentication provider already exists.', {
+        agentlangCode: 'AL_COGNITO_DUPLICATE_PROVIDER',
+      });
 
     case 'EnableSoftwareTokenMFAException':
       logger.debug(`Software token MFA required in context: ${context}`);
-      throw new BadRequestError('Software token MFA setup required.');
+      throw new BadRequestError('Software token MFA setup required.', {
+        agentlangCode: 'AL_COGNITO_ENABLE_SOFTWARE_TOKEN_MFA',
+      });
 
     case 'ForbiddenException':
       logger.warn(`Forbidden access in context: ${context}`);
-      throw new UnauthorisedError('Access forbidden. Please check your permissions.');
+      throw new UnauthorisedError('Access forbidden. Please check your permissions.', {
+        agentlangCode: 'AL_COGNITO_FORBIDDEN',
+      });
 
     case 'GroupExistsException':
       logger.debug(`Group exists in context: ${context}`);
-      throw new BadRequestError('Group already exists.');
+      throw new BadRequestError('Group already exists.', {
+        agentlangCode: 'AL_COGNITO_GROUP_EXISTS',
+      });
 
     case 'InvalidLambdaResponseException':
       logger.error(`Invalid lambda response in context: ${context}`);
-      throw new Error('Authentication service error. Please try again later.');
+      throw createCodedError(
+        'Authentication service error. Please try again later.',
+        'AL_COGNITO_INVALID_LAMBDA_RESPONSE'
+      );
 
     case 'InvalidOAuthFlowException':
       logger.error(`Invalid OAuth flow in context: ${context}`);
-      throw new BadRequestError('Invalid OAuth flow. Please try again.');
+      throw new BadRequestError('Invalid OAuth flow. Please try again.', {
+        agentlangCode: 'AL_COGNITO_INVALID_OAUTH_FLOW',
+      });
 
     case 'InvalidSmsRoleAccessPolicyException':
       logger.error(`Invalid SMS role access policy in context: ${context}`);
-      throw new Error('SMS service configuration error. Please contact support.');
+      throw createCodedError(
+        'SMS service configuration error. Please contact support.',
+        'AL_COGNITO_INVALID_SMS_ROLE_POLICY'
+      );
 
     case 'InvalidSmsRoleTrustRelationshipException':
       logger.error(`Invalid SMS role trust relationship in context: ${context}`);
-      throw new Error('SMS service configuration error. Please contact support.');
+      throw createCodedError(
+        'SMS service configuration error. Please contact support.',
+        'AL_COGNITO_INVALID_SMS_TRUST'
+      );
 
     case 'InvalidUserPoolConfigurationException':
       logger.error(`Invalid user pool configuration in context: ${context}`);
-      throw new Error('Authentication service configuration error. Please contact support.');
+      throw createCodedError(
+        'Authentication service configuration error. Please contact support.',
+        'AL_COGNITO_INVALID_USER_POOL_CONFIG'
+      );
 
     case 'PreconditionNotMetException':
       logger.debug(`Precondition not met in context: ${context}`);
-      throw new BadRequestError('Precondition not met. Please check your request and try again.');
+      throw new BadRequestError('Precondition not met. Please check your request and try again.', {
+        agentlangCode: 'AL_COGNITO_PRECONDITION_NOT_MET',
+      });
 
     case 'ScopeDoesNotExistException':
       logger.error(`Scope does not exist in context: ${context}`);
-      throw new BadRequestError('Invalid scope. Please check your request.');
+      throw new BadRequestError('Invalid scope. Please check your request.', {
+        agentlangCode: 'AL_COGNITO_SCOPE_MISSING',
+      });
 
     case 'UnexpectedLambdaException':
       logger.error(`Unexpected lambda exception in context: ${context}`);
-      throw new Error('Authentication service error. Please try again later.');
+      throw createCodedError(
+        'Authentication service error. Please try again later.',
+        'AL_COGNITO_UNEXPECTED_LAMBDA'
+      );
 
     case 'UserImportInProgressException':
       logger.warn(`User import in progress in context: ${context}`);
-      throw new TooManyRequestsError('User import in progress. Please try again later.');
+      throw new TooManyRequestsError('User import in progress. Please try again later.', {
+        agentlangCode: 'AL_COGNITO_USER_IMPORT_IN_PROGRESS',
+      });
 
     case 'UserPoolTaggingException':
       logger.error(`User pool tagging exception in context: ${context}`);
-      throw new Error('Authentication service configuration error. Please contact support.');
+      throw createCodedError(
+        'Authentication service configuration error. Please contact support.',
+        'AL_COGNITO_USER_POOL_TAGGING'
+      );
 
     default:
       // For any other errors, throw a generic error with sanitized message
@@ -261,8 +335,9 @@ function handleCognitoError(err: any, context: string): never {
         errorCode: err.code,
         context: context,
       });
-      throw new Error(
-        `Authentication error: ${sanitizeErrorMessage(err.message) || 'An unexpected error occurred'}`
+      throw createCodedError(
+        `Authentication error: ${sanitizeErrorMessage(err.message) || 'An unexpected error occurred'}`,
+        'AL_COGNITO_UNHANDLED'
       );
   }
 }
@@ -337,7 +412,7 @@ export class CognitoAuth implements AgentlangAuth {
     if (id) {
       return id;
     }
-    throw new Error(`${k} is not set`);
+    throw createCodedError(`${k} is not set`, 'AL_COGNITO_CONFIG_KEY_MISSING');
   }
 
   async signUp(
@@ -404,7 +479,12 @@ export class CognitoAuth implements AgentlangAuth {
           username: username,
           statusCode: response.$metadata.httpStatusCode,
         });
-        throw new BadRequestError(`Signup failed with status ${response.$metadata.httpStatusCode}`);
+        throw new BadRequestError(
+          `Signup failed with status ${response.$metadata.httpStatusCode}`,
+          {
+            agentlangCode: 'AL_COGNITO_SIGNUP_HTTP_STATUS',
+          }
+        );
       }
     } catch (err: any) {
       if (err instanceof BadRequestError) throw err;
@@ -565,12 +645,13 @@ export class CognitoAuth implements AgentlangAuth {
         },
         mfaRequired: (challengeName: any, _challengeParameters: any) => {
           logger.info(`MFA required for user ${username}: ${challengeName}`);
-          authError = new Error('MFA authentication required');
+          authError = createCodedError('MFA authentication required', 'AL_COGNITO_MFA_REQUIRED');
         },
         newPasswordRequired: (_userAttributes: any, _requiredAttributes: any) => {
           logger.info(`New password required for user ${username}`);
           authError = new PasswordResetRequiredError(
-            'New password required. Please reset your password.'
+            'New password required. Please reset your password.',
+            { agentlangCode: 'AL_COGNITO_NEW_PASSWORD_REQUIRED_CHALLENGE' }
           );
         },
       });
@@ -627,7 +708,9 @@ export class CognitoAuth implements AgentlangAuth {
         cb(sessInfo);
       } else {
         logger.error(`Login failed for ${username} - no result received`);
-        throw new UnauthorisedError('Login failed. Please try again.');
+        throw new UnauthorisedError('Login failed. Please try again.', {
+          agentlangCode: 'AL_COGNITO_LOGIN_NO_RESULT_SDK',
+        });
       }
     } else {
       // Cognito not configured, fall back to local authentication
@@ -659,12 +742,16 @@ export class CognitoAuth implements AgentlangAuth {
         },
         mfaRequired: (challengeName: any, _challengeParameters: any) => {
           logger.info(`MFA required for user ${username}: ${challengeName}`);
-          authError = new Error('MFA authentication required');
+          authError = createCodedError(
+            'MFA authentication required',
+            'AL_COGNITO_MFA_REQUIRED_LOCAL'
+          );
         },
         newPasswordRequired: (_userAttributes: any, _requiredAttributes: any) => {
           logger.info(`New password required for user ${username}`);
           authError = new PasswordResetRequiredError(
-            'New password required. Please reset your password.'
+            'New password required. Please reset your password.',
+            { agentlangCode: 'AL_COGNITO_NEW_PASSWORD_REQUIRED_CHALLENGE_LOCAL' }
           );
         },
       });
@@ -706,7 +793,9 @@ export class CognitoAuth implements AgentlangAuth {
         cb(sessInfo);
       } else {
         logger.error(`Login failed for ${username} - no result received`);
-        throw new UnauthorisedError('Login failed. Please try again.');
+        throw new UnauthorisedError('Login failed. Please try again.', {
+          agentlangCode: 'AL_COGNITO_LOGIN_NO_RESULT_LOCAL',
+        });
       }
     }
   }
@@ -813,7 +902,7 @@ export class CognitoAuth implements AgentlangAuth {
     if (this.userPool) {
       return this.userPool;
     }
-    throw new Error('UserPool not initialized');
+    throw createCodedError('UserPool not initialized', 'AL_COGNITO_USER_POOL_NOT_INIT');
   }
 
   async verifyToken(token: string): Promise<void> {
@@ -834,20 +923,29 @@ export class CognitoAuth implements AgentlangAuth {
 
       // Handle specific token verification errors
       if (err.message && err.message.includes('expired')) {
-        throw new UnauthorisedError('Token has expired. Please login again.');
+        throw new UnauthorisedError('Token has expired. Please login again.', {
+          agentlangCode: 'AL_COGNITO_TOKEN_EXPIRED',
+        });
       }
       if (err.message && err.message.includes('invalid')) {
-        throw new UnauthorisedError('Invalid token format.');
+        throw new UnauthorisedError('Invalid token format.', {
+          agentlangCode: 'AL_COGNITO_TOKEN_INVALID',
+        });
       }
       if (err.message && err.message.includes('not before')) {
-        throw new UnauthorisedError('Token is not yet valid.');
+        throw new UnauthorisedError('Token is not yet valid.', {
+          agentlangCode: 'AL_COGNITO_TOKEN_NOT_YET_VALID',
+        });
       }
       if (err.message && err.message.includes('audience')) {
-        throw new UnauthorisedError('Token audience mismatch.');
+        throw new UnauthorisedError('Token audience mismatch.', {
+          agentlangCode: 'AL_COGNITO_TOKEN_AUDIENCE',
+        });
       }
 
       throw new UnauthorisedError(
-        `Token verification failed: ${sanitizeErrorMessage(err.message) || 'Invalid token'}`
+        `Token verification failed: ${sanitizeErrorMessage(err.message) || 'Invalid token'}`,
+        { agentlangCode: 'AL_COGNITO_TOKEN_VERIFY_FAILED' }
       );
     }
   }
@@ -855,7 +953,9 @@ export class CognitoAuth implements AgentlangAuth {
   async getUser(userId: string, env: Environment): Promise<UserInfo> {
     const localUser = await findUser(userId, env);
     if (!localUser) {
-      throw new UserNotFoundError(`User ${userId} not found in local database`);
+      throw new UserNotFoundError(`User ${userId} not found in local database`, {
+        agentlangCode: 'AL_COGNITO_USER_NOT_FOUND_LOCAL_ID',
+      });
     }
 
     const userEmail = localUser.lookup('email');
@@ -928,7 +1028,9 @@ export class CognitoAuth implements AgentlangAuth {
   async getUserByEmail(email: string, env: Environment): Promise<UserInfo> {
     const localUser = await findUserByEmail(email, env);
     if (!localUser) {
-      throw new UserNotFoundError(`User with email ${email} not found in local database`);
+      throw new UserNotFoundError(`User with email ${email} not found in local database`, {
+        agentlangCode: 'AL_COGNITO_USER_NOT_FOUND_LOCAL_EMAIL',
+      });
     }
 
     const userId = localUser.lookup('id');
@@ -1017,7 +1119,9 @@ export class CognitoAuth implements AgentlangAuth {
       const response = await client.send(command);
 
       if (!response.AuthenticationResult) {
-        throw new UnauthorisedError('Token refresh failed');
+        throw new UnauthorisedError('Token refresh failed', {
+          agentlangCode: 'AL_COGNITO_TOKEN_REFRESH_NO_RESULT',
+        });
       }
 
       const newIdToken = response.AuthenticationResult.IdToken!;
@@ -1059,7 +1163,9 @@ export class CognitoAuth implements AgentlangAuth {
     } catch (err: any) {
       logger.error(`Refresh token operation failed: ${err.message}`);
       if (err.name === 'NotAuthorizedException') {
-        throw new UnauthorisedError('Invalid or expired refresh token');
+        throw new UnauthorisedError('Invalid or expired refresh token', {
+          agentlangCode: 'AL_COGNITO_REFRESH_NOT_AUTHORIZED',
+        });
       }
       handleCognitoError(err, 'refreshToken');
       throw err; // This line won't be reached due to handleCognitoError throwing
@@ -1158,7 +1264,8 @@ export class CognitoAuth implements AgentlangAuth {
           }
         );
         throw new BadRequestError(
-          `User invitation failed with status ${response.$metadata.httpStatusCode}`
+          `User invitation failed with status ${response.$metadata.httpStatusCode}`,
+          { agentlangCode: 'AL_COGNITO_INVITE_HTTP_STATUS' }
         );
       }
     } catch (err: any) {
@@ -1185,7 +1292,9 @@ export class CognitoAuth implements AgentlangAuth {
         await client.send(getUserCommand);
       } catch (err: any) {
         if (err.name === 'UserNotFoundException') {
-          throw new UserNotFoundError(`User ${email} not found. Cannot resend invitation.`);
+          throw new UserNotFoundError(`User ${email} not found. Cannot resend invitation.`, {
+            agentlangCode: 'AL_COGNITO_RESEND_USER_NOT_FOUND',
+          });
         }
         throw err;
       }
@@ -1211,7 +1320,8 @@ export class CognitoAuth implements AgentlangAuth {
           }
         );
         throw new BadRequestError(
-          `Failed to resend invitation with status ${response.$metadata.httpStatusCode}`
+          `Failed to resend invitation with status ${response.$metadata.httpStatusCode}`,
+          { agentlangCode: 'AL_COGNITO_RESEND_INVITE_HTTP_STATUS' }
         );
       }
     } catch (err: any) {
@@ -1263,7 +1373,10 @@ export class CognitoAuth implements AgentlangAuth {
         await client.send(respond);
         logger.info(`User invitation accepted successfully for: ${email}`);
       } else {
-        throw new Error(`Unexpected challenge: ${initResponse.ChallengeName}`);
+        throw createCodedError(
+          `Unexpected challenge: ${initResponse.ChallengeName}`,
+          'AL_COGNITO_UNEXPECTED_CHALLENGE'
+        );
       }
     } catch (err: any) {
       logger.error(`Accept invitation failed for ${email}: ${sanitizeErrorMessage(err.message)}`);
@@ -1274,7 +1387,10 @@ export class CognitoAuth implements AgentlangAuth {
   async callback(code: string, env: Environment, cb: LoginCallback): Promise<void> {
     try {
       if (!isNodeEnv) {
-        throw new Error('Callback authentication is only supported in Node.js environment');
+        throw createCodedError(
+          'Callback authentication is only supported in Node.js environment',
+          'AL_COGNITO_CALLBACK_NODE_ONLY'
+        );
       }
 
       const clientId = this.fetchConfig('ClientId');
@@ -1303,13 +1419,16 @@ export class CognitoAuth implements AgentlangAuth {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Token exchange failed: ${response.status} ${errorText}`);
+        throw createCodedError(
+          `Token exchange failed: ${response.status} ${errorText}`,
+          'AL_COGNITO_TOKEN_EXCHANGE_FAILED'
+        );
       }
 
       const tokenData = await response.json();
 
       if (!tokenData.access_token || !tokenData.id_token || !tokenData.refresh_token) {
-        throw new Error('Missing required tokens in response');
+        throw createCodedError('Missing required tokens in response', 'AL_COGNITO_MISSING_TOKENS');
       }
 
       const {
@@ -1325,7 +1444,10 @@ export class CognitoAuth implements AgentlangAuth {
       const userGroups = idTokenPayload['cognito:groups'];
 
       if (!userEmail) {
-        throw new Error('Email not found in ID attributes');
+        throw createCodedError(
+          'Email not found in ID attributes',
+          'AL_COGNITO_EMAIL_MISSING_IN_ID'
+        );
       }
 
       let localUser = await findUserByEmail(userEmail, env);
@@ -1379,7 +1501,7 @@ export class CognitoAuth implements AgentlangAuth {
       return JSON.parse(jsonPayload);
     } catch (err) {
       logger.error(`Failed to decode JWT payload: ${err}`);
-      throw new Error('Invalid JWT token');
+      throw createCodedError('Invalid JWT token', 'AL_COGNITO_INVALID_JWT_PAYLOAD');
     }
   }
 

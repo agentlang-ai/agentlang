@@ -142,8 +142,16 @@ export const parseAndValidate = async (fileName: string): Promise<void> => {
 };
 
 let LastActiveConfig: Config | undefined;
+let LastConfigDir: string | undefined;
 
-export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Config) {
+export async function runPostInitTasks(
+  appSpec?: ApplicationSpec,
+  config?: Config,
+  configDir?: string
+) {
+  if (configDir !== undefined) {
+    LastConfigDir = configDir;
+  }
   await initDatabase(config?.store);
   await importModule('../runtime/api.js', 'agentlang');
   await runInitFunctions();
@@ -164,7 +172,7 @@ export async function runPostInitTasks(appSpec?: ApplicationSpec, config?: Confi
 }
 
 export async function runPostInitTasksWithLastActiveConfig() {
-  await runPostInitTasks(undefined, LastActiveConfig);
+  await runPostInitTasks(undefined, LastActiveConfig, LastConfigDir);
 }
 
 let execGraphEnabled = false;
@@ -256,7 +264,7 @@ export const runModule = async (fileName: string, releaseDb: boolean = false): P
   }
   try {
     await load(fileName, undefined, async (appSpec?: ApplicationSpec) => {
-      await runPostInitTasks(appSpec, config);
+      await runPostInitTasks(appSpec, config, configDir);
     });
   } catch (err: any) {
     if (isNodeEnv && chalk) {
