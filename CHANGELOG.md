@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/agentlang-ai/agentlang/compare/0.10.9...0.11.0) (2026-06-16)
+
+### Changes
+
+* custom error messages from errors.json (#657) ([34a2621](https://github.com/agentlang-ai/agentlang/commit/34a2621529844d9286dcf8d4e9061146b7cc6980)) - @muazzam0x48
+
+---
 ## [0.10.9](https://github.com/agentlang-ai/agentlang/compare/0.10.8...0.10.9) (2026-04-08)
 
 ### Changes
