@@ -28,6 +28,7 @@ import { registerOpenApiModule } from '../runtime/openapi.js';
 import { initDatabase, resetDefaultDatabase } from '../runtime/resolvers/sqldb/database.js';
 import { runInitFunctions } from '../runtime/util.js';
 import { startServer } from '../api/http.js';
+import { startMcpStdioServer } from '../api/mcp.js';
 import { enableExecutionGraph } from '../runtime/exec-graph.js';
 import { importModule } from '../runtime/jsmodules.js';
 import {
@@ -73,6 +74,13 @@ export default function (): void {
     .option('-c, --config <config>', 'configuration file')
     .description('Loads and runs an agentlang module')
     .action(runModule);
+
+  program
+    .command('mcp')
+    .argument('<file>', `source file (possible file extensions: ${fileExtensions})`)
+    .option('-c, --config <config>', 'configuration file')
+    .description('Loads an agentlang module and serves its events as MCP tools over stdio')
+    .action(runMcpStdio);
 
   program
     .command('parseAndValidate')
@@ -166,7 +174,14 @@ export async function runPostInitTasks(
   );
   logger.info(`Application database type: ${config?.store?.type || 'None'}`);
   logger.info(`Application authentication enabled: ${config?.auth?.enabled}`);
-  if (appSpec && (isRuntimeMode_dev() || isRuntimeMode_prod()))
+  if (appSpec && McpStdioMode) {
+    await startMcpStdioServer(appSpec.name, appSpec.version, {
+      expose: 'annotated',
+      path: '/mcp',
+      ...config?.mcpServer,
+      enabled: true,
+    });
+  } else if (appSpec && (isRuntimeMode_dev() || isRuntimeMode_prod()))
     startServer(appSpec, config?.service?.port || 8080, config?.service?.host, config);
   LastActiveConfig = config;
 }
@@ -278,6 +293,18 @@ export const runModule = async (fileName: string, releaseDb: boolean = false): P
     }
   }
 };
+
+let McpStdioMode = false;
+
+async function runMcpStdio(fileName: string) {
+  McpStdioMode = true;
+  // stdout carries the MCP protocol, so console output from workflows goes to stderr.
+  console.log = console.error;
+  console.info = console.error;
+  console.debug = console.error;
+  console.warn = console.error;
+  await runModule(fileName);
+}
 
 async function initSchema(fileName: string) {
   setRuntimeMode_init_schema();

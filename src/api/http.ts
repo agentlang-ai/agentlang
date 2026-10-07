@@ -25,8 +25,9 @@ import { isNodeEnv } from '../utils/runtime.js';
 import { parseAndEvaluateStatement, Result } from '../runtime/interpreter.js';
 import { ApplicationSpec } from '../runtime/loader.js';
 import { logger } from '../runtime/logger.js';
-import { requireAuth, verifySession } from '../runtime/modules/auth.js';
-import { ActiveSessionInfo, BypassSession, isNoSession, NoSession } from '../runtime/auth/defs.js';
+import { isNoSession } from '../runtime/auth/defs.js';
+import { normalizedResult, verifyAuth } from './common.js';
+import { mountMcpServer } from './mcp.js';
 import {
   escapeFqName,
   forceAsEscapedName,
@@ -81,7 +82,10 @@ export async function createApp(appSpec: ApplicationSpec, config?: Config): Prom
   app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version'
+    );
 
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
@@ -374,6 +378,10 @@ export async function createApp(appSpec: ApplicationSpec, config?: Config): Prom
       addBetweenHandlers(moduleName, n);
     });
   });
+
+  if (config?.mcpServer?.enabled) {
+    mountMcpServer(app, appName, appVersion, config.mcpServer);
+  }
 
   setEventEndpointsUpdater((moduleName: string) => {
     const m = fetchModule(moduleName);
@@ -893,44 +901,6 @@ function createChildPattern(moduleName: string, entityName: string, req: Request
     return `{${parentFqname} {${PathAttributeNameQuery} "${parentPath}"}, ${relName} ${cp}}`;
   } catch (err: any) {
     throw new BadRequestError(err.message, { agentlangCode: 'AL_HTTP_CHILD_PATTERN_INVALID' });
-  }
-}
-
-async function verifyAuth(
-  moduleName: string,
-  eventName: string,
-  authValue: string | undefined
-): Promise<ActiveSessionInfo> {
-  if (requireAuth(moduleName, eventName)) {
-    if (authValue) {
-      const token = authValue.substring(authValue.indexOf(' ')).trim();
-      return await verifySession(token);
-    } else {
-      return NoSession;
-    }
-  }
-  return BypassSession;
-}
-
-function normalizedResult(r: Result): Result {
-  if (r instanceof Array) {
-    return r.map((x: Result) => {
-      return normalizedResult(x);
-    });
-  } else if (Instance.IsInstance(r)) {
-    r.mergeRelatedInstances();
-    Array.from(r.attributes.keys()).forEach(k => {
-      const v: Result = r.attributes.get(k);
-      if (v instanceof Array || Instance.IsInstance(v)) {
-        r.attributes.set(k, normalizedResult(v));
-      }
-    });
-    return r.asObject();
-  } else {
-    if (r instanceof Map) {
-      return Object.fromEntries(r.entries());
-    }
-    return r;
   }
 }
 
