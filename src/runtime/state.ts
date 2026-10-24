@@ -140,6 +140,18 @@ export const ConfigSchema = z.object({
       })
     )
     .optional(),
+  mcpServer: z
+    .object({
+      enabled: z.boolean().default(false),
+      path: z.string().default('/mcp'),
+      // 'annotated': only events tagged @meta {"mcp": true}; 'public': all public events
+      // of user modules, except those tagged @meta {"mcp": false}.
+      expose: z.enum(['annotated', 'public']).default('annotated'),
+      // Fully-qualified event names (Module/Event) to always include or exclude.
+      include: z.array(z.string()).optional(),
+      exclude: z.array(z.string()).optional(),
+    })
+    .optional(),
   customErrorMessages: z
     .object({
       // When true, error responses are resolved against the `agentlang/errorMessage`

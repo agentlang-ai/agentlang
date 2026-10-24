@@ -360,6 +360,46 @@ agent parseAndValidate blog.al
 agent run
 ```
 
+## 🔌 MCP Server
+
+Agentlang can serve your app's `@public` events as tools of a [Model Context Protocol](https://modelcontextprotocol.io) server, so any MCP client (Claude, Cursor, VS Code, Codex, ...) can call them.
+
+### 1. Mark events as tools
+
+```agentlang
+@public event CreateTask {
+    id Int,
+    title String,
+    @meta {"mcp": true, "documentation": "Creates a task."}
+}
+```
+
+The tool is named `<Module>_<Event>` (e.g. `Todo_CreateTask`), its description comes from `documentation`, and its input schema from the event's attributes.
+
+### 2. Enable the HTTP endpoint
+
+```jsonc
+{
+  "mcpServer": {
+    "enabled": true,
+    "path": "/mcp", // default
+    "expose": "annotated", // or "public": every public event unless @meta {"mcp": false}
+    "include": ["Todo/ListTasks"], // optional, always expose
+    "exclude": ["Todo/DeleteAll"] // optional, never expose
+  }
+}
+```
+
+Clients connect to `http://<host>:<port>/mcp` (Streamable HTTP). Tool calls go through the same auth and RBAC as the event's REST endpoint: send the usual `Authorization: Bearer <token>` header.
+
+### 3. Or serve over stdio
+
+```shell
+AGENTLANG_MCP_TOKEN=<token> agentlang mcp <app-dir>
+```
+
+`AGENTLANG_MCP_TOKEN` is only needed when auth is enabled.
+
 ## ⚠️ Custom Error Messages
 
 Agentlang maps database and runtime failures to stable error codes (e.g. `AL_DB_UNIQUE_VIOLATION`, which is returned as HTTP `409`). You can override the message returned for any code with your own text, either globally or per entity. See [docs/error-codes.md](docs/error-codes.md) for the full list of codes and their meanings.
